@@ -11,6 +11,7 @@ next phase starts.
 | 1 | Physics sandbox: fixed 60 Hz sim, jumps, platforms, ledges, tech, input layer (keyboard + gamepad), debug overlay | done |
 | 2 | Combat core: JSON frame data, hitboxes, hitlag, trades, armor, shield/dodge/grab/throw, stocks/KOs | done |
 | 2b | Art pass: 64px characters, matching stage / background / effects / HUD / pixel font | done |
+| 7 | Gizmo complete: Scrap economy, turrets, Overclock, Rocket Fist, tether recovery, Mech mode | done |
 | 6 | Nova complete: Arcana Cycle, elemental Spell Bolts, Rune Traps, reflecting barrier, Aether Step, Convergence | done |
 | 5 | Vex complete: Blink Trail marker/recall, mines, dash, full moveset | done |
 | 4 | Brick complete: Heat, Charge Shoulder, Grapple Slam, Jet Boost, Vent, Meltdown, frame-data doc, tests, training scenarios | done |

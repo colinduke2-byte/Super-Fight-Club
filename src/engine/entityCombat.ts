@@ -48,7 +48,27 @@ function updateProjectiles(world: World): void {
     }
     for (let i = 0; i < p.rehit.length; i++) if (p.rehit[i] > 0) p.rehit[i]--;
 
-    if (def.path?.kind === 'zigzag') {
+    if (def.boomerang) {
+      const owner = world.fighters[p.owner];
+      if (p.age < def.boomerang.out) {
+        p.vy *= 0.9;
+      } else if (owner) {
+        if (p.age === def.boomerang.out) {
+          p.rehit.fill(0); // the return trip can hit again
+          p.hitOnce.fill(0);
+        }
+        // home back to the owner's chest
+        const dx = owner.x - p.x;
+        const dy = owner.y - owner.h / 2 - p.y;
+        const d = Math.hypot(dx, dy) || 1;
+        if (d < def.boomerang.speed + 6) {
+          p.deactivate();
+          continue;
+        }
+        p.vx = (dx / d) * def.boomerang.speed;
+        p.vy = (dy / d) * def.boomerang.speed;
+      }
+    } else if (def.path?.kind === 'zigzag') {
       // oscillate +-amp px around the launch height
       p.vy = p.baseY + def.path.amp * Math.sin((p.age / def.path.period) * Math.PI * 2) - p.y;
     } else {

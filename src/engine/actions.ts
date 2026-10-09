@@ -34,7 +34,7 @@ export function executeMoveEvent(f: Fighter, ev: MoveEvent, inp: FighterInput, w
       f.barrier = { frames: ev.frames, x: ev.x, y: ev.y, w: ev.w, h: ev.h };
       break;
     case 'tether':
-      fireTether(f, ev.angle, ev.range, ev.speed, !!ev.grabsOpponents, world);
+      fireTether(f, ev.angle, ev.range, ev.speed, !!ev.grabsOpponents, world, ev.cone ?? 0);
       break;
     case 'ledgeSnap':
       snapToLedge(f, ev.range, world);
@@ -148,7 +148,14 @@ export function snapToLedge(f: Fighter, range: number, world: World): boolean {
  * Fires a hook along `angle` degrees (0 = forward, 90 = up). It latches the nearest ledge or one-way
  * platform within `range`; with `grabsOpponents` a fighter in the way is grabbed instead.
  */
-function fireTether(f: Fighter, angle: number, range: number, speed: number, grabsOpponents: boolean, world: World): void {
+function fireTether(f: Fighter, angle: number, range: number, speed: number, grabsOpponents: boolean, world: World, cone: number): void {
+  // try the aimed angle first, then fan out either side (a forgiving hook for recoveries)
+  const offsets = [0];
+  for (let c = 10; c <= cone; c += 10) offsets.push(-c, c);
+  for (const off of offsets) if (tryTether(f, angle + off, range, speed, grabsOpponents, world)) return;
+}
+
+function tryTether(f: Fighter, angle: number, range: number, speed: number, grabsOpponents: boolean, world: World): boolean {
   const rad = (angle * Math.PI) / 180;
   const dx = Math.cos(rad) * f.facing;
   const dy = -Math.sin(rad);
@@ -166,8 +173,17 @@ function fireTether(f: Fighter, angle: number, range: number, speed: number, gra
           f.grabVictim(v);
           v.x = f.x + f.facing * 18;
           v.y = f.y;
-          return;
+          return true;
         }
+      }
+    }
+    // a hook passing close to a free ledge corner latches it (forgiving: it need not touch the stage itself)
+    for (const l of world.ledges) {
+      if (l.occupant !== -1 && l.occupant !== f.id) continue;
+      if (Math.hypot(l.x - px, l.y - py) <= LEDGE_ATTACH_RADIUS) {
+        f.beginTether(l.x, l.y, speed, l, null);
+        world.emit('tether', f, l.x, l.y, 0, -1);
+        return true;
       }
     }
     for (const p of world.platforms) {
@@ -179,13 +195,14 @@ function fireTether(f: Fighter, angle: number, range: number, speed: number, gra
         if (!ledge) continue;
         f.beginTether(ledge.x, ledge.y, speed, ledge, null);
         world.emit('tether', f, ledge.x, ledge.y, 0, -1);
-        return;
+        return true;
       }
       f.beginTether(Math.min(p.right - 4, Math.max(p.x + 4, px)), p.top, speed, null, p);
       world.emit('tether', f, px, p.top, 0, -1);
-      return;
+      return true;
     }
   }
+  return false;
 }
 
 function nearestLedge(world: World, p: Platform, px: number, py: number): Ledge | null {

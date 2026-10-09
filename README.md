@@ -215,6 +215,30 @@ Aether Step (up special): a telegraphed float-teleport (10-frame start-up) that 
 then glides; helpless afterwards. Elemental Convergence (ultimate): three beams (fire, ice, lightning)
 sweep across the screen; the lightning beam is the finisher.
 
+### Gizmo: tricky tinkerer mech (complete, Phase 7)
+
+Weight 95, medium speed, one double jump, a small low-profile hurtbox, a solid tether recovery. Weak without
+setup; turrets can be destroyed. Frame data: [`docs/frame-data-gizmo.md`](docs/frame-data-gizmo.md).
+Try him with `?char=gizmo`.
+
+**SCRAP** (counter above his head, seam on the HUD plate): +0.3 per damage he deals (wrench, fist, turret
+shots) and +3 whenever an enemy breaks one of his turrets. Cap 40.
+- **Overclock** (down special) spends 5 Scrap to upgrade turrets within 170px for 7 seconds. The stick picks
+  the upgrade: neutral = fire rate x2, forward = damage x1.6, back = an 8-damage shield. **Hold** it instead to
+  recall the turrets for +3 Scrap each.
+
+| Move | Notes |
+|---|---|
+| Jab | 3-hit wrench combo |
+| Wrench Swing (fsmash) | heavy; the tip sweet-spot stuns |
+| Spark Plug / Spin Gear | usmash electric burst (short stun) / dsmash both sides |
+| Aerials | Spinning Gear, Drill Jab (multi-hit), Rocket Kick, Head-Bolt, Hammer Drop (meteor) |
+| Turret Deploy (neutral special) | max 2 turrets that fire slow shots; destroying one pays you Scrap |
+| Rocket Fist (side special) | boomerang fist: hits on the way out and again on the way back |
+| Grapple Tether (up special) | wide-cone hook: latches ledges / platforms, or grabs an opponent mid-air; helpless if it whiffs |
+| Overclock (down special) | see above |
+| Mega Mech Mode (ultimate) | 8 seconds in a giant suit: 1.7x size, super-armor, +35% damage, mech punch / stomp / missiles |
+
 ## Add a character
 
 1. Create `src/characters/<id>.ts` exporting a `CharacterData` (copy `brick.ts`): stats, body size,

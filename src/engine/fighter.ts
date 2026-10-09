@@ -168,6 +168,12 @@ export class Fighter implements Body {
   damageMult = 1;
   /** Outgoing knockback multiplier (Vent scales with Heat, etc.). */
   kbMult = 1;
+  /** Hurtbox size multiplier (a giant mech suit is easier to hit); terrain collision is unaffected. */
+  sizeMul = 1;
+  /** Never flinches while set (except from hitstun already in progress): Mech mode. */
+  superArmor = false;
+  /** The stick this tick (character logic like Overclock reads it). */
+  readonly stick = { x: 0, y: 0 };
   /** Added to armor thresholds (Infinity = super armor). */
   armorBonus = 0;
   /** Bit per (victim, group) already hit by the current move. */
@@ -282,6 +288,8 @@ export class Fighter implements Body {
     this.lastHitBy = -1;
     this.damageMult = 1;
     this.kbMult = 1;
+    this.sizeMul = 1;
+    this.superArmor = false;
     this.armorBonus = 0;
     this.res = { ...(this.data.resources ?? {}) };
     this.status.burn = this.status.slow = this.status.freeze = this.status.stun = 0;
@@ -355,9 +363,9 @@ export class Fighter implements Body {
 
   /** Height of the hurtbox right now (shorter while crouching / lying down). */
   get hurtH(): number {
-    if (this.state === 'crouch' || this.state === 'jumpsquat') return this.h * 0.72;
-    if (this.state === 'downed' || this.state === 'shieldbreak') return this.h * 0.4;
-    return this.h;
+    if (this.state === 'crouch' || this.state === 'jumpsquat') return this.h * 0.72 * this.sizeMul;
+    if (this.state === 'downed' || this.state === 'shieldbreak') return this.h * 0.4 * this.sizeMul;
+    return this.h * this.sizeMul;
   }
 
   get shieldRadius(): number {
@@ -366,6 +374,7 @@ export class Fighter implements Body {
 
   /** Armor threshold active right now, or -1 if none. */
   armorThreshold(): number {
+    if (this.superArmor && this.state !== 'ko' && this.state !== 'hitstun' && this.state !== 'grabbed') return Infinity;
     const m = this.move;
     if (this.state !== 'attack' || !m || !m.armor) return -1;
     if (this.moveFrame < m.armor.from || this.moveFrame > m.armor.to) return -1;
@@ -554,6 +563,8 @@ export class Fighter implements Body {
     this.snapped = false;
     if (this.state === 'ko') return;
 
+    this.stick.x = inp.stickX;
+    this.stick.y = inp.stickY;
     this.buffer.advance();
     this.buffer.record(inp.pressed);
 
@@ -898,7 +909,12 @@ export class Fighter implements Body {
 
   // ---- moves ----------------------------------------------------------------------------------
   startMove(id: string, inp: FighterInput | null, world: World): boolean {
-    const m = this.data.moves[id];
+    let m = this.data.moves[id];
+    if (!m && !this.data.behavior?.remapMove) return false;
+    if (this.data.behavior?.remapMove) {
+      id = this.data.behavior.remapMove(this, id);
+      m = this.data.moves[id];
+    }
     if (!m) return false;
     if (m.requires && (this.res[m.requires.key] ?? 0) < m.requires.min) return false;
     if (m.charge && m.kind === 'special') this.chargeButton = Button.Special; // also when started directly (training)

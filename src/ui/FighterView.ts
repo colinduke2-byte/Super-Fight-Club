@@ -1,4 +1,5 @@
 import Phaser from 'phaser';
+import { PIXEL_FONT } from '../art/pixelFont';
 import { animFrameIndex, fighterAnimKey, fighterTextureKey } from '../art/proceduralFighter';
 import type { Fighter } from '../engine/fighter';
 
@@ -9,6 +10,8 @@ export class FighterView {
   private readonly baseTint: number | undefined;
   private readonly shadow: Phaser.GameObjects.Image;
   private readonly bubble: Phaser.GameObjects.Image;
+  private counter: Phaser.GameObjects.BitmapText | null = null;
+  private lastCount = -1;
   private orb: Phaser.GameObjects.Image | null = null;
   private orbGlow: Phaser.GameObjects.Image | null = null;
   private orbX = 0;
@@ -24,6 +27,10 @@ export class FighterView {
     layer.add(this.shadow);
     layer.add(this.sprite);
     layer.add(this.bubble);
+    if (fighter.data.counter) {
+      this.counter = scene.add.bitmapText(0, 0, PIXEL_FONT, '').setOrigin(0.5, 1).setScale(0.55).setTint(0xffd46a);
+      layer.add(this.counter);
+    }
     if (fighter.data.companion) {
       this.orbGlow = scene.add.image(0, 0, 'bubble').setBlendMode(Phaser.BlendModes.ADD).setScale(0.22).setAlpha(0.55);
       this.orb = scene.add.image(0, 0, 'proj-orb').setBlendMode(Phaser.BlendModes.ADD).setScale(0.5);
@@ -94,23 +101,27 @@ export class FighterView {
       default:
         break;
     }
-    const ps = f.data.sprite.pixelScale;
+    const tr = f.data.transform;
+    const big = f.sizeMul; // set by the simulation (e.g. Mech mode) so the hurtbox matches what you see
+    const ps = f.data.sprite.pixelScale * big;
     s.setScale(sx * ps, sy * ps);
     // invincibility blink (dodges stay translucent), smash-charge glow
     const dodging = f.state === 'spotdodge' || f.state === 'roll';
     s.setAlpha(dodging ? 0.4 : f.invuln > 0 && (tick >> 2) % 2 === 0 ? 0.45 : 1);
-    // tint priority: freeze > stun > burn > slow > smash charge > base
+    // tint priority: freeze > stun > burn > slow > transform > smash charge > base
     const st = f.status;
     if (st.freeze > 0) s.setTint(0x9fe9ff);
     else if (st.stun > 0) s.setTint(((tick >> 2) & 1) === 0 ? 0xffff60 : 0xffffff);
     else if (st.burn > 0) s.setTint(((tick >> 2) & 1) === 0 ? 0xffa040 : 0xff6a38);
     else if (st.slow > 0) s.setTint(0x8aa0ff);
+    else if (tr && big > 1) s.setTint(((tick >> 3) & 1) === 0 ? tr.tint : 0xffffff);
     else if (f.data.hud && (f.res[f.data.hud.resource] ?? 0) >= f.data.hud.hotAt) s.setTint(((tick >> 3) & 1) === 0 ? 0xffd9c0 : 0xffffff);
     else if (f.chargeFrames > 0 && f.state === 'attack') s.setTint(((tick >> 1) & 1) === 0 ? 0xffe14a : 0xffffff);
     else if (this.baseTint !== undefined) s.setTint(this.baseTint);
     else s.clearTint();
 
     this.updateOrb(f, tick);
+    this.updateCounter(f);
     const bubble = this.bubble;
     const shielding = f.state === 'shield' || f.state === 'shieldstun';
     bubble.setVisible(shielding);
@@ -118,6 +129,18 @@ export class FighterView {
       const d = (f.shieldRadius * 2) / 64;
       bubble.setPosition(this.x, this.y - f.h / 2).setScale(d).setAlpha(f.state === 'shieldstun' ? 1 : 0.8);
     }
+  }
+
+  /** Number floating above the fighter (Scrap). */
+  private updateCounter(f: Fighter): void {
+    const c = this.counter;
+    if (!c) return;
+    const v = Math.floor(f.res[f.data.counter!.resource] ?? 0);
+    if (v !== this.lastCount) {
+      this.lastCount = v;
+      c.setText(String(v));
+    }
+    c.setPosition(this.x, this.y - f.h * f.sizeMul - 6).setVisible(f.state !== 'ko');
   }
 
   /** Floating companion orb: lags behind the fighter, bobs, and takes the colour of the current element. */
@@ -143,6 +166,7 @@ export class FighterView {
     this.sprite.destroy();
     this.shadow.destroy();
     this.bubble.destroy();
+    this.counter?.destroy();
     this.orb?.destroy();
     this.orbGlow?.destroy();
   }

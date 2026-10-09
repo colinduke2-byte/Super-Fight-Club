@@ -149,6 +149,10 @@ export interface CharacterData {
   hud?: { resource: string; max: number; color: number; hotAt: number; /** Per-element seam colours picked by `res[colorKey]`. */ colors?: number[]; colorKey?: string };
   /** A floating companion orb whose colour follows `res[resource]` (Nova's Arcana orb). */
   companion?: { resource: string; colors: number[] };
+  /** Shows a number above the fighter (Gizmo's Scrap). */
+  counter?: { resource: string };
+  /** Visual transformation while `res[resource] > 0` (Mech mode): sprite scale + tint. */
+  transform?: { resource: string; scale: number; tint: number };
   /** Character-specific logic hooks (kept tiny; most behaviour should be data). */
   behavior?: CharacterBehavior;
 }

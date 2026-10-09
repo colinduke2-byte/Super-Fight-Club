@@ -41,9 +41,9 @@ export function hitboxRect(f: Fighter, hb: HitboxDef, out: number[]): void {
 
 export function hurtRect(f: Fighter, out: number[]): void {
   const h = f.hurtH;
-  out[0] = f.x - f.hw;
+  out[0] = f.x - f.hw * f.sizeMul;
   out[1] = f.y - h;
-  out[2] = f.hw * 2;
+  out[2] = f.hw * 2 * f.sizeMul;
   out[3] = h;
 }
 

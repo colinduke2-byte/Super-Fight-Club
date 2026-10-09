@@ -589,6 +589,34 @@ export class SandboxScene extends Phaser.Scene {
       case 'beam':
         this.shake = Math.max(this.shake, 6);
         break;
+      case 'rocket':
+        e.burst(x + dir * 18, y - 12, 8, 70, 0xffb02e, 0.25, 2);
+        break;
+      case 'recall':
+      case 'overclock':
+        e.ring(x, y - 12, 30, tag === 'overclock' ? 0xffd46a : 0x9aa6bd, 0.4);
+        e.burst(x, y - 12, 10, 60, 0xffd46a, 0.35, 2);
+        break;
+      case 'fizzle':
+        e.burst(x, y - 22, 4, 30, 0x888888, 0.25, 2);
+        break;
+      case 'place':
+        e.dust(x + dir * 22, y, 5, 0);
+        break;
+      case 'mechStart':
+        e.ring(x, y - 14, 60, 0xbfe0ff, 0.7);
+        e.flash(x, y - 14, 3, 0xbfe0ff);
+        this.shake = Math.max(this.shake, 5);
+        break;
+      case 'mechEnd':
+        e.burst(x, y - 20, 24, 100, 0xbfe0ff, 0.5, 3);
+        break;
+      case 'stomp':
+        e.dust(x - 30, y, 8, -1);
+        e.dust(x + 30, y, 8, 1);
+        e.ring(x, y - 2, 46, 0xffffff, 0.35);
+        this.shake = Math.max(this.shake, 8);
+        break;
       case 'blink':
         e.flash(x, y - f.h / 2, 1, 0x7fe8ff);
         break;

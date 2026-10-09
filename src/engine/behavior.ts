@@ -25,6 +25,8 @@ export interface CharacterBehavior {
    * instead (Vex's recall), or null to ignore the press.
    */
   chooseMove?(f: Fighter, id: string, world: World): string | null;
+  /** Rewrites any move id just before it starts (Gizmo's Mech mode swaps his attacks). */
+  remapMove?(f: Fighter, id: string): string;
   /** `name`/`args` of a `custom` move event. */
   onMoveEvent?(f: Fighter, name: string, args: number[], world: World): void;
 }

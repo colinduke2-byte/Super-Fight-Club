@@ -70,7 +70,7 @@ export type MoveEvent =
   | { frame: number; /** Only runs if the move's charge is at least this fraction (hold-to-activate effects). */ minCharge?: number; action: 'teleport'; dist: number; dir?: 'stick8' | 'forward' | 'up' | 'up8' | 'back'; /** Deployable id to drop at the departure point (Blink marker). */ leaveMarker?: string }
   | { frame: number; /** Only runs if the move's charge is at least this fraction (hold-to-activate effects). */ minCharge?: number; action: 'recall'; id: string }
   | { frame: number; /** Only runs if the move's charge is at least this fraction (hold-to-activate effects). */ minCharge?: number; action: 'barrier'; frames: number; x: number; y: number; w: number; h: number }
-  | { frame: number; /** Only runs if the move's charge is at least this fraction (hold-to-activate effects). */ minCharge?: number; action: 'tether'; angle: number; range: number; speed: number; grabsOpponents?: boolean }
+  | { frame: number; /** Only runs if the move's charge is at least this fraction (hold-to-activate effects). */ minCharge?: number; action: 'tether'; angle: number; range: number; speed: number; grabsOpponents?: boolean; /** Also try angles up to +-cone degrees either side (forgiving recoveries). */ cone?: number }
   | { frame: number; /** Only runs if the move's charge is at least this fraction (hold-to-activate effects). */ minCharge?: number; action: 'ledgeSnap'; range: number }
   | { frame: number; /** Only runs if the move's charge is at least this fraction (hold-to-activate effects). */ minCharge?: number; action: 'status'; status: StatusApply }
   | { frame: number; /** Only runs if the move's charge is at least this fraction (hold-to-activate effects). */ minCharge?: number; action: 'resource'; key: string; add: number }
@@ -153,6 +153,8 @@ export interface ProjectileDef {
   reflectable?: boolean;
   /** Vertical motion override: zigzag oscillation of +-amp px around the launch height. */
   path?: { kind: 'zigzag'; amp: number; period: number };
+  /** Boomerang: flies out for `out` frames, then homes back to its owner and can hit a second time. */
+  boomerang?: { out: number; speed: number };
   /** Keeps this fraction of speed when bouncing off solid floors. 0 = vanishes on contact. */
   bounce?: number;
   look: { shape: 'orb' | 'bolt' | 'bullet' | 'fist' | 'beam'; color: string; size?: number };
