@@ -6,7 +6,7 @@ interface PlatView {
   parts: { obj: Phaser.GameObjects.TileSprite; dy: number }[];
 }
 
-/** Draws the stage platforms from the sim's Platform objects (moving ones interpolated). */
+/** Draws the stage platforms from the sim's Platform objects (moving ones interpolated). Art pixel = 0.5 world units. */
 export class StageView {
   private readonly views: PlatView[] = [];
 
@@ -14,11 +14,17 @@ export class StageView {
     world.platforms.forEach((p, index) => {
       const parts: PlatView['parts'] = [];
       const add = (key: string, w: number, h: number, dy: number): void => {
-        const t = scene.add.tileSprite(p.x, p.y + dy, w, h, key).setOrigin(0, 0);
+        const t = scene.add.tileSprite(p.x, p.y + dy, w, h, key).setOrigin(0, 0).setTileScale(0.5, 0.5);
         layer.add(t);
         parts.push({ obj: t, dy });
       };
       if (p.kind === 'solid') {
+        if (p.ledges) {
+          // rocky underside hanging below the main platform
+          const under = scene.add.image(p.x + p.w / 2, p.y + p.h - 3, 'stage-under').setOrigin(0.5, 0);
+          under.setScale((p.w / 320) * 0.5);
+          layer.add(under);
+        }
         add('tile-stone', p.w, p.h - 6, 6);
         add('tile-cap', p.w, 6, 0);
       } else {

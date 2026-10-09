@@ -1,0 +1,74 @@
+import Phaser from 'phaser';
+import { fighterTextureKey, animFrameIndex } from '../art/proceduralFighter';
+import { PIXEL_FONT, up } from '../art/pixelFont';
+import type { CharacterData } from '../engine/types';
+
+const MAX_PIPS = 5;
+const PLAYER_COLORS = [0x4aa3ff, 0xff6a5a, 0x5fe08a, 0xffd04a];
+
+/** One fighter's plate: portrait, name, damage percent (colour + pop on hit), stock icons. */
+export class FighterHud {
+  private readonly panel: Phaser.GameObjects.Image;
+  private readonly accent: Phaser.GameObjects.Image;
+  private readonly portrait: Phaser.GameObjects.Image;
+  private readonly name: Phaser.GameObjects.BitmapText;
+  private readonly percent: Phaser.GameObjects.BitmapText;
+  private readonly sub: Phaser.GameObjects.BitmapText;
+  private readonly pips: Phaser.GameObjects.BitmapText;
+  private lastDamage = 0;
+  private pop = 0;
+  private u = 3;
+
+  constructor(
+    scene: Phaser.Scene,
+    layer: Phaser.GameObjects.Layer,
+    data: CharacterData,
+    label: string,
+    index: number,
+  ) {
+    const key = fighterTextureKey(data.id);
+    const frame = animFrameIndex(data, 'idle', 0);
+    this.panel = scene.add.image(0, 0, 'hud-panel').setOrigin(0.5, 1);
+    this.accent = scene.add.image(0, 0, 'px').setOrigin(0, 0).setTint(PLAYER_COLORS[index % 4]);
+    this.portrait = scene.add.image(0, 0, key, frame).setOrigin(0, 0).setCrop(6, 0, 40, 40);
+    this.name = scene.add.bitmapText(0, 0, PIXEL_FONT, up(label)).setTint(PLAYER_COLORS[index % 4]);
+    this.percent = scene.add.bitmapText(0, 0, PIXEL_FONT, '0%').setOrigin(0, 0);
+    this.sub = scene.add.bitmapText(0, 0, PIXEL_FONT, '').setTint(0x9a96d8);
+    this.pips = scene.add.bitmapText(0, 0, PIXEL_FONT, '').setTint(PLAYER_COLORS[index % 4]);
+    layer.add([this.panel, this.accent, this.portrait, this.name, this.percent, this.sub, this.pips]);
+  }
+
+  /** `u` = device pixels per HUD art pixel (integer); (cx, bottom) = plate bottom-centre. */
+  layout(cx: number, bottom: number, u: number): void {
+    this.u = u;
+    const left = cx - 56 * u;
+    const top = bottom - 40 * u;
+    this.panel.setPosition(cx, bottom).setScale(u);
+    this.accent.setPosition(left + 4 * u, top + 2 * u).setScale((32 * u) / 4, (1 * u) / 4);
+    // 40x40 crop of the idle frame shown at 0.8 => fills the 32x32 well; crop origin offsets the image
+    const k = 0.8 * u;
+    this.portrait.setScale(k).setPosition(left + 4 * u - 6 * k, top + 4 * u);
+    this.name.setPosition(left + 41 * u, top + 8 * u).setScale(u);
+    this.percent.setPosition(left + 41 * u, top + 16 * u).setScale(u * 2);
+    this.sub.setPosition(left + 41 * u, top + 33 * u).setScale(u);
+    this.pips.setScale(u).setPosition(left + 78 * u, top + 8 * u);
+  }
+
+  update(damage: number, stocks: number, training: boolean, out: boolean): void {
+    if (damage > this.lastDamage) this.pop = 1;
+    this.lastDamage = damage;
+    this.pop = Math.max(0, this.pop - 0.08);
+    const d = Math.min(damage / 160, 1);
+    // white -> yellow -> orange -> red -> deep red
+    const r = 255;
+    const g = Math.round(255 - 150 * Math.min(1, d * 1.6) - 60 * Math.max(0, d - 0.6));
+    const b = Math.round(255 - 255 * Math.min(1, d * 3));
+    this.percent.setText(up(`${Math.floor(damage)}%`));
+    this.percent.setTint(Phaser.Display.Color.GetColor(r, Math.max(30, g), Math.max(30, b)));
+    this.percent.setScale(this.u * 2 * (1 + this.pop * 0.25));
+    this.sub.setText(training ? 'TRAINING' : out ? 'OUT' : '');
+    this.sub.setVisible(training || out);
+    this.pips.setText(!training && !out ? '@'.repeat(Math.min(stocks, MAX_PIPS)).split('').join(' ') : '');
+    this.portrait.setAlpha(out ? 0.35 : 1);
+  }
+}

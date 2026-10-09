@@ -17,16 +17,18 @@ import { DebugOverlay } from '../ui/DebugOverlay';
 import { Effects } from '../ui/Effects';
 import { FighterView } from '../ui/FighterView';
 import { PerfCounter } from '../ui/PerfCounter';
+import { FighterHud } from '../ui/FighterHud';
+import { PIXEL_FONT, up } from '../art/pixelFont';
 import { StageView } from '../ui/StageView';
 
-const FONT = 'ui-monospace, Menlo, Consolas, monospace';
 const TRAINING: MatchConfig = { mode: 'training', stocks: 3, timeLimitSec: 0, respawnDelay: 70 };
 const STOCKS: MatchConfig = { mode: 'stock', stocks: 3, timeLimitSec: 0, respawnDelay: 70 };
 const DUMMY_MODES = ['stand', 'shield', 'jump', 'jab'] as const;
 const HELP = [
-  'MOVE WASD  JUMP I/W  ATTACK J  SPECIAL K  SHIELD L  GRAB U  SMASH O (or flick+J)  Hold L + S/A/D: dodge/roll',
-  'Smash = flick direction + J, or O + direction. Hold to charge. Aerials: J + direction. Grab then pick a throw direction.',
-  '1 debug  2 hit dummy  3 hit self  4 dummy +25%  5 clear %  6 dummy mode  9 training/stock match  0 reset  T tap-jump  F fullscreen  Esc pause',
+  'MOVE WASD  JUMP I  ATTACK J  SPECIAL K  SHIELD L  GRAB U  SMASH O',
+  'SMASH = FLICK+J OR O+DIR (HOLD TO CHARGE)  AERIAL = J+DIR',
+  '1 DEBUG  2 HIT DUMMY  3 HIT SELF  4 +25%  5 CLEAR  6 DUMMY  9 MODE  0 RESET',
+  'T TAP-JUMP  F FULLSCREEN  H HIDE THIS  ESC PAUSE',
 ];
 
 /**
@@ -66,19 +68,20 @@ export class SandboxScene extends Phaser.Scene {
   private pendingHitSelf = false;
   private pendingReset = false;
   private match!: Match;
+  private helpOn = true;
   private dummyMode = 0;
   private dummyHeldPrev = 0;
   private dummyJabTimer = 0;
-  private banner!: Phaser.GameObjects.Text;
+  private banner!: Phaser.GameObjects.BitmapText;
   private shake = 0;
   private frameCount = 0;
 
-  private hudTexts: Phaser.GameObjects.Text[] = [];
-  private helpText!: Phaser.GameObjects.Text;
-  private toast!: Phaser.GameObjects.Text;
+  private huds: FighterHud[] = [];
+  private helpText!: Phaser.GameObjects.BitmapText;
+  private toast!: Phaser.GameObjects.BitmapText;
   private toastUntil = 0;
   private pauseOverlay!: Phaser.GameObjects.Rectangle;
-  private pauseText!: Phaser.GameObjects.Text;
+  private pauseText!: Phaser.GameObjects.BitmapText;
 
   constructor() {
     super('Sandbox');
@@ -129,18 +132,16 @@ export class SandboxScene extends Phaser.Scene {
     this.uiLayer.add(this.perf.text);
     this.debug = new DebugOverlay(this, this.worldLayer, this.uiLayer, this.world, this.views, fontPx);
 
-    for (let i = 0; i < 2; i++) {
-      const t = this.add.text(0, 0, '0%', { fontFamily: FONT, fontSize: `${Math.round(30 * dpr)}px`, color: '#ffffff', stroke: '#10142a', strokeThickness: Math.round(5 * dpr) }).setOrigin(0.5, 1);
-      this.uiLayer.add(t);
-      this.hudTexts.push(t);
-    }
-    this.helpText = this.add.text(0, 0, HELP.join('\n'), { fontFamily: FONT, fontSize: `${Math.round(11 * dpr)}px`, color: '#b8b0e8', backgroundColor: '#000000a0', padding: { x: 6, y: 4 } }).setOrigin(0, 1);
-    this.toast = this.add.text(0, 0, '', { fontFamily: FONT, fontSize: `${Math.round(16 * dpr)}px`, color: '#ffffff', backgroundColor: '#000000c0', padding: { x: 10, y: 6 } }).setOrigin(0.5, 0).setAlpha(0);
-    this.banner = this.add.text(0, 0, '', { fontFamily: FONT, fontSize: `${Math.round(40 * dpr)}px`, color: '#ffe14a', stroke: '#10142a', strokeThickness: Math.round(6 * dpr), align: 'center' }).setOrigin(0.5).setVisible(false);
-    this.uiLayer.add(this.banner);
+    this.fighters.forEach((f, i) => {
+      const hud = new FighterHud(this, this.uiLayer, f.data, i === 0 ? 'YOU' : 'DUMMY', i);
+      this.huds.push(hud);
+    });
+    this.helpText = this.add.bitmapText(0, 0, PIXEL_FONT, up(HELP.join('\n'))).setOrigin(0, 1).setTint(0xb8b0e8);
+    this.toast = this.add.bitmapText(0, 0, PIXEL_FONT, '').setOrigin(0.5, 0).setAlpha(0).setCenterAlign();
+    this.banner = this.add.bitmapText(0, 0, PIXEL_FONT, '').setOrigin(0.5).setTint(0xffe14a).setVisible(false).setCenterAlign();
     this.pauseOverlay = this.add.rectangle(0, 0, 10, 10, 0x000000, 0.6).setOrigin(0, 0).setVisible(false);
-    this.pauseText = this.add.text(0, 0, '', { fontFamily: FONT, fontSize: `${Math.round(22 * dpr)}px`, color: '#ffffff', align: 'center' }).setOrigin(0.5).setVisible(false);
-    this.uiLayer.add([this.helpText, this.toast, this.pauseOverlay, this.pauseText]);
+    this.pauseText = this.add.bitmapText(0, 0, PIXEL_FONT, '').setOrigin(0.5).setVisible(false).setCenterAlign();
+    this.uiLayer.add([this.helpText, this.toast, this.banner, this.pauseOverlay, this.pauseText]);
 
     this.layout(w, h);
     this.scale.on('resize', this.onResize, this);
@@ -279,15 +280,22 @@ export class SandboxScene extends Phaser.Scene {
   private render(frameMs: number): void {
     const alpha = this.paused ? 1 : this.ts.alpha;
     const c = this.cam;
-    const cx = c.prevCx + (c.cx - c.prevCx) * alpha;
-    const cy = c.prevCy + (c.cy - c.prevCy) * alpha;
-    const zoom = c.prevZoom + (c.zoom - c.prevZoom) * alpha;
+    let cx = c.prevCx + (c.cx - c.prevCx) * alpha;
+    let cy = c.prevCy + (c.cy - c.prevCy) * alpha;
+    let zoom = c.prevZoom + (c.zoom - c.prevZoom) * alpha;
+
+    // crisp pixels: when close to an even zoom (1 art pixel = zoom/2 device px) snap to it, and snap the
+    // camera centre to whole device pixels so sprites never swim between pixel grids
+    const zi = 2 * Math.round(zoom / 2);
+    if (zi >= 2 && Math.abs(zoom - zi) < zi * 0.1) zoom = zi;
+    cx = Math.round(cx * zoom) / zoom;
+    cy = Math.round(cy * zoom) / zoom;
 
     const sx = this.shake > 0 ? (Math.random() - 0.5) * this.shake * 2 : 0;
     const sy = this.shake > 0 ? (Math.random() - 0.5) * this.shake * 2 : 0;
     this.worldCam.setZoom(zoom);
     this.worldCam.centerOn(cx + sx, cy + sy);
-    this.bg.update(cx, cy, zoom, zoom / 1);
+    this.bg.update(cx, cy, zoom, this.time.now / 1000);
 
     this.stageView.update(alpha);
     for (const v of this.views) v.update(alpha, this.world.tick);
@@ -296,18 +304,12 @@ export class SandboxScene extends Phaser.Scene {
     this.debug.update(this.stepsLastFrame, 60, `${cx.toFixed(0)},${cy.toFixed(0)} z${zoom.toFixed(2)}`, zoom);
 
     for (let i = 0; i < this.fighters.length; i++) {
-      const f = this.fighters[i];
-      const t = this.hudTexts[i];
       const sc = this.match.scores[i];
-      const pips = this.match.training ? 'TRAINING' : '\u25cf '.repeat(sc.stocks).trim() || 'OUT';
-      t.setText(`${i === 0 ? 'YOU' : 'DUMMY'} ${Math.floor(f.damage)}%\n${pips}`);
-      const d = Math.min(f.damage / 150, 1);
-      t.setColor(Phaser.Display.Color.RGBToString(255, Math.round(255 - 170 * d), Math.round(255 - 235 * d), 255, '#'));
+      this.huds[i].update(this.fighters[i].damage, sc.stocks, this.match.training, sc.eliminated);
     }
     if (this.match.over && !this.banner.visible) {
       const w = this.match.winner;
-      this.banner.setText(w < 0 ? 'DRAW' : `${w === 0 ? 'YOU WIN' : 'DUMMY WINS'}\n\n`).setVisible(true);
-      this.banner.setText(this.banner.text + (w < 0 ? '' : '') + 'press 0 to rematch');
+      this.banner.setText(up(w < 0 ? 'DRAW' : `${w === 0 ? 'YOU WIN' : 'DUMMY WINS'}\n\nPRESS 0 TO REMATCH`)).setVisible(true);
     }
 
     this.perf.update(frameMs, `${this.scale.width}x${this.scale.height} @${this.dpr().toFixed(1)}x  z${zoom.toFixed(2)}  ${this.stepsLastFrame}/f`);
@@ -339,15 +341,18 @@ export class SandboxScene extends Phaser.Scene {
       case 'hit': {
         // bigger hits: more sparks, bigger shake (hitstop itself is the fighters' hitlag)
         const dmg = extra;
+        e.flash(x, y, 0.8 + Math.min(2.2, dmg * 0.09), dmg > 12 ? 0xffffff : 0xfff3b0);
         e.burst(x, y, 10 + Math.min(16, dmg), 80 + mag * 0.4, dmg > 12 ? 0xffffff : 0xffe14a, 0.3 + Math.min(0.3, dmg * 0.012), dmg > 12 ? 4 : 3);
         this.shake = Math.max(this.shake, Math.min(9, 1 + dmg * 0.3 + mag * 0.01));
         break;
       }
       case 'armorHit':
+        e.flash(x, y, 1, 0xc070ff);
         e.burst(x, y, 10, 60, 0xc070ff, 0.3, 3);
         this.shake = Math.max(this.shake, 2.5);
         break;
       case 'shieldHit':
+        e.flash(x, y, 0.8, 0x8fe6ff);
         e.burst(x, y, 8, 60, 0x66d9ff, 0.25, 2);
         break;
       case 'shieldBreak':
@@ -368,6 +373,7 @@ export class SandboxScene extends Phaser.Scene {
         e.burst(x, y, 8, 50, 0xffee55, 0.25, 2);
         break;
       case 'throw':
+        e.flash(x, y, 2, 0xffffff);
         e.burst(x, y, 16, 100, 0xffffff, 0.35, 3);
         this.shake = Math.max(this.shake, 4);
         break;
@@ -375,6 +381,7 @@ export class SandboxScene extends Phaser.Scene {
         e.burst(x, y, 4, 40, 0xffee55, 0.2, 2);
         break;
       case 'trade':
+        e.flash(x, y, 2, 0xff5a7a);
         e.burst(x, y, 16, 100, 0xff5a7a, 0.3, 3);
         break;
       case 'dodge':
@@ -383,6 +390,7 @@ export class SandboxScene extends Phaser.Scene {
       case 'ko': {
         const kx = Phaser.Math.Clamp(f.koX, this.world.blast.left, this.world.blast.right);
         const ky = Phaser.Math.Clamp(f.koY, this.world.blast.top, this.world.blast.bottom);
+        e.flash(kx, ky, 5, 0xffffff);
         e.burst(kx, ky, 40, 220, 0xffffff, 0.7, 4);
         e.burst(kx, ky, 24, 140, 0xff5a7a, 0.9, 5);
         this.shake = 10;
@@ -398,6 +406,11 @@ export class SandboxScene extends Phaser.Scene {
     switch (code) {
       case 'Digit1':
         this.debug.setVisible(!this.debug.visible);
+        this.helpText.setVisible(this.helpOn && !this.debug.visible);
+        break;
+      case 'KeyH':
+        this.helpOn = !this.helpOn;
+        this.helpText.setVisible(this.helpOn && !this.debug.visible);
         break;
       case 'Digit2':
         this.pendingHitDummy = true;
@@ -448,7 +461,7 @@ export class SandboxScene extends Phaser.Scene {
     this.pauseText.setVisible(p);
     if (p) {
       this.pauseText.setText(
-        reason === 'disconnect' ? 'CONTROLLER DISCONNECTED\n\nReconnect it to resume\n(or press Esc / Start to continue on keyboard)' : 'PAUSED\n\nEsc / Start to resume',
+        up(reason === 'disconnect' ? 'CONTROLLER DISCONNECTED\n\nRECONNECT IT TO RESUME\n(OR PRESS ESC / START TO CONTINUE)' : 'PAUSED\n\nESC / START TO RESUME'),
       );
     } else {
       this.ts.reset();
@@ -458,7 +471,7 @@ export class SandboxScene extends Phaser.Scene {
   }
 
   private showToast(msg: string): void {
-    this.toast.setText(msg).setAlpha(1);
+    this.toast.setText(up(msg)).setAlpha(1);
     this.toastUntil = performance.now() + 2500;
   }
 
@@ -473,17 +486,24 @@ export class SandboxScene extends Phaser.Scene {
     this.layout(size.width, size.height);
   }
 
+  /** Device pixels per HUD art pixel (integer, >= 2). */
+  private hudUnit(h: number): number {
+    return Math.max(2, Math.round(h / 360));
+  }
+
   private layout(w: number, h: number): void {
     const m = Math.round(8 * this.dpr());
+    const u = this.hudUnit(h);
     this.bg.resize(w, h);
     this.perf.layout(w, m);
     this.debug.layout(w, m);
-    this.helpText.setPosition(m, h - m);
-    this.toast.setPosition(w / 2, m * 4);
+    this.helpText.setScale(u).setPosition(m, m);
+    this.helpText.setOrigin(0, 0);
+    this.toast.setScale(u * 2).setPosition(w / 2, m * 4);
     this.pauseOverlay.setSize(w, h);
-    this.pauseText.setPosition(w / 2, h / 2);
-    this.banner.setPosition(w / 2, h * 0.3);
-    this.hudTexts[0].setPosition(w * 0.3, h - m * 14);
-    this.hudTexts[1].setPosition(w * 0.7, h - m * 14);
+    this.pauseText.setScale(u * 2).setPosition(w / 2, h / 2);
+    this.banner.setScale(u * 4).setPosition(w / 2, h * 0.3);
+    const n = this.huds.length;
+    this.huds.forEach((hud, i) => hud.layout((w * (i + 1)) / (n + 1), h - m, u));
   }
 }

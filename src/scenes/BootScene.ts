@@ -1,6 +1,8 @@
 import Phaser from 'phaser';
 import { buildPlaceholderSheet, registerAnimations } from '../art/proceduralFighter';
 import { buildStageTextures } from '../art/stageTextures';
+import { buildHudTextures } from '../art/hudTextures';
+import { buildPixelFont } from '../art/pixelFont';
 import { CHARACTER_LIST } from '../characters';
 
 /**
@@ -22,6 +24,8 @@ export class BootScene extends Phaser.Scene {
 
   create(): void {
     buildStageTextures(this);
+    buildHudTextures(this);
+    buildPixelFont(this);
     for (const c of CHARACTER_LIST) {
       if (c.sprite.sheetUrl) registerAnimations(this, c);
       else buildPlaceholderSheet(this, c);

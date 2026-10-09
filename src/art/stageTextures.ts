@@ -1,5 +1,11 @@
 import Phaser from 'phaser';
 
+/**
+ * All world / background art is generated here at "art pixel" density: 1 art pixel = 0.5 world
+ * units, the same density as the 64px character sprites. World textures are drawn at 2x world size
+ * and displayed at scale 0.5.
+ */
+
 /** Tiny seeded PRNG so generated art is identical every run. */
 export function mulberry32(seed: number): () => number {
   let a = seed >>> 0;
@@ -12,148 +18,465 @@ export function mulberry32(seed: number): () => number {
   };
 }
 
-function canvas(w: number, h: number): [HTMLCanvasElement, CanvasRenderingContext2D] {
+type Ctx = CanvasRenderingContext2D;
+
+function canvas(w: number, h: number): [HTMLCanvasElement, Ctx] {
   const c = document.createElement('canvas');
   c.width = w;
   c.height = h;
-  const ctx = c.getContext('2d')!;
+  const ctx = c.getContext('2d', { willReadFrequently: true })!;
   ctx.imageSmoothingEnabled = false;
   return [c, ctx];
 }
 
-/** Generates all stage/background/effect textures used by the sandbox. */
+const px = (g: Ctx, color: string, x: number, y: number, w = 1, h = 1): void => {
+  g.fillStyle = color;
+  g.fillRect(Math.round(x), Math.round(y), w, h);
+};
+
+/** Stone ramp, dark -> light. */
+const STONE = ['#221d38', '#2e2848', '#3b3459', '#4b4470', '#605890', '#7b72b0'];
+const CYAN = ['#12414a', '#1c7f8c', '#34d6d0', '#8ff6ee', '#e6ffff'];
+const AMBER = ['#4a2a18', '#8a4f2c', '#d9822b', '#ffb02e', '#ffe08a'];
+
+/** Tileable value noise in [0,1]. */
+function makeNoise(seed: number, period: number): (x: number, y: number) => number {
+  const rnd = mulberry32(seed);
+  const grid: number[] = [];
+  for (let i = 0; i < period * period; i++) grid.push(rnd());
+  const at = (x: number, y: number): number => grid[((y % period) + period) % period * period + (((x % period) + period) % period)];
+  return (x, y) => {
+    const x0 = Math.floor(x);
+    const y0 = Math.floor(y);
+    const fx = x - x0;
+    const fy = y - y0;
+    const sx = fx * fx * (3 - 2 * fx);
+    const sy = fy * fy * (3 - 2 * fy);
+    const a = at(x0, y0) + (at(x0 + 1, y0) - at(x0, y0)) * sx;
+    const b = at(x0, y0 + 1) + (at(x0 + 1, y0 + 1) - at(x0, y0 + 1)) * sx;
+    return a + (b - a) * sy;
+  };
+}
+
+// ---------------------------------------------------------------------------------------------
+// Stage pieces
+// ---------------------------------------------------------------------------------------------
+
+/** 32x32 tileable masonry: 16x8 blocks in running bond, shaded edges, cracks, glowing rune seams. */
+function stoneTile(): HTMLCanvasElement {
+  const [c, g] = canvas(32, 32);
+  const rnd = mulberry32(11);
+  for (let row = 0; row < 4; row++) {
+    const off = row % 2 === 0 ? 0 : 8;
+    for (let col = -1; col < 3; col++) {
+      const x = col * 16 + off;
+      const y = row * 8;
+      const shade = 2 + Math.floor(rnd() * 2); // 2..3
+      g.save();
+      g.beginPath();
+      g.rect(0, 0, 32, 32);
+      g.clip();
+      px(g, STONE[shade], x, y, 16, 8);
+      // top/left highlight, bottom/right shadow
+      px(g, STONE[shade + 1], x, y, 16, 1);
+      px(g, STONE[shade + 1], x, y, 1, 8);
+      px(g, STONE[shade - 2], x, y + 7, 16, 1);
+      px(g, STONE[shade - 2], x + 15, y, 1, 8);
+      // speckle
+      for (let i = 0; i < 9; i++) px(g, STONE[Math.max(0, shade - 1 + Math.floor(rnd() * 3))], x + 1 + Math.floor(rnd() * 14), y + 1 + Math.floor(rnd() * 6));
+      // crack
+      if (rnd() > 0.78) {
+        let cx = x + 3 + Math.floor(rnd() * 9);
+        for (let k = 0; k < 5; k++) {
+          px(g, STONE[0], cx, y + 1 + k);
+          cx += rnd() > 0.5 ? 1 : 0;
+        }
+      }
+      // glowing rune seam
+      if (rnd() > 0.88) {
+        px(g, CYAN[1], x + 4, y + 3, 6, 1);
+        px(g, CYAN[2], x + 5, y + 3, 4, 1);
+        px(g, CYAN[3], x + 6, y + 3, 2, 1);
+      }
+      g.restore();
+    }
+  }
+  return c;
+}
+
+/** 32x12 tileable trim cap: brushed metal, glowing conduit, panel seams with rivets. */
+function capTile(): HTMLCanvasElement {
+  const [c, g] = canvas(32, 12);
+  px(g, '#6f679f', 0, 0, 32, 12);
+  px(g, '#8f86c8', 0, 0, 32, 2); // top light
+  px(g, '#b9b0f0', 0, 0, 32, 1);
+  px(g, CYAN[0], 0, 2, 32, 3); // conduit trough
+  px(g, CYAN[1], 0, 3, 32, 1);
+  for (let x = 0; x < 32; x += 8) {
+    px(g, CYAN[2], x + 1, 3, 5, 1);
+    px(g, CYAN[3], x + 2, 3, 3, 1);
+  }
+  px(g, '#544c82', 0, 5, 32, 4);
+  px(g, '#6a6298', 0, 5, 32, 1);
+  for (const x of [0, 16]) {
+    px(g, '#3d3664', x, 5, 1, 7); // panel seam
+    px(g, '#a89fe0', x + 2, 6, 1, 1); // rivets
+    px(g, '#a89fe0', x + 13, 6, 1, 1);
+  }
+  px(g, '#3a3360', 0, 9, 32, 1);
+  px(g, '#2a2548', 0, 10, 32, 2); // shadow lip
+  for (let x = 2; x < 32; x += 6) px(g, '#221d3e', x, 10, 3, 1);
+  return c;
+}
+
+/** 32x12 one-way grating platform with running lights. */
+function passTile(): HTMLCanvasElement {
+  const [c, g] = canvas(32, 12);
+  px(g, '#245d73', 0, 0, 32, 12);
+  px(g, '#6fe3f2', 0, 0, 32, 1);
+  px(g, '#3fb6cc', 0, 1, 32, 2);
+  px(g, '#1b4859', 0, 3, 32, 1);
+  for (let x = 0; x < 32; x += 4) {
+    px(g, '#173a49', x, 4, 2, 6); // grating slots
+    px(g, '#2f7d92', x + 2, 4, 2, 6);
+  }
+  for (let x = 2; x < 32; x += 8) {
+    px(g, '#fff3b0', x, 2, 2, 1); // running lights
+    px(g, '#ffd46a', x, 3, 2, 1);
+  }
+  px(g, '#10303c', 0, 10, 32, 2);
+  px(g, '#58d6e8', 0, 11, 32, 1); // underglow
+  return c;
+}
+
+/** 32x12 moving platform: hazard stripes + thruster glow. */
+function moveTile(): HTMLCanvasElement {
+  const [c, g] = canvas(32, 12);
+  px(g, '#5a3320', 0, 0, 32, 12);
+  px(g, AMBER[4], 0, 0, 32, 1);
+  px(g, AMBER[3], 0, 1, 32, 1);
+  for (let x = -8; x < 40; x += 8) {
+    for (let y = 0; y < 5; y++) {
+      px(g, '#1c120c', x + y * 1 + 2, 2 + y, 4, 1);
+      px(g, AMBER[2], x + y * 1 - 2, 2 + y, 4, 1);
+    }
+  }
+  px(g, '#2c190f', 0, 7, 32, 3);
+  for (let x = 3; x < 32; x += 8) {
+    px(g, '#8a4f2c', x, 7, 2, 2);
+    px(g, AMBER[4], x, 7, 1, 1);
+  }
+  px(g, '#1c120c', 0, 10, 32, 2);
+  for (let x = 4; x < 32; x += 12) {
+    px(g, AMBER[2], x, 11, 4, 1);
+    px(g, AMBER[4], x + 1, 11, 2, 1);
+  }
+  return c;
+}
+
+/** Floating-island underside: jagged rock, strata, hanging crystals. 640x200 px (= 320x100 world). */
+function stageUnder(): HTMLCanvasElement {
+  const W = 640;
+  const H = 200;
+  const [c, g] = canvas(W, H);
+  const rnd = mulberry32(5);
+  // silhouette: top edge flat, bottom profile tapering to a keel
+  const prof: number[] = [];
+  for (let x = 0; x < W; x++) {
+    const t = x / (W - 1);
+    const taper = Math.pow(Math.abs(t - 0.5) * 2, 1.6); // 0 centre .. 1 edge
+    const base = H * 0.88 * (1 - taper * 0.92);
+    prof.push(base);
+  }
+  // add rocky noise (multi-octave, but staircase so it stays pixel-art)
+  const n1 = makeNoise(3, 64);
+  for (let x = 0; x < W; x++) prof[x] = Math.max(6, prof[x] + (n1(x / 9, 1) - 0.5) * 22 + (n1(x / 3, 7) - 0.5) * 8);
+  for (let x = 0; x < W; x++) {
+    const bottom = Math.round(prof[x]);
+    for (let y = 0; y < bottom; y++) {
+      const depth = y / Math.max(1, bottom);
+      // strata bands + noise shading
+      const band = Math.floor((y + n1(x / 24, y / 10) * 6) / 7) % 3;
+      let shade = 3 - Math.floor(depth * 2.4) - (band === 1 ? 1 : 0);
+      if (n1(x / 2.2, y / 2.2) > 0.78) shade += 1;
+      px(g, STONE[Math.max(0, Math.min(5, shade))], x, y);
+    }
+    // lit rim on the lower edge
+    px(g, STONE[1], x, bottom - 1);
+    if (x > 0 && Math.abs(prof[x] - prof[x - 1]) > 1.5) px(g, STONE[5], x, bottom - 2);
+  }
+  // vertical cracks and moss-glow
+  for (let i = 0; i < 26; i++) {
+    let x = Math.floor(rnd() * W);
+    let y = Math.floor(rnd() * H * 0.4);
+    const len = 8 + Math.floor(rnd() * 26);
+    for (let k = 0; k < len && y < prof[Math.min(W - 1, Math.max(0, x))] - 3; k++) {
+      px(g, STONE[0], x, y);
+      y++;
+      if (rnd() > 0.6) x += rnd() > 0.5 ? 1 : -1;
+    }
+  }
+  // hanging crystals
+  for (let i = 0; i < 22; i++) {
+    const x = 40 + Math.floor(rnd() * (W - 80));
+    const y = Math.round(prof[x]) - 1;
+    const h = 8 + Math.floor(rnd() * 16);
+    const hue = rnd() > 0.5 ? CYAN : ['#4a1a5a', '#8a2fa0', '#d65cf0', '#f5a6ff', '#ffe6ff'];
+    for (let k = 0; k < h; k++) {
+      const w = Math.max(1, Math.round(3 * (1 - k / h)));
+      px(g, hue[2], x - Math.floor(w / 2), y + k, w, 1);
+      px(g, hue[1], x - Math.floor(w / 2), y + k, 1, 1);
+      if (w > 1) px(g, hue[3], x + Math.floor(w / 2), y + k, 1, 1);
+    }
+    px(g, hue[4], x, y + h - 1);
+  }
+  // soft glow under the crystals: sparse dither dots
+  return c;
+}
+
+// ---------------------------------------------------------------------------------------------
+// Backgrounds
+// ---------------------------------------------------------------------------------------------
+
+/** Pixel-sphere planet with banding, lighting, a ring and a dither terminator. */
+function planet(): HTMLCanvasElement {
+  const S = 160;
+  const [c, g] = canvas(S, S);
+  const n = makeNoise(9, 32);
+  const R = 52;
+  const cx = S / 2;
+  const cy = S / 2 + 6;
+  const palette = ['#14102e', '#2a1b52', '#4a2a82', '#7a3fb0', '#b062d8', '#e69bf0'];
+  const bayer = [0, 8, 2, 10, 12, 4, 14, 6, 3, 11, 1, 9, 15, 7, 13, 5];
+  // back half of the ring
+  const ring = (front: boolean): void => {
+    for (let a = 0; a < Math.PI * 2; a += 0.004) {
+      const isFront = Math.sin(a) > 0;
+      if (isFront !== front) continue;
+      for (let r = 70; r < 84; r += 1) {
+        const x = Math.round(cx + Math.cos(a) * r);
+        const y = Math.round(cy + Math.sin(a) * r * 0.22 - 8);
+        const edge = r < 72 || r > 81;
+        const tone = edge ? '#6a4a9a' : r > 76 ? '#9a78c8' : '#7b5aae';
+        px(g, tone, x, y);
+      }
+    }
+  };
+  ring(false);
+  const lx = -0.55;
+  const ly = -0.5;
+  for (let y = 0; y < S; y++) {
+    for (let x = 0; x < S; x++) {
+      const dx = (x - cx) / R;
+      const dy = (y - cy) / R;
+      const d2 = dx * dx + dy * dy;
+      if (d2 > 1) continue;
+      const dz = Math.sqrt(1 - d2);
+      let light = Math.max(0, dx * lx + dy * ly + dz * 0.7);
+      // gas-giant bands warped by noise
+      const band = Math.sin((dy * 9 + n(x / 14, y / 14) * 3.2) * 1.6) * 0.5 + 0.5;
+      light = light * (0.7 + band * 0.45);
+      const level = light * 5.2 + (bayer[(y & 3) * 4 + (x & 3)] / 16 - 0.5) * 0.9;
+      px(g, palette[Math.max(0, Math.min(5, Math.floor(level)))], x, y);
+    }
+  }
+  ring(true);
+  return c;
+}
+
+/** Tileable nebula clouds, 4 quantised levels with dither, mostly transparent. */
+function nebula(): HTMLCanvasElement {
+  const W = 256;
+  const H = 128;
+  const [c, g] = canvas(W, H);
+  const n1 = makeNoise(31, 8);
+  const n2 = makeNoise(37, 16);
+  const bayer = [0, 8, 2, 10, 12, 4, 14, 6, 3, 11, 1, 9, 15, 7, 13, 5];
+  const cols = ['rgba(90,40,150,0.16)', 'rgba(130,50,170,0.22)', 'rgba(190,80,190,0.26)', 'rgba(255,150,210,0.30)'];
+  for (let y = 0; y < H; y++) {
+    for (let x = 0; x < W; x++) {
+      const v = n1((x / W) * 8, (y / H) * 8) * 0.65 + n2((x / W) * 16, (y / H) * 16) * 0.35;
+      const lv = (v - 0.45) * 4.2 + (bayer[(y & 3) * 4 + (x & 3)] / 16 - 0.5) * 0.7;
+      const i = Math.floor(lv);
+      if (i >= 0) px(g, cols[Math.min(3, i)], x, y);
+    }
+  }
+  return c;
+}
+
+/** Star tile: pin pixels, a few cross-flares, and coloured giants. */
+function stars(seed: number, count: number, flares: number): HTMLCanvasElement {
+  const [c, g] = canvas(128, 128);
+  const rnd = mulberry32(seed);
+  for (let i = 0; i < count; i++) {
+    const b = rnd();
+    px(g, b > 0.9 ? '#ffffff' : b > 0.6 ? '#cfc8ff' : b > 0.3 ? '#8f88d8' : '#5b55a0', Math.floor(rnd() * 128), Math.floor(rnd() * 128));
+  }
+  for (let i = 0; i < flares; i++) {
+    const x = 3 + Math.floor(rnd() * 122);
+    const y = 3 + Math.floor(rnd() * 122);
+    const tint = rnd() > 0.5 ? '#ffe9a8' : '#a8e9ff';
+    px(g, '#ffffff', x, y);
+    px(g, tint, x - 1, y);
+    px(g, tint, x + 1, y);
+    px(g, tint, x, y - 1);
+    px(g, tint, x, y + 1);
+    px(g, 'rgba(255,255,255,0.35)', x - 2, y);
+    px(g, 'rgba(255,255,255,0.35)', x + 2, y);
+    px(g, 'rgba(255,255,255,0.35)', x, y - 2);
+    px(g, 'rgba(255,255,255,0.35)', x, y + 2);
+  }
+  return c;
+}
+
+/**
+ * Horizontally-tileable ruined skyline: towers with stepped crowns, spires, arches, broken walls,
+ * floating chunks, lit windows and a faint rim light from the planet side.
+ */
+function ruins(seed: number, body: string, light: string, dark: string, windows: string[], windowChance: number, W = 512, H = 192): HTMLCanvasElement {
+  const [c, g] = canvas(W, H);
+  const rnd = mulberry32(seed);
+  const fill = (x: number, y: number, w: number, h: number, col = body): void => {
+    px(g, col, x, y, w, h);
+    px(g, light, x + w - 1, y, 1, h); // rim light on the right edge
+    px(g, dark, x, y, 1, h);
+  };
+  let x = 0;
+  while (x < W) {
+    const w = 18 + Math.floor(rnd() * 34);
+    const h = 30 + Math.floor(rnd() * 100);
+    const top = H - h;
+    const kind = rnd();
+    if (x + w > W) break;
+    fill(x, top, w, h);
+    // stepped crown
+    if (kind < 0.35) {
+      fill(x + 3, top - 8, w - 6, 8);
+      fill(x + 7, top - 14, Math.max(4, w - 14), 6);
+    } else if (kind < 0.6) {
+      // spire
+      const sw = Math.max(6, w - 10);
+      for (let k = 0; k < 26; k++) {
+        const ww = Math.max(1, Math.round(sw * (1 - k / 26)));
+        px(g, body, x + Math.floor((w - ww) / 2), top - k, ww, 1);
+        px(g, light, x + Math.floor((w + ww) / 2) - 1, top - k, 1, 1);
+      }
+    } else if (kind < 0.8) {
+      // crenellations
+      for (let k = 0; k < w; k += 6) fill(x + k, top - 5, 4, 5);
+    }
+    // broken top: bite a notch
+    if (rnd() > 0.55) {
+      const nx = x + 2 + Math.floor(rnd() * (w - 10));
+      g.clearRect(nx, top - 16, 5 + Math.floor(rnd() * 5), 22);
+    }
+    // arch cut-out at the base
+    if (h > 60 && rnd() > 0.5) {
+      const aw = 8 + Math.floor(rnd() * 6);
+      const ax = x + Math.floor((w - aw) / 2);
+      g.clearRect(ax, H - 22, aw, 22);
+      for (let k = 0; k < aw / 2; k++) g.clearRect(ax + k, H - 26 + Math.floor(k * 0.6), aw - k * 2, 3);
+    }
+    // windows
+    for (let wy = top + 8; wy < H - 10; wy += 9) {
+      for (let wx = x + 4; wx < x + w - 5; wx += 7) {
+        if (rnd() < windowChance) {
+          const col = windows[Math.floor(rnd() * windows.length)];
+          px(g, col, wx, wy, 2, 3);
+          px(g, 'rgba(255,255,255,0.55)', wx, wy, 1, 1);
+        } else if (rnd() > 0.6) {
+          px(g, dark, wx, wy, 2, 3);
+        }
+      }
+    }
+    x += w + 2 + Math.floor(rnd() * 6);
+  }
+  // floating chunks above the skyline
+  for (let i = 0; i < 9; i++) {
+    const fx = Math.floor(rnd() * (W - 20));
+    const fy = 6 + Math.floor(rnd() * 50);
+    const fw = 8 + Math.floor(rnd() * 12);
+    for (let k = 0; k < 5; k++) {
+      const ww = Math.max(2, fw - k * 3);
+      px(g, body, fx + Math.floor((fw - ww) / 2), fy + k, ww, 1);
+      px(g, light, fx + Math.floor((fw + ww) / 2) - 1, fy + k, 1, 1);
+    }
+    px(g, windows[0], fx + Math.floor(fw / 2), fy - 1, 1, 1);
+  }
+  return c;
+}
+
+/** Small glow sprite used as additive spark: 4-point star. */
+function sparkTex(): HTMLCanvasElement {
+  const [c, g] = canvas(17, 17);
+  const col = ['#ffffff', '#fff3b0', '#ffd46a'];
+  for (let i = 0; i < 8; i++) {
+    const t = i < 3 ? 0 : i < 6 ? 1 : 2;
+    px(g, col[t], 8 - i, 8);
+    px(g, col[t], 8 + i, 8);
+    px(g, col[t], 8, 8 - i);
+    px(g, col[t], 8, 8 + i);
+  }
+  px(g, '#ffffff', 7, 7, 3, 3);
+  px(g, 'rgba(255,255,255,0.5)', 6, 6);
+  px(g, 'rgba(255,255,255,0.5)', 10, 6);
+  px(g, 'rgba(255,255,255,0.5)', 6, 10);
+  px(g, 'rgba(255,255,255,0.5)', 10, 10);
+  return c;
+}
+
+/** Hollow pixel ring for shockwaves, 32x32. */
+function ringTex(): HTMLCanvasElement {
+  const [c, g] = canvas(32, 32);
+  for (let a = 0; a < Math.PI * 2; a += 0.01) {
+    px(g, '#ffffff', 16 + Math.cos(a) * 14.5, 16 + Math.sin(a) * 14.5);
+    px(g, 'rgba(255,255,255,0.5)', 16 + Math.cos(a) * 13.5, 16 + Math.sin(a) * 13.5);
+  }
+  return c;
+}
+
+function bubbleTex(): HTMLCanvasElement {
+  const [c, g] = canvas(64, 64);
+  const bayer = [0, 8, 2, 10, 12, 4, 14, 6, 3, 11, 1, 9, 15, 7, 13, 5];
+  for (let y = 0; y < 64; y++) {
+    for (let x = 0; x < 64; x++) {
+      const d = Math.hypot(x - 31.5, y - 31.5);
+      if (d > 31.5) continue;
+      const t = d / 31.5;
+      const dith = bayer[(y & 3) * 4 + (x & 3)] / 16;
+      if (t > 0.93) px(g, 'rgba(210,248,255,0.95)', x, y);
+      else if (t > 0.86) px(g, 'rgba(120,214,255,0.7)', x, y);
+      else if (t * 1.1 + dith * 0.3 > 0.6) px(g, 'rgba(120,214,255,0.28)', x, y);
+      else if (t * 1.1 + dith * 0.3 > 0.3) px(g, 'rgba(120,214,255,0.12)', x, y);
+    }
+  }
+  // glint
+  px(g, 'rgba(255,255,255,0.8)', 18, 14, 6, 2);
+  px(g, 'rgba(255,255,255,0.8)', 15, 17, 2, 4);
+  return c;
+}
+
+/** Generates all stage / background / effect textures. */
 export function buildStageTextures(scene: Phaser.Scene): void {
   const add = (key: string, c: HTMLCanvasElement): void => {
     if (scene.textures.exists(key)) scene.textures.remove(key);
     scene.textures.addCanvas(key, c);
   };
-
-  // stone block body, 16x16
-  {
-    const [c, g] = canvas(16, 16);
-    g.fillStyle = '#4b4468';
-    g.fillRect(0, 0, 16, 16);
-    g.fillStyle = '#3a3454';
-    g.fillRect(0, 7, 16, 1);
-    g.fillRect(0, 15, 16, 1);
-    g.fillRect(7, 0, 1, 8);
-    g.fillRect(3, 8, 1, 8);
-    g.fillRect(11, 8, 1, 8);
-    g.fillStyle = '#5c5580';
-    g.fillRect(0, 0, 16, 1);
-    g.fillRect(0, 8, 16, 1);
-    add('tile-stone', c);
-  }
-  // glowing trim cap, 16x6
-  {
-    const [c, g] = canvas(16, 6);
-    g.fillStyle = '#7a6fb0';
-    g.fillRect(0, 0, 16, 6);
-    g.fillStyle = '#a89cf0';
-    g.fillRect(0, 0, 16, 2);
-    g.fillStyle = '#42e0d0';
-    g.fillRect(0, 2, 16, 1);
-    g.fillStyle = '#5a5090';
-    g.fillRect(0, 5, 16, 1);
-    g.fillRect(7, 3, 2, 2);
-    add('tile-cap', c);
-  }
-  // pass-through platform, 16x6
-  {
-    const [c, g] = canvas(16, 6);
-    g.fillStyle = '#2d6f86';
-    g.fillRect(0, 0, 16, 6);
-    g.fillStyle = '#58d6e8';
-    g.fillRect(0, 0, 16, 2);
-    g.fillStyle = '#1b4859';
-    g.fillRect(0, 4, 16, 2);
-    g.fillStyle = '#9af3ff';
-    g.fillRect(2, 2, 3, 1);
-    add('tile-pass', c);
-  }
-  // moving platform, 16x6
-  {
-    const [c, g] = canvas(16, 6);
-    g.fillStyle = '#8a4f2c';
-    g.fillRect(0, 0, 16, 6);
-    g.fillStyle = '#ffb02e';
-    g.fillRect(0, 0, 16, 2);
-    g.fillStyle = '#4a2a18';
-    g.fillRect(0, 4, 16, 2);
-    for (let x = 0; x < 16; x += 4) {
-      g.fillStyle = x % 8 === 0 ? '#ffd46a' : '#4a2a18';
-      g.fillRect(x, 2, 2, 2);
-    }
-    add('tile-move', c);
-  }
-  // sky gradient (1x256, stretched)
-  {
-    const [c, g] = canvas(1, 256);
-    const grad = g.createLinearGradient(0, 0, 0, 256);
-    grad.addColorStop(0, '#0b0a24');
-    grad.addColorStop(0.6, '#2a1650');
-    grad.addColorStop(1, '#6a2d6e');
-    g.fillStyle = grad;
-    g.fillRect(0, 0, 1, 256);
-    add('bg-grad', c);
-  }
-  // stars, 128x128 tile
-  {
-    const [c, g] = canvas(128, 128);
-    const rnd = mulberry32(7);
-    for (let i = 0; i < 46; i++) {
-      const x = Math.floor(rnd() * 128);
-      const y = Math.floor(rnd() * 128);
-      const bright = rnd();
-      g.fillStyle = bright > 0.85 ? '#ffffff' : bright > 0.5 ? '#b9b0ff' : '#6f68b0';
-      g.fillRect(x, y, 1, 1);
-      if (bright > 0.93) {
-        g.fillRect(x - 1, y, 3, 1);
-        g.fillRect(x, y - 1, 1, 3);
-      }
-    }
-    add('bg-stars', c);
-  }
-  // distant floating ruins silhouette, 256x96 horizontally tileable
-  {
-    const [c, g] = canvas(256, 96);
-    const rnd = mulberry32(21);
-    g.fillStyle = '#1c1238';
-    let x = 0;
-    while (x < 256) {
-      const w = 14 + Math.floor(rnd() * 26);
-      const h = 14 + Math.floor(rnd() * 56);
-      const top = 96 - h;
-      g.fillRect(x, top, w, h);
-      // broken crenellations / floating chunks
-      if (rnd() > 0.4) g.fillRect(x + 2, top - 5, 4, 5);
-      if (rnd() > 0.55) g.fillRect(x + w - 6, top - 8, 4, 8);
-      if (rnd() > 0.5) g.fillRect(x + Math.floor(w / 2), top - 20, 3, 3);
-      g.fillStyle = '#2a1a50';
-      g.fillRect(x, top, 1, h);
-      g.fillStyle = '#1c1238';
-      x += w + 4 + Math.floor(rnd() * 8);
-    }
-    add('bg-ruins', c);
-  }
-  // shield bubble, 64x64
-  {
-    const [c, g] = canvas(64, 64);
-    const grad = g.createRadialGradient(32, 32, 6, 32, 32, 31);
-    grad.addColorStop(0, 'rgba(120,210,255,0.10)');
-    grad.addColorStop(0.8, 'rgba(120,210,255,0.35)');
-    grad.addColorStop(1, 'rgba(200,245,255,0.9)');
-    g.fillStyle = grad;
-    g.beginPath();
-    g.arc(32, 32, 31, 0, Math.PI * 2);
-    g.fill();
-    add('bubble', c);
-  }
-  // 2x2 white pixel for particles
-  {
-    const [c, g] = canvas(4, 4);
-    g.fillStyle = '#ffffff';
-    g.fillRect(0, 0, 4, 4);
-    add('px', c);
-  }
+  add('tile-stone', stoneTile());
+  add('tile-cap', capTile());
+  add('tile-pass', passTile());
+  add('tile-move', moveTile());
+  add('stage-under', stageUnder());
+  add('bg-planet', planet());
+  add('bg-nebula', nebula());
+  add('bg-stars-a', stars(7, 60, 3));
+  add('bg-stars-b', stars(19, 34, 5));
+  add('bg-ruins-far', ruins(21, '#2e1f55', '#4a3585', '#241848', ['#ffcf6a', '#7fe8ff'], 0.18, 512, 192));
+  add('bg-ruins-near', ruins(44, '#1a1033', '#32215e', '#120a26', ['#ffcf6a', '#ff8a5a', '#7fe8ff'], 0.3, 512, 192));
+  add('spark', sparkTex());
+  add('ring', ringTex());
+  add('bubble', bubbleTex());
+  const [p, g] = canvas(4, 4);
+  px(g, '#ffffff', 0, 0, 4, 4);
+  add('px', p);
 }

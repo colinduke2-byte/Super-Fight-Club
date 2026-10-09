@@ -47,6 +47,12 @@ Sandbox debug keys: `1` debug overlay · `2` hit dummy · `3` hit yourself · `4
 `6` dummy mode (stand / shield / jump / jab) · `9` training ↔ 3-stock match · `0` reset · `T` tap-jump on/off · `F` fullscreen · `` ` `` perf counter. Tech a bounce by pressing Shield
 just before you hit the floor/wall.
 
+## Art density
+
+Everything is drawn at one pixel density: **1 art pixel = 0.5 world units** (64px character frames, 32px
+stage tiles, a 5x7 pixel font). Stage/background/HUD art is generated in code (`src/art/`); the camera
+snaps to even zoom levels and whole device pixels so pixels stay crisp. Press `H` to hide the on-screen help.
+
 ## Architecture
 
 ```
