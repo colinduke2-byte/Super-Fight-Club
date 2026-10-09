@@ -40,6 +40,9 @@ export function executeMoveEvent(f: Fighter, ev: MoveEvent, inp: FighterInput, w
     case 'custom':
       f.data.behavior?.onMoveEvent?.(f, ev.name, ev.args ?? [], world);
       break;
+    case 'fx':
+      world.emit('fx', f, f.x, f.y, f.facing, 0, ev.name);
+      break;
   }
 }
 

@@ -15,6 +15,9 @@ export class FighterHud {
   private readonly percent: Phaser.GameObjects.BitmapText;
   private readonly sub: Phaser.GameObjects.BitmapText;
   private readonly meter: Phaser.GameObjects.Image;
+  private readonly seam: Phaser.GameObjects.Image;
+  private readonly seamGlow: Phaser.GameObjects.Image;
+  private readonly hudDef: CharacterData['hud'];
   private readonly pips: Phaser.GameObjects.BitmapText;
   private lastDamage = 0;
   private pop = 0;
@@ -35,9 +38,12 @@ export class FighterHud {
     this.name = scene.add.bitmapText(0, 0, PIXEL_FONT, up(label)).setTint(PLAYER_COLORS[index % 4]);
     this.percent = scene.add.bitmapText(0, 0, PIXEL_FONT, '0%').setOrigin(0, 0);
     this.sub = scene.add.bitmapText(0, 0, PIXEL_FONT, '').setTint(0x9a96d8);
+    this.hudDef = data.hud;
     this.meter = scene.add.image(0, 0, 'px').setOrigin(0, 0).setTint(0x34d6d0);
+    this.seam = scene.add.image(0, 0, 'px').setOrigin(0, 0).setVisible(false);
+    this.seamGlow = scene.add.image(0, 0, 'px').setOrigin(0, 0).setVisible(false).setBlendMode(Phaser.BlendModes.ADD);
     this.pips = scene.add.bitmapText(0, 0, PIXEL_FONT, '').setTint(PLAYER_COLORS[index % 4]);
-    layer.add([this.panel, this.accent, this.portrait, this.name, this.percent, this.sub, this.pips, this.meter]);
+    layer.add([this.panel, this.accent, this.portrait, this.name, this.percent, this.sub, this.pips, this.meter, this.seam, this.seamGlow]);
   }
 
   /** `u` = device pixels per HUD art pixel (integer); (cx, bottom) = plate bottom-centre. */
@@ -55,10 +61,12 @@ export class FighterHud {
     this.sub.setPosition(left + 78 * u, top + 8 * u).setScale(u);
     this.pips.setScale(u).setPosition(left + 78 * u, top + 8 * u);
     this.meter.setPosition(left + 41 * u, top + 3 * u);
+    this.seam.setPosition(left + 40 * u, top + 35 * u);
+    this.seamGlow.setPosition(left + 40 * u, top + 34 * u);
   }
 
   /** @param meterFrac ultimate meter 0..1 (drawn over the plate's conduit; pulses gold when full) */
-  update(damage: number, stocks: number, training: boolean, out: boolean, meterFrac = 0, tick = 0): void {
+  update(damage: number, stocks: number, training: boolean, out: boolean, meterFrac = 0, tick = 0, resource = 0): void {
     if (damage > this.lastDamage) this.pop = 1;
     this.lastDamage = damage;
     this.pop = Math.max(0, this.pop - 0.08);
@@ -74,6 +82,16 @@ export class FighterHud {
     this.sub.setVisible(training || out);
     this.pips.setText(!training && !out ? '@'.repeat(Math.min(stocks, MAX_PIPS)).split('').join(' ') : '');
     this.portrait.setAlpha(out ? 0.35 : 1);
+    // character resource seam (Heat): fills left to right, glows hot at/after the threshold
+    const hd = this.hudDef;
+    if (hd) {
+      const frac = Math.max(0, Math.min(1, resource / hd.max));
+      const hot = resource >= hd.hotAt;
+      const flick = hot ? (resource >= hd.max ? 3 : 4) : 0;
+      const bright = hot && ((tick >> flick) & 1) === 0;
+      this.seam.setVisible(frac > 0).setScale(((68 * this.u) / 4) * frac, (2 * this.u) / 4).setTint(hot ? (bright ? 0xffe9a0 : hd.color) : 0x8a4a28);
+      this.seamGlow.setVisible(hot).setScale(((68 * this.u) / 4) * frac, (4 * this.u) / 4).setTint(hd.color).setAlpha(bright ? 0.7 : 0.35);
+    }
     const full = meterFrac >= 1;
     this.meter.setVisible(meterFrac > 0).setScale(((66 * this.u) / 4) * meterFrac, (2 * this.u) / 4).setTint(full ? (((tick >> 3) & 1) === 0 ? 0xffd040 : 0xffffff) : 0x8ff6ee);
   }

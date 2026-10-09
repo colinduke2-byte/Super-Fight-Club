@@ -57,6 +57,10 @@ export interface HitboxDef {
   travel?: { vx: number; vy: number };
   /** Grab that starts a cinematic (see MoveDef.cinematic) instead of a normal hold. */
   cinematic?: boolean;
+  /** Only live if the move's charge is at least this fraction (0..1), e.g. a full-charge-only shield breaker. */
+  minCharge?: number;
+  /** After a grab connects, the attacker immediately starts this move (command grabs that slam on their own). */
+  thenMove?: string;
 }
 
 /** Things a move does at a given frame, in addition to its hitboxes. Positions are forward-relative from the feet. */
@@ -69,6 +73,7 @@ export type MoveEvent =
   | { frame: number; action: 'ledgeSnap'; range: number }
   | { frame: number; action: 'status'; status: StatusApply }
   | { frame: number; action: 'resource'; key: string; add: number }
+  | { frame: number; action: 'fx'; name: string }
   | { frame: number; action: 'custom'; name: string; args?: number[] };
 
 /** Scripted ultimate: world freezes while the attacker's sequence plays, then hits land. */
@@ -121,6 +126,8 @@ export interface MoveDef {
   helpless?: boolean;
   /** Cinematic ultimate script (the move needs a hitbox with `cinematic: true`). */
   cinematic?: Cinematic;
+  /** Not listed in training mode (internal follow-up moves such as a command grab's slam). */
+  hidden?: boolean;
   /** Gate: a resource must be at least this much to start the move (the cost is spent by an event). */
   requires?: { key: string; min: number };
 }

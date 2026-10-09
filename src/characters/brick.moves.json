@@ -37,6 +37,7 @@
       "name": "Overhead Crush", "kind": "smash", "anim": "smashU",
       "startup": 14, "active": 4, "recovery": 32,
       "charge": { "frame": 5, "max": 60, "damageMult": 1.4, "kbMult": 1.2 },
+      "armor": { "from": 6, "to": 17, "threshold": 0 },
       "hitboxes": [
         { "x": 14, "y": -36, "w": 46, "h": 36, "damage": 14, "angle": 82, "base": 45, "scaling": 0.88, "dir": "away", "hitlag": 1.2, "fx": "heavy" },
         { "x": -14, "y": -36, "w": 46, "h": 36, "damage": 14, "angle": 82, "base": 45, "scaling": 0.88, "dir": "away", "hitlag": 1.2, "fx": "heavy" }
@@ -46,6 +47,7 @@
       "name": "Shockwave Stomp", "kind": "smash", "anim": "smashD",
       "startup": 12, "active": 4, "recovery": 30,
       "charge": { "frame": 4, "max": 60, "damageMult": 1.4, "kbMult": 1.2 },
+      "armor": { "from": 4, "to": 13, "threshold": 0 },
       "hitboxes": [
         { "x": 26, "y": -6, "w": 40, "h": 12, "damage": 12, "angle": 361, "base": 38, "scaling": 0.8, "dir": "away", "fx": "shock" },
         { "x": -26, "y": -6, "w": 40, "h": 12, "damage": 12, "angle": 361, "base": 38, "scaling": 0.8, "dir": "away", "fx": "shock" }
@@ -120,6 +122,70 @@
       "name": "Ground Pound", "kind": "throw", "anim": "grab", "throwDir": "down",
       "startup": 8, "active": 1, "recovery": 22,
       "hitboxes": [{ "x": 18, "y": -16, "w": 40, "h": 34, "damage": 7, "angle": 75, "base": 40, "scaling": 0.4, "throw": true, "fx": "heavy" }]
+    }
+    ,"neutralB": {
+      "name": "Charge Shoulder", "kind": "special", "anim": "chargeS",
+      "startup": 20, "active": 14, "recovery": 22,
+      "charge": { "frame": 8, "max": 50, "damageMult": 1.5, "kbMult": 1.25 },
+      "armor": { "from": 10, "to": 22, "threshold": 0 },
+      "motion": [{ "frame": 10, "vx": 3.8 }],
+      "events": [{ "frame": 10, "action": "fx", "name": "ram" }],
+      "hitboxes": [
+        { "x": 14, "y": -15, "w": 34, "h": 26, "damage": 9, "angle": 40, "base": 58, "scaling": 1.0, "minCharge": 1, "breaksShield": true, "shieldDamage": 3, "hitlag": 1.3, "window": [1, 14], "fx": "heavy" },
+        { "x": 14, "y": -15, "w": 34, "h": 26, "damage": 7, "angle": 38, "base": 42, "scaling": 0.8, "hitlag": 1.1, "window": [1, 14], "fx": "heavy" }
+      ]
+    },
+    "sideB": {
+      "name": "Grapple Slam", "kind": "special", "anim": "grapple",
+      "startup": 13, "active": 4, "recovery": 32,
+      "motion": [{ "frame": 7, "vx": 3.4 }],
+      "hitboxes": [
+        { "x": 24, "y": -9, "w": 32, "h": 16, "damage": 0, "angle": 0, "base": 0, "scaling": 0, "grab": true, "unblockable": true, "thenMove": "slam" }
+      ]
+    },
+    "slam": {
+      "name": "Grapple Slam (slam)", "kind": "throw", "anim": "grapple", "hidden": true,
+      "startup": 14, "active": 1, "recovery": 22,
+      "events": [{ "frame": 14, "action": "fx", "name": "slam" }],
+      "hitboxes": [
+        { "x": 18, "y": -12, "w": 44, "h": 34, "damage": 15, "angle": 72, "base": 52, "scaling": 0.88, "throw": true, "hitlag": 1.3, "fx": "heavy" }
+      ]
+    },
+    "upB": {
+      "name": "Jet Boost", "kind": "special", "anim": "jet",
+      "startup": 12, "active": 20, "recovery": 18,
+      "helpless": true, "noLedge": 16, "gravityScale": 0.3,
+      "motion": [{ "frame": 12, "vy": -4.6 }],
+      "events": [{ "frame": 12, "action": "fx", "name": "jet" }],
+      "hitboxes": [
+        { "x": 0, "y": 6, "w": 24, "h": 20, "damage": 3, "angle": 75, "base": 24, "scaling": 0.2, "window": [1, 14], "dir": "away", "fx": "punch" }
+      ]
+    },
+    "downB": {
+      "name": "Vent", "kind": "special", "anim": "vent",
+      "startup": 14, "active": 4, "recovery": 30,
+      "requires": { "key": "heat", "min": 30 },
+      "armor": { "from": 1, "to": 14, "threshold": 10 },
+      "events": [{ "frame": 14, "action": "fx", "name": "vent" }],
+      "hitboxes": [
+        { "x": 0, "y": -14, "w": 78, "h": 62, "damage": 9, "angle": 50, "base": 38, "scaling": 0.75, "dir": "away", "hitlag": 1.4, "fx": "blast" }
+      ]
+    },
+    "ultimate": {
+      "name": "Meltdown", "kind": "ultimate", "anim": "meltdown",
+      "startup": 9, "active": 3, "recovery": 44,
+      "invuln": [1, 11],
+      "events": [{ "frame": 1, "action": "resource", "key": "heat", "add": -100 }, { "frame": 2, "action": "fx", "name": "overload" }],
+      "hitboxes": [
+        { "x": 26, "y": -14, "w": 44, "h": 34, "damage": 0, "angle": 0, "base": 0, "scaling": 0, "grab": true, "unblockable": true, "cinematic": true }
+      ],
+      "cinematic": {
+        "frames": 110, "zoom": 1.1,
+        "hits": [
+          { "frame": 30, "damage": 4 }, { "frame": 55, "damage": 5 }, { "frame": 80, "damage": 6 },
+          { "frame": 110, "damage": 15, "launch": true, "angle": 42, "base": 235, "scaling": 0.6 }
+        ]
+      }
     }
   }
 }

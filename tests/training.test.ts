@@ -35,7 +35,7 @@ describe('training scenarios', () => {
   it('there is one scenario per move, melee moves first', () => {
     const { p } = setup(brick);
     const sc = buildScenarios(p);
-    expect(sc.length).toBe(Object.keys(brick.moves).length);
+    expect(sc.length).toBe(Object.values(brick.moves).filter((m) => !m.hidden).length);
     expect(sc[0].moveId).toBe('jab1');
     expect(sc.find((s) => s.moveId === 'nair')!.hover).toBe(true);
     expect(sc.find((s) => s.moveId === 'fthrow')!.needsGrab).toBe(true);
@@ -50,12 +50,24 @@ describe('training scenarios', () => {
       expect(ticks, sc.moveId).toBeLessThan(700);
       expect(runner.running, sc.moveId).toBe(false);
       const m = brick.moves[sc.moveId];
-      if (['jab', 'smash', 'aerial', 'throw'].includes(m.kind) && sc.moveId !== 'dair') {
+      if (['jab', 'smash', 'aerial', 'throw', 'ultimate'].includes(m.kind) && sc.moveId !== 'dair') {
         expect(runner.hits, `${sc.moveId} should hit the dummy`).toBeGreaterThan(0);
         expect(runner.lastHit!.damage).toBeGreaterThan(0);
       }
     }
     expect(p.state).not.toBe('ko');
+  });
+
+  it('Brick\'s specials are demonstrable too: Vent gets its Heat topped up, Grapple Slam grabs and slams', () => {
+    const { world, p, runner } = setup(brick);
+    for (const id of ['neutralB', 'sideB', 'downB']) {
+      runner.index = runner.scenarios.findIndex((s) => s.moveId === id);
+      expect(runner.index, id).toBeGreaterThanOrEqual(0);
+      runScenario(world, runner);
+      expect(runner.hits, `${id} should hit the dummy`).toBeGreaterThan(0);
+    }
+    expect(runner.scenarios.some((s) => s.moveId === 'slam')).toBe(false); // internal follow-up is hidden
+    expect(p.res.heat).toBeGreaterThanOrEqual(0);
   });
 
   it('every dev-character move (projectiles, traps, tether, ultimate, ...) runs without errors', () => {

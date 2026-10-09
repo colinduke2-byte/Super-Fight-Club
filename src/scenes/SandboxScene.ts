@@ -179,9 +179,9 @@ export class SandboxScene extends Phaser.Scene {
       this.setPaused(true, 'disconnect');
     };
 
-    this.world.listener = (type, f, x, y, mag, extra) => {
+    this.world.listener = (type, f, x, y, mag, extra, tag) => {
       this.training.onEvent(type, f, x, y, mag, extra);
-      this.onWorldEvent(type, f, x, y, mag, extra);
+      this.onWorldEvent(type, f, x, y, mag, extra, tag);
     };
 
     this.lastNow = performance.now();
@@ -294,6 +294,24 @@ export class SandboxScene extends Phaser.Scene {
     this.dummyHeldPrev = held;
   }
 
+  private lastFxTick = -1;
+  /** Continuous effects that follow a move (jet flame, hot-armor steam). Runs once per sim tick. */
+  private ambientFx(): void {
+    if (this.world.tick === this.lastFxTick) return;
+    this.lastFxTick = this.world.tick;
+    for (const f of this.fighters) {
+      const m = f.move;
+      if (m?.id === 'upB' && f.state === 'attack' && f.moveFrame >= 12 && f.moveFrame <= 34) {
+        this.effects.emit(f.x - 2 + Math.random() * 4, f.y + 2, (Math.random() - 0.5) * 20, 60 + Math.random() * 60, 0.3, Math.random() > 0.5 ? 0xffb02e : 0xff6a30, 3, 0, true);
+      }
+      const hd = f.data.hud;
+      if (hd && (f.res[hd.resource] ?? 0) >= hd.hotAt && f.state !== 'ko' && this.world.tick % 6 === 0) {
+        // hot: steam leaks from the armour seams
+        this.effects.emit(f.x + (Math.random() - 0.5) * 10, f.y - f.h * (0.4 + Math.random() * 0.5), 0, -22, 0.5, 0xe8e8f4, 2, 0);
+      }
+    }
+  }
+
   private startMatch(cfg: MatchConfig): void {
     this.match = new Match(this.world, cfg);
     this.match.onRespawn = (f) => this.respawn(f.id, true);
@@ -348,6 +366,7 @@ export class SandboxScene extends Phaser.Scene {
     this.stageView.update(alpha);
     for (const v of this.views) v.update(alpha, this.world.tick);
     this.entityViews.update(alpha, this.world.tick);
+    this.ambientFx();
     this.effects.update(Math.min(frameMs, 50) / 1000);
 
     this.debug.update(this.stepsLastFrame, 60, `${cx.toFixed(0)},${cy.toFixed(0)} z${zoom.toFixed(2)}`, zoom);
@@ -355,7 +374,7 @@ export class SandboxScene extends Phaser.Scene {
     for (let i = 0; i < this.fighters.length; i++) {
       const sc = this.match.scores[i];
       const f = this.fighters[i];
-      this.huds[i].update(f.damage, sc.stocks, this.match.training, sc.eliminated, f.meter / (f.data.ultimate?.cost ?? 100), this.world.tick);
+      this.huds[i].update(f.damage, sc.stocks, this.match.training, sc.eliminated, f.meter / (f.data.ultimate?.cost ?? 100), this.world.tick, f.data.hud ? (f.res[f.data.hud.resource] ?? 0) : 0);
     }
     if (this.match.over && !this.banner.visible) {
       const w = this.match.winner;
@@ -372,11 +391,14 @@ export class SandboxScene extends Phaser.Scene {
   }
 
   // ---------------------------------------------------------------------------------------------
-  private onWorldEvent(type: WorldEventType, f: Fighter, x: number, y: number, mag: number, extra: number): void {
+  private onWorldEvent(type: WorldEventType, f: Fighter, x: number, y: number, mag: number, extra: number, tag?: string): void {
     const e = this.effects;
     const cue = soundFor(type, mag, extra);
     if (cue) sfx.play(cue.name, cue.intensity, Phaser.Math.Clamp((x - this.cam.cx) / (this.worldCam.width / Math.max(0.1, this.worldCam.zoom) / 2), -1, 1));
     switch (type) {
+      case 'fx':
+        this.moveFx(tag ?? '', f, x, y, mag);
+        break;
       case 'projectile':
         e.flash(x, y, 0.5, 0xfff3b0);
         break;
@@ -507,6 +529,44 @@ export class SandboxScene extends Phaser.Scene {
         this.match.onKo(f, extra);
         break;
       }
+      default:
+        break;
+    }
+  }
+
+  /** Visuals for move events tagged `fx` in the move data. `dir` = the fighter's facing. */
+  private moveFx(tag: string, f: Fighter, x: number, y: number, dir: number): void {
+    const e = this.effects;
+    switch (tag) {
+      case 'ram':
+        e.dust(x - dir * 6, y, 8, -dir);
+        e.burst(x - dir * 8, y - 12, 8, 70, 0xffb02e, 0.3, 3);
+        break;
+      case 'jet':
+        e.ring(x, y, 20, 0xffb02e, 0.3);
+        e.burst(x, y + 2, 14, 90, 0xff7a2a, 0.35, 3);
+        this.shake = Math.max(this.shake, 2);
+        break;
+      case 'vent': {
+        const heat = f.res.ventDmg ?? 1; // 0.7..2.0
+        e.ring(x, y - 14, 30 + heat * 22, 0xffd46a, 0.45);
+        e.ring(x, y - 14, 20 + heat * 14, 0xffffff, 0.35);
+        e.flash(x, y - 14, 1.5 + heat, 0xffe9a8);
+        e.burst(x, y - 14, 26 + Math.round(heat * 14), 110 + heat * 50, 0xff8a30, 0.5, 4);
+        e.burst(x, y - 14, 20, 60, 0xe8e8f4, 0.8, 5);
+        this.shake = Math.max(this.shake, 4 + heat * 3);
+        break;
+      }
+      case 'slam':
+        e.dust(x + dir * 18, y, 12, 0);
+        e.ring(x + dir * 18, y - 2, 30, 0xffffff, 0.3);
+        e.flash(x + dir * 18, y - 8, 2, 0xffffff);
+        this.shake = Math.max(this.shake, 8);
+        break;
+      case 'overload':
+        e.ring(x, y - 14, 40, 0xff6a30, 0.6);
+        e.burst(x, y - 14, 24, 80, 0xffd46a, 0.6, 3);
+        break;
       default:
         break;
     }

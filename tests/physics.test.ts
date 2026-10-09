@@ -59,17 +59,18 @@ describe('movement physics', () => {
 
   it('buffers a jump pressed up to 6 frames before landing', () => {
     const { world, f } = setup();
-    // drop from above and press jump 4 frames before touching down
+    // drop from above and press jump while still ~8px up; the buffered press fires on touchdown
     f.spawn(0, -40);
     let pressedAt = -1;
+    let minY = 0;
     for (let i = 0; i < 40; i++) {
       const nearGround = f.y > -8 && pressedAt < 0;
       if (nearGround) pressedAt = i;
       world.step([nearGround ? input({ pressed: Button.Jump, held: Button.Jump }) : input({ held: pressedAt >= 0 ? Button.Jump : 0 })]);
+      if (pressedAt >= 0) minY = Math.min(minY, f.y);
     }
     expect(pressedAt).toBeGreaterThan(0);
-    // fighter left the ground again without a second press
-    expect(f.y).toBeLessThan(-1);
+    expect(minY).toBeLessThan(-20); // left the ground again without a second press
   });
 
   it('allows a coyote jump just after walking off the edge, but not long after', () => {

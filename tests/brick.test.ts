@@ -1,0 +1,313 @@
+import { describe, expect, it } from 'vitest';
+import { brick } from '../src/characters/brick';
+import {
+  addHeat, canVent, DECAY_DELAY, DECAY_RATE, decayHeat, HEAT_ARMOR, HEAT_MAX, heatFromDealt, heatFromTaken, HEAVY_HIT, isHot, ventPower, VENT_MIN,
+} from '../src/characters/brickHeat';
+import { Button, makeInput, type FighterInput } from '../src/engine/buttons';
+import { deliverHit } from '../src/engine/combat';
+import { Fighter } from '../src/engine/fighter';
+import { moveTotal } from '../src/engine/moves';
+import { World, type WorldEventType } from '../src/engine/world';
+import { sandboxStage } from '../src/stages/sandbox';
+
+const inp = (o: Partial<FighterInput> = {}): FighterInput => ({ ...makeInput(), ...o });
+const press = (b: number, o: Partial<FighterInput> = {}): FighterInput => inp({ pressed: b, held: b, ...o });
+
+function rig(gap = 30) {
+  const world = new World(sandboxStage);
+  const a = new Fighter(0, brick);
+  const b = new Fighter(1, brick);
+  world.addFighter(a);
+  world.addFighter(b);
+  a.spawn(-gap / 2, -1, 1);
+  b.spawn(gap / 2, -1, -1);
+  const events: WorldEventType[] = [];
+  world.listener = (t) => events.push(t);
+  const tick = (ia = inp(), ib = inp()): void => world.step([ia, ib]);
+  for (let i = 0; i < 125; i++) tick();
+  events.length = 0;
+  return { world, a, b, events, tick, run: (n: number, ia?: FighterInput, ib?: FighterInput) => { for (let i = 0; i < n; i++) tick(ia, ib); } };
+}
+
+describe('Heat math (pure)', () => {
+  it('gains from damage taken, and only from heavy hits dealt', () => {
+    expect(heatFromTaken(10)).toBeCloseTo(8);
+    expect(heatFromDealt(HEAVY_HIT - 0.1)).toBe(0);
+    expect(heatFromDealt(HEAVY_HIT)).toBeGreaterThan(0);
+    expect(heatFromDealt(18)).toBeGreaterThan(heatFromDealt(10));
+  });
+
+  it('is clamped to 0..100', () => {
+    expect(addHeat(95, 50)).toBe(HEAT_MAX);
+    expect(addHeat(5, -50)).toBe(0);
+  });
+
+  it('only decays after the quiet delay, then at a steady rate', () => {
+    expect(decayHeat(60, 0)).toBe(60);
+    expect(decayHeat(60, DECAY_DELAY)).toBe(60);
+    expect(decayHeat(60, DECAY_DELAY + 1)).toBeCloseTo(60 - DECAY_RATE);
+    expect(decayHeat(0.01, DECAY_DELAY + 1)).toBe(0);
+    // a full bar drains in roughly 20 seconds of quiet
+    let h = 100;
+    let frames = 0;
+    while (h > 0 && frames < 5000) {
+      h = decayHeat(h, DECAY_DELAY + 1);
+      frames++;
+    }
+    expect(frames / 60).toBeGreaterThan(15);
+    expect(frames / 60).toBeLessThan(30);
+  });
+
+  it('thresholds: armor at 50%, Vent from 30%', () => {
+    expect(isHot(HEAT_ARMOR - 0.1)).toBe(false);
+    expect(isHot(HEAT_ARMOR)).toBe(true);
+    expect(canVent(VENT_MIN - 1)).toBe(false);
+    expect(canVent(VENT_MIN)).toBe(true);
+  });
+
+  it('Vent damage and knockback scale up with Heat', () => {
+    const lo = ventPower(VENT_MIN);
+    const hi = ventPower(HEAT_MAX);
+    expect(hi.damageMult).toBeGreaterThan(lo.damageMult);
+    expect(hi.kbMult).toBeGreaterThan(lo.kbMult);
+    expect(hi.damageMult).toBeCloseTo(2.0);
+    expect(ventPower(0).damageMult).toBeCloseTo(0.7);
+  });
+});
+
+describe('Heat in combat', () => {
+  it('Brick heats up when he is hit, and from heavy hits he lands, but not from jabs', () => {
+    const t = rig(26);
+    t.a.startMove('jab1', null, t.world); // 3 dmg: not heavy
+    t.run(12);
+    expect(t.a.res.heat).toBe(0);
+    expect(t.b.res.heat).toBeCloseTo(heatFromTaken(3)); // the victim gained heat
+
+    const h = rig(26);
+    h.a.startMove('fsmash', null, h.world); // 18 dmg: heavy
+    h.run(60);
+    expect(h.a.res.heat).toBeCloseTo(heatFromDealt(18));
+  });
+
+  it('heat is kept while fighting and decays only after a quiet spell', () => {
+    const r = rig(26);
+    r.a.res.heat = 60;
+    r.a.res.quiet = 0;
+    r.run(DECAY_DELAY - 10);
+    expect(r.a.res.heat).toBe(60);
+    r.run(200);
+    expect(r.a.res.heat).toBeLessThan(60);
+  });
+
+  it('at 50%+ heat smashes get super-armor that absorbs even a strong hit; below it usmash/dsmash have none', () => {
+    const hot = rig(26);
+    hot.a.res.heat = 60;
+    hot.a.startMove('usmash', null, hot.world);
+    hot.run(8);
+    expect(hot.a.armorThreshold()).toBe(Infinity);
+    // deliver a strong 18-damage hit straight into the armor window
+    const hb = brick.moves.fsmash.hitboxes[0];
+    deliverHit(hot.world, { atk: hot.b, ownerId: 1, def: hot.a, hb, damage: 18, facing: -1, originX: hot.b.x, kbMult: 1 });
+    expect(hot.events).toContain('armorHit');
+    expect(hot.a.state).toBe('attack'); // not interrupted
+    expect(hot.a.damage).toBeCloseTo(18);
+
+    const cold = rig(26);
+    cold.a.res.heat = 20;
+    cold.a.startMove('usmash', null, cold.world);
+    cold.run(8);
+    expect(cold.a.armorThreshold()).toBe(-1);
+    deliverHit(cold.world, { atk: cold.b, ownerId: 1, def: cold.a, hb, damage: 18, facing: -1, originX: cold.b.x, kbMult: 1 });
+    expect(cold.events).not.toContain('armorHit');
+    expect(cold.a.state).toBe('hitstun');
+  });
+
+  it('hot smashes deal +15% damage', () => {
+    const dmg = (heat: number): number => {
+      const r = rig(26);
+      r.a.res.heat = heat;
+      r.a.startMove('usmash', null, r.world);
+      r.run(40);
+      return r.b.damage;
+    };
+    expect(dmg(60) / dmg(0)).toBeCloseTo(1.15, 2);
+  });
+
+  it('Vent needs Heat, spends all of it, and hits much harder at 100% than at 30%', () => {
+    const none = rig(26);
+    none.a.res.heat = 10;
+    expect(none.a.startMove('downB', null, none.world)).toBe(false);
+
+    const run = (heat: number): { dmg: number; speed: number; left: number } => {
+      const r = rig(26);
+      r.a.res.heat = heat;
+      expect(r.a.startMove('downB', null, r.world)).toBe(true);
+      expect(r.a.res.heat).toBe(0);
+      let speed = 0;
+      r.world.listener = (t, f) => {
+        if (t === 'hit' && f === r.b) speed = Math.hypot(r.b.vx, r.b.vy);
+      };
+      r.run(40);
+      return { dmg: r.b.damage, speed, left: r.a.res.heat };
+    };
+    const small = run(30);
+    const big = run(100);
+    expect(big.dmg).toBeGreaterThan(small.dmg * 1.5);
+    expect(big.speed).toBeGreaterThan(small.speed * 1.3);
+  });
+
+  it('Vent explosion pushes enemies away on both sides', () => {
+    const r = rig(26);
+    r.a.res.heat = 100;
+    r.a.startMove('downB', null, r.world);
+    r.run(30);
+    expect(r.b.x).toBeGreaterThan(r.a.x); // b was on the right and got pushed further right
+  });
+});
+
+describe('Charge Shoulder', () => {
+  it('charges while Special is held; only a full charge breaks shields and has armor', () => {
+    const full = rig(40);
+    full.a.startMove('neutralB', null, full.world);
+    full.run(70, inp({ held: Button.Special }), inp({ held: Button.Shield }));
+    expect(full.a.chargeFrames).toBe(50);
+    const sawArmor = (() => {
+      for (let i = 0; i < 40 && full.a.state === 'attack'; i++) {
+        full.tick(inp(), inp({ held: Button.Shield }));
+        if (full.a.armorThreshold() === Infinity) return true;
+      }
+      return false;
+    })();
+    expect(sawArmor).toBe(true);
+
+    const f2 = rig(40);
+    f2.a.startMove('neutralB', null, f2.world);
+    f2.run(70, inp({ held: Button.Special }), inp({ held: Button.Shield }));
+    f2.run(40, inp(), inp({ held: Button.Shield }));
+    expect(f2.events).toContain('shieldBreak');
+
+    const none = rig(40);
+    none.a.startMove('neutralB', null, none.world); // no charge
+    none.run(60, inp(), inp({ held: Button.Shield }));
+    expect(none.events).not.toContain('shieldBreak');
+    expect(none.events).toContain('shieldHit');
+    expect(none.a.armorThreshold()).toBe(-1);
+  });
+
+  it('a charged ram hits harder than an uncharged one', () => {
+    const dmg = (hold: number): number => {
+      const r = rig(40);
+      r.a.startMove('neutralB', null, r.world);
+      r.run(hold, inp({ held: Button.Special }));
+      r.run(60);
+      return r.b.damage;
+    };
+    expect(dmg(60)).toBeGreaterThan(dmg(0) * 1.2);
+  });
+});
+
+describe('Grapple Slam', () => {
+  it('grabs and slams a grounded opponent for 15 damage, even through a shield', () => {
+    const r = rig(30);
+    r.a.startMove('sideB', null, r.world);
+    r.run(80);
+    expect(r.b.damage).toBeCloseTo(15);
+    expect(r.events).toContain('grab');
+    expect(r.events).toContain('throw');
+
+    const s = rig(30);
+    s.tick(inp(), press(Button.Shield));
+    s.a.startMove('sideB', null, s.world);
+    s.run(80, inp(), inp({ held: Button.Shield }));
+    expect(s.b.damage).toBeCloseTo(15);
+  });
+
+  it('can be avoided by being in the air', () => {
+    const r = rig(30);
+    r.b.hover = true;
+    r.b.y = -34;
+    r.b.grounded = false;
+    r.b.groundPlat = null;
+    r.b.setState('air');
+    r.a.startMove('sideB', null, r.world);
+    r.run(60);
+    expect(r.events).not.toContain('grab');
+    expect(r.b.damage).toBe(0);
+  });
+
+  it('has long whiff recovery (risky)', () => {
+    expect(moveTotal(brick.moves.sideB)).toBeGreaterThanOrEqual(45);
+  });
+});
+
+describe('Jet Boost (weak recovery)', () => {
+  it('rises a modest distance, is helpless afterwards, and cannot grab the ledge in its first frames', () => {
+    const r = rig(400);
+    r.a.spawn(300, -200, -1); // well away from everything
+    r.a.startMove('upB', null, r.world);
+    let top = r.a.y;
+    for (let i = 0; i < 120; i++) {
+      r.tick();
+      top = Math.min(top, r.a.y);
+    }
+    const rise = -200 - top;
+    expect(rise).toBeGreaterThan(30);
+    expect(rise).toBeLessThan(brick.stats.jumpHeight); // weaker than a full jump
+    expect(r.a.helpless).toBe(true);
+
+    // ledge unavailable during the first frames of the move
+    const l = rig(400);
+    l.a.spawn(170, -4, -1); // hanging distance from the right ledge
+    l.a.startMove('upB', null, l.world);
+    expect(l.a.grabCooldown).toBeGreaterThanOrEqual(brick.moves.upB.noLedge! - 1);
+    l.run(6);
+    expect(l.a.state).not.toBe('ledge');
+  });
+
+  it('is punishable: the fighter hovers through a 12-frame start-up', () => {
+    expect(brick.moves.upB.startup).toBeGreaterThanOrEqual(10);
+    expect(brick.moves.upB.noLedge).toBeGreaterThan(10);
+  });
+});
+
+describe('Meltdown', () => {
+  it('needs a full meter, plays the cinematic, and KOs at 0%', () => {
+    const r = rig(26);
+    r.tick(press(Button.Ultimate));
+    expect(r.a.state).not.toBe('attack');
+    r.a.meter = 100;
+    r.a.res.heat = 80;
+    r.tick(press(Button.Ultimate));
+    expect(r.a.meter).toBe(0);
+    for (let i = 0; i < 40 && !r.world.cinematic; i++) r.tick();
+    expect(r.world.cinematic).not.toBeNull();
+    expect(r.a.res.heat).toBe(0); // overloaded
+    let ko = false;
+    r.world.listener = (t, f) => {
+      if (t === 'ko' && f === r.b) ko = true;
+    };
+    r.run(500);
+    expect(r.b.damage).toBeCloseTo(30);
+    expect(ko).toBe(true);
+  });
+});
+
+describe('Brick identity', () => {
+  it('is heavy, slow, falls fast and has a short double jump', () => {
+    const s = brick.stats;
+    expect(s.weight).toBe(125);
+    expect(s.runSpeed).toBeLessThan(2.1);
+    expect(s.airSpeed).toBeLessThan(1.5);
+    expect(s.fallSpeed).toBeGreaterThanOrEqual(8);
+    expect(s.gravity).toBeGreaterThanOrEqual(0.6);
+    expect(s.doubleJumps).toBe(1);
+    expect(s.doubleJumpHeight).toBeLessThan(s.jumpHeight * 0.7);
+  });
+
+  it('every move in the frame-data table is slow-ish: smashes start up in 12+ frames, fsmash is slowest', () => {
+    const smashes = ['fsmash', 'usmash', 'dsmash'].map((id) => brick.moves[id]);
+    for (const m of smashes) expect(m.startup).toBeGreaterThanOrEqual(12);
+    expect(brick.moves.fsmash.startup).toBeGreaterThan(brick.moves.usmash.startup);
+    expect(brick.moves.fsmash.armor).toMatchObject({ from: 8, to: 20 });
+  });
+});

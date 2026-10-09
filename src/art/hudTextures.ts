@@ -38,6 +38,10 @@ export function buildHudTextures(scene: Phaser.Scene): void {
     px(g, '#34d6d0', x, 3, 4, 1);
     px(g, '#8ff6ee', x + 1, 3, 2, 1);
   }
+  // resource groove (Heat / Scrap seam) under the readout
+  px(g, '#0c0b18', 39, 34, 70, 4);
+  px(g, '#2a1c20', 40, 35, 68, 2);
+  px(g, '#5a4a60', 74, 34, 1, 4); // half-way tick (armor threshold)
   // rivets
   for (const [x, y] of [[38, 36], [105, 36], [105, 7], [38, 7]]) {
     px(g, '#8a84c8', x, y, 2, 2);

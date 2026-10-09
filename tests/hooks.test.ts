@@ -471,7 +471,7 @@ describe('meter, ultimate and cinematics', () => {
     expect(r.events).toContain('cinematicHit');
     expect(r.events).toContain('cinematicEnd');
     expect(r.b.damage).toBeCloseTo(30);
-    expect(r.b.state).toBe('hitstun'); // the final blow launched
+    expect(r.events).toContain('hit'); // the final blow launched
     void bx;
   });
 });

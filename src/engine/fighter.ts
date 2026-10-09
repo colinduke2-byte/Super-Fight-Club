@@ -166,6 +166,8 @@ export class Fighter implements Body {
   moveHit = false;
   /** Outgoing damage multiplier (character mechanics like Heat hook in here). */
   damageMult = 1;
+  /** Outgoing knockback multiplier (Vent scales with Heat, etc.). */
+  kbMult = 1;
   /** Added to armor thresholds (Infinity = super armor). */
   armorBonus = 0;
   /** Bit per (victim, group) already hit by the current move. */
@@ -279,6 +281,7 @@ export class Fighter implements Body {
     this.grabbedBy = -1;
     this.lastHitBy = -1;
     this.damageMult = 1;
+    this.kbMult = 1;
     this.armorBonus = 0;
     this.res = { ...(this.data.resources ?? {}) };
     this.status.burn = this.status.slow = this.status.freeze = this.status.stun = 0;
@@ -366,7 +369,8 @@ export class Fighter implements Body {
     const m = this.move;
     if (this.state !== 'attack' || !m || !m.armor) return -1;
     if (this.moveFrame < m.armor.from || this.moveFrame > m.armor.to) return -1;
-    return (m.armor.threshold ?? Infinity) + this.armorBonus;
+    const t = (m.armor.threshold ?? Infinity) + this.armorBonus;
+    return t > 0 ? t : -1; // a threshold of 0 means "armored only when a mechanic grants a bonus"
   }
 
   /** Damage multiplier from smash charge for the current move. */
@@ -742,6 +746,7 @@ export class Fighter implements Body {
     else if (Math.abs(inp.stickX) > 0.6) id = 'sideB';
     if (!this.data.moves[id]) return false;
     this.buffer.consume(Button.Special);
+    this.chargeButton = Button.Special; // chargeable specials hold on the Special button
     return this.startMove(id, inp, world);
   }
 
@@ -879,6 +884,7 @@ export class Fighter implements Body {
     const m = this.data.moves[id];
     if (!m) return false;
     if (m.requires && (this.res[m.requires.key] ?? 0) < m.requires.min) return false;
+    if (m.charge && m.kind === 'special') this.chargeButton = Button.Special; // also when started directly (training)
     this.move = m;
     this.moveFrame = 0;
     this.chargeFrames = 0;

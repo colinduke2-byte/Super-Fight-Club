@@ -57,6 +57,7 @@ function overlap(a: number[], b: number[]): boolean {
 /** Is this hitbox live on the fighter's current move frame? */
 export function hitboxActive(f: Fighter, m: MoveDef, hb: HitboxDef): boolean {
   const [a, b] = hitboxFrames(m, hb);
+  if (hb.minCharge !== undefined && f.chargeFrac < hb.minCharge) return false;
   return f.moveFrame >= a && f.moveFrame <= b;
 }
 
@@ -146,11 +147,12 @@ function applyHit(world: World, c: Candidate): void {
     def.y = atk.y;
     def.facing = (-atk.facing) as 1 | -1;
     world.emit('grab', def, def.x, midY, 0, 0);
+    if (hb.thenMove) atk.startMove(hb.thenMove, null, world); // command grab: slam straight away
     return;
   }
 
   const away: 1 | -1 = def.x === atk.x ? atk.facing : def.x > atk.x ? 1 : -1;
-  const kbMult = move.charge ? 1 + ((move.charge.kbMult ?? 1) - 1) * atk.chargeFrac : 1;
+  const kbMult = (move.charge ? 1 + ((move.charge.kbMult ?? 1) - 1) * atk.chargeFrac : 1) * atk.kbMult;
 
   // --- throws: victim is already held; release and launch ---
   if (hb.throw) {
@@ -160,6 +162,7 @@ function applyHit(world: World, c: Candidate): void {
     def.receiveHit({ damage: c.damage, base: hb.base, scaling: hb.scaling, angle: hb.angle, direction, moveWeight: hb.weight, hitlag: 0, attackerId: atk.id, kbMult }, world);
     atk.grabTarget = -1;
     atk.gainMeter(c.damage, world);
+    atk.data.behavior?.onHitDealt?.(atk, def, hb, c.damage, world);
     world.emit('throw', def, def.x, midY, 0, c.damage);
     return;
   }
@@ -212,6 +215,7 @@ export function deliverHit(world: World, d: HitDelivery): void {
     if (owner) owner.hitlag = hl;
     def.lastHitBy = d.ownerId;
     def.gainMeterTaken(d.damage);
+    def.data.behavior?.onHitTaken?.(def, atk, d.damage, world);
     world.emit('armorHit', def, def.x, midY, d.damage, d.damage);
     atk?.gainMeter(d.damage, world);
     return;

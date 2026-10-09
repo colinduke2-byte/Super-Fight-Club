@@ -25,6 +25,8 @@ export interface MoveScenario {
   fillMeter: boolean;
   /** Throws need a grab first. */
   needsGrab: boolean;
+  /** Resource the move is gated on (Heat for Vent): the scenario tops it up so the move can be demonstrated. */
+  requires: { key: string; min: number } | null;
 }
 
 const GROUND_X = -40;
@@ -45,7 +47,7 @@ const KIND_ORDER = ['jab', 'smash', 'aerial', 'grab', 'throw', 'special', 'ultim
 
 /** Build one scenario per move of the given fighter's character, ordered by move kind. */
 export function buildScenarios(f: Fighter): MoveScenario[] {
-  const moves = Object.values(f.data.moves).sort((a, b) => KIND_ORDER.indexOf(a.kind) - KIND_ORDER.indexOf(b.kind));
+  const moves = Object.values(f.data.moves).filter((m) => !m.hidden).sort((a, b) => KIND_ORDER.indexOf(a.kind) - KIND_ORDER.indexOf(b.kind));
   return moves.map((m, index) => {
     const hb = m.hitboxes.find((h) => !h.grab && !h.throw) ?? m.hitboxes[0];
     const aerial = m.kind === 'aerial';
@@ -54,7 +56,10 @@ export function buildScenarios(f: Fighter): MoveScenario[] {
     let dummyX = GROUND_X + NO_HITBOX_GAP;
     if (hb) {
       const reach = hb.window || hb.travel ? hb.x + (hb.travel ? hb.travel.vx * Math.min(6, m.active) : 0) : hb.x;
-      dummyX = GROUND_X + (Math.abs(reach) < 12 ? 14 : reach);
+      // moves that lunge before they become active (Charge Shoulder, Grapple Slam) need the dummy further out
+      const activeStart = m.startup + 1;
+      const lunge = (m.motion ?? []).reduce((sum, mv) => sum + (mv.vx && mv.frame < activeStart ? mv.vx * (activeStart - mv.frame) * 0.6 : 0), 0);
+      dummyX = GROUND_X + (Math.abs(reach) < 12 ? 14 : reach) + lunge;
     }
     let playerX = GROUND_X;
     let playerY = 0;
@@ -93,6 +98,7 @@ export function buildScenarios(f: Fighter): MoveScenario[] {
       stickY: sy,
       fillMeter: m.kind === 'ultimate',
       needsGrab: m.kind === 'throw',
+      requires: m.requires ?? null,
     };
   });
 }
@@ -167,6 +173,7 @@ export class TrainingRunner {
     this.dummy.damage = sc.dummyPercent;
     this.player.damage = 0;
     this.player.meter = sc.fillMeter ? 100 : this.player.meter;
+    if (sc.requires) this.player.res[sc.requires.key] = Math.max(this.player.res[sc.requires.key] ?? 0, 100);
     this.player.snapped = true;
     this.dummy.snapped = true;
     this.running = false;

@@ -95,6 +95,7 @@ export class FighterView {
     else if (st.stun > 0) s.setTint(((tick >> 2) & 1) === 0 ? 0xffff60 : 0xffffff);
     else if (st.burn > 0) s.setTint(((tick >> 2) & 1) === 0 ? 0xffa040 : 0xff6a38);
     else if (st.slow > 0) s.setTint(0x8aa0ff);
+    else if (f.data.hud && (f.res[f.data.hud.resource] ?? 0) >= f.data.hud.hotAt) s.setTint(((tick >> 3) & 1) === 0 ? 0xffd9c0 : 0xffffff);
     else if (f.chargeFrames > 0 && f.state === 'attack') s.setTint(((tick >> 1) & 1) === 0 ? 0xffe14a : 0xffffff);
     else if (this.baseTint !== undefined) s.setTint(this.baseTint);
     else s.clearTint();

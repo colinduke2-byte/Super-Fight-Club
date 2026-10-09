@@ -37,9 +37,10 @@ export type WorldEventType =
   | 'cinematicHit'
   | 'cinematicEnd'
   | 'meterFull'
+  | 'fx'
   | 'ko';
 /** `extra` meaning: hit/armorHit/shieldHit/pummel = damage dealt; ko = id of the last attacker (-1 none). */
-export type WorldListener = (type: WorldEventType, fighter: Fighter, x: number, y: number, magnitude: number, extra: number) => void;
+export type WorldListener = (type: WorldEventType, fighter: Fighter, x: number, y: number, magnitude: number, extra: number, tag?: string) => void;
 
 export interface CinematicState {
   attacker: Fighter;
@@ -215,8 +216,8 @@ export class World {
     }
   }
 
-  emit(type: WorldEventType, f: Fighter, x: number, y: number, magnitude: number, extra: number): void {
-    if (this.listener) this.listener(type, f, x, y, magnitude, extra);
+  emit(type: WorldEventType, f: Fighter, x: number, y: number, magnitude: number, extra: number, tag?: string): void {
+    if (this.listener) this.listener(type, f, x, y, magnitude, extra, tag);
   }
 
   /** Cheap state fingerprint for determinism checks. */

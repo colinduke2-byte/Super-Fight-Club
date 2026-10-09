@@ -144,6 +144,35 @@ All sound effects are synthesized with WebAudio (`src/audio/`): hits scale with 
 pan with screen position. The audio context starts on the first key press (browser autoplay rules).
 `masterVolume` / `sfxVolume` are in settings.
 
+## Characters
+
+### Brick: heavy cyber-knight (complete, Phase 4)
+
+Slow, tanky bruiser: weight 125 (heaviest), run 1.9, air speed 1.3, high gravity, fast fall, one short double
+jump, armored smashes. Weakness: poor recovery, slow starts, and he is easy to combo out of the air.
+Full frame data: [`docs/frame-data-brick.md`](docs/frame-data-brick.md) (regenerate with `npm run framedata`).
+
+**HEAT** (glowing seam under his damage percent; his armor also glows and steams when hot)
+- Fills when he **takes damage** (0.8 per %) and when he lands **heavy hits** (9+ damage, 0.5 per %).
+- **50%+**: every smash gets **super-armor** and deals **+15% damage**.
+- **Vent** (down special, needs 30%+): spends all Heat on an explosion around him; damage 0.7x-2.0x and
+  knockback 0.7x-1.6x depending on how much was spent (full burst at 100%).
+- Decays slowly (~5 per second) once 3 seconds have passed without combat.
+- Numbers live in `src/characters/brickHeat.ts` (pure functions, unit-tested).
+
+| Move | Notes |
+|---|---|
+| Jab | 3-hit piston punches; the last one pushes |
+| Piston Slam (fsmash) | slow, huge knockback, armor frames 8-20 |
+| Overhead Crush (usmash) | hits both sides, anti-air |
+| Shockwave Stomp (dsmash) | ground ripple on both sides |
+| Plate Spin / Hammer Fist / Shoulder Bash / Rising Uppercut / Crater Stomp | nair (multi-hit) / fair (meteor) / bair / uair / dair (bounces on landing) |
+| Charge Shoulder (neutral special) | hold Special to charge, then ram; full charge = armor + shield break |
+| Grapple Slam (side special) | command grab mid-run: unblockable, avoided by jumping, 15 damage, long whiff recovery |
+| Jet Boost (up special) | short thruster, weak recovery, no ledge grab for 16 frames (punishable), helpless after |
+| Vent (down special) | Heat burst, see above |
+| Meltdown (ultimate) | cinematic grab; detonates a huge blast that KOs at low percent |
+
 ## Add a character
 
 1. Create `src/characters/<id>.ts` exporting a `CharacterData` (copy `brick.ts`): stats, body size,

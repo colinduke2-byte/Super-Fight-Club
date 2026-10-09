@@ -11,6 +11,7 @@ next phase starts.
 | 1 | Physics sandbox: fixed 60 Hz sim, jumps, platforms, ledges, tech, input layer (keyboard + gamepad), debug overlay | done |
 | 2 | Combat core: JSON frame data, hitboxes, hitlag, trades, armor, shield/dodge/grab/throw, stocks/KOs | done |
 | 2b | Art pass: 64px characters, matching stage / background / effects / HUD / pixel font | done |
+| 4 | Brick complete: Heat, Charge Shoulder, Grapple Slam, Jet Boost, Vent, Meltdown, frame-data doc, tests, training scenarios | done |
 | 3 | Character engine hooks: behaviour interface + resources, projectiles, deployables, status effects, teleport / dash / tether / ledge snap, meter + cinematic ultimates, reflect, training scenarios, SFX engine | done |
 
 Not verified yet, because I have no real hardware here: real Xbox / PlayStation / Switch Pro pads, Safari,
@@ -41,7 +42,7 @@ Build once, reuse for all four characters. Nothing character-specific yet.
 Exit: unit tests for projectile gravity, deployable limits, status timers, resource determinism; a throwaway
 test character exercising each hook.
 
-## Phase 4: Brick, complete **CHECKPOINT**
+## Phase 4: Brick, complete *(done, awaiting your feedback)* **CHECKPOINT**
 Normals already exist; add the rest of the spec: HEAT (gain, 50% super-armor + 15% damage, decay, 100% Vent),
 Charge Shoulder, Grapple Slam (command grab), Jet Boost (weak recovery, no ledge grab for first frames), Vent,
 Meltdown. Heat HUD seam bar. Full frame-data table, Heat unit tests, training scenario for every move.
