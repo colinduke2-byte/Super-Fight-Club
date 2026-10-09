@@ -49,7 +49,8 @@ function updateProjectiles(world: World): void {
     for (let i = 0; i < p.rehit.length; i++) if (p.rehit[i] > 0) p.rehit[i]--;
 
     if (def.path?.kind === 'zigzag') {
-      p.vy = def.path.amp * Math.sin((p.age / def.path.period) * Math.PI * 2);
+      // oscillate +-amp px around the launch height
+      p.vy = p.baseY + def.path.amp * Math.sin((p.age / def.path.period) * Math.PI * 2) - p.y;
     } else {
       p.vy += def.gravity ?? 0;
       const mf = def.maxFall ?? 99;

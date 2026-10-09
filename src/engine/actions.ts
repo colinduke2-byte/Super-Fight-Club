@@ -14,7 +14,7 @@ const tmpRect = [0, 0, 0, 0];
 export function executeMoveEvent(f: Fighter, ev: MoveEvent, inp: FighterInput, world: World): void {
   switch (ev.action) {
     case 'projectile':
-      world.spawnProjectile(f.id, ev.id, f.x + f.facing * ev.x, f.y + ev.y, f.facing * ev.vx, ev.vy, f.damageMult);
+      world.spawnProjectile(f.id, ev.id, f.x + f.facing * ev.x, f.y + ev.y, f.facing * ev.vx, ev.vy, f.damageMult * chargeScale(f));
       break;
     case 'deploy':
       world.spawnDeployable(f.id, ev.id, f.x + f.facing * ev.x, f.y + ev.y);
@@ -52,6 +52,12 @@ export function executeMoveEvent(f: Fighter, ev: MoveEvent, inp: FighterInput, w
       world.emit('fx', f, f.x, f.y, f.facing, 0, ev.name);
       break;
   }
+}
+
+/** Damage scale from the current move's charge (chargeable spells). */
+function chargeScale(f: Fighter): number {
+  const c = f.move?.charge;
+  return c ? 1 + (c.damageMult - 1) * f.chargeFrac : 1;
 }
 
 // ---- teleport --------------------------------------------------------------------------------

@@ -374,6 +374,7 @@ export class SandboxScene extends Phaser.Scene {
     for (let i = 0; i < this.fighters.length; i++) {
       const sc = this.match.scores[i];
       const f = this.fighters[i];
+      this.huds[i].colorIndex = f.data.hud?.colorKey ? (f.res[f.data.hud.colorKey] ?? 0) : 0;
       this.huds[i].update(f.damage, sc.stocks, this.match.training, sc.eliminated, f.meter / (f.data.ultimate?.cost ?? 100), this.world.tick, f.data.hud ? (f.res[f.data.hud.resource] ?? 0) : 0);
     }
     if (this.match.over && !this.banner.visible) {
@@ -562,6 +563,31 @@ export class SandboxScene extends Phaser.Scene {
         e.ring(x + dir * 18, y - 2, 30, 0xffffff, 0.3);
         e.flash(x + dir * 18, y - 8, 2, 0xffffff);
         this.shake = Math.max(this.shake, 8);
+        break;
+      case 'cycle': {
+        const col = [0xff7a2a, 0x8fe6ff, 0xffee55][f.res.element ?? 0];
+        e.ring(x, y - f.h - 8, 14, col, 0.35);
+        e.burst(x, y - f.h - 8, 10, 60, col, 0.35, 2);
+        break;
+      }
+      case 'cast':
+        e.flash(x + dir * 20, y - 18, 0.9, [0xff9a4a, 0xbff2ff, 0xfff6a0][f.res.element ?? 0]);
+        break;
+      case 'barrier':
+        e.ring(x + dir * 20, y - 16, 26, 0xb070ff, 0.4);
+        break;
+      case 'aether':
+        e.ring(x, y - 14, 18, 0xc0a0ff, 0.35);
+        e.burst(x, y - 14, 12, 70, 0xc0a0ff, 0.4, 2);
+        break;
+      case 'converge':
+        e.ring(x, y - 14, 50, 0xffffff, 0.8);
+        e.burst(x, y - 14, 30, 90, 0xff7a2a, 0.7, 3);
+        e.burst(x, y - 14, 30, 90, 0x8fe6ff, 0.7, 3);
+        e.burst(x, y - 14, 30, 90, 0xffee55, 0.7, 3);
+        break;
+      case 'beam':
+        this.shake = Math.max(this.shake, 6);
         break;
       case 'blink':
         e.flash(x, y - f.h / 2, 1, 0x7fe8ff);

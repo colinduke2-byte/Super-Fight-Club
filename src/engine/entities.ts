@@ -15,6 +15,8 @@ export class Projectile {
   y = 0;
   prevX = 0;
   prevY = 0;
+  /** Launch height: zigzag paths oscillate around it. */
+  baseY = 0;
   vx = 0;
   vy = 0;
   age = 0;
@@ -41,6 +43,7 @@ export class Projectile {
     this.def = def;
     this.x = this.prevX = x;
     this.y = this.prevY = y;
+    this.baseY = y;
     this.vx = vx;
     this.vy = vy;
     this.age = 0;

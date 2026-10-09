@@ -1,0 +1,209 @@
+{
+  "projectiles": {
+    "bolt_fire": {
+      "w": 12, "h": 12, "gravity": 0.11, "maxFall": 4, "life": 95, "health": 4,
+      "hit": { "x": 0, "y": 0, "w": 1, "h": 1, "damage": 8, "angle": 40, "base": 36, "scaling": 0.7, "hitlag": 1.2, "fx": "fire", "status": { "type": "burn", "frames": 120, "value": 0.06 } },
+      "look": { "shape": "orb", "color": "#ff7a2a", "size": 1.3 }
+    },
+    "bolt_ice": {
+      "w": 12, "h": 12, "gravity": 0.012, "life": 120, "health": 2,
+      "hit": { "x": 0, "y": 0, "w": 1, "h": 1, "damage": 5, "angle": 361, "base": 22, "scaling": 0.3, "fx": "ice", "status": { "type": "freeze", "frames": 55, "minPercent": 100, "fallback": { "type": "slow", "frames": 120, "value": 0.55 } } },
+      "look": { "shape": "orb", "color": "#8fe6ff", "size": 1.1 }
+    },
+    "bolt_lightning": {
+      "w": 12, "h": 10, "life": 60, "pierce": true, "path": { "kind": "zigzag", "amp": 7, "period": 16 },
+      "hit": { "x": 0, "y": 0, "w": 1, "h": 1, "damage": 2.4, "angle": 361, "base": 8, "scaling": 0.1, "rehit": 7, "minHitstun": 12, "hitlag": 0.6, "fx": "zap", "status": { "type": "stun", "frames": 16 } },
+      "look": { "shape": "bolt", "color": "#ffee55", "size": 1.2 }
+    },
+    "dair_spell": {
+      "w": 12, "h": 16, "life": 26, "gravity": 0.25,
+      "hit": { "x": 0, "y": 0, "w": 1, "h": 1, "damage": 7, "angle": 280, "base": 26, "scaling": 0.5, "hitlag": 1.1, "fx": "meteor" },
+      "look": { "shape": "bolt", "color": "#c080ff", "size": 1.1 }
+    },
+    "beam_fire": {
+      "w": 70, "h": 70, "life": 55, "pierce": true,
+      "hit": { "x": 0, "y": 0, "w": 1, "h": 1, "damage": 4, "angle": 361, "base": 10, "scaling": 0.1, "minHitstun": 45, "hitlag": 0.8, "fx": "fire", "status": { "type": "burn", "frames": 120, "value": 0.08 } },
+      "look": { "shape": "beam", "color": "#ff7a2a", "size": 1.4 }
+    },
+    "beam_ice": {
+      "w": 70, "h": 70, "life": 55, "pierce": true,
+      "hit": { "x": 0, "y": 0, "w": 1, "h": 1, "damage": 4, "angle": 361, "base": 10, "scaling": 0.1, "minHitstun": 45, "hitlag": 0.8, "fx": "ice", "status": { "type": "slow", "frames": 150, "value": 0.5 } },
+      "look": { "shape": "beam", "color": "#8fe6ff", "size": 1.4 }
+    },
+    "beam_lightning": {
+      "w": 70, "h": 80, "life": 55, "pierce": true,
+      "hit": { "x": 0, "y": 0, "w": 1, "h": 1, "damage": 14, "angle": 40, "base": 85, "scaling": 1.05, "hitlag": 1.4, "fx": "zap", "status": { "type": "stun", "frames": 30 } },
+      "look": { "shape": "beam", "color": "#ffee55", "size": 1.4 }
+    }
+  },
+  "deployables": {
+    "rune_fire": {
+      "w": 24, "h": 6, "health": 3, "limit": 1, "armFrames": 18, "life": 1500, "gravity": true,
+      "trigger": { "hit": { "x": 0, "y": 0, "w": 1, "h": 1, "damage": 8, "angle": 82, "base": 42, "scaling": 0.7, "fx": "fire", "status": { "type": "burn", "frames": 120, "value": 0.06 } } },
+      "look": { "shape": "rune", "color": "#ff7a2a" }
+    },
+    "rune_ice": {
+      "w": 24, "h": 6, "health": 3, "limit": 1, "armFrames": 18, "life": 1500, "gravity": true,
+      "trigger": { "hit": { "x": 0, "y": 0, "w": 1, "h": 1, "damage": 5, "angle": 70, "base": 26, "scaling": 0.3, "fx": "ice", "status": { "type": "freeze", "frames": 55, "minPercent": 90, "fallback": { "type": "slow", "frames": 120, "value": 0.55 } } } },
+      "look": { "shape": "rune", "color": "#8fe6ff" }
+    },
+    "rune_lightning": {
+      "w": 24, "h": 6, "health": 3, "limit": 1, "armFrames": 18, "life": 1500, "gravity": true,
+      "trigger": { "hit": { "x": 0, "y": 0, "w": 1, "h": 1, "damage": 4, "angle": 361, "base": 10, "scaling": 0.1, "minHitstun": 22, "fx": "zap", "status": { "type": "stun", "frames": 40 } } },
+      "look": { "shape": "rune", "color": "#ffee55" }
+    }
+  },
+  "moves": {
+    "jab1": {
+      "name": "Staff Poke 1", "kind": "jab", "anim": "jab", "startup": 6, "active": 2, "recovery": 12,
+      "next": { "id": "jab2", "from": 6, "to": 16, "at": 15 },
+      "hitboxes": [{ "x": 26, "y": -15, "w": 30, "h": 8, "damage": 1.8, "angle": 361, "base": 8, "scaling": 0.1, "minHitstun": 20, "fx": "punch" }]
+    },
+    "jab2": {
+      "name": "Staff Poke 2", "kind": "jab", "anim": "jab", "startup": 6, "active": 2, "recovery": 12,
+      "next": { "id": "jab3", "from": 6, "to": 16, "at": 15 },
+      "hitboxes": [{ "x": 26, "y": -15, "w": 30, "h": 8, "damage": 1.8, "angle": 361, "base": 8, "scaling": 0.1, "minHitstun": 22, "fx": "punch" }]
+    },
+    "jab3": {
+      "name": "Burst Poke", "kind": "jab", "anim": "jab", "startup": 8, "active": 3, "recovery": 22,
+      "hitboxes": [{ "x": 30, "y": -15, "w": 34, "h": 22, "damage": 3.5, "angle": 40, "base": 26, "scaling": 0.4, "hitlag": 1.1, "fx": "burst" }]
+    },
+    "fsmash": {
+      "name": "Staff Burst", "kind": "smash", "anim": "smashF", "startup": 16, "active": 3, "recovery": 30,
+      "charge": { "frame": 6, "max": 60, "damageMult": 1.4, "kbMult": 1.2 },
+      "hitboxes": [{ "x": 38, "y": -16, "w": 46, "h": 26, "damage": 13, "angle": 38, "base": 44, "scaling": 0.9, "hitlag": 1.2, "fx": "burst" }]
+    },
+    "usmash": {
+      "name": "Skyward Spell", "kind": "smash", "anim": "smashU", "startup": 13, "active": 4, "recovery": 28,
+      "charge": { "frame": 5, "max": 60, "damageMult": 1.4, "kbMult": 1.2 },
+      "hitboxes": [{ "x": 6, "y": -54, "w": 40, "h": 64, "damage": 11, "angle": 82, "base": 40, "scaling": 0.85, "dir": "away", "hitlag": 1.1, "fx": "burst" }]
+    },
+    "dsmash": {
+      "name": "Ground Rune", "kind": "smash", "anim": "smashD", "startup": 14, "active": 5, "recovery": 28,
+      "charge": { "frame": 5, "max": 60, "damageMult": 1.4, "kbMult": 1.2 },
+      "hitboxes": [
+        { "x": 28, "y": -8, "w": 36, "h": 24, "damage": 10, "angle": 75, "base": 36, "scaling": 0.75, "dir": "away", "fx": "burst" },
+        { "x": -28, "y": -8, "w": 36, "h": 24, "damage": 10, "angle": 75, "base": 36, "scaling": 0.75, "dir": "away", "fx": "burst" }
+      ]
+    },
+    "nair": {
+      "name": "Orb Spin", "kind": "aerial", "anim": "aerialN", "startup": 8, "active": 20, "recovery": 12,
+      "landingLag": 12, "autocancel": [[1, 5], [36, 40]],
+      "hitboxes": [
+        { "x": 0, "y": -14, "w": 48, "h": 34, "damage": 3, "angle": 55, "base": 34, "scaling": 0.6, "window": [17, 20], "group": 1, "dir": "away", "fx": "burst" },
+        { "x": 0, "y": -14, "w": 48, "h": 34, "damage": 1.5, "angle": 361, "base": 10, "scaling": 0.1, "window": [1, 16], "group": 0, "rehit": 6, "dir": "away", "minHitstun": 10, "hitlag": 0.6, "fx": "burst" }
+      ]
+    },
+    "fair": {
+      "name": "Staff Swing", "kind": "aerial", "anim": "aerialF", "startup": 11, "active": 4, "recovery": 20,
+      "landingLag": 16, "autocancel": [[1, 6], [32, 35]],
+      "hitboxes": [
+        { "x": 38, "y": -16, "w": 30, "h": 26, "damage": 10, "angle": 38, "base": 40, "scaling": 0.85, "hitlag": 1.2, "fx": "punch" },
+        { "x": 20, "y": -16, "w": 26, "h": 22, "damage": 6, "angle": 45, "base": 28, "scaling": 0.55, "fx": "punch" }
+      ]
+    },
+    "bair": {
+      "name": "Magic Palm", "kind": "aerial", "anim": "aerialB", "startup": 8, "active": 3, "recovery": 15,
+      "landingLag": 12, "autocancel": [[1, 5], [22, 26]],
+      "hitboxes": [{ "x": -22, "y": -14, "w": 26, "h": 24, "damage": 8, "angle": 148, "base": 38, "scaling": 0.8, "hitlag": 1.1, "fx": "burst" }]
+    },
+    "uair": {
+      "name": "Rising Spark", "kind": "aerial", "anim": "aerialU", "startup": 7, "active": 5, "recovery": 16,
+      "landingLag": 11, "autocancel": [[1, 4], [24, 28]],
+      "hitboxes": [{ "x": 4, "y": -42, "w": 34, "h": 32, "damage": 5, "angle": 90, "base": 30, "scaling": 0.5, "fx": "zap" }]
+    },
+    "dair": {
+      "name": "Ground Spell", "kind": "aerial", "anim": "aerialD", "startup": 14, "active": 2, "recovery": 20,
+      "landingLag": 18, "gravityScale": 0.4, "autocancel": [[1, 6]],
+      "events": [{ "frame": 14, "action": "projectile", "id": "dair_spell", "x": 4, "y": 4, "vx": 0, "vy": 5.5 }],
+      "hitboxes": [{ "x": 0, "y": 6, "w": 18, "h": 14, "damage": 3, "angle": 280, "base": 14, "scaling": 0.2, "fx": "burst" }]
+    },
+    "grab": {
+      "name": "Arcane Grasp", "kind": "grab", "anim": "grab", "startup": 8, "active": 2, "recovery": 26,
+      "hitboxes": [{ "x": 20, "y": -15, "w": 26, "h": 20, "damage": 0, "angle": 0, "base": 0, "scaling": 0, "grab": true, "unblockable": true }]
+    },
+    "fthrow": {
+      "name": "Force Push", "kind": "throw", "anim": "grab", "throwDir": "forward", "startup": 8, "active": 1, "recovery": 16,
+      "hitboxes": [{ "x": 18, "y": -15, "w": 40, "h": 34, "damage": 5, "angle": 40, "base": 48, "scaling": 0.7, "throw": true }]
+    },
+    "bthrow": {
+      "name": "Reverse Gust", "kind": "throw", "anim": "grab", "throwDir": "back", "startup": 10, "active": 1, "recovery": 18,
+      "hitboxes": [{ "x": 18, "y": -15, "w": 40, "h": 34, "damage": 6, "angle": 140, "base": 50, "scaling": 0.75, "throw": true }]
+    },
+    "uthrow": {
+      "name": "Levitate", "kind": "throw", "anim": "grab", "throwDir": "up", "startup": 8, "active": 1, "recovery": 16,
+      "hitboxes": [{ "x": 18, "y": -15, "w": 40, "h": 34, "damage": 4, "angle": 90, "base": 40, "scaling": 0.5, "throw": true }]
+    },
+    "dthrow": {
+      "name": "Crush", "kind": "throw", "anim": "grab", "throwDir": "down", "startup": 8, "active": 1, "recovery": 18,
+      "hitboxes": [{ "x": 18, "y": -15, "w": 40, "h": 34, "damage": 5, "angle": 80, "base": 34, "scaling": 0.4, "throw": true }]
+    },
+    "neutralB_fire": {
+      "name": "Spell Bolt: Fire", "kind": "special", "anim": "castF", "startup": 18, "active": 1, "recovery": 18,
+      "charge": { "frame": 8, "max": 50, "damageMult": 1.6, "kbMult": 1.2 },
+      "events": [{ "frame": 18, "action": "projectile", "id": "bolt_fire", "x": 20, "y": -18, "vx": 3.4, "vy": -1.6 }, { "frame": 18, "action": "fx", "name": "cast" }],
+      "hitboxes": []
+    },
+    "neutralB_ice": {
+      "name": "Spell Bolt: Ice", "kind": "special", "anim": "castF", "startup": 14, "active": 1, "recovery": 16,
+      "charge": { "frame": 8, "max": 50, "damageMult": 1.5, "kbMult": 1.2 },
+      "events": [{ "frame": 14, "action": "projectile", "id": "bolt_ice", "x": 20, "y": -18, "vx": 3.0, "vy": -0.2 }, { "frame": 14, "action": "fx", "name": "cast" }],
+      "hitboxes": []
+    },
+    "neutralB_lightning": {
+      "name": "Spell Bolt: Lightning", "kind": "special", "anim": "castF", "startup": 9, "active": 1, "recovery": 14,
+      "charge": { "frame": 6, "max": 50, "damageMult": 1.6, "kbMult": 1.1 },
+      "events": [{ "frame": 9, "action": "projectile", "id": "bolt_lightning", "x": 20, "y": -18, "vx": 5.8, "vy": 0 }, { "frame": 9, "action": "fx", "name": "cast" }],
+      "hitboxes": []
+    },
+    "sideB_fire": {
+      "name": "Rune Trap: Fire", "kind": "special", "anim": "castD", "startup": 14, "active": 1, "recovery": 18,
+      "events": [{ "frame": 12, "action": "deploy", "id": "rune_fire", "x": 24, "y": 0 }],
+      "hitboxes": []
+    },
+    "sideB_ice": {
+      "name": "Rune Trap: Ice", "kind": "special", "anim": "castD", "startup": 14, "active": 1, "recovery": 18,
+      "events": [{ "frame": 12, "action": "deploy", "id": "rune_ice", "x": 24, "y": 0 }],
+      "hitboxes": []
+    },
+    "sideB_lightning": {
+      "name": "Rune Trap: Lightning", "kind": "special", "anim": "castD", "startup": 11, "active": 1, "recovery": 16,
+      "events": [{ "frame": 9, "action": "deploy", "id": "rune_lightning", "x": 24, "y": 0 }],
+      "hitboxes": []
+    },
+    "upB": {
+      "name": "Aether Step", "kind": "special", "anim": "castU", "startup": 10, "active": 1, "recovery": 30,
+      "helpless": true, "gravityScale": 0.25,
+      "events": [
+        { "frame": 10, "action": "teleport", "dist": 56, "dir": "up8" },
+        { "frame": 10, "action": "fx", "name": "aether" },
+        { "frame": 12, "action": "ledgeSnap", "range": 70 }
+      ],
+      "motion": [{ "frame": 11, "vx": 1.4, "mode": "add" }],
+      "hitboxes": []
+    },
+    "downB": {
+      "name": "Cycle", "kind": "special", "anim": "castD", "startup": 12, "active": 1, "recovery": 10,
+      "charge": { "frame": 5, "max": 14, "damageMult": 1 },
+      "events": [
+        { "frame": 2, "action": "custom", "name": "cycle" },
+        { "frame": 2, "action": "fx", "name": "cycle" },
+        { "frame": 8, "minCharge": 0.5, "action": "barrier", "frames": 55, "x": 20, "y": -16, "w": 34, "h": 44 },
+        { "frame": 8, "minCharge": 0.5, "action": "fx", "name": "barrier" }
+      ],
+      "hitboxes": []
+    },
+    "ultimate": {
+      "name": "Elemental Convergence", "kind": "ultimate", "anim": "raid", "startup": 34, "active": 1, "recovery": 40,
+      "invuln": [1, 28],
+      "events": [
+        { "frame": 4, "action": "fx", "name": "converge" },
+        { "frame": 30, "action": "projectile", "id": "beam_fire", "x": 10, "y": -42, "vx": 9, "vy": 0 },
+        { "frame": 34, "action": "projectile", "id": "beam_ice", "x": 10, "y": -42, "vx": 9, "vy": 0 },
+        { "frame": 38, "action": "projectile", "id": "beam_lightning", "x": 10, "y": -42, "vx": 9, "vy": 0 },
+        { "frame": 30, "action": "fx", "name": "beam" }
+      ],
+      "hitboxes": []
+    }
+  }
+}

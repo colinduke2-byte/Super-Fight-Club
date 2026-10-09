@@ -146,7 +146,9 @@ export interface CharacterData {
   /** Ground dash (double-tap / flick) with an invulnerability window. */
   dash?: { speed: number; frames: number; invuln: [number, number]; cooldown: number };
   /** HUD resource bar (Heat, Scrap...): drawn as a glowing seam on the player plate; sprite glows once `hotAt` is reached. */
-  hud?: { resource: string; max: number; color: number; hotAt: number };
+  hud?: { resource: string; max: number; color: number; hotAt: number; /** Per-element seam colours picked by `res[colorKey]`. */ colors?: number[]; colorKey?: string };
+  /** A floating companion orb whose colour follows `res[resource]` (Nova's Arcana orb). */
+  companion?: { resource: string; colors: number[] };
   /** Character-specific logic hooks (kept tiny; most behaviour should be data). */
   behavior?: CharacterBehavior;
 }

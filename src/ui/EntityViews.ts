@@ -56,7 +56,7 @@ export class EntityViews {
       const base = 0.5 * (look.size ?? 1);
       if (look.shape === 'bolt' || look.shape === 'bullet') s.setRotation(Math.atan2(p.vy, Math.abs(p.vx)) * (p.vx < 0 ? -1 : 1));
       else s.setRotation(0);
-      if (look.shape === 'beam') s.setScale((p.def.w / 24) * (look.size ?? 1), 0.5 * (p.def.h / 10));
+      if (look.shape === 'beam') s.setScale(p.def.w / 48, p.def.h / 12);
       else s.setScale(base);
       // fade out in the last frames of life
       s.setAlpha(p.def.life - p.age < 8 ? (p.def.life - p.age) / 8 : 1);

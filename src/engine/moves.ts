@@ -65,17 +65,17 @@ export interface HitboxDef {
 
 /** Things a move does at a given frame, in addition to its hitboxes. Positions are forward-relative from the feet. */
 export type MoveEvent =
-  | { frame: number; action: 'projectile'; id: string; x: number; y: number; vx: number; vy: number }
-  | { frame: number; action: 'deploy'; id: string; x: number; y: number }
-  | { frame: number; action: 'teleport'; dist: number; dir?: 'stick8' | 'forward' | 'up' | 'up8' | 'back'; /** Deployable id to drop at the departure point (Blink marker). */ leaveMarker?: string }
-  | { frame: number; action: 'recall'; id: string }
-  | { frame: number; action: 'barrier'; frames: number; x: number; y: number; w: number; h: number }
-  | { frame: number; action: 'tether'; angle: number; range: number; speed: number; grabsOpponents?: boolean }
-  | { frame: number; action: 'ledgeSnap'; range: number }
-  | { frame: number; action: 'status'; status: StatusApply }
-  | { frame: number; action: 'resource'; key: string; add: number }
-  | { frame: number; action: 'fx'; name: string }
-  | { frame: number; action: 'custom'; name: string; args?: number[] };
+  | { frame: number; /** Only runs if the move's charge is at least this fraction (hold-to-activate effects). */ minCharge?: number; action: 'projectile'; id: string; x: number; y: number; vx: number; vy: number }
+  | { frame: number; /** Only runs if the move's charge is at least this fraction (hold-to-activate effects). */ minCharge?: number; action: 'deploy'; id: string; x: number; y: number }
+  | { frame: number; /** Only runs if the move's charge is at least this fraction (hold-to-activate effects). */ minCharge?: number; action: 'teleport'; dist: number; dir?: 'stick8' | 'forward' | 'up' | 'up8' | 'back'; /** Deployable id to drop at the departure point (Blink marker). */ leaveMarker?: string }
+  | { frame: number; /** Only runs if the move's charge is at least this fraction (hold-to-activate effects). */ minCharge?: number; action: 'recall'; id: string }
+  | { frame: number; /** Only runs if the move's charge is at least this fraction (hold-to-activate effects). */ minCharge?: number; action: 'barrier'; frames: number; x: number; y: number; w: number; h: number }
+  | { frame: number; /** Only runs if the move's charge is at least this fraction (hold-to-activate effects). */ minCharge?: number; action: 'tether'; angle: number; range: number; speed: number; grabsOpponents?: boolean }
+  | { frame: number; /** Only runs if the move's charge is at least this fraction (hold-to-activate effects). */ minCharge?: number; action: 'ledgeSnap'; range: number }
+  | { frame: number; /** Only runs if the move's charge is at least this fraction (hold-to-activate effects). */ minCharge?: number; action: 'status'; status: StatusApply }
+  | { frame: number; /** Only runs if the move's charge is at least this fraction (hold-to-activate effects). */ minCharge?: number; action: 'resource'; key: string; add: number }
+  | { frame: number; /** Only runs if the move's charge is at least this fraction (hold-to-activate effects). */ minCharge?: number; action: 'fx'; name: string }
+  | { frame: number; /** Only runs if the move's charge is at least this fraction (hold-to-activate effects). */ minCharge?: number; action: 'custom'; name: string; args?: number[] };
 
 /** Scripted ultimate: world freezes while the attacker's sequence plays, then hits land. */
 export interface Cinematic {
@@ -151,7 +151,7 @@ export interface ProjectileDef {
   health?: number;
   /** Barriers can reflect it. Default true. */
   reflectable?: boolean;
-  /** Vertical motion override: zigzag oscillation. */
+  /** Vertical motion override: zigzag oscillation of +-amp px around the launch height. */
   path?: { kind: 'zigzag'; amp: number; period: number };
   /** Keeps this fraction of speed when bouncing off solid floors. 0 = vanishes on contact. */
   bounce?: number;

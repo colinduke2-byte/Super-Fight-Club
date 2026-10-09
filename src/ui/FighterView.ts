@@ -9,6 +9,10 @@ export class FighterView {
   private readonly baseTint: number | undefined;
   private readonly shadow: Phaser.GameObjects.Image;
   private readonly bubble: Phaser.GameObjects.Image;
+  private orb: Phaser.GameObjects.Image | null = null;
+  private orbGlow: Phaser.GameObjects.Image | null = null;
+  private orbX = 0;
+  private orbY = 0;
 
   constructor(scene: Phaser.Scene, layer: Phaser.GameObjects.Layer, readonly fighter: Fighter, tint?: number) {
     this.baseTint = tint;
@@ -20,6 +24,12 @@ export class FighterView {
     layer.add(this.shadow);
     layer.add(this.sprite);
     layer.add(this.bubble);
+    if (fighter.data.companion) {
+      this.orbGlow = scene.add.image(0, 0, 'bubble').setBlendMode(Phaser.BlendModes.ADD).setScale(0.22).setAlpha(0.55);
+      this.orb = scene.add.image(0, 0, 'proj-orb').setBlendMode(Phaser.BlendModes.ADD).setScale(0.5);
+      layer.add(this.orbGlow);
+      layer.add(this.orb);
+    }
   }
 
   /** Current interpolated feet position (also used by the debug overlay). */
@@ -100,6 +110,7 @@ export class FighterView {
     else if (this.baseTint !== undefined) s.setTint(this.baseTint);
     else s.clearTint();
 
+    this.updateOrb(f, tick);
     const bubble = this.bubble;
     const shielding = f.state === 'shield' || f.state === 'shieldstun';
     bubble.setVisible(shielding);
@@ -109,9 +120,30 @@ export class FighterView {
     }
   }
 
+  /** Floating companion orb: lags behind the fighter, bobs, and takes the colour of the current element. */
+  private updateOrb(f: Fighter, tick: number): void {
+    const orb = this.orb;
+    if (!orb || !this.orbGlow) return;
+    const c = f.data.companion!;
+    const tx = this.x - f.facing * 16;
+    const ty = this.y - f.h - 8 + Math.sin(tick * 0.09) * 2.5;
+    if (f.snapped || (this.orbX === 0 && this.orbY === 0)) {
+      this.orbX = tx;
+      this.orbY = ty;
+    }
+    this.orbX += (tx - this.orbX) * 0.18;
+    this.orbY += (ty - this.orbY) * 0.18;
+    const col = c.colors[Math.max(0, Math.min(c.colors.length - 1, Math.round(f.res[c.resource] ?? 0)))];
+    const pulse = 0.9 + 0.1 * Math.sin(tick * 0.25);
+    orb.setPosition(this.orbX, this.orbY).setTint(col).setScale(0.5 * pulse).setVisible(f.state !== 'ko');
+    this.orbGlow.setPosition(this.orbX, this.orbY).setTint(col).setVisible(f.state !== 'ko');
+  }
+
   destroy(): void {
     this.sprite.destroy();
     this.shadow.destroy();
     this.bubble.destroy();
+    this.orb?.destroy();
+    this.orbGlow?.destroy();
   }
 }

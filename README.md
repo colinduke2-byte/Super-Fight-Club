@@ -196,6 +196,25 @@ directions during the start-up; usable once per airtime.
 | Snare Mine (down special) | proximity trap (max 2), launches upward, enemies can destroy it |
 | Pirate King's Raid (ultimate) | cinematic grab: a 9-hit teleport flurry then a big finisher |
 
+### Nova: spell-slinging zoner (complete, Phase 6)
+
+Weight 90, floaty with good air drift, one double jump; weak up close (slow, low-damage melee), easy to knock
+off stage. A floating orb companion changes colour with the element. Frame data:
+[`docs/frame-data-nova.md`](docs/frame-data-nova.md). Try her with `?char=nova`.
+
+**ARCANA CYCLE**: down special cycles Fire -> Ice -> Lightning (hold it to plant a reflecting barrier). The
+element changes her neutral and side specials, and tags her smashes / jab finisher / up air:
+
+| Element | Spell Bolt (neutral special, chargeable) | Rune Trap (side special, max 1 per element) | Melee effect |
+|---|---|---|---|
+| Fire | slow, arcs under gravity, high damage, burns | burning geyser that launches up | burn, +12% damage |
+| Ice | floats nearly level, slows; freezes at 100%+ | slows / freezes at 90%+ | slow (freeze at 100%+) |
+| Lightning | fast zig-zag, pierces and multi-hits, brief stun | stuns | short stun, -8% damage |
+
+Aether Step (up special): a telegraphed float-teleport (10-frame start-up) that can snap to a ledge within 70px,
+then glides; helpless afterwards. Elemental Convergence (ultimate): three beams (fire, ice, lightning)
+sweep across the screen; the lightning beam is the finisher.
+
 ## Add a character
 
 1. Create `src/characters/<id>.ts` exporting a `CharacterData` (copy `brick.ts`): stats, body size,

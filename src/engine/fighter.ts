@@ -963,6 +963,7 @@ export class Fighter implements Body {
     if (m.events) {
       for (const ev of m.events) {
         if (ev.frame !== f) continue;
+        if (ev.minCharge !== undefined && this.chargeFrac < ev.minCharge) continue;
         executeMoveEvent(this, ev, inp, world);
         if (this.state !== 'attack' || this.move !== m) return; // the event ended the move (tether latched, ledge snapped, ...)
       }

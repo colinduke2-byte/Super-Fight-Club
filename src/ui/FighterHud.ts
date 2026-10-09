@@ -20,6 +20,8 @@ export class FighterHud {
   private readonly hudDef: CharacterData['hud'];
   private readonly pips: Phaser.GameObjects.BitmapText;
   private lastDamage = 0;
+  /** Index into hud.colors (set by the scene each frame). */
+  colorIndex = 0;
   private pop = 0;
   private u = 3;
 
@@ -89,8 +91,9 @@ export class FighterHud {
       const hot = resource >= hd.hotAt;
       const flick = hot ? (resource >= hd.max ? 3 : 4) : 0;
       const bright = hot && ((tick >> flick) & 1) === 0;
-      this.seam.setVisible(frac > 0).setScale(((68 * this.u) / 4) * frac, (2 * this.u) / 4).setTint(hot ? (bright ? 0xffe9a0 : hd.color) : 0x8a4a28);
-      this.seamGlow.setVisible(hot).setScale(((68 * this.u) / 4) * frac, (4 * this.u) / 4).setTint(hd.color).setAlpha(bright ? 0.7 : 0.35);
+      const col = hd.colors && hd.colorKey ? hd.colors[Math.max(0, Math.min(hd.colors.length - 1, Math.round(this.colorIndex)))] : hd.color;
+      this.seam.setVisible(frac > 0).setScale(((68 * this.u) / 4) * frac, (2 * this.u) / 4).setTint(hd.colors ? col : hot ? (bright ? 0xffe9a0 : col) : 0x8a4a28);
+      this.seamGlow.setVisible(hot || !!hd.colors).setScale(((68 * this.u) / 4) * frac, (4 * this.u) / 4).setTint(col).setAlpha(hd.colors ? 0.4 : bright ? 0.7 : 0.35);
     }
     const full = meterFrac >= 1;
     this.meter.setVisible(meterFrac > 0).setScale(((66 * this.u) / 4) * meterFrac, (2 * this.u) / 4).setTint(full ? (((tick >> 3) & 1) === 0 ? 0xffd040 : 0xffffff) : 0x8ff6ee);
