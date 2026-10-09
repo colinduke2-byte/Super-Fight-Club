@@ -78,7 +78,7 @@ Key design points
 1. Create `src/characters/<id>.ts` exporting a `CharacterData` (copy `brick.ts`): stats, body size,
    animation table and a placeholder look.
 2. Register it in `src/characters/index.ts`.
-3. (Optional) Real art: add a sprite sheet (one animation per row, frames left→right, square frames)
+3. (Optional) Real art: add a sprite sheet (one animation per row, frames left→right, square frames; placeholders are 64×64 with `pixelScale: 0.5`, i.e. half a world unit per sprite pixel)
    and set `sprite.sheetUrl`; the placeholder generator is skipped automatically.
 
 ## Add a stage

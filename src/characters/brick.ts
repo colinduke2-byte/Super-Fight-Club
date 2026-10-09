@@ -27,7 +27,8 @@ export const brick: CharacterData = {
   },
   body: { width: 20, height: 28, footHalfWidth: 7 },
   sprite: {
-    frameSize: 32,
+    frameSize: 64,
+    pixelScale: 0.5,
     animations: {
       idle: { frames: 4, fps: 5, loop: true },
       run: { frames: 6, fps: 11, loop: true },
@@ -45,7 +46,7 @@ export const brick: CharacterData = {
       armorDark: '#2c4a8a',
       accent: '#ffb02e',
       outline: '#10142a',
-      build: { shoulderW: 18, torsoH: 10, legH: 8, headSize: 8, armLen: 8, helmet: 'visor' },
+      build: { shoulderW: 18, torsoH: 10, legH: 8, headSize: 8, armLen: 8, helmet: 'visor' } // 32px-grid units; the generator doubles them for the 64px frame,
     },
   },
 };

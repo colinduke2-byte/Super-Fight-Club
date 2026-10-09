@@ -92,8 +92,10 @@ export interface AnimDef {
 }
 
 export interface SpriteDef {
-  /** Square frame size in px. */
+  /** Square frame size in px (placeholder art is 64; real sheets may differ). */
   frameSize: number;
+  /** World units per sprite pixel (0.5 = a 64px frame covers 32 world units). Keeps hurtboxes independent of art density. */
+  pixelScale: number;
   /** Row order == key order. Sheet layout: one animation per row, frames left to right. */
   animations: Record<string, AnimDef>;
   /** If set, a real sprite sheet is loaded from this URL instead of the generated placeholder. */

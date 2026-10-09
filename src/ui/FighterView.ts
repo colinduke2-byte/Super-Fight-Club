@@ -11,7 +11,7 @@ export class FighterView {
   constructor(scene: Phaser.Scene, layer: Phaser.GameObjects.Layer, readonly fighter: Fighter, tint?: number) {
     const key = fighterTextureKey(fighter.data.id);
     this.shadow = scene.add.image(0, 0, 'px').setTint(0x000000).setAlpha(0.25).setScale(5, 0.7);
-    this.sprite = scene.add.sprite(0, 0, key, 0).setOrigin(0.5, 1);
+    this.sprite = scene.add.sprite(0, 0, key, 0).setOrigin(0.5, 1).setScale(fighter.data.sprite.pixelScale);
     if (tint !== undefined) this.sprite.setTint(tint);
     layer.add(this.shadow);
     layer.add(this.sprite);
@@ -62,7 +62,8 @@ export class FighterView {
       default:
         break;
     }
-    s.setScale(sx, sy);
+    const ps = f.data.sprite.pixelScale;
+    s.setScale(sx * ps, sy * ps);
     // invincibility blink
     s.setAlpha(f.invuln > 0 && (tick >> 2) % 2 === 0 ? 0.45 : 1);
   }

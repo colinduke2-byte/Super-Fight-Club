@@ -2,92 +2,81 @@ import Phaser from 'phaser';
 import type { CharacterData, PlaceholderLook } from '../engine/types';
 
 /**
- * Placeholder pixel-art generator. Draws every animation frame of a character with plain canvas
- * rects (no assets), then packs them into a sprite sheet laid out exactly like a real one:
- * one animation per row, frames left-to-right, `frameSize` squares. Swapping in a real sheet only
- * needs `sprite.sheetUrl` in the character data (see BootScene).
+ * Placeholder pixel-art generator (64x64 frames). Draws every animation frame with canvas rects and
+ * limbs, adds rim-light / under-shade / outline passes, then packs frames into a sprite sheet laid
+ * out like a real one: one animation per row, frames left-to-right. Swapping in real art only needs
+ * `sprite.sheetUrl` in the character data (see BootScene).
  */
 
+type V2 = [number, number];
+
 interface Pose {
-  bob: number; // torso/head vertical offset (px)
-  crouch: number; // legs shortened by this many px
-  frontLegX: number;
-  backLegX: number;
-  frontLegLift: number;
-  backLegLift: number;
-  frontArm: [number, number]; // end offset of the front arm (dx, dy) relative to the resting hang
-  backArm: [number, number];
-  lean: number; // torso/head x shift toward facing
+  bob: number;
+  crouch: number;
+  lean: number;
+  frontFoot: V2; // [dx, lift]
+  backFoot: V2;
+  frontHand: V2; // offset from resting hang
+  backHand: V2;
   lying?: boolean;
 }
 
-const REST: Pose = {
-  bob: 0,
-  crouch: 0,
-  frontLegX: 2,
-  backLegX: -2,
-  frontLegLift: 0,
-  backLegLift: 0,
-  frontArm: [1, 0],
-  backArm: [-1, 0],
-  lean: 0,
-};
+const REST: Pose = { bob: 0, crouch: 0, lean: 0, frontFoot: [4, 0], backFoot: [-4, 0], frontHand: [2, 0], backHand: [-2, 0] };
 
 function poseFor(anim: string, f: number, frames: number): Pose {
-  const p: Pose = { ...REST, frontArm: [...REST.frontArm], backArm: [...REST.backArm] };
+  const p: Pose = { ...REST };
   switch (anim) {
     case 'idle': {
       const b = [0, 0, 1, 1][f % 4];
       p.bob = b;
-      p.frontArm = [1, b ? 1 : 0];
+      p.frontHand = [2, b];
+      p.backHand = [-2, b];
       break;
     }
     case 'run': {
       const ph = (f / frames) * Math.PI * 2;
-      p.frontLegX = Math.round(Math.sin(ph) * 5);
-      p.backLegX = -p.frontLegX;
-      p.frontLegLift = Math.max(0, Math.round(-Math.cos(ph) * 3));
-      p.backLegLift = Math.max(0, Math.round(Math.cos(ph) * 3));
-      p.bob = Math.abs(Math.sin(ph)) > 0.7 ? 1 : 0;
-      p.lean = 1;
-      p.frontArm = [-Math.round(Math.sin(ph) * 3), 0];
-      p.backArm = [Math.round(Math.sin(ph) * 3), 0];
+      const s = Math.sin(ph);
+      const c = Math.cos(ph);
+      p.frontFoot = [Math.round(s * 11), Math.max(0, Math.round(-c * 7))];
+      p.backFoot = [-Math.round(s * 11), Math.max(0, Math.round(c * 7))];
+      p.bob = Math.abs(s) > 0.7 ? 2 : 0;
+      p.lean = 3;
+      p.frontHand = [-Math.round(s * 7), -2];
+      p.backHand = [Math.round(s * 7), -2];
       break;
     }
     case 'crouch':
-      p.crouch = 3;
-      p.frontLegX = 3;
-      p.backLegX = -3;
+      p.crouch = 7;
+      p.frontFoot = [7, 0];
+      p.backFoot = [-7, 0];
+      p.frontHand = [5, -3];
+      p.backHand = [-3, -3];
       break;
     case 'jump':
-      p.frontLegLift = 3;
-      p.backLegLift = 4;
-      p.frontLegX = 3;
-      p.backLegX = -1;
-      p.frontArm = [2, -4];
-      p.backArm = [-2, -3];
+      p.frontFoot = [6, 7];
+      p.backFoot = [-3, 9];
+      p.frontHand = [6, -10];
+      p.backHand = [-5, -8];
       break;
     case 'fall':
-      p.frontLegX = 4;
-      p.backLegX = -4;
-      p.frontLegLift = 1;
-      p.frontArm = [3, -6];
-      p.backArm = [-3, -6];
+      p.frontFoot = [9, 3];
+      p.backFoot = [-9, 0];
+      p.frontHand = [8, -15];
+      p.backHand = [-8, -15];
       break;
     case 'ledge':
-      p.frontArm = [3, -9];
-      p.backArm = [-1, -9];
-      p.frontLegX = 1;
-      p.backLegX = -1;
-      p.crouch = 1;
+      p.frontFoot = [3, 0];
+      p.backFoot = [-3, 0];
+      p.crouch = 2;
+      p.frontHand = [6, -26];
+      p.backHand = [-2, -26];
       break;
     case 'hurt':
-      p.lean = -2;
-      p.frontLegX = 4;
-      p.backLegX = -3;
-      p.frontLegLift = 2;
-      p.frontArm = [4, -3];
-      p.backArm = [-4, -1];
+      p.lean = -5;
+      p.frontFoot = [9, 4];
+      p.backFoot = [-7, 0];
+      p.frontHand = [10, -8];
+      p.backHand = [-10, -2];
       break;
     case 'down':
     case 'ko':
@@ -101,114 +90,233 @@ function poseFor(anim: string, f: number, frames: number): Pose {
 
 type Ctx = CanvasRenderingContext2D;
 
-function rect(ctx: Ctx, color: string, x: number, y: number, w: number, h: number): void {
+// ---- colour helpers --------------------------------------------------------------------------
+function rgb(hex: string): V2 & { 2?: number } {
+  const n = parseInt(hex.slice(1), 16);
+  return [(n >> 16) & 255, (n >> 8) & 255, n & 255] as unknown as V2 & { 2?: number };
+}
+function shade(hex: string, k: number): string {
+  const [r, g, b] = rgb(hex) as unknown as [number, number, number];
+  const f = (v: number): number => Math.max(0, Math.min(255, Math.round(k >= 1 ? v + (255 - v) * (k - 1) : v * k)));
+  return `rgb(${f(r)},${f(g)},${f(b)})`;
+}
+
+function R(ctx: Ctx, color: string, x: number, y: number, w: number, h: number): void {
   ctx.fillStyle = color;
   ctx.fillRect(Math.round(x), Math.round(y), w, h);
 }
 
+/** Thick line of w x w squares from (x0,y0) to (x1,y1): used for limbs so any pose is drawable. */
+function limb(ctx: Ctx, color: string, x0: number, y0: number, x1: number, y1: number, w: number): void {
+  const n = Math.max(1, Math.round(Math.max(Math.abs(x1 - x0), Math.abs(y1 - y0))));
+  ctx.fillStyle = color;
+  for (let i = 0; i <= n; i++) {
+    const t = i / n;
+    ctx.fillRect(Math.round(x0 + (x1 - x0) * t - w / 2), Math.round(y0 + (y1 - y0) * t - w / 2), w, w);
+  }
+}
+
+interface Pal {
+  skin: string;
+  armor: string;
+  light: string;
+  dark: string;
+  deep: string;
+  accent: string;
+  glow: string;
+  steel: string;
+  steelDark: string;
+}
+
+function palette(look: PlaceholderLook): Pal {
+  return {
+    skin: look.skin,
+    armor: look.armor,
+    light: shade(look.armor, 1.28),
+    dark: look.armorDark,
+    deep: shade(look.armorDark, 0.7),
+    accent: look.accent,
+    glow: shade(look.accent, 1.55),
+    steel: '#a9b4cc',
+    steelDark: '#6a7592',
+  };
+}
+
 function drawFighterFrame(ctx: Ctx, size: number, look: PlaceholderLook, pose: Pose): void {
+  const P = palette(look);
   const b = look.build;
-  const cx = size / 2;
-  const base = size - 1; // feet row
+  const cx = size / 2 - 5; // body sits left of centre: the piston fist reaches forward
+  const base = size - 2; // feet row (leaves 1px for outline)
 
   if (pose.lying) {
-    // body lying along the ground, head to the left
-    const len = b.legH + b.torsoH;
-    rect(ctx, look.armorDark, cx - len / 2 + b.headSize, base - 6, len - 2, 6);
-    rect(ctx, look.armor, cx - len / 2 + b.headSize + 2, base - 8, len - 6, 5);
-    rect(ctx, look.accent, cx - len / 2 + b.headSize + 4, base - 8, 3, 2);
-    rect(ctx, look.armor, cx - len / 2 - 2, base - 8, b.headSize, b.headSize - 1);
-    rect(ctx, look.accent, cx - len / 2 - 2, base - 5, 3, 2);
-    rect(ctx, look.armorDark, cx + len / 2 - 2, base - 4, 5, 4);
+    drawLying(ctx, cx, base, P, b.legH * 2, b.torsoH * 2, b.headSize * 2);
     return;
   }
 
-  const legH = b.legH - pose.crouch;
-  const legTop = base - legH + 1;
-  const torsoTop = legTop - b.torsoH + pose.bob;
-  const shoulderY = torsoTop + 1;
-  const tw = b.shoulderW - 4; // torso width (pauldrons add the rest)
-  const lx = Math.round(pose.lean);
+  const legH = b.legH * 2 - pose.crouch;
+  const torsoH = b.torsoH * 2;
+  const tw = (b.shoulderW - 4) * 2; // torso width
+  const hs = b.headSize * 2;
+  const lean = pose.lean;
 
-  // back arm + back leg (darker, behind the torso)
-  const bAx = cx - tw / 2 - 2 + pose.backArm[0];
-  rect(ctx, look.armorDark, bAx, shoulderY + 1 + Math.min(0, pose.backArm[1]), 3, b.armLen + Math.max(0, -pose.backArm[1]) - 1);
-  rect(ctx, look.skin, bAx, shoulderY + b.armLen + Math.min(0, pose.backArm[1]) - 1, 3, 3);
-  const bLx = cx - 4 + pose.backLegX;
-  rect(ctx, look.armorDark, bLx, legTop - pose.backLegLift, 4, legH - 1);
-  rect(ctx, look.outline, bLx, base - pose.backLegLift, 5, 2);
+  const hipY = base - legH;
+  const torsoTop = hipY - torsoH + 2 + pose.bob;
+  const shoulderY = torsoTop + 5;
+  const x0 = Math.round(cx - tw / 2 + lean);
 
-  // torso
-  rect(ctx, look.armor, cx - tw / 2 + lx, torsoTop, tw, b.torsoH);
-  rect(ctx, look.armorDark, cx - tw / 2 + lx, torsoTop + b.torsoH - 3, tw, 3); // belt
-  rect(ctx, look.accent, cx - 2 + lx, torsoTop + 2, 4, 4); // chest core
-  rect(ctx, look.armorDark, cx - tw / 2 + lx, torsoTop, 2, b.torsoH - 3); // side shade
+  const foot = (f: V2, side: number): V2 => [cx + side * 4 + lean * 0.5 + f[0], base - f[1]];
 
-  // front leg
-  const fLx = cx - 1 + pose.frontLegX;
-  rect(ctx, look.armor, fLx, legTop - pose.frontLegLift, 4, legH - 1);
-  rect(ctx, look.armorDark, fLx, legTop - pose.frontLegLift + 3, 4, 2);
-  rect(ctx, look.outline, fLx, base - pose.frontLegLift, 6, 2);
+  // ---------- back arm (in shadow) ----------
+  const bs: V2 = [x0 + 2, shoulderY + 2];
+  const bh: V2 = [bs[0] - 4 + pose.backHand[0], bs[1] + b.armLen * 2 - 2 + pose.backHand[1]];
+  limb(ctx, P.deep, bs[0], bs[1], bh[0], bh[1], 8);
+  R(ctx, P.dark, bh[0] - 5, bh[1] - 3, 10, 9);
 
-  // head
-  const hs = b.headSize;
-  const headTop = torsoTop - hs + 2;
-  const hx = cx - hs / 2 + lx + 1;
-  switch (b.helmet) {
-    case 'visor':
-      rect(ctx, look.armor, hx, headTop, hs, hs);
-      rect(ctx, look.armorDark, hx, headTop, hs, 2);
-      rect(ctx, look.accent, hx + hs / 2 - 1, headTop + 3, hs / 2 + 1, 2);
-      break;
-    case 'hood':
-      rect(ctx, look.armorDark, hx - 1, headTop - 1, hs + 2, hs + 1);
-      rect(ctx, look.skin, hx + hs / 2, headTop + 2, hs / 2, hs - 3);
-      rect(ctx, look.accent, hx + hs / 2 + 1, headTop + 3, 2, 1);
-      break;
-    case 'pointed':
-      rect(ctx, look.armor, hx, headTop + 1, hs, hs - 1);
-      rect(ctx, look.armor, hx + 2, headTop - 3, hs - 4, 4);
-      rect(ctx, look.skin, hx + hs / 2, headTop + 3, hs / 2, hs - 4);
-      rect(ctx, look.accent, hx + hs / 2 + 1, headTop + 4, 2, 1);
-      break;
-    case 'dome':
-      rect(ctx, look.armor, hx, headTop, hs, hs);
-      rect(ctx, look.skin, hx + 2, headTop + 2, hs - 3, hs - 4);
-      rect(ctx, look.accent, hx + hs - 3, headTop + 3, 2, 2);
-      break;
-  }
+  // ---------- back leg ----------
+  const bf = foot(pose.backFoot, -1);
+  limb(ctx, P.deep, cx - 5 + lean * 0.5, hipY, bf[0], bf[1] - 4, 10);
+  R(ctx, P.deep, bf[0] - 6, bf[1] - 4, 13, 5); // boot
+  R(ctx, P.dark, bf[0] - 6, bf[1] - 4, 13, 2);
 
-  // pauldron + front arm
-  const aX = cx + tw / 2 - 1 + lx + pose.frontArm[0];
-  rect(ctx, look.accent, cx + tw / 2 - 2 + lx, shoulderY - 1, 5, 4);
-  rect(ctx, look.armor, aX, shoulderY + 3 + Math.min(0, pose.frontArm[1]), 4, b.armLen + Math.max(0, -pose.frontArm[1]) - 2);
-  rect(ctx, look.skin, aX, shoulderY + b.armLen + 1 + Math.min(0, pose.frontArm[1]), 4, 3);
+  // ---------- torso ----------
+  R(ctx, P.armor, x0, torsoTop, tw, torsoH);
+  R(ctx, P.light, x0 + 3, torsoTop, tw - 6, 2); // top highlight
+  R(ctx, P.light, x0 + 3, torsoTop + 2, tw - 10, 6); // chest plate
+  R(ctx, P.armor, x0 + 5, torsoTop + 3, tw - 14, 4);
+  R(ctx, P.dark, x0, torsoTop + 2, 4, torsoH - 6); // shaded flank
+  R(ctx, P.deep, x0, torsoTop + 2, 1, torsoH - 6);
+  for (let y = torsoTop + 12; y < torsoTop + torsoH - 4; y += 3) R(ctx, P.dark, x0 + 6, y, tw - 10, 1); // abdomen plates
+  // glowing seams
+  R(ctx, P.accent, x0 + 5, torsoTop + 8, 1, torsoH - 14);
+  R(ctx, P.accent, x0 + tw - 6, torsoTop + 8, 1, torsoH - 14);
+  // reactor core
+  R(ctx, P.deep, x0 + tw / 2 - 5, torsoTop + 4, 10, 10);
+  R(ctx, P.accent, x0 + tw / 2 - 4, torsoTop + 5, 8, 8);
+  R(ctx, P.glow, x0 + tw / 2 - 2, torsoTop + 7, 4, 4);
+  // belt
+  R(ctx, P.deep, x0, torsoTop + torsoH - 5, tw, 5);
+  R(ctx, P.steel, x0 + tw / 2 - 3, torsoTop + torsoH - 4, 6, 3);
+
+  // ---------- front leg ----------
+  const ff = foot(pose.frontFoot, 1);
+  limb(ctx, P.armor, cx + 4 + lean * 0.5, hipY, ff[0], ff[1] - 4, 10);
+  const kx = (cx + 4 + lean * 0.5 + ff[0]) / 2;
+  const ky = (hipY + ff[1] - 4) / 2;
+  R(ctx, P.light, kx - 3, ky - 2, 8, 4); // knee plate
+  R(ctx, P.steel, kx, ky - 1, 2, 2);
+  R(ctx, P.dark, ff[0] - 6, ff[1] - 5, 15, 6); // boot
+  R(ctx, P.armor, ff[0] - 6, ff[1] - 5, 15, 2);
+  R(ctx, P.deep, ff[0] - 6, ff[1], 15, 1);
+
+  // ---------- head ----------
+  const headTop = torsoTop - hs + 4;
+  const hx = Math.round(cx - hs / 2 + lean + 2);
+  R(ctx, P.dark, hx + 2, torsoTop - 1, hs - 5, 3); // neck
+  drawHead(ctx, look, P, hx, headTop, hs);
+
+  // ---------- front shoulder: pauldron + piston-fist arm ----------
+  const sx = x0 + tw - 2;
+  const sy = shoulderY + 2;
+  const hand: V2 = [sx + 7 + pose.frontHand[0], sy + b.armLen * 2 + pose.frontHand[1] + 2];
+  // arm housing -> exposed piston rod -> fist
+  const mid: V2 = [sx + (hand[0] - sx) * 0.5, sy + (hand[1] - sy) * 0.5];
+  limb(ctx, P.dark, sx, sy, mid[0], mid[1], 12);
+  limb(ctx, P.armor, sx, sy, mid[0], mid[1], 10);
+  limb(ctx, P.steel, mid[0], mid[1], hand[0], hand[1] - 5, 5);
+  limb(ctx, P.steelDark, mid[0] + 1, mid[1], hand[0] + 1, hand[1] - 5, 2);
+  R(ctx, P.dark, mid[0] - 6, mid[1] - 2, 12, 5); // piston collar
+  R(ctx, P.accent, mid[0] - 6, mid[1], 12, 1);
+  // fist
+  R(ctx, P.deep, hand[0] - 9, hand[1] - 8, 19, 16);
+  R(ctx, P.armor, hand[0] - 8, hand[1] - 8, 17, 14);
+  R(ctx, P.light, hand[0] - 8, hand[1] - 8, 17, 2);
+  for (let k = 0; k < 3; k++) R(ctx, P.dark, hand[0] - 6 + k * 5, hand[1] - 2, 1, 7); // knuckle lines
+  R(ctx, P.accent, hand[0] - 8, hand[1] + 4, 17, 2);
+  // pauldron on top
+  R(ctx, P.deep, sx - 8, sy - 8, 19, 13);
+  R(ctx, P.armor, sx - 7, sy - 8, 17, 11);
+  R(ctx, P.light, sx - 7, sy - 8, 17, 2);
+  R(ctx, P.accent, sx - 7, sy + 1, 17, 2);
+  R(ctx, P.steel, sx - 4, sy - 5, 2, 2);
+  R(ctx, P.steel, sx + 4, sy - 5, 2, 2);
 }
 
-/** Add a 1px outline around the opaque silhouette. */
-function outline(ctx: Ctx, size: number, color: string): void {
+function drawHead(ctx: Ctx, look: PlaceholderLook, P: Pal, hx: number, top: number, hs: number): void {
+  switch (look.build.helmet) {
+    case 'visor':
+      R(ctx, P.deep, hx - 1, top + 2, hs + 2, hs - 1);
+      R(ctx, P.armor, hx, top, hs, hs - 1); // shell
+      R(ctx, P.light, hx + 1, top, hs - 2, 2);
+      R(ctx, P.dark, hx + hs / 2 - 3, top - 3, 6, 4); // crest
+      R(ctx, P.light, hx + hs / 2 - 2, top - 3, 4, 1);
+      R(ctx, P.dark, hx, top + 2, 4, hs - 4); // rear shade
+      R(ctx, P.deep, hx + 6, top + 6, hs - 5, 5); // visor recess
+      R(ctx, P.accent, hx + 7, top + 7, hs - 7, 3);
+      R(ctx, P.glow, hx + 9, top + 8, hs - 11, 1);
+      R(ctx, P.dark, hx + 5, top + hs - 4, hs - 4, 4); // chin guard
+      for (let k = 0; k < 3; k++) R(ctx, P.deep, hx + 1, top + 4 + k * 3, 3, 1); // vents
+      break;
+    case 'hood':
+      R(ctx, P.dark, hx - 2, top - 1, hs + 4, hs + 2);
+      R(ctx, P.deep, hx - 2, top + hs - 1, hs + 4, 1);
+      R(ctx, P.skin, hx + hs / 2, top + 4, hs / 2, hs - 6);
+      R(ctx, P.accent, hx + hs / 2 + 2, top + 6, 3, 2);
+      break;
+    case 'pointed':
+      R(ctx, P.armor, hx, top + 2, hs, hs - 2);
+      R(ctx, P.armor, hx + 3, top - 7, hs - 6, 9);
+      R(ctx, P.light, hx + 3, top - 7, hs - 6, 2);
+      R(ctx, P.skin, hx + hs / 2, top + 6, hs / 2, hs - 8);
+      R(ctx, P.accent, hx + hs / 2 + 2, top + 8, 3, 2);
+      break;
+    case 'dome':
+      R(ctx, P.armor, hx, top, hs, hs);
+      R(ctx, P.light, hx + 1, top, hs - 2, 2);
+      R(ctx, P.skin, hx + 3, top + 4, hs - 6, hs - 8);
+      R(ctx, P.accent, hx + hs - 6, top + 6, 3, 3);
+      break;
+  }
+}
+
+function drawLying(ctx: Ctx, cx: number, base: number, P: Pal, legH: number, torsoH: number, hs: number): void {
+  const len = legH + torsoH;
+  const x0 = cx - len / 2;
+  R(ctx, P.deep, x0 + hs, base - 11, len - 4, 11);
+  R(ctx, P.armor, x0 + hs + 2, base - 15, len - 12, 10);
+  R(ctx, P.light, x0 + hs + 2, base - 15, len - 12, 2);
+  R(ctx, P.accent, x0 + hs + 8, base - 13, 8, 5);
+  R(ctx, P.glow, x0 + hs + 10, base - 11, 4, 2);
+  R(ctx, P.dark, x0 + len - 4, base - 9, 10, 8); // boots
+  R(ctx, P.armor, x0 - 4, base - 15, hs, hs - 2); // head
+  R(ctx, P.accent, x0 - 4 + 2, base - 9, 7, 3);
+  R(ctx, P.steel, x0 + hs - 6, base - 6, 12, 5); // fist
+}
+
+/** 1px passes: rim light on top edges, under-shade on bottom edges, then outline. */
+function finish(ctx: Ctx, size: number, outlineColor: string): void {
   const img = ctx.getImageData(0, 0, size, size);
   const src = new Uint8ClampedArray(img.data);
-  const [r, g, b] = hexToRgb(color);
-  const a = (x: number, y: number): number => (x < 0 || y < 0 || x >= size || y >= size ? 0 : src[(y * size + x) * 4 + 3]);
+  const A = (x: number, y: number): number => (x < 0 || y < 0 || x >= size || y >= size ? 0 : src[(y * size + x) * 4 + 3]);
+  const [or, og, ob] = rgb(outlineColor) as unknown as [number, number, number];
   for (let y = 0; y < size; y++) {
     for (let x = 0; x < size; x++) {
-      if (a(x, y) > 0) continue;
-      if (a(x - 1, y) || a(x + 1, y) || a(x, y - 1) || a(x, y + 1)) {
-        const i = (y * size + x) * 4;
-        img.data[i] = r;
-        img.data[i + 1] = g;
-        img.data[i + 2] = b;
+      const i = (y * size + x) * 4;
+      if (src[i + 3] > 0) {
+        const k = !A(x, y - 1) ? 1.18 : !A(x, y + 1) ? 0.78 : 1;
+        if (k !== 1) {
+          img.data[i] = Math.min(255, src[i] * k);
+          img.data[i + 1] = Math.min(255, src[i + 1] * k);
+          img.data[i + 2] = Math.min(255, src[i + 2] * k);
+        }
+      } else if (A(x - 1, y) || A(x + 1, y) || A(x, y - 1) || A(x, y + 1)) {
+        img.data[i] = or;
+        img.data[i + 1] = og;
+        img.data[i + 2] = ob;
         img.data[i + 3] = 255;
       }
     }
   }
   ctx.putImageData(img, 0, 0);
-}
-
-function hexToRgb(hex: string): [number, number, number] {
-  const n = parseInt(hex.slice(1), 16);
-  return [(n >> 16) & 255, (n >> 8) & 255, n & 255];
 }
 
 export function fighterTextureKey(id: string): string {
@@ -239,7 +347,7 @@ export function buildPlaceholderSheet(scene: Phaser.Scene, data: CharacterData):
     for (let f = 0; f < def.frames; f++) {
       tctx.clearRect(0, 0, size, size);
       drawFighterFrame(tctx, size, sprite.placeholder, poseFor(name, f, def.frames));
-      outline(tctx, size, sprite.placeholder.outline);
+      finish(tctx, size, sprite.placeholder.outline);
       sctx.drawImage(tmp, f * size, row * size);
     }
   });
