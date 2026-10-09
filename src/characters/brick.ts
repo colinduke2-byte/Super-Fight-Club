@@ -1,4 +1,6 @@
+import { parseMoves } from '../engine/moves';
 import type { CharacterData } from '../engine/types';
+import movesJson from './brick.moves.json';
 
 /**
  * Brick: heavy cyber-knight bruiser. Slow and floaty-heavy to move, hard to launch.
@@ -9,7 +11,7 @@ export const brick: CharacterData = {
   name: 'Brick',
   tagline: 'Heavy cyber-knight. Slow, armored, brutal.',
   stats: {
-    weight: 120,
+    weight: 125,
     runSpeed: 2.0,
     airSpeed: 1.5,
     groundAccel: 0.22,
@@ -39,6 +41,19 @@ export const brick: CharacterData = {
       hurt: { frames: 1, fps: 1, loop: false },
       down: { frames: 1, fps: 1, loop: false },
       ko: { frames: 1, fps: 1, loop: false },
+      // attack poses: frame 0 = wind-up, 1 = active, 2 = recovery (the view picks the frame from the move phase)
+      jab: { frames: 3, fps: 1, loop: false },
+      smashF: { frames: 3, fps: 1, loop: false },
+      smashU: { frames: 3, fps: 1, loop: false },
+      smashD: { frames: 3, fps: 1, loop: false },
+      aerialN: { frames: 3, fps: 1, loop: false },
+      aerialF: { frames: 3, fps: 1, loop: false },
+      aerialB: { frames: 3, fps: 1, loop: false },
+      aerialU: { frames: 3, fps: 1, loop: false },
+      aerialD: { frames: 3, fps: 1, loop: false },
+      grab: { frames: 2, fps: 1, loop: false },
+      shield: { frames: 1, fps: 1, loop: false },
+      dodge: { frames: 1, fps: 1, loop: false },
     },
     placeholder: {
       skin: '#f2c9a0',
@@ -46,7 +61,8 @@ export const brick: CharacterData = {
       armorDark: '#2c4a8a',
       accent: '#ffb02e',
       outline: '#10142a',
-      build: { shoulderW: 18, torsoH: 10, legH: 8, headSize: 8, armLen: 8, helmet: 'visor' } // 32px-grid units; the generator doubles them for the 64px frame,
+      build: { shoulderW: 18, torsoH: 10, legH: 8, headSize: 8, armLen: 8, helmet: 'visor' }, // 32px-grid units; the generator doubles them for the 64px frame
     },
   },
+  moves: parseMoves(movesJson as never, 'brick'),
 };

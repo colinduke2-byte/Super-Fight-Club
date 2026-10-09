@@ -3,8 +3,9 @@
 A sci-fi/fantasy platform fighter built with **Phaser 3 + TypeScript (Vite)**. All characters, art and
 audio are original and generated in code. The game runs in the browser.
 
-> **Status: Milestone 1 – physics sandbox.** One character (Brick), one stage, a training dummy, debug
-> overlay, keyboard + gamepad input. Combat, roster, menus, CPU AI, Arcade Ladder and audio follow.
+> **Status: Milestone 2 – combat.** Hitboxes/frame data, damage %, knockback, hitlag, trades, armor,
+> shield/dodge/grab/throw, stocks and KOs, on one character (Brick, normals only) in the sandbox.
+> Specials, Heat, ultimate, the rest of the roster, menus, CPU AI, Arcade Ladder and audio follow.
 
 ## Run
 
@@ -36,8 +37,14 @@ jump, `4` grab, `6` smash), with laptop-friendly alternates `, . /` and Right Sh
 `KeyboardEvent.code`, so they are layout-independent. All bindings are rebindable data
 (`src/input/bindings.ts`, saved to `localStorage`); the rebinding UI arrives with the Settings scene.
 
+Combat inputs: **Attack** + direction in the air = aerials (nair/fair/bair/uair/dair). On the ground, a
+**flick** of the stick + Attack, or the **Smash** button + a direction, is a smash (hold to charge); plain
+Attack is the jab chain (tap again to continue). **Shield** (hold) shrinks the bubble as it takes hits; while
+shielding flick down = spot dodge, flick sideways = roll, Attack/Grab = grab, Jump = jump out. **Grab**
+holds the victim (mash to escape); pick a direction to throw. Press Shield just before a bounce to **tech**.
+
 Sandbox debug keys: `1` debug overlay · `2` hit dummy · `3` hit yourself · `4` dummy +25% · `5` clear % ·
-`0` reset · `T` tap-jump on/off · `F` fullscreen · `` ` `` perf counter. Tech a bounce by pressing Shield
+`6` dummy mode (stand / shield / jump / jab) · `9` training ↔ 3-stock match · `0` reset · `T` tap-jump on/off · `F` fullscreen · `` ` `` perf counter. Tech a bounce by pressing Shield
 just before you hit the floor/wall.
 
 ## Architecture
@@ -73,6 +80,23 @@ Key design points
 - **Crisp pixels.** The canvas backing store is `innerWidth × devicePixelRatio` and nearest-neighbour
   filtered; the world is drawn by a zoomed camera, UI/background by zoom-1 cameras.
 
+## Combat and frame data
+
+Each character has `src/characters/<id>.moves.json`, the single source of truth for frame data. Frame 1
+is the frame the move starts on; `startup` frames are harmless, the next `active` frames are live, then
+`recovery`. Per hitbox: position (x forward, y down from the feet), size, `damage`, `angle`
+(0 ahead, 90 up, 180 behind, 270 spike, 361 auto), `base` and `scaling` knockback, optional `window`
+(sub-range of the active frames), `group`/`rehit` (multi-hit), `dir: "away"` (both-sides moves), `hitlag`,
+`minHitstun`, `grab`/`throw`/`unblockable`/`breaksShield`. Per move: `charge`, `armor` (frames + damage
+threshold), `next` (jab chain), `motion` impulses, `landingLag` + `autocancel` windows, `landBounce`,
+`invuln`. `parseMoves()` validates the file on load. The debug overlay (`1`) draws live hitboxes (red),
+hurtboxes (green / blue invulnerable / purple armored) and prints the move's s/a/r bar and live numbers.
+
+Rules implemented: knockback `(base + dmg% * scaling) * move_weight / target_weight` (see `knockback.ts`),
+hitlag `floor(dmg*0.4+4)` frames for both fighters, hitstun scales with knockback, simultaneous hits
+trade unless one move is 9+ damage stronger, armored frames absorb weak hits, grabs ignore shields.
+Stocks / KOs / respawn / time-mode scoring live in `engine/match.ts`.
+
 ## Add a character
 
 1. Create `src/characters/<id>.ts` exporting a `CharacterData` (copy `brick.ts`): stats, body size,
@@ -88,8 +112,8 @@ and `move`, blast zones, spawns, background) and register it in `src/stages/inde
 
 ## Roadmap
 
-1. ✅ Physics sandbox *(feedback checkpoint)*
-2. Combat: hitboxes, damage, knockback, stocks, KOs
+1. ✅ Physics sandbox
+2. ✅ Combat: hitboxes, damage, knockback, stocks, KOs *(feedback checkpoint)*
 3. Roster, one character at a time
 4. Menus, Versus (2–4 players), CPU AI
 5. Arcade Ladder + boss, stages, polish

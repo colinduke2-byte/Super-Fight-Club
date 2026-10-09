@@ -1,0 +1,125 @@
+{
+  "moves": {
+    "jab1": {
+      "name": "Piston Jab 1", "kind": "jab", "anim": "jab",
+      "startup": 5, "active": 2, "recovery": 11,
+      "next": { "id": "jab2", "from": 6, "to": 15, "at": 14 },
+      "hitboxes": [
+        { "x": 22, "y": -16, "w": 24, "h": 14, "damage": 3, "angle": 361, "base": 10, "scaling": 0.2, "minHitstun": 20, "fx": "punch" }
+      ]
+    },
+    "jab2": {
+      "name": "Piston Jab 2", "kind": "jab", "anim": "jab",
+      "startup": 6, "active": 2, "recovery": 12,
+      "next": { "id": "jab3", "from": 7, "to": 16, "at": 16 },
+      "hitboxes": [
+        { "x": 22, "y": -16, "w": 26, "h": 14, "damage": 3.5, "angle": 361, "base": 10, "scaling": 0.2, "minHitstun": 22, "fx": "punch" }
+      ]
+    },
+    "jab3": {
+      "name": "Piston Shove", "kind": "jab", "anim": "jab",
+      "startup": 8, "active": 3, "recovery": 22,
+      "hitboxes": [
+        { "x": 26, "y": -16, "w": 30, "h": 20, "damage": 6, "angle": 28, "base": 58, "scaling": 0.5, "hitlag": 1.25, "fx": "heavy" }
+      ]
+    },
+    "fsmash": {
+      "name": "Piston Slam", "kind": "smash", "anim": "smashF",
+      "startup": 21, "active": 3, "recovery": 36,
+      "charge": { "frame": 6, "max": 60, "damageMult": 1.4, "kbMult": 1.2 },
+      "armor": { "from": 8, "to": 20, "threshold": 12 },
+      "motion": [{ "frame": 22, "vx": 1.6 }],
+      "hitboxes": [
+        { "x": 34, "y": -17, "w": 44, "h": 28, "damage": 18, "angle": 38, "base": 50, "scaling": 0.95, "hitlag": 1.3, "fx": "heavy" }
+      ]
+    },
+    "usmash": {
+      "name": "Overhead Crush", "kind": "smash", "anim": "smashU",
+      "startup": 14, "active": 4, "recovery": 32,
+      "charge": { "frame": 5, "max": 60, "damageMult": 1.4, "kbMult": 1.2 },
+      "hitboxes": [
+        { "x": 14, "y": -36, "w": 46, "h": 36, "damage": 14, "angle": 82, "base": 45, "scaling": 0.88, "dir": "away", "hitlag": 1.2, "fx": "heavy" },
+        { "x": -14, "y": -36, "w": 46, "h": 36, "damage": 14, "angle": 82, "base": 45, "scaling": 0.88, "dir": "away", "hitlag": 1.2, "fx": "heavy" }
+      ]
+    },
+    "dsmash": {
+      "name": "Shockwave Stomp", "kind": "smash", "anim": "smashD",
+      "startup": 12, "active": 4, "recovery": 30,
+      "charge": { "frame": 4, "max": 60, "damageMult": 1.4, "kbMult": 1.2 },
+      "hitboxes": [
+        { "x": 26, "y": -6, "w": 40, "h": 12, "damage": 12, "angle": 361, "base": 38, "scaling": 0.8, "dir": "away", "fx": "shock" },
+        { "x": -26, "y": -6, "w": 40, "h": 12, "damage": 12, "angle": 361, "base": 38, "scaling": 0.8, "dir": "away", "fx": "shock" }
+      ]
+    },
+    "nair": {
+      "name": "Plate Spin", "kind": "aerial", "anim": "aerialN",
+      "startup": 6, "active": 18, "recovery": 14,
+      "landingLag": 12, "autocancel": [[1, 4], [34, 38]],
+      "hitboxes": [
+        { "x": 0, "y": -16, "w": 52, "h": 34, "damage": 5, "angle": 50, "base": 42, "scaling": 0.8, "window": [15, 18], "group": 1, "dir": "away", "fx": "heavy" },
+        { "x": 0, "y": -16, "w": 52, "h": 34, "damage": 2, "angle": 361, "base": 14, "scaling": 0.1, "window": [1, 14], "group": 0, "rehit": 5, "dir": "away", "minHitstun": 10, "hitlag": 0.7, "fx": "punch" }
+      ]
+    },
+    "fair": {
+      "name": "Hammer Fist", "kind": "aerial", "anim": "aerialF",
+      "startup": 17, "active": 3, "recovery": 28,
+      "landingLag": 22, "autocancel": [[1, 6], [44, 48]],
+      "hitboxes": [
+        { "x": 36, "y": -8, "w": 22, "h": 26, "damage": 14, "angle": 270, "base": 30, "scaling": 0.6, "hitlag": 1.3, "fx": "meteor" },
+        { "x": 16, "y": -12, "w": 22, "h": 22, "damage": 9, "angle": 45, "base": 36, "scaling": 0.7, "fx": "punch" }
+      ]
+    },
+    "bair": {
+      "name": "Shoulder Bash", "kind": "aerial", "anim": "aerialB",
+      "startup": 9, "active": 3, "recovery": 18,
+      "landingLag": 13, "autocancel": [[1, 5], [26, 30]],
+      "hitboxes": [
+        { "x": -22, "y": -16, "w": 28, "h": 26, "damage": 11, "angle": 140, "base": 40, "scaling": 0.9, "hitlag": 1.15, "fx": "heavy" }
+      ]
+    },
+    "uair": {
+      "name": "Rising Uppercut", "kind": "aerial", "anim": "aerialU",
+      "startup": 8, "active": 4, "recovery": 20,
+      "landingLag": 11, "autocancel": [[1, 4], [28, 32]],
+      "motion": [{ "frame": 8, "vy": -3.2, "mode": "set" }],
+      "hitboxes": [
+        { "x": 6, "y": -40, "w": 32, "h": 32, "damage": 9, "angle": 85, "base": 38, "scaling": 0.75, "fx": "punch" }
+      ]
+    },
+    "dair": {
+      "name": "Crater Stomp", "kind": "aerial", "anim": "aerialD",
+      "startup": 16, "active": 5, "recovery": 24,
+      "landingLag": 18, "landBounce": 5.5, "autocancel": [[1, 5]],
+      "hitboxes": [
+        { "x": 0, "y": 4, "w": 26, "h": 20, "damage": 12, "angle": 280, "base": 28, "scaling": 0.6, "hitlag": 1.2, "fx": "meteor" }
+      ]
+    },
+    "grab": {
+      "name": "Clamp", "kind": "grab", "anim": "grab",
+      "startup": 7, "active": 2, "recovery": 26,
+      "hitboxes": [
+        { "x": 22, "y": -16, "w": 24, "h": 20, "damage": 0, "angle": 0, "base": 0, "scaling": 0, "grab": true, "unblockable": true }
+      ]
+    },
+    "fthrow": {
+      "name": "Piston Toss", "kind": "throw", "anim": "grab", "throwDir": "forward",
+      "startup": 8, "active": 1, "recovery": 18,
+      "hitboxes": [{ "x": 18, "y": -16, "w": 40, "h": 34, "damage": 9, "angle": 40, "base": 60, "scaling": 0.8, "throw": true, "fx": "heavy" }]
+    },
+    "bthrow": {
+      "name": "Reverse Hurl", "kind": "throw", "anim": "grab", "throwDir": "back",
+      "startup": 10, "active": 1, "recovery": 20,
+      "hitboxes": [{ "x": 18, "y": -16, "w": 40, "h": 34, "damage": 10, "angle": 140, "base": 62, "scaling": 0.85, "throw": true, "fx": "heavy" }]
+    },
+    "uthrow": {
+      "name": "Skyward Heave", "kind": "throw", "anim": "grab", "throwDir": "up",
+      "startup": 9, "active": 1, "recovery": 20,
+      "hitboxes": [{ "x": 18, "y": -16, "w": 40, "h": 34, "damage": 8, "angle": 88, "base": 55, "scaling": 0.7, "throw": true, "fx": "heavy" }]
+    },
+    "dthrow": {
+      "name": "Ground Pound", "kind": "throw", "anim": "grab", "throwDir": "down",
+      "startup": 8, "active": 1, "recovery": 22,
+      "hitboxes": [{ "x": 18, "y": -16, "w": 40, "h": 34, "damage": 7, "angle": 75, "base": 40, "scaling": 0.4, "throw": true, "fx": "heavy" }]
+    }
+  }
+}

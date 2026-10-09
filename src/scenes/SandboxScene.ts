@@ -1,8 +1,9 @@
 import Phaser from 'phaser';
 import { brick } from '../characters/brick';
-import { Button, makeInput, NEUTRAL_INPUT, type FighterInput } from '../engine/buttons';
+import { Button, makeInput, type FighterInput } from '../engine/buttons';
 import { DEFAULT_CAMERA, MultiTargetCamera, type CamPoint } from '../engine/camera';
 import { Fighter } from '../engine/fighter';
+import { Match, type MatchConfig } from '../engine/match';
 import { FixedTimestep } from '../engine/fixedTimestep';
 import { World, type WorldEventType } from '../engine/world';
 import { MergedDevice } from '../input/device';
@@ -19,11 +20,13 @@ import { PerfCounter } from '../ui/PerfCounter';
 import { StageView } from '../ui/StageView';
 
 const FONT = 'ui-monospace, Menlo, Consolas, monospace';
-const RESPAWN_TICKS = 70;
+const TRAINING: MatchConfig = { mode: 'training', stocks: 3, timeLimitSec: 0, respawnDelay: 70 };
+const STOCKS: MatchConfig = { mode: 'stock', stocks: 3, timeLimitSec: 0, respawnDelay: 70 };
+const DUMMY_MODES = ['stand', 'shield', 'jump', 'jab'] as const;
 const HELP = [
-  'MOVE WASD   JUMP I (or W)   ATTACK J   SPECIAL K   SHIELD L (tech!)',
-  'Down+Jump on a thin platform drops through  |  Controller: left stick + face buttons',
-  '1 debug  2 hit dummy  3 hit self  4 dummy +25%  5 clear %  0 reset  T tap-jump  F fullscreen  ` perf  Esc pause',
+  'MOVE WASD  JUMP I/W  ATTACK J  SPECIAL K  SHIELD L  GRAB U  SMASH O (or flick+J)  Hold L + S/A/D: dodge/roll',
+  'Smash = flick direction + J, or O + direction. Hold to charge. Aerials: J + direction. Grab then pick a throw direction.',
+  '1 debug  2 hit dummy  3 hit self  4 dummy +25%  5 clear %  6 dummy mode  9 training/stock match  0 reset  T tap-jump  F fullscreen  Esc pause',
 ];
 
 /**
@@ -62,7 +65,11 @@ export class SandboxScene extends Phaser.Scene {
   private pendingHitDummy = false;
   private pendingHitSelf = false;
   private pendingReset = false;
-  private koTick: number[] = [-1, -1];
+  private match!: Match;
+  private dummyMode = 0;
+  private dummyHeldPrev = 0;
+  private dummyJabTimer = 0;
+  private banner!: Phaser.GameObjects.Text;
   private shake = 0;
   private frameCount = 0;
 
@@ -90,6 +97,8 @@ export class SandboxScene extends Phaser.Scene {
     this.respawn(0);
     this.respawn(1);
     dummy.facing = -1;
+    this.match = new Match(this.world, TRAINING);
+    this.match.onRespawn = (f) => this.respawn(f.id, true);
 
     // --- cameras & layers: bg (zoom 1) -> world (zoom/pan) -> ui (zoom 1)
     this.bgLayer = this.add.layer();
@@ -127,6 +136,8 @@ export class SandboxScene extends Phaser.Scene {
     }
     this.helpText = this.add.text(0, 0, HELP.join('\n'), { fontFamily: FONT, fontSize: `${Math.round(11 * dpr)}px`, color: '#b8b0e8', backgroundColor: '#000000a0', padding: { x: 6, y: 4 } }).setOrigin(0, 1);
     this.toast = this.add.text(0, 0, '', { fontFamily: FONT, fontSize: `${Math.round(16 * dpr)}px`, color: '#ffffff', backgroundColor: '#000000c0', padding: { x: 10, y: 6 } }).setOrigin(0.5, 0).setAlpha(0);
+    this.banner = this.add.text(0, 0, '', { fontFamily: FONT, fontSize: `${Math.round(40 * dpr)}px`, color: '#ffe14a', stroke: '#10142a', strokeThickness: Math.round(6 * dpr), align: 'center' }).setOrigin(0.5).setVisible(false);
+    this.uiLayer.add(this.banner);
     this.pauseOverlay = this.add.rectangle(0, 0, 10, 10, 0x000000, 0.6).setOrigin(0, 0).setVisible(false);
     this.pauseText = this.add.text(0, 0, '', { fontFamily: FONT, fontSize: `${Math.round(22 * dpr)}px`, color: '#ffffff', align: 'center' }).setOrigin(0.5).setVisible(false);
     this.uiLayer.add([this.helpText, this.toast, this.pauseOverlay, this.pauseText]);
@@ -146,7 +157,7 @@ export class SandboxScene extends Phaser.Scene {
       this.setPaused(true, 'disconnect');
     };
 
-    this.world.listener = (type, f, x, y, mag) => this.onWorldEvent(type, f, x, y, mag);
+    this.world.listener = (type, f, x, y, mag, extra) => this.onWorldEvent(type, f, x, y, mag, extra);
 
     this.lastNow = performance.now();
     this.events.once('shutdown', () => {
@@ -178,7 +189,8 @@ export class SandboxScene extends Phaser.Scene {
   /** One fixed 60 Hz simulation tick. */
   private tick(): void {
     this.player.sample(this.inputs[0]);
-    this.inputs[1] = NEUTRAL_INPUT as FighterInput;
+    this.world.config.smashFlick = settings.smashMode === 'flick';
+    this.dummyInput(this.inputs[1]);
 
     if (this.inputs[0].pressed & Button.Pause) {
       this.setPaused(true, 'user');
@@ -206,16 +218,7 @@ export class SandboxScene extends Phaser.Scene {
 
     this.world.step(this.inputs);
     inputManager.endTick();
-
-    // respawns
-    for (let i = 0; i < this.fighters.length; i++) {
-      const f = this.fighters[i];
-      if (f.state === 'ko' && this.koTick[i] >= 0 && this.world.tick - this.koTick[i] > RESPAWN_TICKS) {
-        this.koTick[i] = -1;
-        f.damage = 0;
-        this.respawn(i);
-      }
-    }
+    this.match.step();
 
     // camera follows living fighters
     let n = 0;
@@ -230,13 +233,46 @@ export class SandboxScene extends Phaser.Scene {
     if (this.shake < 0.05) this.shake = 0;
   }
 
+  /** Training-dummy behaviour: stand, hold shield, hop, or jab on a loop. */
+  private dummyInput(out: FighterInput): void {
+    out.stickX = 0;
+    out.stickY = 0;
+    let held = 0;
+    switch (DUMMY_MODES[this.dummyMode]) {
+      case 'shield':
+        held = Button.Shield;
+        break;
+      case 'jump':
+        if (this.world.tick % 80 < 6) held = Button.Jump;
+        break;
+      case 'jab':
+        if (++this.dummyJabTimer % 50 < 2) held = Button.Attack;
+        break;
+      default:
+        break;
+    }
+    out.held = held;
+    out.pressed = held & ~this.dummyHeldPrev;
+    out.released = ~held & this.dummyHeldPrev & 0xff;
+    this.dummyHeldPrev = held;
+  }
+
+  private startMatch(cfg: MatchConfig): void {
+    this.match = new Match(this.world, cfg);
+    this.match.onRespawn = (f) => this.respawn(f.id, true);
+    this.fighters.forEach((f) => (f.damage = 0));
+    this.pendingReset = true;
+    this.banner.setVisible(false);
+    this.showToast(cfg.mode === 'training' ? 'Training mode (infinite stocks)' : 'Stock match: 3 stocks each');
+  }
+
   private hit(target: Fighter, dir: 1 | -1): void {
     target.receiveHit({ damage: 8, base: 45, scaling: 1.1, angle: 40, direction: dir }, this.world);
   }
 
-  private respawn(i: number): void {
+  private respawn(i: number, fromAbove = false): void {
     const sp = sandboxStage.spawns[i];
-    this.fighters[i].spawn(sp.x, sp.y - 1, i === 0 ? 1 : -1);
+    this.fighters[i].spawn(sp.x, sp.y - (fromAbove ? 130 : 1), i === 0 ? 1 : -1);
   }
 
   // ---------------------------------------------------------------------------------------------
@@ -262,9 +298,16 @@ export class SandboxScene extends Phaser.Scene {
     for (let i = 0; i < this.fighters.length; i++) {
       const f = this.fighters[i];
       const t = this.hudTexts[i];
-      t.setText(`${i === 0 ? 'YOU' : 'DUMMY'} ${Math.floor(f.damage)}%`);
+      const sc = this.match.scores[i];
+      const pips = this.match.training ? 'TRAINING' : '\u25cf '.repeat(sc.stocks).trim() || 'OUT';
+      t.setText(`${i === 0 ? 'YOU' : 'DUMMY'} ${Math.floor(f.damage)}%\n${pips}`);
       const d = Math.min(f.damage / 150, 1);
       t.setColor(Phaser.Display.Color.RGBToString(255, Math.round(255 - 170 * d), Math.round(255 - 235 * d), 255, '#'));
+    }
+    if (this.match.over && !this.banner.visible) {
+      const w = this.match.winner;
+      this.banner.setText(w < 0 ? 'DRAW' : `${w === 0 ? 'YOU WIN' : 'DUMMY WINS'}\n\n`).setVisible(true);
+      this.banner.setText(this.banner.text + (w < 0 ? '' : '') + 'press 0 to rematch');
     }
 
     this.perf.update(frameMs, `${this.scale.width}x${this.scale.height} @${this.dpr().toFixed(1)}x  z${zoom.toFixed(2)}  ${this.stepsLastFrame}/f`);
@@ -276,7 +319,7 @@ export class SandboxScene extends Phaser.Scene {
   }
 
   // ---------------------------------------------------------------------------------------------
-  private onWorldEvent(type: WorldEventType, f: Fighter, x: number, y: number, mag: number): void {
+  private onWorldEvent(type: WorldEventType, f: Fighter, x: number, y: number, mag: number, extra: number): void {
     const e = this.effects;
     switch (type) {
       case 'jump':
@@ -288,9 +331,28 @@ export class SandboxScene extends Phaser.Scene {
       case 'land':
         if (mag > 3) e.dust(x, y, 6, 0);
         break;
-      case 'hit':
-        e.burst(x, y, 14, 90 + mag * 0.3, 0xffe14a, 0.35, 3);
-        this.shake = Math.min(6, 1 + mag * 0.02);
+      case 'landBounce':
+        e.dust(x, y, 10, 0);
+        e.burst(x, y, 10, 90, 0xffb02e, 0.3, 3);
+        this.shake = Math.max(this.shake, 3);
+        break;
+      case 'hit': {
+        // bigger hits: more sparks, bigger shake (hitstop itself is the fighters' hitlag)
+        const dmg = extra;
+        e.burst(x, y, 10 + Math.min(16, dmg), 80 + mag * 0.4, dmg > 12 ? 0xffffff : 0xffe14a, 0.3 + Math.min(0.3, dmg * 0.012), dmg > 12 ? 4 : 3);
+        this.shake = Math.max(this.shake, Math.min(9, 1 + dmg * 0.3 + mag * 0.01));
+        break;
+      }
+      case 'armorHit':
+        e.burst(x, y, 10, 60, 0xc070ff, 0.3, 3);
+        this.shake = Math.max(this.shake, 2.5);
+        break;
+      case 'shieldHit':
+        e.burst(x, y, 8, 60, 0x66d9ff, 0.25, 2);
+        break;
+      case 'shieldBreak':
+        e.burst(x, y, 30, 160, 0x66d9ff, 0.6, 4);
+        this.shake = Math.max(this.shake, 6);
         break;
       case 'bounce':
         e.burst(x, y, 10, 70, 0xff9a4a, 0.3, 3);
@@ -302,15 +364,33 @@ export class SandboxScene extends Phaser.Scene {
       case 'ledgeGrab':
         e.burst(x, y - f.h, 6, 40, 0xffffff, 0.25, 2);
         break;
+      case 'grab':
+        e.burst(x, y, 8, 50, 0xffee55, 0.25, 2);
+        break;
+      case 'throw':
+        e.burst(x, y, 16, 100, 0xffffff, 0.35, 3);
+        this.shake = Math.max(this.shake, 4);
+        break;
+      case 'pummel':
+        e.burst(x, y, 4, 40, 0xffee55, 0.2, 2);
+        break;
+      case 'trade':
+        e.burst(x, y, 16, 100, 0xff5a7a, 0.3, 3);
+        break;
+      case 'dodge':
+        e.dust(x, y, 4, 0);
+        break;
       case 'ko': {
         const kx = Phaser.Math.Clamp(f.koX, this.world.blast.left, this.world.blast.right);
         const ky = Phaser.Math.Clamp(f.koY, this.world.blast.top, this.world.blast.bottom);
         e.burst(kx, ky, 40, 220, 0xffffff, 0.7, 4);
         e.burst(kx, ky, 24, 140, 0xff5a7a, 0.9, 5);
         this.shake = 10;
-        this.koTick[f.id] = this.world.tick;
+        this.match.onKo(f, extra);
         break;
       }
+      default:
+        break;
     }
   }
 
@@ -334,6 +414,15 @@ export class SandboxScene extends Phaser.Scene {
         break;
       case 'Digit0':
         this.pendingReset = true;
+        this.banner.setVisible(false);
+        if (this.match.over) this.startMatch(STOCKS);
+        break;
+      case 'Digit6':
+        this.dummyMode = (this.dummyMode + 1) % DUMMY_MODES.length;
+        this.showToast(`Dummy: ${DUMMY_MODES[this.dummyMode]}`);
+        break;
+      case 'Digit9':
+        this.startMatch(this.match.training ? STOCKS : TRAINING);
         break;
       case 'KeyT':
         settings.tapJump = !settings.tapJump;
@@ -393,6 +482,7 @@ export class SandboxScene extends Phaser.Scene {
     this.toast.setPosition(w / 2, m * 4);
     this.pauseOverlay.setSize(w, h);
     this.pauseText.setPosition(w / 2, h / 2);
+    this.banner.setPosition(w / 2, h * 0.3);
     this.hudTexts[0].setPosition(w * 0.3, h - m * 14);
     this.hudTexts[1].setPosition(w * 0.7, h - m * 14);
   }

@@ -136,6 +136,19 @@ export function buildStageTextures(scene: Phaser.Scene): void {
     }
     add('bg-ruins', c);
   }
+  // shield bubble, 64x64
+  {
+    const [c, g] = canvas(64, 64);
+    const grad = g.createRadialGradient(32, 32, 6, 32, 32, 31);
+    grad.addColorStop(0, 'rgba(120,210,255,0.10)');
+    grad.addColorStop(0.8, 'rgba(120,210,255,0.35)');
+    grad.addColorStop(1, 'rgba(200,245,255,0.9)');
+    g.fillStyle = grad;
+    g.beginPath();
+    g.arc(32, 32, 31, 0, Math.PI * 2);
+    g.fill();
+    add('bubble', c);
+  }
   // 2x2 white pixel for particles
   {
     const [c, g] = canvas(4, 4);

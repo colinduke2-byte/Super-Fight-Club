@@ -83,9 +83,79 @@ function poseFor(anim: string, f: number, frames: number): Pose {
       p.lying = true;
       break;
     default:
+      attackPose(anim, f, p);
       break;
   }
   return p;
+}
+
+/** Attack/defence key poses. Frame 0 = wind-up, 1 = active, 2 = recovery (see Fighter.attackPhase). */
+function attackPose(anim: string, f: number, p: Pose): void {
+  const set = (lean: number, crouch: number, fh: V2, bh: V2, ff: V2, bf: V2): void => {
+    p.lean = lean;
+    p.crouch = crouch;
+    p.frontHand = fh;
+    p.backHand = bh;
+    p.frontFoot = ff;
+    p.backFoot = bf;
+  };
+  const T: Record<string, [number, number, V2, V2, V2, V2][]> = {
+    jab: [
+      [-2, 0, [-6, -2], [-2, 0], [4, 0], [-4, 0]],
+      [-6, 1, [14, -6], [-2, 0], [6, 0], [-5, 0]],
+      [-4, 0, [6, -3], [-2, 0], [4, 0], [-4, 0]],
+    ],
+    smashF: [
+      [-8, 3, [-12, -8], [-4, 0], [8, 0], [-8, 0]],
+      [-4, 2, [14, -6], [-4, 0], [10, 0], [-9, 0]],
+      [-6, 1, [8, -2], [-2, 0], [6, 0], [-6, 0]],
+    ],
+    smashU: [
+      [-2, 4, [-2, -2], [-2, 0], [6, 0], [-6, 0]],
+      [-2, 0, [0, -38], [-2, -6], [4, 0], [-4, 0]],
+      [-2, 0, [2, -16], [-2, 0], [4, 0], [-4, 0]],
+    ],
+    smashD: [
+      [-2, 9, [2, 6], [-2, 4], [8, 0], [-8, 0]],
+      [-2, 4, [6, 10], [-4, 8], [11, 0], [-11, 0]],
+      [-2, 2, [4, 2], [-2, 2], [8, 0], [-8, 0]],
+    ],
+    aerialN: [
+      [0, 0, [0, -6], [-2, -4], [4, 6], [-4, 8]],
+      [-4, 0, [12, -6], [-12, -6], [7, 5], [-7, 5]],
+      [-4, 0, [12, -6], [-12, -6], [7, 5], [-7, 5]],
+    ],
+    aerialF: [
+      [-6, 0, [-8, -18], [-2, 0], [5, 4], [-4, 6]],
+      [-5, 0, [14, 8], [-2, 0], [6, 4], [-4, 6]],
+      [-3, 0, [6, 2], [-2, 0], [5, 4], [-4, 6]],
+    ],
+    aerialB: [
+      [5, 0, [2, -2], [-6, -4], [5, 4], [-4, 6]],
+      [6, 0, [2, -2], [-14, -6], [6, 4], [-5, 6]],
+      [4, 0, [2, -2], [-8, -4], [5, 4], [-4, 6]],
+    ],
+    aerialU: [
+      [-2, 0, [0, -10], [-2, 0], [4, 5], [-4, 6]],
+      [-2, 0, [4, -40], [-2, 0], [5, 5], [-5, 6]],
+      [-2, 0, [4, -22], [-2, 0], [4, 5], [-4, 6]],
+    ],
+    aerialD: [
+      [0, 0, [2, -4], [-2, 0], [6, 4], [-6, 4]],
+      [0, 0, [4, 14], [-2, 6], [6, 1], [-6, 1]],
+      [0, 0, [4, 8], [-2, 4], [6, 2], [-6, 2]],
+    ],
+    grab: [
+      [-3, 0, [10, -6], [-2, 0], [5, 0], [-5, 0]],
+      [-4, 0, [14, -4], [-4, -2], [6, 0], [-6, 0]],
+    ],
+    shield: [[-2, 3, [10, -8], [4, -6], [5, 0], [-5, 0]]],
+    dodge: [[-4, 8, [0, -2], [-2, 0], [6, 0], [-6, 0]]],
+  };
+  const row = T[anim];
+  if (!row) return;
+  const e = row[Math.min(f, row.length - 1)];
+  set(e[0], e[1], e[2], e[3], e[4], e[5]);
 }
 
 type Ctx = CanvasRenderingContext2D;
@@ -322,6 +392,15 @@ function finish(ctx: Ctx, size: number, outlineColor: string): void {
 export function fighterTextureKey(id: string): string {
   return `fighter:${id}`;
 }
+/** Sheet frame index for (animation, frame): one animation per row. */
+export function animFrameIndex(data: CharacterData, anim: string, frame: number): number {
+  const names = Object.keys(data.sprite.animations);
+  const cols = Math.max(...names.map((n) => data.sprite.animations[n].frames));
+  const row = Math.max(0, names.indexOf(anim));
+  const def = data.sprite.animations[anim];
+  return row * cols + Math.min(frame, (def?.frames ?? 1) - 1);
+}
+
 export function fighterAnimKey(id: string, anim: string): string {
   return `${id}:${anim}`;
 }

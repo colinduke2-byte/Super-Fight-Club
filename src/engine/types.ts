@@ -1,3 +1,5 @@
+import type { MoveDef } from './moves';
+
 /** Shared data shapes for the simulation. Pure data, no Phaser imports. */
 
 export interface Rect {
@@ -7,7 +9,7 @@ export interface Rect {
   h: number;
 }
 
-export interface MoveDef {
+export interface PlatformMotion {
   axis: 'x' | 'y';
   /** Peak displacement in px from the base position. */
   amplitude: number;
@@ -27,7 +29,7 @@ export interface PlatformDef {
   kind: 'solid' | 'pass';
   /** Solid only: corners can be grabbed. */
   ledges?: boolean;
-  move?: MoveDef;
+  move?: PlatformMotion;
 }
 
 export interface BlastZones {
@@ -128,4 +130,6 @@ export interface CharacterData {
   stats: CharacterStats;
   body: BodyDims;
   sprite: SpriteDef;
+  /** Frame data, loaded from <id>.moves.json via parseMoves(). */
+  moves: Record<string, MoveDef>;
 }

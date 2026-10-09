@@ -1,5 +1,7 @@
 import Phaser from 'phaser';
 import { Button } from '../engine/buttons';
+import { hitboxActive, hitboxRect } from '../engine/combat';
+import { hitboxFrames, moveTotal } from '../engine/moves';
 import type { Fighter } from '../engine/fighter';
 import type { World } from '../engine/world';
 import type { FighterView } from './FighterView';
@@ -16,6 +18,7 @@ export class DebugOverlay {
   private readonly gfx: Phaser.GameObjects.Graphics;
   private readonly panels: Phaser.GameObjects.Text[] = [];
   private readonly header: Phaser.GameObjects.Text;
+  private readonly rect = [0, 0, 0, 0];
 
   constructor(
     scene: Phaser.Scene,
@@ -47,7 +50,7 @@ export class DebugOverlay {
 
   layout(width: number, margin: number): void {
     this.header.setPosition(margin, margin);
-    const pw = Math.min(width / this.panels.length, 360 * (width / 1280));
+    const pw = Math.min(width / this.panels.length, 500 * (width / 1280));
     this.panels.forEach((p, i) => p.setPosition(margin + i * pw, margin + this.header.height + margin));
   }
 
@@ -81,10 +84,24 @@ export class DebugOverlay {
       const f = v.fighter;
       const x = v.x;
       const y = v.y;
-      // hurtbox
-      const color = f.invuln > 0 ? 0x66aaff : 0x40ff70;
-      g.lineStyle(lw, color, 1).strokeRect(x - f.hw, y - f.h, f.hw * 2, f.h);
-      g.fillStyle(color, 0.12).fillRect(x - f.hw, y - f.h, f.hw * 2, f.h);
+      // hurtbox (blue = invulnerable, purple = armored)
+      const armored = f.armorThreshold() >= 0;
+      const color = f.invuln > 0 ? 0x66aaff : armored ? 0xc070ff : 0x40ff70;
+      const hh = f.hurtH;
+      g.lineStyle(lw, color, 1).strokeRect(x - f.hw, y - hh, f.hw * 2, hh);
+      g.fillStyle(color, 0.12).fillRect(x - f.hw, y - hh, f.hw * 2, hh);
+      // hitboxes: solid red = live this frame, dim orange outline = later/earlier frame of the move
+      const m = f.move;
+      if (m && f.state === 'attack') {
+        for (const hb of m.hitboxes) {
+          hitboxRect(f, hb, this.rect);
+          const live = hitboxActive(f, m, hb);
+          const col = hb.grab || hb.throw ? 0xffee55 : 0xff3030;
+          if (live) g.fillStyle(col, 0.45).fillRect(this.rect[0], this.rect[1], this.rect[2], this.rect[3]);
+          g.lineStyle(lw, live ? col : 0xff9a3a, live ? 1 : 0.35).strokeRect(this.rect[0], this.rect[1], this.rect[2], this.rect[3]);
+        }
+      }
+      if (f.state === 'shield' || f.state === 'shieldstun') g.lineStyle(lw, 0x66d9ff, 1).strokeCircle(x, y - f.h / 2, f.shieldRadius);
       // foot support width
       g.lineStyle(lw * 2, 0xffe14a, 1).lineBetween(x - f.fhw, y, x + f.fhw, y);
       // facing tick
@@ -115,7 +132,31 @@ export class DebugOverlay {
       `tech win ${f.techWindow} lock ${f.techLock}`,
       `ledge grabs ${f.ledgeGrabs}  cd ${f.grabCooldown}`,
       `buffer ${buf.join(' ') || '-'}`,
-      `frame data: n/a (combat milestone)`,
+      this.frameData(f),
+      `shield ${f.shieldHP.toFixed(0)}  hitlag ${f.hitlag}  chg ${f.chargeFrames}`,
     ].join('\n');
+  }
+
+  /** Move name, frame counter, startup/active/recovery bar and the live hitbox's numbers. */
+  private frameData(f: Fighter): string {
+    const m = f.move;
+    if (!m || f.state !== 'attack') return 'move: -';
+    const total = moveTotal(m);
+    const cells = Math.min(total, 48);
+    const k = total / cells;
+    let bar = '';
+    for (let i = 0; i < cells; i++) {
+      const fr = Math.floor(i * k) + 1;
+      const ch = fr <= m.startup ? 's' : fr <= m.startup + m.active ? 'A' : 'r';
+      bar += fr === Math.max(1, f.moveFrame) ? '|' : ch;
+    }
+    let line = `${m.name} (${m.id})  f${f.moveFrame}/${total}\n${m.startup}s ${m.active}a ${m.recovery}r  ${bar}`;
+    for (const hb of m.hitboxes) {
+      if (!hitboxActive(f, m, hb) && f.moveFrame >= hitboxFrames(m, hb)[1]) continue;
+      const live = hitboxActive(f, m, hb) ? '*' : ' ';
+      line += `\n${live}dmg ${hb.damage} ang ${hb.angle} bkb ${hb.base} kbg ${hb.scaling}`;
+      break;
+    }
+    return line;
   }
 }

@@ -3,6 +3,7 @@ import { COYOTE_FRAMES } from './constants';
 import { moveBody, type Body } from './collision';
 import { InputBuffer } from './inputBuffer';
 import { computeKnockback, hitstunFrames, launchVelocity, LAUNCH_DRAG, type LaunchVector } from './knockback';
+import { moveTotal, type MoveDef } from './moves';
 import type { Ledge, Platform } from './platform';
 import type { CharacterData, CharacterStats } from './types';
 import type { World } from './world';
@@ -19,7 +20,18 @@ export type FighterState =
   | 'hitstun'
   | 'downed'
   | 'tech'
+  | 'attack'
+  | 'shield'
+  | 'shieldstun'
+  | 'shieldbreak'
+  | 'spotdodge'
+  | 'roll'
+  | 'holding'
+  | 'grabbed'
   | 'ko';
+
+export const MAX_FIGHTERS = 4;
+export const MAX_GROUPS = 8;
 
 // ---- tuning constants (frames / px per frame) ----
 const LANDING_FRAMES = 2;
@@ -44,6 +56,26 @@ const STICK_CROUCH = 0.6;
 const STICK_UP = -0.6;
 const TURN_THRESHOLD = 0.2;
 
+// ---- defence ----
+export const SHIELD_MAX = 50;
+const SHIELD_DECAY = 0.11; // per frame while held (the bubble shrinks)
+const SHIELD_REGEN = 0.1;
+const SHIELD_MIN_RADIUS = 8;
+const SHIELD_MAX_RADIUS = 20;
+const SPOTDODGE_FRAMES = 24;
+const SPOTDODGE_INVULN: [number, number] = [2, 20];
+const ROLL_FRAMES = 32;
+const ROLL_INVULN: [number, number] = [3, 22];
+const ROLL_SPEED = 3.4;
+const SHIELDBREAK_FRAMES = 200;
+const FLICK_FRAMES = 4;
+const FLICK_HI = 0.8;
+const FLICK_LO = 0.5;
+export const GRAB_DISTANCE = 18;
+const GRAB_BASE_HOLD = 70;
+const GRAB_STRUGGLE = 4;
+const GROUND_STATES: ReadonlySet<FighterState> = new Set<FighterState>(['idle', 'run', 'crouch', 'landing', 'jumpsquat', 'shield', 'shieldstun', 'downed', 'tech', 'spotdodge', 'roll', 'holding']);
+
 export interface HitParams {
   damage: number;
   base: number;
@@ -53,6 +85,12 @@ export interface HitParams {
   /** Direction the victim is sent: +1 right, -1 left. */
   direction: 1 | -1;
   moveWeight?: number;
+  /** Hitlag frames applied to the victim (and by the combat system to the attacker). */
+  hitlag?: number;
+  minHitstun?: number;
+  /** Extra knockback multiplier (e.g. smash charge). */
+  kbMult?: number;
+  attackerId?: number;
 }
 
 const tmpLaunch: LaunchVector = { vx: 0, vy: 0 };
@@ -63,7 +101,7 @@ function approach(v: number, target: number, amount: number): number {
 }
 
 /**
- * Simulation-side fighter: movement physics + state machine. No rendering, no Phaser.
+ * Simulation-side fighter: movement physics + state machine + combat state. No rendering, no Phaser.
  * Position (x, y) is the bottom-centre of the hurtbox; y grows downward.
  */
 export class Fighter implements Body {
@@ -99,12 +137,42 @@ export class Fighter implements Body {
   fastFalling = false;
   coyote = 0;
   invuln = 0;
+  /** Frames of landing lag to serve in the 'landing' state (0 = default short landing). */
+  lagFrames = 0;
 
-  // Combat-ish state
+  // Damage / hit reaction
   damage = 0;
   hitstun = 0;
+  hitlag = 0;
   techWindow = 0;
   techLock = 0;
+  lastHitBy = -1;
+
+  // Attacking
+  move: MoveDef | null = null;
+  moveFrame = 0;
+  chargeFrames = 0;
+  private chargeButton = 0;
+  private queuedNext = false;
+  moveHit = false;
+  /** Outgoing damage multiplier (character mechanics like Heat hook in here). */
+  damageMult = 1;
+  /** Added to armor thresholds (Infinity = super armor). */
+  armorBonus = 0;
+  /** Bit per (victim, group) already hit by the current move. */
+  readonly hitMask = new Uint16Array(MAX_FIGHTERS);
+  readonly rehit = new Int16Array(MAX_FIGHTERS * MAX_GROUPS);
+
+  // Defence
+  shieldHP = SHIELD_MAX;
+  shieldStun = 0;
+  private rollDir: 1 | -1 = 1;
+
+  // Grabs
+  grabTarget = -1;
+  grabbedBy = -1;
+  holdTimer = 0;
+  private pummelCd = 0;
 
   // Ledge
   ledge: Ledge | null = null;
@@ -125,6 +193,11 @@ export class Fighter implements Body {
 
   readonly buffer = new InputBuffer();
   private lastStickY = 0;
+  private lastStickX = 0;
+  private flickX = 0;
+  private flickXDir = 0;
+  private flickUp = 0;
+  private flickDown = 0;
 
   constructor(
     readonly id: number,
@@ -137,7 +210,7 @@ export class Fighter implements Body {
     this.jumpsLeft = this.stats.doubleJumps;
   }
 
-  /** Place the fighter standing in the air/at spawn and reset all transient state. */
+  /** Place the fighter in the air at spawn and reset all transient state. */
   spawn(x: number, y: number, facing: 1 | -1 = 1): void {
     this.x = this.prevX = x;
     this.y = this.prevY = y;
@@ -152,17 +225,29 @@ export class Fighter implements Body {
     this.fastFalling = false;
     this.coyote = 0;
     this.hitstun = 0;
+    this.hitlag = 0;
     this.techWindow = 0;
     this.techLock = 0;
     this.grabCooldown = 0;
     this.ledgeGrabs = 0;
+    this.lagFrames = 0;
+    this.move = null;
+    this.moveFrame = 0;
+    this.chargeFrames = 0;
+    this.shieldHP = SHIELD_MAX;
+    this.shieldStun = 0;
+    this.grabTarget = -1;
+    this.grabbedBy = -1;
+    this.lastHitBy = -1;
+    this.damageMult = 1;
+    this.armorBonus = 0;
     this.releaseLedge();
-    this.invuln = 90;
+    this.invuln = 120;
     this.buffer.clear();
     this.snapped = true;
   }
 
-  /** Animation name for the view layer. */
+  /** Animation name for the view layer (attack states use `attackAnim` + move phase instead). */
   get anim(): string {
     switch (this.state) {
       case 'idle':
@@ -180,39 +265,92 @@ export class Fighter implements Body {
       case 'ledgeClimb':
         return 'ledge';
       case 'hitstun':
+      case 'grabbed':
         return 'hurt';
+      case 'shieldbreak':
       case 'downed':
         return 'down';
+      case 'shield':
+      case 'shieldstun':
+        return 'shield';
+      case 'spotdodge':
+      case 'roll':
+        return 'dodge';
+      case 'holding':
+        return 'grab';
+      case 'attack':
+        return this.move ? this.move.anim : 'idle';
       case 'ko':
         return 'ko';
     }
+  }
+
+  /** Index (0..) of the placeholder pose for an attack: 0 wind-up, 1 active, 2 recovery. */
+  get attackPhase(): number {
+    const m = this.move;
+    if (!m) return 0;
+    if (this.moveFrame <= m.startup) return 0;
+    return this.moveFrame <= m.startup + m.active ? 1 : 2;
   }
 
   get isAirborne(): boolean {
     return !this.grounded && this.state !== 'ledge' && this.state !== 'ledgeClimb';
   }
 
+  /** Height of the hurtbox right now (shorter while crouching / lying down). */
+  get hurtH(): number {
+    if (this.state === 'crouch' || this.state === 'jumpsquat') return this.h * 0.72;
+    if (this.state === 'downed' || this.state === 'shieldbreak') return this.h * 0.4;
+    return this.h;
+  }
+
+  get shieldRadius(): number {
+    return SHIELD_MIN_RADIUS + (SHIELD_MAX_RADIUS - SHIELD_MIN_RADIUS) * Math.max(0, this.shieldHP / SHIELD_MAX);
+  }
+
+  /** Armor threshold active right now, or -1 if none. */
+  armorThreshold(): number {
+    const m = this.move;
+    if (this.state !== 'attack' || !m || !m.armor) return -1;
+    if (this.moveFrame < m.armor.from || this.moveFrame > m.armor.to) return -1;
+    return (m.armor.threshold ?? Infinity) + this.armorBonus;
+  }
+
+  /** Damage multiplier from smash charge for the current move. */
+  get chargeFrac(): number {
+    const c = this.move?.charge;
+    return c ? this.chargeFrames / c.max : 0;
+  }
+
   // -------------------------------------------------------------------------------------------
-  // Hit application (the full hitbox system arrives with the combat milestone; this is the
-  // knockback application layer it will call).
+  // Being hit
   // -------------------------------------------------------------------------------------------
   receiveHit(hit: HitParams, world: World): void {
     if (this.state === 'ko') return;
     this.damage += hit.damage;
-    const kb = computeKnockback({
-      base: hit.base,
-      scaling: hit.scaling,
-      damagePercent: this.damage,
-      moveWeight: hit.moveWeight,
-      targetWeight: this.stats.weight,
-    });
-    launchVelocity(kb, hit.angle, hit.direction, tmpLaunch);
-    this.launch(tmpLaunch.vx, tmpLaunch.vy, hitstunFrames(kb));
-    world.emit('hit', this, this.x, this.y - this.h / 2, kb);
+    if (hit.attackerId !== undefined) this.lastHitBy = hit.attackerId;
+    const kb =
+      computeKnockback({
+        base: hit.base,
+        scaling: hit.scaling,
+        damagePercent: this.damage,
+        moveWeight: hit.moveWeight,
+        targetWeight: this.stats.weight,
+      }) * (hit.kbMult ?? 1);
+
+    let angle = hit.angle;
+    if (angle === 361) angle = this.grounded && kb < 32 ? 0 : 44; // "Sakurai angle"
+    launchVelocity(kb, angle, hit.direction, tmpLaunch);
+    this.launch(tmpLaunch.vx, tmpLaunch.vy, Math.max(hitstunFrames(kb), hit.minHitstun ?? 0));
+    this.hitlag = hit.hitlag ?? 0;
+    world.emit('hit', this, this.x, this.y - this.h / 2, kb, hit.damage);
   }
 
   launch(vx: number, vy: number, hitstun: number): void {
     this.releaseLedge();
+    this.endMoveState();
+    this.grabTarget = -1;
+    this.grabbedBy = -1;
     this.state = 'hitstun';
     this.stateFrame = 0;
     this.hitstun = Math.max(1, hitstun);
@@ -228,6 +366,24 @@ export class Fighter implements Body {
     }
   }
 
+  /** Called by the combat system when a hit lands on a shielding fighter. */
+  shieldHit(damage: number, breaks: boolean, shieldMult: number, pushDir: number, world: World): void {
+    this.shieldHP -= breaks ? SHIELD_MAX : damage * shieldMult;
+    this.shieldStun = Math.min(24, Math.floor(damage * 0.5) + 3);
+    this.vx = pushDir * Math.min(4, 1 + damage * 0.12);
+    if (this.shieldHP <= 0) {
+      this.shieldHP = 0;
+      this.setState('shieldbreak');
+      this.grounded = false;
+      this.groundPlat = null;
+      this.vy = -8;
+      this.vx = 0;
+      world.emit('shieldBreak', this, this.x, this.y - this.h / 2, 0, 0);
+    } else {
+      this.setState('shieldstun');
+    }
+  }
+
   // -------------------------------------------------------------------------------------------
   // Per-tick update
   // -------------------------------------------------------------------------------------------
@@ -237,6 +393,17 @@ export class Fighter implements Body {
     this.snapped = false;
     if (this.state === 'ko') return;
 
+    this.buffer.advance();
+    this.buffer.record(inp.pressed);
+
+    // hitlag freezes everything except input buffering (and grab struggling)
+    if (this.hitlag > 0) {
+      this.hitlag--;
+      if (this.state === 'grabbed') this.struggle(inp, world);
+      this.trackSticks(inp);
+      return;
+    }
+
     // carry with a moving platform before anything else
     if (this.grounded && this.groundPlat && this.groundPlat.moving) {
       this.x += this.groundPlat.dx;
@@ -244,14 +411,15 @@ export class Fighter implements Body {
     }
     this.startBottom = this.y;
 
-    this.buffer.advance();
-    this.buffer.record(inp.pressed);
     this.stateFrame++;
     if (this.invuln > 0) this.invuln--;
     if (this.grabCooldown > 0) this.grabCooldown--;
     if (this.techWindow > 0) this.techWindow--;
     if (this.techLock > 0) this.techLock--;
     if (this.coyote > 0) this.coyote--;
+    if (this.pummelCd > 0) this.pummelCd--;
+    if (this.state !== 'shield' && this.state !== 'shieldstun' && this.shieldHP < SHIELD_MAX) this.shieldHP = Math.min(SHIELD_MAX, this.shieldHP + SHIELD_REGEN);
+    this.trackSticks(inp);
 
     switch (this.state) {
       case 'idle':
@@ -265,6 +433,26 @@ export class Fighter implements Body {
         break;
       case 'air':
         this.airLogic(inp, world);
+        break;
+      case 'attack':
+        this.attackLogic(inp, world);
+        break;
+      case 'shield':
+      case 'shieldstun':
+        this.shieldLogic(inp, world);
+        break;
+      case 'spotdodge':
+      case 'roll':
+        this.dodgeLogic(world);
+        break;
+      case 'shieldbreak':
+        this.shieldBreakLogic(world);
+        break;
+      case 'holding':
+        this.holdLogic(inp, world);
+        break;
+      case 'grabbed':
+        this.struggle(inp, world);
         break;
       case 'hitstun':
         this.hitstunLogic(inp, world);
@@ -281,6 +469,20 @@ export class Fighter implements Body {
     this.checkBlastZones(world);
   }
 
+  /** Flick detection (fast stick pushes) for smash inputs, rolls and spot dodges. */
+  private trackSticks(inp: FighterInput): void {
+    if (this.flickX > 0) this.flickX--;
+    if (this.flickUp > 0) this.flickUp--;
+    if (this.flickDown > 0) this.flickDown--;
+    if (Math.abs(inp.stickX) >= FLICK_HI && Math.abs(this.lastStickX) < FLICK_LO) {
+      this.flickX = FLICK_FRAMES;
+      this.flickXDir = inp.stickX > 0 ? 1 : -1;
+    }
+    if (inp.stickY <= -FLICK_HI && this.lastStickY > -FLICK_LO) this.flickUp = FLICK_FRAMES;
+    if (inp.stickY >= FLICK_HI && this.lastStickY < FLICK_LO) this.flickDown = FLICK_FRAMES;
+    this.lastStickX = inp.stickX;
+  }
+
   // ---- ground ---------------------------------------------------------------------------------
   private groundLogic(inp: FighterInput, world: World): void {
     const s = this.stats;
@@ -292,7 +494,10 @@ export class Fighter implements Body {
     this.ledgeGrabs = 0;
 
     let target = 0;
-    if (this.state === 'landing' && this.stateFrame >= LANDING_FRAMES) this.setState('idle');
+    if (this.state === 'landing' && this.stateFrame >= (this.lagFrames || LANDING_FRAMES)) {
+      this.lagFrames = 0;
+      this.setState('idle');
+    }
     if (this.state === 'downed' && this.stateFrame >= DOWNED_FRAMES) {
       this.setState('idle');
       this.invuln = Math.max(this.invuln, 10);
@@ -307,7 +512,8 @@ export class Fighter implements Body {
         this.airLogic(inp, world, true);
         return;
       }
-    } else if (canAct) {
+    } else if (this.state === 'idle' || this.state === 'run' || this.state === 'crouch') {
+      if (this.tryStartAction(inp, world)) return;
       if (this.buffer.has(Button.Jump)) {
         this.buffer.consume(Button.Jump);
         if (inp.stickY > STICK_CROUCH && this.groundPlat && this.groundPlat.kind === 'pass') {
@@ -327,6 +533,7 @@ export class Fighter implements Body {
         if (this.state !== next) this.setState(next);
       }
     }
+    void canAct;
 
     const braking = target === 0 || (this.vx !== 0 && Math.sign(target) !== Math.sign(this.vx)) || Math.abs(target) < Math.abs(this.vx);
     const rate = braking ? s.groundFriction * (this.state === 'crouch' ? 2 : 1) : s.groundAccel;
@@ -336,13 +543,73 @@ export class Fighter implements Body {
     this.integrate(world);
   }
 
+  /** Buffered attack / special / grab / shield inputs from a neutral grounded state. */
+  private tryStartAction(inp: FighterInput, world: World): boolean {
+    if ((inp.held & Button.Shield) !== 0 && this.shieldHP > 0) {
+      this.setState('shield');
+      return true;
+    }
+    if (this.buffer.consume(Button.Grab)) return this.startMove('grab', inp, world);
+    if (this.tryStartSpecial(inp, world)) return true;
+    return this.tryStartAttack(inp, world, true);
+  }
+
+  private tryStartSpecial(inp: FighterInput, world: World): boolean {
+    if (this.buffer.has(Button.Ultimate) && this.data.moves.ultimate) {
+      this.buffer.consume(Button.Ultimate);
+      return this.startMove('ultimate', inp, world);
+    }
+    if (!this.buffer.has(Button.Special)) return false;
+    let id = 'neutralB';
+    if (inp.stickY < -0.6) id = 'upB';
+    else if (inp.stickY > 0.6) id = 'downB';
+    else if (Math.abs(inp.stickX) > 0.6) id = 'sideB';
+    if (!this.data.moves[id]) return false;
+    this.buffer.consume(Button.Special);
+    return this.startMove(id, inp, world);
+  }
+
+  private tryStartAttack(inp: FighterInput, world: World, grounded: boolean): boolean {
+    const smashBtn = this.buffer.has(Button.Smash);
+    const atkBtn = this.buffer.has(Button.Attack);
+    if (!smashBtn && !atkBtn) return false;
+    const up = inp.stickY < -0.5;
+    const down = inp.stickY > 0.5;
+    const side = Math.abs(inp.stickX) > 0.5;
+
+    if (!grounded) {
+      this.buffer.consume(smashBtn ? Button.Smash : Button.Attack);
+      let id = 'nair';
+      if (up) id = 'uair';
+      else if (down) id = 'dair';
+      else if (side) id = inp.stickX * this.facing > 0 ? 'fair' : 'bair';
+      return this.startMove(id, inp, world);
+    }
+
+    const flicked = world.config.smashFlick && atkBtn && (this.flickX > 0 || this.flickUp > 0 || this.flickDown > 0);
+    const isSmash = smashBtn || flicked;
+    if (isSmash) {
+      this.chargeButton = smashBtn ? Button.Smash : Button.Attack;
+      this.buffer.consume(smashBtn ? Button.Smash : Button.Attack);
+      const flickDir = this.flickUp > 0 ? 'up' : this.flickDown > 0 ? 'down' : 'side';
+      let id = 'fsmash';
+      if (up || flickDir === 'up') id = 'usmash';
+      else if (down || flickDir === 'down') id = 'dsmash';
+      else if (side) this.facing = inp.stickX > 0 ? 1 : -1;
+      else if (this.flickX > 0) this.facing = this.flickXDir > 0 ? 1 : -1;
+      return this.startMove(id, inp, world);
+    }
+    this.buffer.consume(Button.Attack);
+    return this.startMove('jab1', inp, world);
+  }
+
   private takeoff(height: number, world: World): void {
     this.vy = -Math.sqrt(2 * this.stats.gravity * height);
     this.grounded = false;
     this.groundPlat = null;
     this.coyote = 0;
     this.setState('air');
-    world.emit('jump', this, this.x, this.y, 0);
+    world.emit('jump', this, this.x, this.y, 0, 0);
   }
 
   private dropThrough(): void {
@@ -355,9 +622,274 @@ export class Fighter implements Body {
     this.setState('air');
   }
 
+  // ---- moves ----------------------------------------------------------------------------------
+  startMove(id: string, inp: FighterInput | null, world: World): boolean {
+    const m = this.data.moves[id];
+    if (!m) return false;
+    if (this.state === 'holding' || this.move === null) {
+      /* ok */
+    }
+    this.move = m;
+    this.moveFrame = 0;
+    this.chargeFrames = 0;
+    this.queuedNext = false;
+    this.moveHit = false;
+    this.hitMask.fill(0);
+    this.rehit.fill(0);
+    if (m.kind === 'jab' || m.kind === 'smash') {
+      if (inp && Math.abs(inp.stickX) > 0.5 && m.kind === 'smash') this.facing = inp.stickX > 0 ? 1 : -1;
+    }
+    this.setState('attack');
+    world.emit('moveStart', this, this.x, this.y, 0, 0);
+    this.attackLogic(inp ?? NEUTRAL, world);
+    return true;
+  }
+
+  private attackLogic(inp: FighterInput, world: World): void {
+    const m = this.move;
+    if (!m) {
+      this.setState(this.grounded ? 'idle' : 'air');
+      return;
+    }
+
+    // rehit timers
+    for (let i = 0; i < this.rehit.length; i++) {
+      if (this.rehit[i] > 0 && --this.rehit[i] === 0) this.hitMask[(i / MAX_GROUPS) | 0] &= ~(1 << (i % MAX_GROUPS));
+    }
+
+    // smash charge: hold on the charge frame while the button is down
+    if (m.charge && this.moveFrame === m.charge.frame && this.chargeFrames < m.charge.max && (inp.held & this.chargeButton) !== 0) {
+      this.chargeFrames++;
+      this.attackPhysics(m, inp);
+      this.integrateAttack(world);
+      return;
+    }
+
+    this.moveFrame++;
+    const f = this.moveFrame;
+
+    if (m.motion) {
+      for (const mv of m.motion) {
+        if (mv.frame !== f) continue;
+        if (mv.vx !== undefined) this.vx = mv.mode === 'add' ? this.vx + mv.vx * this.facing : mv.vx * this.facing;
+        if (mv.vy !== undefined) {
+          this.vy = mv.mode === 'add' ? this.vy + mv.vy : mv.vy;
+          if (mv.vy < 0) {
+            this.grounded = false;
+            this.groundPlat = null;
+          }
+        }
+      }
+    }
+    if (m.invuln && f >= m.invuln[0] && f <= m.invuln[1]) this.invuln = Math.max(this.invuln, 1);
+
+    // jab chain
+    if (m.next) {
+      if (f >= m.next.from && f <= m.next.to && this.buffer.consume(Button.Attack)) this.queuedNext = true;
+      if (this.queuedNext && f >= m.next.at) {
+        this.startMove(m.next.id, inp, world);
+        return;
+      }
+    }
+
+    this.attackPhysics(m, inp);
+    this.integrateAttack(world);
+    if (this.state !== 'attack') return;
+
+    if (this.moveFrame >= moveTotal(m)) this.finishMove();
+  }
+
+  private attackPhysics(m: MoveDef, inp: FighterInput): void {
+    const s = this.stats;
+    if (this.grounded) {
+      this.vx = approach(this.vx, 0, s.groundFriction * 0.7);
+    } else {
+      this.vy += s.gravity * (m.gravityScale ?? 1);
+      if (this.vy > s.fallSpeed) this.vy = s.fallSpeed;
+      const target = inp.stickX * s.airSpeed * 0.8;
+      this.vx = Math.abs(inp.stickX) < 0.05 ? approach(this.vx, 0, s.airFriction) : approach(this.vx, target, s.airAccel * 0.7);
+    }
+  }
+
+  private integrateAttack(world: World): void {
+    this.integrate(world);
+  }
+
+  private finishMove(): void {
+    const wasThrow = this.move?.kind === 'throw';
+    this.endMoveState();
+    if (wasThrow) this.grabTarget = -1;
+    this.setState(this.grounded ? 'idle' : 'air');
+  }
+
+  /** Clear move bookkeeping (does not change state). */
+  private endMoveState(): void {
+    this.move = null;
+    this.moveFrame = 0;
+    this.chargeFrames = 0;
+    this.queuedNext = false;
+  }
+
+  private onAttackLand(world: World): void {
+    const m = this.move;
+    if (!m) {
+      this.setState('landing');
+      return;
+    }
+    const f = this.moveFrame;
+    const activeFrom = m.startup + 1;
+    const activeTo = m.startup + m.active;
+    if (m.landBounce && f >= activeFrom && f <= activeTo + 4) {
+      // stomp bounces back up and the move plays out
+      this.vy = -m.landBounce;
+      this.grounded = false;
+      this.groundPlat = null;
+      world.emit('landBounce', this, this.x, this.y, m.landBounce, 0);
+      return;
+    }
+    const auto = m.autocancel?.some(([a, b]) => f >= a && f <= b) ?? false;
+    this.endMoveState();
+    this.lagFrames = auto ? 0 : (m.landingLag ?? 8);
+    this.setState('landing');
+    world.emit('land', this, this.x, this.y, this.impactVy, 0);
+  }
+
+  // ---- shield / dodge / stun ------------------------------------------------------------------
+  private shieldLogic(inp: FighterInput, world: World): void {
+    this.vx = approach(this.vx, 0, this.stats.groundFriction);
+    if (this.state === 'shield') {
+      this.shieldHP -= SHIELD_DECAY;
+      if (this.shieldHP <= 0) {
+        this.shieldHP = 0;
+        this.shieldHit(0, true, 1, 0, world);
+        return;
+      }
+      if ((inp.held & Button.Shield) === 0) {
+        this.setState('idle');
+        return;
+      }
+      if (this.buffer.consume(Button.Grab) || this.buffer.consume(Button.Attack)) {
+        this.startMove('grab', inp, world);
+        return;
+      }
+      if (this.buffer.consume(Button.Jump)) {
+        this.setState('jumpsquat');
+        return;
+      }
+      if (this.flickDown > 0) {
+        this.flickDown = 0;
+        this.setState('spotdodge');
+        world.emit('dodge', this, this.x, this.y, 0, 0);
+        return;
+      }
+      if (this.flickX > 0) {
+        this.rollDir = this.flickXDir > 0 ? 1 : -1;
+        this.flickX = 0;
+        this.setState('roll');
+        world.emit('dodge', this, this.x, this.y, 0, 0);
+        return;
+      }
+    } else if (this.stateFrame >= this.shieldStun) {
+      this.setState((inp.held & Button.Shield) !== 0 ? 'shield' : 'idle');
+    }
+    this.integrate(world);
+  }
+
+  private dodgeLogic(world: World): void {
+    const spot = this.state === 'spotdodge';
+    const total = spot ? SPOTDODGE_FRAMES : ROLL_FRAMES;
+    const win = spot ? SPOTDODGE_INVULN : ROLL_INVULN;
+    if (this.stateFrame >= win[0] && this.stateFrame <= win[1]) this.invuln = Math.max(this.invuln, 1);
+    if (spot) this.vx = 0;
+    else this.vx = this.stateFrame >= 4 && this.stateFrame <= 24 ? this.rollDir * ROLL_SPEED : this.vx * 0.6;
+    this.integrate(world);
+    if (this.stateFrame >= total) this.setState('idle');
+  }
+
+  private shieldBreakLogic(world: World): void {
+    this.vy += this.stats.gravity;
+    if (this.vy > this.stats.fallSpeed) this.vy = this.stats.fallSpeed;
+    if (this.grounded) this.vx = approach(this.vx, 0, 0.4);
+    this.integrate(world);
+    if (this.stateFrame >= SHIELDBREAK_FRAMES) {
+      this.shieldHP = SHIELD_MAX * 0.6;
+      this.setState(this.grounded ? 'idle' : 'air');
+    }
+  }
+
+  // ---- grabs ----------------------------------------------------------------------------------
+  /** Attacker side: successfully grabbed `victim`. */
+  grabVictim(victim: Fighter): void {
+    this.endMoveState();
+    this.grabTarget = victim.id;
+    this.holdTimer = GRAB_BASE_HOLD + victim.damage * 0.8;
+    this.setState('holding');
+    this.vx = 0;
+    victim.beGrabbed(this);
+  }
+
+  beGrabbed(by: Fighter): void {
+    this.endMoveState();
+    this.grabbedBy = by.id;
+    this.state = 'grabbed';
+    this.stateFrame = 0;
+    this.vx = this.vy = 0;
+    this.hitstun = 0;
+    this.releaseLedge();
+  }
+
+  /** Victim side: freed from a grab (timeout, escape, or throw). */
+  releaseGrab(): void {
+    this.grabbedBy = -1;
+    if (this.state === 'grabbed') {
+      this.setState(this.grounded ? 'idle' : 'air');
+      this.invuln = Math.max(this.invuln, 12);
+    }
+  }
+
+  private holdLogic(inp: FighterInput, world: World): void {
+    this.holdTimer--;
+    this.vx = 0;
+    if (this.holdTimer <= 0) {
+      // victim broke free / timed out: both get a short breather
+      this.grabTarget = -1;
+      this.setState('idle');
+      this.lagFrames = 0;
+      return;
+    }
+    if (this.buffer.consume(Button.Attack) && this.pummelCd === 0) {
+      const v = world.fighters[this.grabTarget];
+      if (v) {
+        v.damage += 1.5;
+        v.hitlag = 3;
+        this.hitlag = 3;
+        this.pummelCd = 14;
+        this.holdTimer -= 6;
+        world.emit('pummel', v, v.x, v.y - v.h / 2, 0, 1.5);
+      }
+      return;
+    }
+    let id: string | null = null;
+    if (inp.stickY < -0.7) id = 'uthrow';
+    else if (inp.stickY > 0.7) id = 'dthrow';
+    else if (inp.stickX * this.facing > 0.7) id = 'fthrow';
+    else if (inp.stickX * this.facing < -0.7) id = 'bthrow';
+    else if (this.buffer.consume(Button.Smash) || this.buffer.consume(Button.Grab)) id = 'fthrow';
+    if (id) this.startMove(id, inp, world);
+  }
+
+  private struggle(inp: FighterInput, world: World): void {
+    const g = world.fighters[this.grabbedBy];
+    if (!g) return;
+    if (inp.pressed !== 0) g.holdTimer -= GRAB_STRUGGLE;
+  }
+
   // ---- air ------------------------------------------------------------------------------------
   private airLogic(inp: FighterInput, world: World, justLeftGround = false): void {
     const s = this.stats;
+
+    if (!justLeftGround && this.tryStartSpecial(inp, world)) return;
+    if (!justLeftGround && this.tryStartAttack(inp, world, false)) return;
 
     if (this.buffer.has(Button.Jump)) {
       if (this.coyote > 0 && !justLeftGround) {
@@ -365,7 +897,7 @@ export class Fighter implements Body {
         this.buffer.consume(Button.Jump);
         this.vy = -Math.sqrt(2 * s.gravity * ((inp.held & Button.Jump) !== 0 ? s.jumpHeight : s.shortHopHeight));
         this.coyote = 0;
-        world.emit('jump', this, this.x, this.y, 0);
+        world.emit('jump', this, this.x, this.y, 0, 0);
       } else if (this.jumpsLeft > 0) {
         this.buffer.consume(Button.Jump);
         this.jumpsLeft--;
@@ -377,7 +909,7 @@ export class Fighter implements Body {
         } else {
           this.vx *= 0.5;
         }
-        world.emit('doubleJump', this, this.x, this.y, 0);
+        world.emit('doubleJump', this, this.x, this.y, 0, 0);
       }
     }
 
@@ -447,7 +979,7 @@ export class Fighter implements Body {
           this.vx *= 0.8;
           this.grounded = false;
           this.groundPlat = null;
-          world.emit('bounce', this, this.x, this.y, this.impactVy);
+          world.emit('bounce', this, this.x, this.y, this.impactVy, 0);
         }
       } else if (this.hitstun > 0) {
         // slow landing: lie down
@@ -462,7 +994,7 @@ export class Fighter implements Body {
         this.doTech(inp, world, 'wall');
       } else {
         this.vx = -this.impactVx * BOUNCE_WALL;
-        world.emit('bounce', this, this.x, this.y - this.h / 2, Math.abs(this.impactVx));
+        world.emit('bounce', this, this.x, this.y - this.h / 2, Math.abs(this.impactVx), 0);
       }
       return;
     }
@@ -472,7 +1004,7 @@ export class Fighter implements Body {
         this.doTech(inp, world, 'ceiling');
       } else {
         this.vy = -this.impactVy * BOUNCE_FLOOR;
-        world.emit('bounce', this, this.x, this.y - this.h, Math.abs(this.impactVy));
+        world.emit('bounce', this, this.x, this.y - this.h, Math.abs(this.impactVy), 0);
       }
     }
   }
@@ -490,7 +1022,7 @@ export class Fighter implements Body {
       this.vy = 0;
       this.setState('air');
     }
-    world.emit('tech', this, this.x, this.y - this.h / 2, 0);
+    world.emit('tech', this, this.x, this.y - this.h / 2, 0, 0);
   }
 
   // ---- ledge ----------------------------------------------------------------------------------
@@ -524,7 +1056,7 @@ export class Fighter implements Body {
     // anti-stall: every consecutive grab (without touching ground) gives less invincibility
     this.invuln = Math.max(0, LEDGE_BASE_INVULN - LEDGE_INVULN_LOSS_PER_GRAB * (this.ledgeGrabs - 1));
     this.setState('ledge');
-    world.emit('ledgeGrab', this, this.x, this.y, 0);
+    world.emit('ledgeGrab', this, this.x, this.y, 0, 0);
   }
 
   private releaseLedge(): void {
@@ -550,9 +1082,9 @@ export class Fighter implements Body {
       this.releaseLedge();
       this.grabCooldown = LEDGE_REGRAB_COOLDOWN;
       this.vy = -Math.sqrt(2 * this.stats.gravity * this.stats.jumpHeight * 0.9);
-      this.vx = (-l.side) * this.stats.airSpeed * 0.6;
+      this.vx = -l.side * this.stats.airSpeed * 0.6;
       this.setState('air');
-      world.emit('jump', this, this.x, this.y, 0);
+      world.emit('jump', this, this.x, this.y, 0, 0);
     } else if (inp.stickY < STICK_UP || toward > 0.6) {
       this.climbFromX = this.x;
       this.climbFromY = this.y;
@@ -592,7 +1124,7 @@ export class Fighter implements Body {
       this.prevX = this.x;
       this.prevY = this.y;
       this.setState('idle');
-      world.emit('land', this, this.x, this.y, 0);
+      world.emit('land', this, this.x, this.y, 0, 0);
     }
   }
 
@@ -601,21 +1133,27 @@ export class Fighter implements Body {
     const wasGrounded = this.grounded;
     moveBody(this, world.platforms);
 
-    if (!wasGrounded && this.grounded && this.state !== 'hitstun') {
-      // touched down
-      this.setState('landing');
-      this.jumpsLeft = this.stats.doubleJumps;
-      this.fastFalling = false;
-      this.ledgeGrabs = 0;
-      world.emit('land', this, this.x, this.y, this.impactVy);
-    } else if (wasGrounded && !this.grounded && this.state !== 'hitstun' && this.state !== 'air') {
+    if (!wasGrounded && this.grounded) {
+      if (this.state === 'air') {
+        this.setState('landing');
+        this.jumpsLeft = this.stats.doubleJumps;
+        this.fastFalling = false;
+        this.ledgeGrabs = 0;
+        world.emit('land', this, this.x, this.y, this.impactVy, 0);
+      } else if (this.state === 'attack') {
+        this.jumpsLeft = this.stats.doubleJumps;
+        this.fastFalling = false;
+        this.ledgeGrabs = 0;
+        this.onAttackLand(world);
+      }
+    } else if (wasGrounded && !this.grounded && GROUND_STATES.has(this.state) && this.state !== 'jumpsquat') {
       // walked off an edge
       this.coyote = COYOTE_FRAMES;
       this.setState('air');
     }
   }
 
-  private setState(next: FighterState): void {
+  setState(next: FighterState): void {
     this.state = next;
     this.stateFrame = 0;
   }
@@ -628,9 +1166,14 @@ export class Fighter implements Body {
       this.koVx = this.vx;
       this.koVy = this.vy;
       this.releaseLedge();
+      this.endMoveState();
+      this.grabTarget = -1;
+      this.grabbedBy = -1;
       this.state = 'ko';
       this.stateFrame = 0;
-      world.emit('ko', this, this.x, this.y, Math.hypot(this.vx, this.vy));
+      world.emit('ko', this, this.x, this.y, Math.hypot(this.vx, this.vy), this.lastHitBy);
     }
   }
 }
+
+const NEUTRAL: FighterInput = { stickX: 0, stickY: 0, held: 0, pressed: 0, released: 0 };
