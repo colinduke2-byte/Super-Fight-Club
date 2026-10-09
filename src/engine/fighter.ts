@@ -3,7 +3,8 @@ import { COYOTE_FRAMES } from './constants';
 import { moveBody, type Body } from './collision';
 import { InputBuffer } from './inputBuffer';
 import { computeKnockback, hitstunFrames, launchVelocity, LAUNCH_DRAG, type LaunchVector } from './knockback';
-import { moveTotal, type MoveDef } from './moves';
+import { executeMoveEvent } from './actions';
+import { moveTotal, type MoveDef, type StatusApply } from './moves';
 import type { Ledge, Platform } from './platform';
 import type { CharacterData, CharacterStats } from './types';
 import type { World } from './world';
@@ -28,6 +29,10 @@ export type FighterState =
   | 'roll'
   | 'holding'
   | 'grabbed'
+  | 'dash'
+  | 'tether'
+  | 'frozen'
+  | 'stunned'
   | 'ko';
 
 export const MAX_FIGHTERS = 4;
@@ -74,7 +79,11 @@ const FLICK_LO = 0.5;
 export const GRAB_DISTANCE = 18;
 const GRAB_BASE_HOLD = 70;
 const GRAB_STRUGGLE = 4;
-const GROUND_STATES: ReadonlySet<FighterState> = new Set<FighterState>(['idle', 'run', 'crouch', 'landing', 'jumpsquat', 'shield', 'shieldstun', 'downed', 'tech', 'spotdodge', 'roll', 'holding']);
+const ULT_GAIN_DEALT = 0.6;
+const ULT_GAIN_TAKEN = 0.9;
+const ULT_COST = 100;
+const HELPLESS_DRIFT = 0.55;
+const GROUND_STATES: ReadonlySet<FighterState> = new Set<FighterState>(['dash', 'frozen', 'stunned', 'idle', 'run', 'crouch', 'landing', 'jumpsquat', 'shield', 'shieldstun', 'downed', 'tech', 'spotdodge', 'roll', 'holding']);
 
 export interface HitParams {
   damage: number;
@@ -163,6 +172,35 @@ export class Fighter implements Body {
   readonly hitMask = new Uint16Array(MAX_FIGHTERS);
   readonly rehit = new Int16Array(MAX_FIGHTERS * MAX_GROUPS);
 
+  /** Hit registries for the current move against enemy projectiles / deployables. */
+  readonly hitProjMask = new Uint32Array(2);
+  hitDepMask = 0;
+
+  // Character mechanic state (Heat, Scrap, markers...). Keys come from CharacterData.resources.
+  res: Record<string, number>;
+  /** Ultimate meter 0..cost. */
+  meter = 0;
+  /** Remaining frames per status effect. */
+  readonly status = { burn: 0, slow: 0, freeze: 0, stun: 0 };
+  private slowMul = 1;
+  private burnPerTick = 0.05;
+  /** Active reflecting barrier (frames > 0), forward-relative box around the feet. */
+  barrier = { frames: 0, x: 0, y: 0, w: 0, h: 0 };
+  /** After a recovery move: no actions until landing / ledge / hit. */
+  helpless = false;
+  dashCd = 0;
+  /** Training aid: no gravity while airborne and not in hitstun (test aerials in place). */
+  hover = false;
+  /** Tether target while in the 'tether' state. */
+  tetherX = 0;
+  tetherY = 0;
+  private tetherSpeed = 0;
+  private tetherLedge: Ledge | null = null;
+  private tetherPlat: Platform | null = null;
+  /** Where the last teleport started (for effects / afterimages). */
+  tpFromX = 0;
+  tpFromY = 0;
+
   // Defence
   shieldHP = SHIELD_MAX;
   shieldStun = 0;
@@ -208,6 +246,7 @@ export class Fighter implements Body {
     this.h = data.body.height;
     this.fhw = data.body.footHalfWidth;
     this.jumpsLeft = this.stats.doubleJumps;
+    this.res = { ...(data.resources ?? {}) };
   }
 
   /** Place the fighter in the air at spawn and reset all transient state. */
@@ -241,6 +280,12 @@ export class Fighter implements Body {
     this.lastHitBy = -1;
     this.damageMult = 1;
     this.armorBonus = 0;
+    this.res = { ...(this.data.resources ?? {}) };
+    this.status.burn = this.status.slow = this.status.freeze = this.status.stun = 0;
+    this.slowMul = 1;
+    this.barrier.frames = 0;
+    this.helpless = false;
+    this.dashCd = 0;
     this.releaseLedge();
     this.invuln = 120;
     this.buffer.clear();
@@ -278,6 +323,14 @@ export class Fighter implements Body {
         return 'dodge';
       case 'holding':
         return 'grab';
+      case 'dash':
+        return 'run';
+      case 'tether':
+        return 'jump';
+      case 'frozen':
+        return 'hurt';
+      case 'stunned':
+        return 'hurt';
       case 'attack':
         return this.move ? this.move.anim : 'idle';
       case 'ko':
@@ -322,6 +375,95 @@ export class Fighter implements Body {
     return c ? this.chargeFrames / c.max : 0;
   }
 
+  get speedMul(): number {
+    return this.status.slow > 0 ? this.slowMul : 1;
+  }
+
+  /** Ultimate meter gain from dealing damage. */
+  gainMeter(damage: number, world: World): void {
+    const u = this.data.ultimate;
+    this.addMeter(damage * (u?.gainDealt ?? ULT_GAIN_DEALT), u?.cost ?? ULT_COST, world);
+  }
+
+  gainMeterTaken(damage: number, world?: World): void {
+    const u = this.data.ultimate;
+    this.addMeter(damage * (u?.gainTaken ?? ULT_GAIN_TAKEN), u?.cost ?? ULT_COST, world);
+  }
+
+  private addMeter(amount: number, cost: number, world?: World): void {
+    const before = this.meter;
+    this.meter = Math.min(cost, this.meter + amount);
+    if (before < cost && this.meter >= cost) world?.emit('meterFull', this, this.x, this.y - this.h, 0, 0);
+  }
+
+  applyStatus(s: StatusApply, world: World): void {
+    if (this.state === 'ko') return;
+    if (s.minPercent !== undefined && this.damage < s.minPercent) {
+      if (s.fallback) this.applyStatus(s.fallback, world);
+      return;
+    }
+    switch (s.type) {
+      case 'burn':
+        this.status.burn = Math.max(this.status.burn, s.frames);
+        this.burnPerTick = s.value ?? 0.05;
+        break;
+      case 'slow':
+        this.status.slow = Math.max(this.status.slow, s.frames);
+        this.slowMul = s.value ?? 0.6;
+        break;
+      case 'freeze':
+        this.status.freeze = Math.max(this.status.freeze, s.frames);
+        this.releaseLedge();
+        this.endMoveState();
+        this.vx = this.vy = 0;
+        this.setState('frozen');
+        break;
+      case 'stun':
+        this.status.stun = Math.max(this.status.stun, s.frames);
+        if (this.state !== 'hitstun') {
+          this.endMoveState();
+          this.setState('stunned');
+        }
+        break;
+    }
+    world.emit('status', this, this.x, this.y - this.h / 2, s.frames, ['burn', 'slow', 'freeze', 'stun'].indexOf(s.type));
+  }
+
+  /** Put the fighter standing idle on a platform (training / scenario setup). */
+  standOn(plat: Platform, x: number): void {
+    this.spawn(x, plat.top, this.facing);
+    this.state = 'idle';
+    this.grounded = true;
+    this.groundPlat = plat;
+    this.invuln = 0;
+    this.hover = false;
+  }
+
+  /** Hard-place the fighter (teleports): no interpolation, collision state refreshed on the next move. */
+  placeAt(x: number, y: number): void {
+    this.x = x;
+    this.y = y;
+    this.startBottom = y;
+    this.vx = 0;
+    this.vy = 0;
+    this.grounded = false;
+    this.groundPlat = null;
+    this.snapped = true;
+  }
+
+  beginTether(x: number, y: number, speed: number, ledge: Ledge | null, plat: Platform | null): void {
+    this.endMoveState();
+    this.tetherX = x;
+    this.tetherY = y;
+    this.tetherSpeed = speed;
+    this.tetherLedge = ledge;
+    this.tetherPlat = plat;
+    this.grounded = false;
+    this.groundPlat = null;
+    this.vx = this.vy = 0;
+    this.setState('tether');
+  }
+
   // -------------------------------------------------------------------------------------------
   // Being hit
   // -------------------------------------------------------------------------------------------
@@ -343,7 +485,9 @@ export class Fighter implements Body {
     launchVelocity(kb, angle, hit.direction, tmpLaunch);
     this.launch(tmpLaunch.vx, tmpLaunch.vy, Math.max(hitstunFrames(kb), hit.minHitstun ?? 0));
     this.hitlag = hit.hitlag ?? 0;
+    this.gainMeterTaken(hit.damage, world);
     world.emit('hit', this, this.x, this.y - this.h / 2, kb, hit.damage);
+    this.data.behavior?.onHitTaken?.(this, hit.attackerId !== undefined ? (world.fighters[hit.attackerId] ?? null) : null, hit.damage, world);
   }
 
   launch(vx: number, vy: number, hitstun: number): void {
@@ -360,6 +504,10 @@ export class Fighter implements Body {
     this.techLock = 0;
     this.fastFalling = false;
     this.ledgeGrabs = 0;
+    this.helpless = false;
+    this.barrier.frames = 0;
+    if (this.status.freeze > 0) this.status.freeze = 0; // being hit shatters ice
+    this.status.stun = 0;
     if (vy < 0) {
       this.grounded = false;
       this.groundPlat = null;
@@ -411,8 +559,11 @@ export class Fighter implements Body {
     }
     this.startBottom = this.y;
 
+    this.tickStatus(world);
     this.stateFrame++;
     if (this.invuln > 0) this.invuln--;
+    if (this.barrier.frames > 0) this.barrier.frames--;
+    if (this.dashCd > 0) this.dashCd--;
     if (this.grabCooldown > 0) this.grabCooldown--;
     if (this.techWindow > 0) this.techWindow--;
     if (this.techLock > 0) this.techLock--;
@@ -420,6 +571,7 @@ export class Fighter implements Body {
     if (this.pummelCd > 0) this.pummelCd--;
     if (this.state !== 'shield' && this.state !== 'shieldstun' && this.shieldHP < SHIELD_MAX) this.shieldHP = Math.min(SHIELD_MAX, this.shieldHP + SHIELD_REGEN);
     this.trackSticks(inp);
+    this.data.behavior?.onTick?.(this, world);
 
     switch (this.state) {
       case 'idle':
@@ -456,6 +608,19 @@ export class Fighter implements Body {
         break;
       case 'hitstun':
         this.hitstunLogic(inp, world);
+        break;
+      case 'dash':
+        this.dashLogic(inp, world);
+        break;
+      case 'tether':
+        this.tetherLogic(world);
+        break;
+      case 'frozen':
+        this.vx = this.vy = 0;
+        if (this.status.freeze <= 0) this.setState(this.grounded ? 'idle' : 'air');
+        break;
+      case 'stunned':
+        this.stunLogic(world);
         break;
       case 'ledge':
         this.ledgeLogic(inp, world);
@@ -505,7 +670,7 @@ export class Fighter implements Body {
     if (this.state === 'tech' && this.stateFrame >= TECH_GROUND_FRAMES) this.setState('idle');
 
     if (this.state === 'jumpsquat') {
-      target = inp.stickX * s.runSpeed;
+      target = inp.stickX * s.runSpeed * this.speedMul;
       if (this.stateFrame >= s.jumpsquatFrames) {
         // full hop if the jump button is still down at the end of jumpsquat, otherwise short hop
         this.takeoff((inp.held & Button.Jump) !== 0 ? s.jumpHeight : s.shortHopHeight, world);
@@ -522,12 +687,12 @@ export class Fighter implements Body {
           return;
         }
         this.setState('jumpsquat');
-        target = inp.stickX * s.runSpeed;
+        target = inp.stickX * s.runSpeed * this.speedMul;
       } else if (inp.stickY > STICK_CROUCH) {
         if (this.state !== 'crouch') this.setState('crouch');
         target = 0;
       } else {
-        target = inp.stickX * s.runSpeed;
+        target = inp.stickX * s.runSpeed * this.speedMul;
         if (Math.abs(inp.stickX) > TURN_THRESHOLD) this.facing = inp.stickX > 0 ? 1 : -1;
         const next = Math.abs(this.vx) > 0.3 || Math.abs(target) > 0.3 ? 'run' : 'idle';
         if (this.state !== next) this.setState(next);
@@ -551,12 +716,23 @@ export class Fighter implements Body {
     }
     if (this.buffer.consume(Button.Grab)) return this.startMove('grab', inp, world);
     if (this.tryStartSpecial(inp, world)) return true;
+    const dash = this.data.dash;
+    if (dash && this.dashCd === 0 && this.flickX > 0 && !this.buffer.has(Button.Attack) && !this.buffer.has(Button.Smash)) {
+      this.facing = this.flickXDir > 0 ? 1 : -1;
+      this.flickX = 0;
+      this.setState('dash');
+      world.emit('dodge', this, this.x, this.y, 0, 0);
+      return true;
+    }
     return this.tryStartAttack(inp, world, true);
   }
 
   private tryStartSpecial(inp: FighterInput, world: World): boolean {
     if (this.buffer.has(Button.Ultimate) && this.data.moves.ultimate) {
       this.buffer.consume(Button.Ultimate);
+      const cost = this.data.ultimate?.cost ?? ULT_COST;
+      if (this.meter < cost) return false;
+      this.meter = 0;
       return this.startMove('ultimate', inp, world);
     }
     if (!this.buffer.has(Button.Special)) return false;
@@ -622,13 +798,87 @@ export class Fighter implements Body {
     this.setState('air');
   }
 
+  // ---- status / dash / tether -------------------------------------------------------------------
+  private tickStatus(world: World): void {
+    const st = this.status;
+    if (st.burn > 0) {
+      st.burn--;
+      this.damage += this.burnPerTick;
+      if (st.burn % 12 === 0) world.emit('status', this, this.x, this.y - this.h / 2, st.burn, 0);
+    }
+    if (st.slow > 0 && --st.slow === 0) this.slowMul = 1;
+    if (st.freeze > 0) st.freeze--;
+    if (st.stun > 0) st.stun--;
+  }
+
+  private dashLogic(inp: FighterInput, world: World): void {
+    const d = this.data.dash!;
+    this.vx = this.facing * d.speed * this.speedMul;
+    if (this.stateFrame >= d.invuln[0] && this.stateFrame <= d.invuln[1]) this.invuln = Math.max(this.invuln, 1);
+    if (this.buffer.has(Button.Jump)) {
+      this.buffer.consume(Button.Jump);
+      this.setState('jumpsquat');
+      this.dashCd = d.cooldown;
+      this.integrate(world);
+      return;
+    }
+    if (this.tryStartAttack(inp, world, true)) {
+      this.dashCd = d.cooldown;
+      return;
+    }
+    this.integrate(world);
+    if (this.state === 'dash' && this.stateFrame >= d.frames) {
+      this.dashCd = d.cooldown;
+      this.setState(Math.abs(inp.stickX) > 0.3 ? 'run' : 'idle');
+    }
+  }
+
+  private stunLogic(world: World): void {
+    if (this.grounded) {
+      this.vx = approach(this.vx, 0, this.stats.groundFriction);
+    } else {
+      this.vy = Math.min(this.stats.fallSpeed, this.vy + this.stats.gravity);
+    }
+    this.integrate(world);
+    if (this.status.stun <= 0) this.setState(this.grounded ? 'idle' : 'air');
+  }
+
+  private tetherLogic(world: World): void {
+    // the hook reaches the point; for a ledge the fighter ends up hanging below it, otherwise on top
+    const hangY = this.tetherLedge ? this.tetherY + this.h * 0.95 : this.tetherY;
+    const hangX = this.tetherLedge ? this.tetherLedge.x + this.tetherLedge.side * (this.hw + 1) : this.tetherX;
+    const ddx = hangX - this.x;
+    const ddy = hangY - this.y;
+    const d2 = Math.hypot(ddx, ddy);
+    if (d2 <= this.tetherSpeed) {
+      this.x = hangX;
+      this.y = hangY;
+      if (this.tetherLedge && (this.tetherLedge.occupant === -1 || this.tetherLedge.occupant === this.id)) {
+        this.grabLedge(this.tetherLedge, world);
+      } else if (this.tetherPlat) {
+        this.groundPlat = this.tetherPlat;
+        this.grounded = true;
+        this.helpless = false;
+        this.setState('idle');
+        world.emit('land', this, this.x, this.y, 0, 0);
+      } else {
+        this.setState('air');
+      }
+      this.tetherLedge = null;
+      this.tetherPlat = null;
+      return;
+    }
+    this.x += (ddx / d2) * this.tetherSpeed;
+    this.y += (ddy / d2) * this.tetherSpeed;
+    this.vx = this.vy = 0;
+    this.invuln = Math.max(this.invuln, 1);
+  }
+
   // ---- moves ----------------------------------------------------------------------------------
   startMove(id: string, inp: FighterInput | null, world: World): boolean {
     const m = this.data.moves[id];
     if (!m) return false;
-    if (this.state === 'holding' || this.move === null) {
-      /* ok */
-    }
+    if (m.requires && (this.res[m.requires.key] ?? 0) < m.requires.min) return false;
     this.move = m;
     this.moveFrame = 0;
     this.chargeFrames = 0;
@@ -636,11 +886,16 @@ export class Fighter implements Body {
     this.moveHit = false;
     this.hitMask.fill(0);
     this.rehit.fill(0);
+    this.hitProjMask.fill(0);
+    this.hitDepMask = 0;
+    this.helpless = false;
+    if (m.noLedge) this.grabCooldown = Math.max(this.grabCooldown, m.noLedge);
     if (m.kind === 'jab' || m.kind === 'smash') {
       if (inp && Math.abs(inp.stickX) > 0.5 && m.kind === 'smash') this.facing = inp.stickX > 0 ? 1 : -1;
     }
     this.setState('attack');
     world.emit('moveStart', this, this.x, this.y, 0, 0);
+    this.data.behavior?.onMoveStart?.(this, m, world);
     this.attackLogic(inp ?? NEUTRAL, world);
     return true;
   }
@@ -682,6 +937,15 @@ export class Fighter implements Body {
       }
     }
     if (m.invuln && f >= m.invuln[0] && f <= m.invuln[1]) this.invuln = Math.max(this.invuln, 1);
+    if (m.events) {
+      for (const ev of m.events) {
+        if (ev.frame !== f) continue;
+        executeMoveEvent(this, ev, inp, world);
+        if (this.state !== 'attack' || this.move !== m) return; // the event ended the move (tether latched, ledge snapped, ...)
+      }
+    }
+    this.data.behavior?.onMoveFrame?.(this, m, f, world);
+    if (this.state !== 'attack' || this.move !== m) return;
 
     // jab chain
     if (m.next) {
@@ -695,8 +959,11 @@ export class Fighter implements Body {
     this.attackPhysics(m, inp);
     this.integrateAttack(world);
     if (this.state !== 'attack') return;
+    // recovery specials can catch the ledge mid-move
+    if (!this.grounded && m.kind === 'special' && m.ledgeGrab !== false) this.tryLedgeGrab(inp, world);
+    if (this.state !== 'attack') return;
 
-    if (this.moveFrame >= moveTotal(m)) this.finishMove();
+    if (this.moveFrame >= moveTotal(m)) this.finishMove(world);
   }
 
   private attackPhysics(m: MoveDef, inp: FighterInput): void {
@@ -704,7 +971,8 @@ export class Fighter implements Body {
     if (this.grounded) {
       this.vx = approach(this.vx, 0, s.groundFriction * 0.7);
     } else {
-      this.vy += s.gravity * (m.gravityScale ?? 1);
+      if (this.hover) this.vy = 0;
+      else this.vy += s.gravity * (m.gravityScale ?? 1);
       if (this.vy > s.fallSpeed) this.vy = s.fallSpeed;
       const target = inp.stickX * s.airSpeed * 0.8;
       this.vx = Math.abs(inp.stickX) < 0.05 ? approach(this.vx, 0, s.airFriction) : approach(this.vx, target, s.airAccel * 0.7);
@@ -715,11 +983,16 @@ export class Fighter implements Body {
     this.integrate(world);
   }
 
-  private finishMove(): void {
-    const wasThrow = this.move?.kind === 'throw';
+  private finishMove(world: World): void {
+    const m = this.move;
+    const wasThrow = m?.kind === 'throw';
     this.endMoveState();
     if (wasThrow) this.grabTarget = -1;
     this.setState(this.grounded ? 'idle' : 'air');
+    if (m) {
+      if (m.helpless && !this.grounded) this.helpless = true;
+      this.data.behavior?.onMoveEnd?.(this, m, world);
+    }
   }
 
   /** Clear move bookkeeping (does not change state). */
@@ -888,10 +1161,10 @@ export class Fighter implements Body {
   private airLogic(inp: FighterInput, world: World, justLeftGround = false): void {
     const s = this.stats;
 
-    if (!justLeftGround && this.tryStartSpecial(inp, world)) return;
-    if (!justLeftGround && this.tryStartAttack(inp, world, false)) return;
+    if (!this.helpless && !justLeftGround && this.tryStartSpecial(inp, world)) return;
+    if (!this.helpless && !justLeftGround && this.tryStartAttack(inp, world, false)) return;
 
-    if (this.buffer.has(Button.Jump)) {
+    if (!this.helpless && this.buffer.has(Button.Jump)) {
       if (this.coyote > 0 && !justLeftGround) {
         // walked off a ledge: still allowed a ground jump
         this.buffer.consume(Button.Jump);
@@ -914,18 +1187,19 @@ export class Fighter implements Body {
     }
 
     // fast-fall: a fresh downward flick once the fighter is no longer rising
-    if (this.vy >= 0 && !this.fastFalling && inp.stickY > STICK_DOWN && this.lastStickY <= STICK_DOWN) {
+    if (!this.helpless && this.vy >= 0 && !this.fastFalling && inp.stickY > STICK_DOWN && this.lastStickY <= STICK_DOWN) {
       this.fastFalling = true;
       this.vy = s.fastFallSpeed;
     }
 
     // gravity
-    this.vy += s.gravity;
+    if (this.hover) this.vy = 0;
+    else this.vy += s.gravity;
     const maxFall = this.fastFalling ? s.fastFallSpeed : s.fallSpeed;
     if (this.vy > maxFall) this.vy = maxFall;
 
     // air drift
-    const target = inp.stickX * s.airSpeed;
+    const target = inp.stickX * s.airSpeed * this.speedMul * (this.helpless ? HELPLESS_DRIFT : 1);
     if (Math.abs(inp.stickX) < 0.05) {
       this.vx = approach(this.vx, 0, s.airFriction);
     } else if (Math.abs(this.vx) > s.airSpeed && Math.sign(this.vx) === Math.sign(target)) {
@@ -961,7 +1235,8 @@ export class Fighter implements Body {
     this.resolveImpacts(inp, world);
 
     if (this.state === 'hitstun' && this.hitstun <= 0) {
-      if (this.grounded) this.setState('idle');
+      if (this.status.stun > 0) this.setState('stunned'); // a stun that landed during hitstun starts when it ends
+      else if (this.grounded) this.setState('idle');
       else this.setState('air');
     }
   }
@@ -1042,7 +1317,9 @@ export class Fighter implements Body {
     }
   }
 
-  private grabLedge(l: Ledge, world: World): void {
+  grabLedge(l: Ledge, world: World): void {
+    this.endMoveState();
+    this.helpless = false;
     this.ledge = l;
     l.occupant = this.id;
     this.ledgeGrabs++;
@@ -1134,6 +1411,7 @@ export class Fighter implements Body {
     moveBody(this, world.platforms);
 
     if (!wasGrounded && this.grounded) {
+      this.helpless = false;
       if (this.state === 'air') {
         this.setState('landing');
         this.jumpsLeft = this.stats.doubleJumps;

@@ -3,7 +3,11 @@
 A sci-fi/fantasy platform fighter built with **Phaser 3 + TypeScript (Vite)**. All characters, art and
 audio are original and generated in code. The game runs in the browser.
 
-> **Status: Milestone 2 – combat.** Hitboxes/frame data, damage %, knockback, hitlag, trades, armor,
+> **Status: Phase 3 – engine hooks done (Phases 1-3 of `ROADMAP.md`).**
+> Combat core + generic systems for the roster: projectiles, deployables, status effects, teleport / dash /
+> tether, meter + cinematic ultimates, training scenarios, synthesized SFX. Roster characters come next.
+>
+> *Earlier milestone note:* **Milestone 2 – combat.** Hitboxes/frame data, damage %, knockback, hitlag, trades, armor,
 > shield/dodge/grab/throw, stocks and KOs, on one character (Brick, normals only) in the sandbox.
 > Specials, Heat, ultimate, the rest of the roster, menus, CPU AI, Arcade Ladder and audio follow.
 
@@ -102,6 +106,43 @@ Rules implemented: knockback `(base + dmg% * scaling) * move_weight / target_wei
 hitlag `floor(dmg*0.4+4)` frames for both fighters, hitstun scales with knockback, simultaneous hits
 trade unless one move is 9+ damage stronger, armored frames absorb weak hits, grabs ignore shields.
 Stocks / KOs / respawn / time-mode scoring live in `engine/match.ts`.
+
+## Engine hooks for characters (Phase 3)
+
+Everything below is data in `<id>.moves.json` unless noted; see `src/characters/proto.ts` for a complete,
+working example that uses every feature (load it in the sandbox with `?char=proto`).
+
+- **Move events** (`events: [{ frame, action, ... }]`): `projectile`, `deploy`, `teleport` (8-way / forward /
+  up / back), `barrier` (reflects projectiles), `tether` (hooks a ledge or one-way platform; can grab an
+  opponent), `ledgeSnap` (grab a ledge from a distance), `status` (on self), `resource`, `custom` (calls the
+  character's behaviour hook). Moves can also set `noLedge`, `helpless`, `requires`, `cinematic`.
+- **Projectiles** (`projectiles`): size, `gravity` (arcs), `drag`, `bounce`, zig-zag `path`, `pierce`, `health`
+  (attacks can destroy it), `reflectable`, hit payload with optional `status`.
+- **Deployables** (`deployables`): turrets, mines, runes, markers with per-owner `limit` (`limitGroup`,
+  `replaceOldest`), `armFrames`, `life`, contact `trigger`, `turret` fire pattern, health, `reward` resource when
+  an enemy destroys it. A KO'd owner's deployables vanish.
+- **Status effects** (on any hitbox): `burn` (damage over time), `slow`, `freeze` (needs `minPercent`, else a
+  `fallback`; breaks when hit), `stun`.
+- **Hitbox `travel`**: beams / sweeps that move across the screen while active.
+- **Resources + hooks**: `CharacterData.resources` (Heat, Scrap, ...) live in `fighter.res`;
+  `behavior` hooks (`onTick`, `onMoveFrame`, `onHitDealt`, `onHitTaken`, `onDeployableDestroyed`, `onMoveEvent`)
+  run inside the deterministic sim. Everything is part of the determinism hash.
+- **Ultimate meter**: fills from damage dealt / taken (`CharacterData.ultimate`); a `kind: "ultimate"` move
+  with a `cinematic` script freezes the world, plays timed hits, then launches.
+- **Dash**: `CharacterData.dash` gives a ground dash with an invulnerability window.
+
+### Training mode
+
+Every move of the player's character gets a scenario (sorted jab / smash / aerial / grab / throw / special /
+ultimate). `[` `]` select, **Enter** runs it (the dummy is placed at the right range, aerials hover in place),
+`M` toggles slow-motion, `N` frame-step mode and `B` advances one tick. The panel shows startup / active /
+recovery, the live hitbox numbers and the last hit's damage, knockback and hitstun. `1` shows hitboxes.
+
+### Sound
+
+All sound effects are synthesized with WebAudio (`src/audio/`): hits scale with damage and knockback, sounds
+pan with screen position. The audio context starts on the first key press (browser autoplay rules).
+`masterVolume` / `sfxVolume` are in settings.
 
 ## Add a character
 

@@ -14,6 +14,7 @@ export class FighterHud {
   private readonly name: Phaser.GameObjects.BitmapText;
   private readonly percent: Phaser.GameObjects.BitmapText;
   private readonly sub: Phaser.GameObjects.BitmapText;
+  private readonly meter: Phaser.GameObjects.Image;
   private readonly pips: Phaser.GameObjects.BitmapText;
   private lastDamage = 0;
   private pop = 0;
@@ -34,8 +35,9 @@ export class FighterHud {
     this.name = scene.add.bitmapText(0, 0, PIXEL_FONT, up(label)).setTint(PLAYER_COLORS[index % 4]);
     this.percent = scene.add.bitmapText(0, 0, PIXEL_FONT, '0%').setOrigin(0, 0);
     this.sub = scene.add.bitmapText(0, 0, PIXEL_FONT, '').setTint(0x9a96d8);
+    this.meter = scene.add.image(0, 0, 'px').setOrigin(0, 0).setTint(0x34d6d0);
     this.pips = scene.add.bitmapText(0, 0, PIXEL_FONT, '').setTint(PLAYER_COLORS[index % 4]);
-    layer.add([this.panel, this.accent, this.portrait, this.name, this.percent, this.sub, this.pips]);
+    layer.add([this.panel, this.accent, this.portrait, this.name, this.percent, this.sub, this.pips, this.meter]);
   }
 
   /** `u` = device pixels per HUD art pixel (integer); (cx, bottom) = plate bottom-centre. */
@@ -50,11 +52,13 @@ export class FighterHud {
     this.portrait.setScale(k).setPosition(left + 4 * u - 6 * k, top + 4 * u);
     this.name.setPosition(left + 41 * u, top + 8 * u).setScale(u);
     this.percent.setPosition(left + 41 * u, top + 16 * u).setScale(u * 2);
-    this.sub.setPosition(left + 41 * u, top + 33 * u).setScale(u);
+    this.sub.setPosition(left + 78 * u, top + 8 * u).setScale(u);
     this.pips.setScale(u).setPosition(left + 78 * u, top + 8 * u);
+    this.meter.setPosition(left + 41 * u, top + 3 * u);
   }
 
-  update(damage: number, stocks: number, training: boolean, out: boolean): void {
+  /** @param meterFrac ultimate meter 0..1 (drawn over the plate's conduit; pulses gold when full) */
+  update(damage: number, stocks: number, training: boolean, out: boolean, meterFrac = 0, tick = 0): void {
     if (damage > this.lastDamage) this.pop = 1;
     this.lastDamage = damage;
     this.pop = Math.max(0, this.pop - 0.08);
@@ -66,9 +70,11 @@ export class FighterHud {
     this.percent.setText(up(`${Math.floor(damage)}%`));
     this.percent.setTint(Phaser.Display.Color.GetColor(r, Math.max(30, g), Math.max(30, b)));
     this.percent.setScale(this.u * 2 * (1 + this.pop * 0.25));
-    this.sub.setText(training ? 'TRAINING' : out ? 'OUT' : '');
+    this.sub.setText(training ? 'INF' : out ? 'OUT' : '');
     this.sub.setVisible(training || out);
     this.pips.setText(!training && !out ? '@'.repeat(Math.min(stocks, MAX_PIPS)).split('').join(' ') : '');
     this.portrait.setAlpha(out ? 0.35 : 1);
+    const full = meterFrac >= 1;
+    this.meter.setVisible(meterFrac > 0).setScale(((66 * this.u) / 4) * meterFrac, (2 * this.u) / 4).setTint(full ? (((tick >> 3) & 1) === 0 ? 0xffd040 : 0xffffff) : 0x8ff6ee);
   }
 }

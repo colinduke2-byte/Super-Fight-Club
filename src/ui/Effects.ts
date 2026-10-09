@@ -3,6 +3,7 @@ import { settings } from '../settings';
 
 const POOL = 512;
 const FLASHES = 24;
+const RINGS = 12;
 
 /**
  * Pooled particle effects. Particle size is in ART PIXELS (1 art pixel = 0.5 world units), matching
@@ -24,6 +25,12 @@ export class Effects {
   private readonly flashScale = new Float32Array(FLASHES);
   private nextFlash = 0;
 
+  private readonly rings: Phaser.GameObjects.Image[] = [];
+  private readonly ringLife = new Float32Array(RINGS);
+  private readonly ringMax = new Float32Array(RINGS);
+  private readonly ringTo = new Float32Array(RINGS);
+  private nextRing = 0;
+
   constructor(scene: Phaser.Scene, layer: Phaser.GameObjects.Layer) {
     for (let i = 0; i < POOL; i++) {
       const s = scene.add.image(0, 0, 'px').setVisible(false).setActive(false);
@@ -34,6 +41,11 @@ export class Effects {
       const s = scene.add.image(0, 0, 'spark').setVisible(false).setActive(false).setBlendMode(Phaser.BlendModes.ADD);
       layer.add(s);
       this.flashes.push(s);
+    }
+    for (let i = 0; i < RINGS; i++) {
+      const s = scene.add.image(0, 0, 'ring').setVisible(false).setActive(false).setBlendMode(Phaser.BlendModes.ADD);
+      layer.add(s);
+      this.rings.push(s);
     }
   }
 
@@ -83,7 +95,36 @@ export class Effects {
     s.setPosition(x, y).setTint(color).setVisible(true).setActive(true).setScale(this.flashScale[i]).setAlpha(1).setRotation(Math.random() * 0.4 - 0.2);
   }
 
+  /** Expanding shockwave ring (world units radius `to`). */
+  ring(x: number, y: number, to: number, color = 0xffffff, life = 0.35): void {
+    const i = this.nextRing;
+    this.nextRing = (this.nextRing + 1) % RINGS;
+    this.ringLife[i] = this.ringMax[i] = life;
+    this.ringTo[i] = to;
+    this.rings[i].setPosition(x, y).setTint(color).setVisible(true).setActive(true).setScale(0.1).setAlpha(1);
+  }
+
+  /** Fading particle line between two points (teleport afterimage). */
+  trail(x0: number, y0: number, x1: number, y1: number, color: number): void {
+    const n = Math.max(2, Math.round((Math.hypot(x1 - x0, y1 - y0) / 4) * this.quality));
+    for (let k = 0; k <= n; k++) {
+      const t = k / n;
+      this.emit(x0 + (x1 - x0) * t, y0 + (y1 - y0) * t, (Math.random() - 0.5) * 20, (Math.random() - 0.5) * 20, 0.25 + 0.25 * t, color, 3, 0, true);
+    }
+  }
+
   update(dt: number): void {
+    for (let i = 0; i < RINGS; i++) {
+      const s = this.rings[i];
+      if (!s.active) continue;
+      this.ringLife[i] -= dt;
+      if (this.ringLife[i] <= 0) {
+        s.setVisible(false).setActive(false);
+        continue;
+      }
+      const t = 1 - this.ringLife[i] / this.ringMax[i];
+      s.setScale(((this.ringTo[i] * 2) / 32) * (1 - (1 - t) * (1 - t))).setAlpha(1 - t);
+    }
     for (let i = 0; i < POOL; i++) {
       const s = this.sprites[i];
       if (!s.active) continue;

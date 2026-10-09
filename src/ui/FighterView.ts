@@ -89,7 +89,13 @@ export class FighterView {
     // invincibility blink (dodges stay translucent), smash-charge glow
     const dodging = f.state === 'spotdodge' || f.state === 'roll';
     s.setAlpha(dodging ? 0.4 : f.invuln > 0 && (tick >> 2) % 2 === 0 ? 0.45 : 1);
-    if (f.chargeFrames > 0 && f.state === 'attack') s.setTint(((tick >> 1) & 1) === 0 ? 0xffe14a : 0xffffff);
+    // tint priority: freeze > stun > burn > slow > smash charge > base
+    const st = f.status;
+    if (st.freeze > 0) s.setTint(0x9fe9ff);
+    else if (st.stun > 0) s.setTint(((tick >> 2) & 1) === 0 ? 0xffff60 : 0xffffff);
+    else if (st.burn > 0) s.setTint(((tick >> 2) & 1) === 0 ? 0xffa040 : 0xff6a38);
+    else if (st.slow > 0) s.setTint(0x8aa0ff);
+    else if (f.chargeFrames > 0 && f.state === 'attack') s.setTint(((tick >> 1) & 1) === 0 ? 0xffe14a : 0xffffff);
     else if (this.baseTint !== undefined) s.setTint(this.baseTint);
     else s.clearTint();
 

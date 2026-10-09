@@ -1,4 +1,5 @@
-import type { MoveDef } from './moves';
+import type { CharacterBehavior } from './behavior';
+import type { DeployableDef, MoveDef, ProjectileDef } from './moves';
 
 /** Shared data shapes for the simulation. Pure data, no Phaser imports. */
 
@@ -132,4 +133,14 @@ export interface CharacterData {
   sprite: SpriteDef;
   /** Frame data, loaded from <id>.moves.json via parseMoves(). */
   moves: Record<string, MoveDef>;
+  projectiles?: Record<string, ProjectileDef>;
+  deployables?: Record<string, DeployableDef>;
+  /** Initial per-fighter resources (Heat, Scrap, ...). Keys are the only ones allowed to be used. */
+  resources?: Record<string, number>;
+  /** Ultimate meter tuning. Defaults: cost 100, gainDealt 0.6, gainTaken 0.9 per damage point. */
+  ultimate?: { cost: number; gainDealt: number; gainTaken: number };
+  /** Ground dash (double-tap / flick) with an invulnerability window. */
+  dash?: { speed: number; frames: number; invuln: [number, number]; cooldown: number };
+  /** Character-specific logic hooks (kept tiny; most behaviour should be data). */
+  behavior?: CharacterBehavior;
 }

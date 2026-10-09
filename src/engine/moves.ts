@@ -8,6 +8,19 @@
  * y = -16 is roughly chest height).
  */
 
+export type StatusType = 'burn' | 'slow' | 'freeze' | 'stun';
+
+/** A status applied by a hit (or by a move to its own user). */
+export interface StatusApply {
+  type: StatusType;
+  frames: number;
+  /** slow: speed multiplier (0.6 = 40% slower). burn: damage per tick. */
+  value?: number;
+  /** Only applies if the victim's percent is at least this; otherwise `fallback` is used instead. */
+  minPercent?: number;
+  fallback?: StatusApply;
+}
+
 export interface HitboxDef {
   x: number;
   y: number;
@@ -38,6 +51,32 @@ export interface HitboxDef {
   shieldDamage?: number;
   /** Cosmetic hit-effect tag. */
   fx?: string;
+  /** Status applied to the victim on a clean hit. */
+  status?: StatusApply;
+  /** The hitbox travels (px/frame, forward-relative) from its first live frame (beams, sweeps). */
+  travel?: { vx: number; vy: number };
+  /** Grab that starts a cinematic (see MoveDef.cinematic) instead of a normal hold. */
+  cinematic?: boolean;
+}
+
+/** Things a move does at a given frame, in addition to its hitboxes. Positions are forward-relative from the feet. */
+export type MoveEvent =
+  | { frame: number; action: 'projectile'; id: string; x: number; y: number; vx: number; vy: number }
+  | { frame: number; action: 'deploy'; id: string; x: number; y: number }
+  | { frame: number; action: 'teleport'; dist: number; dir?: 'stick8' | 'forward' | 'up' | 'back' }
+  | { frame: number; action: 'barrier'; frames: number; x: number; y: number; w: number; h: number }
+  | { frame: number; action: 'tether'; angle: number; range: number; speed: number; grabsOpponents?: boolean }
+  | { frame: number; action: 'ledgeSnap'; range: number }
+  | { frame: number; action: 'status'; status: StatusApply }
+  | { frame: number; action: 'resource'; key: string; add: number }
+  | { frame: number; action: 'custom'; name: string; args?: number[] };
+
+/** Scripted ultimate: world freezes while the attacker's sequence plays, then hits land. */
+export interface Cinematic {
+  frames: number;
+  hits: { frame: number; damage: number; hitlag?: number; launch?: boolean; angle?: number; base?: number; scaling?: number }[];
+  /** Camera hint for the renderer. */
+  zoom?: number;
 }
 
 export type MoveKind = 'jab' | 'smash' | 'aerial' | 'special' | 'grab' | 'throw' | 'ultimate';
@@ -72,6 +111,65 @@ export interface MoveDef {
   landBounce?: number;
   /** Throw moves: stick direction that triggers this throw. */
   throwDir?: 'forward' | 'back' | 'up' | 'down';
+  /** Frame-timed actions (spawn projectile / deployable, teleport, barrier, tether, ...). */
+  events?: MoveEvent[];
+  /** Ledge cannot be grabbed for this many frames after the move starts (punishable recoveries). */
+  noLedge?: number;
+  /** Specials: can the fighter grab the ledge while this move is airborne? Default true. */
+  ledgeGrab?: boolean;
+  /** After an airborne move ends the fighter is helpless (no actions) until landing / ledge / hit. */
+  helpless?: boolean;
+  /** Cinematic ultimate script (the move needs a hitbox with `cinematic: true`). */
+  cinematic?: Cinematic;
+  /** Gate: a resource must be at least this much to start the move (the cost is spent by an event). */
+  requires?: { key: string; min: number };
+}
+
+export interface ProjectileDef {
+  w: number;
+  h: number;
+  /** Downward acceleration px/frame^2: this is what makes bolts arc. */
+  gravity?: number;
+  /** Fraction of horizontal speed lost per frame. */
+  drag?: number;
+  maxFall?: number;
+  /** Lifetime in frames. */
+  life: number;
+  /** Damage/knockback payload (position fields are ignored). */
+  hit: HitboxDef;
+  /** Keeps flying after hitting (beams). Default: destroyed on hit. */
+  pierce?: boolean;
+  /** Fighters' attacks can destroy it by dealing this much damage. 0 / undefined = cannot be destroyed. */
+  health?: number;
+  /** Barriers can reflect it. Default true. */
+  reflectable?: boolean;
+  /** Vertical motion override: zigzag oscillation. */
+  path?: { kind: 'zigzag'; amp: number; period: number };
+  /** Keeps this fraction of speed when bouncing off solid floors. 0 = vanishes on contact. */
+  bounce?: number;
+  look: { shape: 'orb' | 'bolt' | 'bullet' | 'fist' | 'beam'; color: string; size?: number };
+}
+
+export interface DeployableDef {
+  w: number;
+  h: number;
+  health: number;
+  /** Frames until it expires (0 = permanent). */
+  life?: number;
+  /** Max alive at once per owner (within `limitGroup`, default = this def's id). */
+  limit: number;
+  limitGroup?: string;
+  /** When over the limit: replace the oldest (true) or refuse to deploy (false, default). */
+  replaceOldest?: boolean;
+  /** Falls and rests on the ground. */
+  gravity?: boolean;
+  armFrames?: number;
+  /** Triggers on enemy contact: applies `hit` then (by default) disappears. */
+  trigger?: { hit: HitboxDef; persistent?: boolean };
+  turret?: { range: number; interval: number; projectile: string; muzzleX: number; muzzleY: number; speed: number };
+  /** Granted to the owner when an enemy destroys it. */
+  reward?: { key: string; add: number };
+  look: { shape: 'mine' | 'turret' | 'rune' | 'marker'; color: string };
 }
 
 export function moveTotal(m: MoveDef): number {
@@ -82,6 +180,13 @@ export function moveTotal(m: MoveDef): number {
 export function hitboxFrames(m: MoveDef, hb: HitboxDef): [number, number] {
   const w = hb.window ?? [1, m.active];
   return [m.startup + w[0], m.startup + w[1]];
+}
+
+/** Everything a character's JSON file defines. */
+export interface CharacterJson {
+  moves: Record<string, Omit<MoveDef, 'id'>>;
+  projectiles?: Record<string, ProjectileDef>;
+  deployables?: Record<string, DeployableDef>;
 }
 
 /** Validate and normalise a character's move JSON. Throws with a precise message on bad data. */
@@ -103,6 +208,23 @@ export function parseMoves(json: { moves: Record<string, Omit<MoveDef, 'id'>> },
   }
   for (const m of Object.values(out)) {
     if (m.next && !out[m.next.id]) throw new Error(`${owner}.${m.id}: next move '${m.next.id}' does not exist`);
+    if (m.cinematic && !m.hitboxes.some((h) => h.cinematic)) throw new Error(`${owner}.${m.id}: cinematic move needs a hitbox with cinematic: true`);
+    for (const ev of m.events ?? []) {
+      if (ev.frame < 1 || ev.frame > m.startup + m.active + m.recovery) throw new Error(`${owner}.${m.id}: event at frame ${ev.frame} is outside the move`);
+    }
   }
   return out;
+}
+
+/** Check every projectile / deployable id referenced by moves and deployables exists. Throws on a dangling id. */
+export function validateReferences(moves: Record<string, MoveDef>, projectiles: Record<string, ProjectileDef> = {}, deployables: Record<string, DeployableDef> = {}, owner = 'character'): void {
+  for (const m of Object.values(moves)) {
+    for (const ev of m.events ?? []) {
+      if (ev.action === 'projectile' && !projectiles[ev.id]) throw new Error(`${owner}.${m.id}: unknown projectile '${ev.id}'`);
+      if (ev.action === 'deploy' && !deployables[ev.id]) throw new Error(`${owner}.${m.id}: unknown deployable '${ev.id}'`);
+    }
+  }
+  for (const [id, d] of Object.entries(deployables)) {
+    if (d.turret && !projectiles[d.turret.projectile]) throw new Error(`${owner}.${id}: turret uses unknown projectile '${d.turret.projectile}'`);
+  }
 }

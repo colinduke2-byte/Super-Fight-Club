@@ -1,4 +1,7 @@
 import { resolveCombat } from './combat';
+import { Deployable, MAX_DEPLOYABLES, MAX_PROJECTILES, Projectile } from './entities';
+import { resolveEntityCombat, updateEntities } from './entityCombat';
+import type { MoveDef } from './moves';
 import { GRAB_DISTANCE, type Fighter } from './fighter';
 import { Ledge, Platform } from './platform';
 import type { BlastZones, StageData } from './types';
@@ -21,9 +24,29 @@ export type WorldEventType =
   | 'throw'
   | 'moveStart'
   | 'trade'
+  | 'projectile'
+  | 'projectileHit'
+  | 'reflect'
+  | 'deploy'
+  | 'deployableTrigger'
+  | 'deployableDestroyed'
+  | 'status'
+  | 'teleport'
+  | 'tether'
+  | 'cinematicStart'
+  | 'cinematicHit'
+  | 'cinematicEnd'
+  | 'meterFull'
   | 'ko';
 /** `extra` meaning: hit/armorHit/shieldHit/pummel = damage dealt; ko = id of the last attacker (-1 none). */
 export type WorldListener = (type: WorldEventType, fighter: Fighter, x: number, y: number, magnitude: number, extra: number) => void;
+
+export interface CinematicState {
+  attacker: Fighter;
+  victim: Fighter;
+  move: MoveDef;
+  frame: number;
+}
 
 export interface WorldConfig {
   /** Flicking the stick + Attack performs a smash (otherwise only the Smash button does). */
@@ -36,6 +59,11 @@ export class World {
   readonly ledges: Ledge[] = [];
   readonly fighters: Fighter[] = [];
   readonly blast: BlastZones;
+  readonly projectiles: Projectile[] = Array.from({ length: MAX_PROJECTILES }, (_, i) => new Projectile(i));
+  readonly deployables: Deployable[] = Array.from({ length: MAX_DEPLOYABLES }, (_, i) => new Deployable(i));
+  /** Active ultimate cutscene, or null. While set, only the cutscene advances. */
+  cinematic: CinematicState | null = null;
+  private deploySerial = 0;
   tick = 0;
   listener: WorldListener | null = null;
   config: WorldConfig = { smashFlick: true };
@@ -56,10 +84,105 @@ export class World {
 
   step(inputs: ReadonlyArray<Readonly<import('./buttons').FighterInput>>): void {
     this.tick++;
+    if (this.cinematic) {
+      this.stepCinematic();
+      return;
+    }
     for (let i = 0; i < this.platforms.length; i++) this.platforms[i].update(this.tick);
     for (let i = 0; i < this.fighters.length; i++) this.fighters[i].update(inputs[i], this);
     this.fixGrabs();
+    updateEntities(this);
     resolveCombat(this);
+    resolveEntityCombat(this);
+  }
+
+  // ---- projectiles / deployables -------------------------------------------------------------
+  /** Spawn a projectile defined by fighter `ownerId`'s character. Returns null if the pool is full. */
+  spawnProjectile(ownerId: number, defId: string, x: number, y: number, vx: number, vy: number, dmgMult = 1): Projectile | null {
+    const def = this.fighters[ownerId]?.data.projectiles?.[defId];
+    if (!def) throw new Error(`unknown projectile '${defId}'`);
+    for (const p of this.projectiles) {
+      if (p.active) continue;
+      p.spawn(ownerId, defId, def, x, y, vx, vy, dmgMult);
+      this.emit('projectile', this.fighters[ownerId], x, y, 0, 0);
+      return p;
+    }
+    return null;
+  }
+
+  /** Number of live deployables of `group` owned by `ownerId`. */
+  countDeployables(ownerId: number, group: string): number {
+    let n = 0;
+    for (const d of this.deployables) if (d.active && d.owner === ownerId && (d.def!.limitGroup ?? d.defId) === group) n++;
+    return n;
+  }
+
+  findDeployables(ownerId: number, defId: string): Deployable[] {
+    return this.deployables.filter((d) => d.active && d.owner === ownerId && d.defId === defId);
+  }
+
+  /**
+   * Place a deployable. Honours the def's per-owner limit: over the limit it either replaces the
+   * oldest (`replaceOldest`) or refuses (returns null).
+   */
+  spawnDeployable(ownerId: number, defId: string, x: number, y: number): Deployable | null {
+    const owner = this.fighters[ownerId];
+    const def = owner?.data.deployables?.[defId];
+    if (!def) throw new Error(`unknown deployable '${defId}'`);
+    const group = def.limitGroup ?? defId;
+    if (this.countDeployables(ownerId, group) >= def.limit) {
+      if (!def.replaceOldest) return null;
+      let oldest: Deployable | null = null;
+      for (const d of this.deployables) {
+        if (d.active && d.owner === ownerId && (d.def!.limitGroup ?? d.defId) === group && (!oldest || d.serial < oldest.serial)) oldest = d;
+      }
+      oldest?.deactivate();
+    }
+    for (const d of this.deployables) {
+      if (d.active) continue;
+      d.spawn(ownerId, defId, def, x, y, ++this.deploySerial, owner.facing);
+      this.emit('deploy', owner, x, y, 0, 0);
+      return d;
+    }
+    return null;
+  }
+
+  // ---- cinematic ultimates --------------------------------------------------------------------
+  startCinematic(attacker: Fighter, victim: Fighter, move: MoveDef): void {
+    this.cinematic = { attacker, victim, move, frame: 0 };
+    victim.beGrabbed(attacker);
+    victim.grabbedBy = -1; // pinned by the cutscene, not by a normal hold
+    attacker.setState('attack');
+    this.emit('cinematicStart', attacker, attacker.x, attacker.y - attacker.h / 2, 0, victim.id);
+  }
+
+  private stepCinematic(): void {
+    const c = this.cinematic!;
+    const cin = c.move.cinematic!;
+    c.frame++;
+    c.victim.x = c.attacker.x + c.attacker.facing * 18;
+    c.victim.y = c.attacker.y;
+    c.victim.snapped = true;
+    for (const h of cin.hits) {
+      if (h.frame !== c.frame) continue;
+      if (h.launch) {
+        c.victim.releaseGrab();
+        c.victim.receiveHit(
+          { damage: h.damage, base: h.base ?? 0, scaling: h.scaling ?? 0, angle: h.angle ?? 45, direction: c.attacker.facing, hitlag: 0, attackerId: c.attacker.id },
+          this,
+        );
+      } else {
+        c.victim.damage += h.damage;
+        c.victim.lastHitBy = c.attacker.id;
+      }
+      c.attacker.gainMeter(h.damage, this);
+      this.emit('cinematicHit', c.victim, c.victim.x, c.victim.y - c.victim.h / 2, h.launch ? 1 : 0, h.damage);
+    }
+    if (c.frame >= cin.frames) {
+      this.cinematic = null;
+      c.victim.releaseGrab();
+      this.emit('cinematicEnd', c.attacker, c.attacker.x, c.attacker.y, 0, c.victim.id);
+    }
   }
 
   /** Keep grabbed fighters pinned to their captor and clean up broken grab links. */
@@ -115,6 +238,22 @@ export class World {
       mix(f.stateFrame);
       mix(f.jumpsLeft);
       mix(f.damage);
+      mix(f.meter);
+      mix(f.state.length);
+      for (const k of Object.keys(f.res)) mix(f.res[k]);
+      mix(f.status.burn + f.status.slow * 7 + f.status.freeze * 13 + f.status.stun * 17);
+    }
+    for (const p of this.projectiles) {
+      if (!p.active) continue;
+      mix(p.x);
+      mix(p.y);
+      mix(p.age);
+    }
+    for (const d of this.deployables) {
+      if (!d.active) continue;
+      mix(d.x);
+      mix(d.y);
+      mix(d.hp);
     }
     return h;
   }

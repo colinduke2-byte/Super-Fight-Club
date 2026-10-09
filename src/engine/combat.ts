@@ -23,8 +23,16 @@ let count = 0;
 
 /** Hitbox rect in world space. Writes into `out` = [x, y, w, h] (top-left). */
 export function hitboxRect(f: Fighter, hb: HitboxDef, out: number[]): void {
-  const cx = f.x + f.facing * hb.x;
-  const cy = f.y + hb.y;
+  let ox = hb.x;
+  let oy = hb.y;
+  if (hb.travel && f.move) {
+    // beams / sweeps: the box moves from its first live frame
+    const off = Math.max(0, f.moveFrame - hitboxFrames(f.move, hb)[0]);
+    ox += hb.travel.vx * off;
+    oy += hb.travel.vy * off;
+  }
+  const cx = f.x + f.facing * ox;
+  const cy = f.y + oy;
   out[0] = cx - hb.w / 2;
   out[1] = cy - hb.h / 2;
   out[2] = hb.w;
@@ -129,6 +137,10 @@ function applyHit(world: World, c: Candidate): void {
   // --- grabs ---
   if (hb.grab) {
     if (def.state === 'hitstun' || def.state === 'ledge') return;
+    if (hb.cinematic && move.cinematic) {
+      world.startCinematic(atk, def, move);
+      return;
+    }
     atk.grabVictim(def);
     def.x = atk.x + atk.facing * GRAB_DISTANCE;
     def.y = atk.y;
@@ -138,45 +150,82 @@ function applyHit(world: World, c: Candidate): void {
   }
 
   const away: 1 | -1 = def.x === atk.x ? atk.facing : def.x > atk.x ? 1 : -1;
-  const direction: 1 | -1 = hb.dir === 'away' ? away : atk.facing;
-  const hl = Math.round(Math.min(HITLAG_MAX, Math.floor(c.damage * HITLAG_PER_DAMAGE + HITLAG_BASE) * (hb.hitlag ?? 1)));
   const kbMult = move.charge ? 1 + ((move.charge.kbMult ?? 1) - 1) * atk.chargeFrac : 1;
 
   // --- throws: victim is already held; release and launch ---
   if (hb.throw) {
+    const direction: 1 | -1 = hb.dir === 'away' ? away : atk.facing;
     def.releaseGrab();
     def.grabbedBy = -1;
     def.receiveHit({ damage: c.damage, base: hb.base, scaling: hb.scaling, angle: hb.angle, direction, moveWeight: hb.weight, hitlag: 0, attackerId: atk.id, kbMult }, world);
     atk.grabTarget = -1;
+    atk.gainMeter(c.damage, world);
     world.emit('throw', def, def.x, midY, 0, c.damage);
     return;
   }
 
+  deliverHit(world, { atk, ownerId: atk.id, def, hb, damage: c.damage, facing: atk.facing, originX: atk.x, kbMult });
+}
+
+/** Everything needed to land one hit, whatever produced it (a fighter's hitbox, a projectile, a trap). */
+export interface HitDelivery {
+  /** The fighter that owns the hit (receives hitlag / meter / hooks). Null if the owner is gone. */
+  atk: Fighter | null;
+  ownerId: number;
+  def: Fighter;
+  hb: HitboxDef;
+  damage: number;
+  facing: 1 | -1;
+  /** X of the hit source, used for `dir: 'away'`. */
+  originX: number;
+  kbMult: number;
+  /** Projectiles / traps do not freeze their owner. */
+  freezeOwner?: boolean;
+}
+
+/** Shield -> armor -> clean-hit resolution shared by every hit source. */
+export function deliverHit(world: World, d: HitDelivery): void {
+  const { atk, def, hb } = d;
+  const midY = def.y - def.h / 2;
+  const away: 1 | -1 = def.x === d.originX ? d.facing : def.x > d.originX ? 1 : -1;
+  const direction: 1 | -1 = hb.dir === 'away' ? away : d.facing;
+  const hl = Math.round(Math.min(HITLAG_MAX, Math.floor(d.damage * HITLAG_PER_DAMAGE + HITLAG_BASE) * (hb.hitlag ?? 1)));
+  const owner = d.freezeOwner === false ? null : atk;
+
   // --- shield ---
   if ((def.state === 'shield' || def.state === 'shieldstun') && !hb.unblockable) {
-    def.shieldHit(c.damage, !!hb.breaksShield, hb.shieldDamage ?? 1, away, world);
+    def.shieldHit(d.damage, !!hb.breaksShield, hb.shieldDamage ?? 1, away, world);
     def.hitlag = Math.round(hl * 0.8);
-    atk.hitlag = Math.round(hl * 0.8);
-    if (atk.grounded) atk.vx = -away * 1.2;
-    world.emit('shieldHit', def, def.x, midY, def.shieldRadius, c.damage);
+    if (owner) {
+      owner.hitlag = Math.round(hl * 0.8);
+      if (owner.grounded) owner.vx = -away * 1.2;
+    }
+    world.emit('shieldHit', def, def.x, midY, def.shieldRadius, d.damage);
     return;
   }
 
   // --- armor ---
   const armor = def.armorThreshold();
-  if (armor >= 0 && c.damage <= armor) {
-    def.damage += c.damage;
+  if (armor >= 0 && d.damage <= armor) {
+    def.damage += d.damage;
     def.hitlag = Math.round(hl * 0.6);
-    atk.hitlag = hl;
-    def.lastHitBy = atk.id;
-    world.emit('armorHit', def, def.x, midY, c.damage, c.damage);
+    if (owner) owner.hitlag = hl;
+    def.lastHitBy = d.ownerId;
+    def.gainMeterTaken(d.damage);
+    world.emit('armorHit', def, def.x, midY, d.damage, d.damage);
+    atk?.gainMeter(d.damage, world);
     return;
   }
 
   // --- clean hit ---
   def.receiveHit(
-    { damage: c.damage, base: hb.base, scaling: hb.scaling, angle: hb.angle, direction, moveWeight: hb.weight, hitlag: hl, minHitstun: hb.minHitstun, kbMult, attackerId: atk.id },
+    { damage: d.damage, base: hb.base, scaling: hb.scaling, angle: hb.angle, direction, moveWeight: hb.weight, hitlag: hl, minHitstun: hb.minHitstun, kbMult: d.kbMult, attackerId: d.ownerId },
     world,
   );
-  atk.hitlag = hl;
+  if (hb.status) def.applyStatus(hb.status, world);
+  if (owner) owner.hitlag = hl;
+  if (atk) {
+    atk.gainMeter(d.damage, world);
+    atk.data.behavior?.onHitDealt?.(atk, def, hb, d.damage, world);
+  }
 }

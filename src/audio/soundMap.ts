@@ -1,0 +1,88 @@
+import type { WorldEventType } from '../engine/world';
+
+export type SoundName =
+  | 'swing' | 'hit' | 'hitHeavy' | 'clang' | 'shield' | 'shieldBreak' | 'jump' | 'doubleJump' | 'land' | 'landBounce'
+  | 'bounce' | 'tech' | 'ledge' | 'dodge' | 'grab' | 'throw' | 'pummel' | 'ko' | 'shoot' | 'zap' | 'reflect' | 'place'
+  | 'boom' | 'break' | 'burn' | 'freeze' | 'slow' | 'stun' | 'blink' | 'hook' | 'charge' | 'ding';
+
+export interface SoundCue {
+  name: SoundName;
+  /** 0..1 loudness / weight. */
+  intensity: number;
+}
+
+const clamp = (v: number, lo: number, hi: number): number => Math.max(lo, Math.min(hi, v));
+
+/**
+ * Pure mapping from sim events to sound cues, so it can be unit-tested without WebAudio.
+ * `mag` / `extra` follow the world event conventions (hit: knockback / damage).
+ */
+export function soundFor(type: WorldEventType, mag: number, extra: number): SoundCue | null {
+  switch (type) {
+    case 'hit': {
+      const intensity = clamp(extra / 22 + mag / 400, 0.15, 1);
+      return { name: mag > 150 || extra > 16 ? 'hitHeavy' : 'hit', intensity };
+    }
+    case 'armorHit':
+    case 'trade':
+      return { name: 'clang', intensity: clamp(0.4 + extra / 40, 0.3, 1) };
+    case 'shieldHit':
+      return { name: 'shield', intensity: clamp(extra / 20, 0.2, 0.9) };
+    case 'shieldBreak':
+      return { name: 'shieldBreak', intensity: 1 };
+    case 'jump':
+      return { name: 'jump', intensity: 0.4 };
+    case 'doubleJump':
+      return { name: 'doubleJump', intensity: 0.45 };
+    case 'land':
+      return mag > 3 ? { name: 'land', intensity: clamp(mag / 10, 0.2, 0.8) } : null;
+    case 'landBounce':
+      return { name: 'landBounce', intensity: 0.8 };
+    case 'bounce':
+      return { name: 'bounce', intensity: clamp(mag / 12, 0.3, 0.9) };
+    case 'tech':
+      return { name: 'tech', intensity: 0.7 };
+    case 'ledgeGrab':
+      return { name: 'ledge', intensity: 0.5 };
+    case 'dodge':
+      return { name: 'dodge', intensity: 0.45 };
+    case 'grab':
+      return { name: 'grab', intensity: 0.6 };
+    case 'throw':
+      return { name: 'throw', intensity: 0.8 };
+    case 'pummel':
+      return { name: 'pummel', intensity: 0.4 };
+    case 'moveStart':
+      return { name: 'swing', intensity: 0.3 };
+    case 'ko':
+      return { name: 'ko', intensity: 1 };
+    case 'projectile':
+      return { name: 'shoot', intensity: 0.5 };
+    case 'projectileHit':
+      return mag > 0 ? { name: 'zap', intensity: clamp(extra / 12, 0.3, 0.9) } : { name: 'break', intensity: 0.4 };
+    case 'reflect':
+      return { name: 'reflect', intensity: 0.8 };
+    case 'deploy':
+      return { name: 'place', intensity: 0.5 };
+    case 'deployableTrigger':
+      return { name: 'boom', intensity: clamp(0.5 + extra / 20, 0.5, 1) };
+    case 'deployableDestroyed':
+      return { name: 'break', intensity: 0.7 };
+    case 'status': {
+      const names: SoundName[] = ['burn', 'slow', 'freeze', 'stun'];
+      return { name: names[clamp(extra, 0, 3) | 0], intensity: 0.4 };
+    }
+    case 'teleport':
+      return { name: 'blink', intensity: 0.7 };
+    case 'tether':
+      return { name: 'hook', intensity: 0.6 };
+    case 'cinematicStart':
+      return { name: 'charge', intensity: 1 };
+    case 'cinematicHit':
+      return { name: 'hitHeavy', intensity: mag > 0 ? 1 : 0.7 };
+    case 'meterFull':
+      return { name: 'ding', intensity: 0.6 };
+    default:
+      return null;
+  }
+}

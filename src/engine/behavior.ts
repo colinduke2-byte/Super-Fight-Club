@@ -1,0 +1,25 @@
+import type { Fighter } from './fighter';
+import type { HitboxDef, MoveDef } from './moves';
+import type { World } from './world';
+
+/**
+ * Per-character logic hooks. Everything is optional. Hooks run inside the deterministic sim: they
+ * may only read/write the fighter, its `res` resources and the world through its public API, and must
+ * not use Math.random, Date or Phaser.
+ */
+export interface CharacterBehavior {
+  /** Every tick the fighter is not in hitlag/KO, before state logic. */
+  onTick?(f: Fighter, world: World): void;
+  onMoveStart?(f: Fighter, move: MoveDef, world: World): void;
+  /** Each time the move advances a frame (frame is 1-based). */
+  onMoveFrame?(f: Fighter, move: MoveDef, frame: number, world: World): void;
+  onMoveEnd?(f: Fighter, move: MoveDef, world: World): void;
+  /** `f` landed a clean hit on `victim`. */
+  onHitDealt?(f: Fighter, victim: Fighter, hb: HitboxDef, damage: number, world: World): void;
+  /** `f` took a hit (attacker is null for projectiles whose owner is gone). */
+  onHitTaken?(f: Fighter, attacker: Fighter | null, damage: number, world: World): void;
+  /** One of f's deployables was destroyed by an enemy attack. */
+  onDeployableDestroyed?(f: Fighter, id: string, world: World): void;
+  /** `name`/`args` of a `custom` move event. */
+  onMoveEvent?(f: Fighter, name: string, args: number[], world: World): void;
+}

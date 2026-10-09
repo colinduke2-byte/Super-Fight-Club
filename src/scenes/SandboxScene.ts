@@ -1,5 +1,10 @@
 import Phaser from 'phaser';
 import { brick } from '../characters/brick';
+import { devCharacter } from '../characters';
+import { sfx } from '../audio/sfx';
+import { soundFor } from '../audio/soundMap';
+import { TrainingRunner } from '../engine/training';
+import { EntityViews } from '../ui/EntityViews';
 import { Button, makeInput, type FighterInput } from '../engine/buttons';
 import { DEFAULT_CAMERA, MultiTargetCamera, type CamPoint } from '../engine/camera';
 import { Fighter } from '../engine/fighter';
@@ -28,6 +33,7 @@ const HELP = [
   'MOVE WASD  JUMP I  ATTACK J  SPECIAL K  SHIELD L  GRAB U  SMASH O',
   'SMASH = FLICK+J OR O+DIR (HOLD TO CHARGE)  AERIAL = J+DIR',
   '1 DEBUG  2 HIT DUMMY  3 HIT SELF  4 +25%  5 CLEAR  6 DUMMY  9 MODE  0 RESET',
+  '[ ] SELECT MOVE  ENTER RUN IT  M SLOW-MO  N STEP MODE  B STEP',
   'T TAP-JUMP  F FULLSCREEN  H HIDE THIS  ESC PAUSE',
 ];
 
@@ -68,6 +74,14 @@ export class SandboxScene extends Phaser.Scene {
   private pendingHitSelf = false;
   private pendingReset = false;
   private match!: Match;
+  private training!: TrainingRunner;
+  private entityViews!: EntityViews;
+  private trainText!: Phaser.GameObjects.BitmapText;
+  private dimOverlay!: Phaser.GameObjects.Rectangle;
+  private cinT = 0;
+  private slowMo = false;
+  private stepMode = false;
+  private stepOnce = false;
   private helpOn = true;
   private dummyMode = 0;
   private dummyHeldPrev = 0;
@@ -92,7 +106,7 @@ export class SandboxScene extends Phaser.Scene {
     const stage = sandboxStage;
     this.world = new World(stage);
 
-    const player = new Fighter(0, brick);
+    const player = new Fighter(0, devCharacter() ?? brick);
     const dummy = new Fighter(1, brick);
     this.fighters = [player, dummy];
     this.world.addFighter(player);
@@ -121,6 +135,9 @@ export class SandboxScene extends Phaser.Scene {
     this.stageView = new StageView(this, this.worldLayer, this.world);
     this.views = this.fighters.map((f, i) => new FighterView(this, this.worldLayer, f, i === 1 ? 0xff9a9a : undefined));
     this.effects = new Effects(this, this.worldLayer);
+    this.entityViews = new EntityViews(this, this.worldLayer, this.world);
+    this.training = new TrainingRunner(this.world, this.fighters[0], this.fighters[1]);
+    sfx.arm();
 
     const bz = stage.blast;
     this.cam.cfg = { ...DEFAULT_CAMERA, bounds: { x: bz.left, y: bz.top, w: bz.right - bz.left, h: bz.bottom - bz.top } };
@@ -132,11 +149,15 @@ export class SandboxScene extends Phaser.Scene {
     this.uiLayer.add(this.perf.text);
     this.debug = new DebugOverlay(this, this.worldLayer, this.uiLayer, this.world, this.views, fontPx);
 
+    this.dimOverlay = this.add.rectangle(0, 0, 10, 10, 0x000010, 1).setOrigin(0, 0).setAlpha(0);
+    this.uiLayer.add(this.dimOverlay);
     this.fighters.forEach((f, i) => {
       const hud = new FighterHud(this, this.uiLayer, f.data, i === 0 ? 'YOU' : 'DUMMY', i);
       this.huds.push(hud);
     });
     this.helpText = this.add.bitmapText(0, 0, PIXEL_FONT, up(HELP.join('\n'))).setOrigin(0, 1).setTint(0xb8b0e8);
+    this.trainText = this.add.bitmapText(0, 0, PIXEL_FONT, '').setOrigin(0, 0).setTint(0xffe9a8).setLeftAlign();
+    this.uiLayer.add(this.trainText);
     this.toast = this.add.bitmapText(0, 0, PIXEL_FONT, '').setOrigin(0.5, 0).setAlpha(0).setCenterAlign();
     this.banner = this.add.bitmapText(0, 0, PIXEL_FONT, '').setOrigin(0.5).setTint(0xffe14a).setVisible(false).setCenterAlign();
     this.pauseOverlay = this.add.rectangle(0, 0, 10, 10, 0x000000, 0.6).setOrigin(0, 0).setVisible(false);
@@ -158,7 +179,10 @@ export class SandboxScene extends Phaser.Scene {
       this.setPaused(true, 'disconnect');
     };
 
-    this.world.listener = (type, f, x, y, mag, extra) => this.onWorldEvent(type, f, x, y, mag, extra);
+    this.world.listener = (type, f, x, y, mag, extra) => {
+      this.training.onEvent(type, f, x, y, mag, extra);
+      this.onWorldEvent(type, f, x, y, mag, extra);
+    };
 
     this.lastNow = performance.now();
     this.events.once('shutdown', () => {
@@ -181,8 +205,15 @@ export class SandboxScene extends Phaser.Scene {
       this.pauseProbe.sample(this.probe);
       if (this.probe.pressed & Button.Pause && this.pauseReason === 'user') this.setPaused(false);
       inputManager.endTick();
+    } else if (this.stepMode) {
+      if (this.stepOnce) {
+        this.stepOnce = false;
+        this.tick();
+        this.stepsLastFrame = 1;
+      }
+      inputManager.endTick();
     } else {
-      this.stepsLastFrame = this.ts.advance(frameMs, () => this.tick());
+      this.stepsLastFrame = this.ts.advance(this.slowMo ? frameMs * 0.25 : frameMs, () => this.tick());
     }
     this.render(frameMs);
   }
@@ -192,6 +223,11 @@ export class SandboxScene extends Phaser.Scene {
     this.player.sample(this.inputs[0]);
     this.world.config.smashFlick = settings.smashMode === 'flick';
     this.dummyInput(this.inputs[1]);
+    if (this.training.running) {
+      const i = this.inputs[0];
+      i.held = i.pressed = i.released = 0; // the scenario drives the player
+      this.training.step(i);
+    }
 
     if (this.inputs[0].pressed & Button.Pause) {
       this.setPaused(true, 'user');
@@ -284,6 +320,18 @@ export class SandboxScene extends Phaser.Scene {
     let cy = c.prevCy + (c.cy - c.prevCy) * alpha;
     let zoom = c.prevZoom + (c.zoom - c.prevZoom) * alpha;
 
+    // ultimate cutscene: push in on the action and dim the stage
+    const cin = this.world.cinematic;
+    this.cinT = cin ? Math.min(1, this.cinT + 0.08) : Math.max(0, this.cinT - 0.06);
+    if (this.cinT > 0) {
+      const mx = cin ? (cin.attacker.x + cin.victim.x) / 2 : cx;
+      const my = cin ? cin.attacker.y - 14 : cy;
+      zoom *= 1 + 0.7 * this.cinT * (cin?.move.cinematic?.zoom ?? 1);
+      cx += (mx - cx) * this.cinT;
+      cy += (my - cy) * this.cinT;
+    }
+    this.dimOverlay.setAlpha(0.45 * this.cinT);
+
     // crisp pixels: when close to an even zoom (1 art pixel = zoom/2 device px) snap to it, and snap the
     // camera centre to whole device pixels so sprites never swim between pixel grids
     const zi = 2 * Math.round(zoom / 2);
@@ -299,19 +347,22 @@ export class SandboxScene extends Phaser.Scene {
 
     this.stageView.update(alpha);
     for (const v of this.views) v.update(alpha, this.world.tick);
+    this.entityViews.update(alpha, this.world.tick);
     this.effects.update(Math.min(frameMs, 50) / 1000);
 
     this.debug.update(this.stepsLastFrame, 60, `${cx.toFixed(0)},${cy.toFixed(0)} z${zoom.toFixed(2)}`, zoom);
 
     for (let i = 0; i < this.fighters.length; i++) {
       const sc = this.match.scores[i];
-      this.huds[i].update(this.fighters[i].damage, sc.stocks, this.match.training, sc.eliminated);
+      const f = this.fighters[i];
+      this.huds[i].update(f.damage, sc.stocks, this.match.training, sc.eliminated, f.meter / (f.data.ultimate?.cost ?? 100), this.world.tick);
     }
     if (this.match.over && !this.banner.visible) {
       const w = this.match.winner;
       this.banner.setText(up(w < 0 ? 'DRAW' : `${w === 0 ? 'YOU WIN' : 'DUMMY WINS'}\n\nPRESS 0 TO REMATCH`)).setVisible(true);
     }
 
+    if (this.frameCount % 6 === 0) this.trainText.setText(up(this.training.report().join('\n')) + (this.slowMo ? '\nSLOW-MO' : '') + (this.stepMode ? '\nSTEP MODE (B)' : ''));
     this.perf.update(frameMs, `${this.scale.width}x${this.scale.height} @${this.dpr().toFixed(1)}x  z${zoom.toFixed(2)}  ${this.stepsLastFrame}/f`);
     if (this.toastUntil > 0) {
       const left = this.toastUntil - performance.now();
@@ -323,7 +374,66 @@ export class SandboxScene extends Phaser.Scene {
   // ---------------------------------------------------------------------------------------------
   private onWorldEvent(type: WorldEventType, f: Fighter, x: number, y: number, mag: number, extra: number): void {
     const e = this.effects;
+    const cue = soundFor(type, mag, extra);
+    if (cue) sfx.play(cue.name, cue.intensity, Phaser.Math.Clamp((x - this.cam.cx) / (this.worldCam.width / Math.max(0.1, this.worldCam.zoom) / 2), -1, 1));
     switch (type) {
+      case 'projectile':
+        e.flash(x, y, 0.5, 0xfff3b0);
+        break;
+      case 'projectileHit':
+        if (mag > 0) {
+          e.flash(x, y, 0.9, 0xffffff);
+          e.burst(x, y, 6, 70, 0xffffff, 0.25, 2);
+        }
+        break;
+      case 'teleport':
+        e.trail(f.tpFromX, f.tpFromY - f.h / 2, x, y - f.h / 2, 0x7fe8ff);
+        e.ring(f.tpFromX, f.tpFromY - f.h / 2, 14, 0x7fe8ff, 0.25);
+        e.ring(x, y - f.h / 2, 18, 0xffffff, 0.3);
+        e.burst(x, y - f.h / 2, 10, 70, 0x7fe8ff, 0.3, 2);
+        break;
+      case 'reflect':
+        e.ring(x, y, 20, 0xc080ff, 0.3);
+        e.flash(x, y, 1.4, 0xe0b0ff);
+        break;
+      case 'deploy':
+        e.dust(x, y, 5, 0);
+        break;
+      case 'deployableTrigger':
+        e.burst(x, y, 20, 120, 0xffa040, 0.4, 3);
+        e.ring(x, y, 28, 0xffd46a, 0.35);
+        e.flash(x, y, 2.4, 0xffe9a8);
+        this.shake = Math.max(this.shake, 5);
+        break;
+      case 'deployableDestroyed':
+        e.burst(x, y, 14, 100, 0xffd46a, 0.35, 3);
+        e.flash(x, y, 1.2, 0xffffff);
+        break;
+      case 'status': {
+        const colors = [0xff8a30, 0x8aa0ff, 0x9fe9ff, 0xffff60];
+        e.burst(x, y, 6, 40, colors[Math.max(0, Math.min(3, extra | 0))], 0.3, 2);
+        break;
+      }
+      case 'tether':
+        e.flash(x, y, 0.9, 0xffffff);
+        break;
+      case 'cinematicStart':
+        e.ring(x, y, 60, 0xffffff, 0.5);
+        e.flash(x, y, 4, 0xffffff);
+        this.shake = Math.max(this.shake, 6);
+        break;
+      case 'cinematicHit':
+        e.flash(x, y, 2 + extra * 0.1, 0xffffff);
+        e.burst(x, y, 16, 120, 0xffe14a, 0.4, 3);
+        this.shake = Math.max(this.shake, mag > 0 ? 12 : 5);
+        break;
+      case 'cinematicEnd':
+        e.ring(x, y, 80, 0xffe14a, 0.6);
+        break;
+      case 'meterFull':
+        e.ring(x, y + f.h * 0.5, 24, 0xffd040, 0.5);
+        e.burst(x, y + f.h * 0.5, 10, 60, 0xffd040, 0.4, 2);
+        break;
       case 'jump':
         e.dust(x, y, 4, 0);
         break;
@@ -407,10 +517,30 @@ export class SandboxScene extends Phaser.Scene {
       case 'Digit1':
         this.debug.setVisible(!this.debug.visible);
         this.helpText.setVisible(this.helpOn && !this.debug.visible);
+        this.placeTrainText();
+        break;
+      case 'BracketLeft':
+        this.training.select(-1);
+        break;
+      case 'BracketRight':
+        this.training.select(1);
+        break;
+      case 'Enter':
+        if (!this.paused) this.training.start();
+        break;
+      case 'KeyM':
+        this.slowMo = !this.slowMo;
+        break;
+      case 'KeyN':
+        this.stepMode = !this.stepMode;
+        break;
+      case 'KeyB':
+        this.stepOnce = true;
         break;
       case 'KeyH':
         this.helpOn = !this.helpOn;
         this.helpText.setVisible(this.helpOn && !this.debug.visible);
+        this.placeTrainText();
         break;
       case 'Digit2':
         this.pendingHitDummy = true;
@@ -486,6 +616,13 @@ export class SandboxScene extends Phaser.Scene {
     this.layout(size.width, size.height);
   }
 
+  /** Training readout sits under the help block (or at the top when help is hidden). */
+  private placeTrainText(): void {
+    const m = Math.round(8 * this.dpr());
+    const y = this.helpText.visible ? this.helpText.y + this.helpText.displayHeight + m : m * 2;
+    this.trainText.setPosition(m, y);
+  }
+
   /** Device pixels per HUD art pixel (integer, >= 2). */
   private hudUnit(h: number): number {
     return Math.max(2, Math.round(h / 360));
@@ -501,6 +638,9 @@ export class SandboxScene extends Phaser.Scene {
     this.helpText.setOrigin(0, 0);
     this.toast.setScale(u * 2).setPosition(w / 2, m * 4);
     this.pauseOverlay.setSize(w, h);
+    this.dimOverlay.setSize(w, h);
+    this.trainText.setScale(u).setOrigin(0, 0);
+    this.placeTrainText();
     this.pauseText.setScale(u * 2).setPosition(w / 2, h / 2);
     this.banner.setScale(u * 4).setPosition(w / 2, h * 0.3);
     const n = this.huds.length;

@@ -11,13 +11,14 @@ next phase starts.
 | 1 | Physics sandbox: fixed 60 Hz sim, jumps, platforms, ledges, tech, input layer (keyboard + gamepad), debug overlay | done |
 | 2 | Combat core: JSON frame data, hitboxes, hitlag, trades, armor, shield/dodge/grab/throw, stocks/KOs | done |
 | 2b | Art pass: 64px characters, matching stage / background / effects / HUD / pixel font | done |
+| 3 | Character engine hooks: behaviour interface + resources, projectiles, deployables, status effects, teleport / dash / tether / ledge snap, meter + cinematic ultimates, reflect, training scenarios, SFX engine | done |
 
 Not verified yet, because I have no real hardware here: real Xbox / PlayStation / Switch Pro pads, Safari,
 120/144 Hz displays, true GPU frame times. These are folded into the checkpoints below.
 
 ---
 
-## Phase 3: Character engine hooks (generic systems the roster needs)
+## Phase 3: Character engine hooks (generic systems the roster needs) *(done)*
 Build once, reuse for all four characters. Nothing character-specific yet.
 
 1. **Character behaviour interface**: per-character hooks (`onTick`, `onMoveFrame`, `onHitDealt`, `onHitTaken`)
