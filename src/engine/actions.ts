@@ -20,8 +20,16 @@ export function executeMoveEvent(f: Fighter, ev: MoveEvent, inp: FighterInput, w
       world.spawnDeployable(f.id, ev.id, f.x + f.facing * ev.x, f.y + ev.y);
       break;
     case 'teleport':
-      teleport(f, ev.dist, ev.dir ?? 'stick8', inp, world);
+      teleport(f, ev.dist, ev.dir ?? 'stick8', inp, world, ev.leaveMarker);
       break;
+    case 'recall': {
+      const m = world.findDeployables(f.id, ev.id)[0];
+      if (m) {
+        const ok = teleportTo(f, m.x, m.y, world);
+        if (ok) m.deactivate();
+      }
+      break;
+    }
     case 'barrier':
       f.barrier = { frames: ev.frames, x: ev.x, y: ev.y, w: ev.w, h: ev.h };
       break;
@@ -71,13 +79,21 @@ function bodyFree(f: Fighter, x: number, y: number, world: World): boolean {
 const dirTmp = { x: 0, y: 0 };
 
 /** Instant move of up to `dist` px, stopping before solid geometry. Records the origin for effects. */
-export function teleport(f: Fighter, dist: number, dir: 'stick8' | 'forward' | 'up' | 'back', inp: FighterInput, world: World): void {
+export function teleport(f: Fighter, dist: number, dir: 'stick8' | 'forward' | 'up' | 'up8' | 'back', inp: FighterInput, world: World, leaveMarker?: string): void {
   if (dir === 'stick8') stick8(inp, f.facing, dirTmp);
+  else if (dir === 'up8') {
+    // mostly up, leaning toward the stick horizontally
+    const sx = Math.abs(inp.stickX) > 0.4 ? Math.sign(inp.stickX) * 0.6 : 0;
+    const len = Math.hypot(sx, 1);
+    dirTmp.x = sx / len;
+    dirTmp.y = -1 / len;
+  }
   else if (dir === 'forward') (dirTmp.x = f.facing), (dirTmp.y = 0);
   else if (dir === 'back') (dirTmp.x = -f.facing), (dirTmp.y = 0);
   else (dirTmp.x = 0), (dirTmp.y = -1);
   f.tpFromX = f.x;
   f.tpFromY = f.y;
+  if (leaveMarker) world.spawnDeployable(f.id, leaveMarker, f.x, f.y); // Blink Trail: one marker, replaced by the newest
   let x = f.x;
   let y = f.y;
   for (let d = TELEPORT_STEP; d <= dist; d += TELEPORT_STEP) {
@@ -87,7 +103,7 @@ export function teleport(f: Fighter, dist: number, dir: 'stick8' | 'forward' | '
     x = nx;
     y = ny;
   }
-  f.placeAt(x, y);
+  f.placeAt(x, y, world.platforms);
   if (Math.abs(dirTmp.x) > 0.3) f.facing = dirTmp.x > 0 ? 1 : -1;
   world.emit('teleport', f, x, y, Math.hypot(x - f.tpFromX, y - f.tpFromY), 0);
 }
@@ -97,7 +113,7 @@ export function teleportTo(f: Fighter, x: number, y: number, world: World): bool
   if (!bodyFree(f, x, y, world)) return false;
   f.tpFromX = f.x;
   f.tpFromY = f.y;
-  f.placeAt(x, y);
+  f.placeAt(x, y, world.platforms);
   world.emit('teleport', f, x, y, Math.hypot(x - f.tpFromX, y - f.tpFromY), 0);
   return true;
 }

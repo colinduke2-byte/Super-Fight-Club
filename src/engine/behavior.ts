@@ -20,6 +20,11 @@ export interface CharacterBehavior {
   onHitTaken?(f: Fighter, attacker: Fighter | null, damage: number, world: World): void;
   /** One of f's deployables was destroyed by an enemy attack. */
   onDeployableDestroyed?(f: Fighter, id: string, world: World): void;
+  /**
+   * Called when a special input maps to move `id` (neutralB, sideB, ...). Return another move id to run
+   * instead (Vex's recall), or null to ignore the press.
+   */
+  chooseMove?(f: Fighter, id: string, world: World): string | null;
   /** `name`/`args` of a `custom` move event. */
   onMoveEvent?(f: Fighter, name: string, args: number[], world: World): void;
 }

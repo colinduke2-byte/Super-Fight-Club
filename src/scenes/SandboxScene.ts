@@ -1,6 +1,6 @@
 import Phaser from 'phaser';
 import { brick } from '../characters/brick';
-import { devCharacter } from '../characters';
+import { playerCharacter } from '../characters';
 import { sfx } from '../audio/sfx';
 import { soundFor } from '../audio/soundMap';
 import { TrainingRunner } from '../engine/training';
@@ -106,7 +106,7 @@ export class SandboxScene extends Phaser.Scene {
     const stage = sandboxStage;
     this.world = new World(stage);
 
-    const player = new Fighter(0, devCharacter() ?? brick);
+    const player = new Fighter(0, playerCharacter());
     const dummy = new Fighter(1, brick);
     this.fighters = [player, dummy];
     this.world.addFighter(player);
@@ -562,6 +562,13 @@ export class SandboxScene extends Phaser.Scene {
         e.ring(x + dir * 18, y - 2, 30, 0xffffff, 0.3);
         e.flash(x + dir * 18, y - 8, 2, 0xffffff);
         this.shake = Math.max(this.shake, 8);
+        break;
+      case 'blink':
+        e.flash(x, y - f.h / 2, 1, 0x7fe8ff);
+        break;
+      case 'raidStart':
+        e.ring(x, y - 14, 36, 0xff4fa8, 0.5);
+        e.burst(x, y - 14, 18, 100, 0xff4fa8, 0.5, 3);
         break;
       case 'overload':
         e.ring(x, y - 14, 40, 0xff6a30, 0.6);

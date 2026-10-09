@@ -67,7 +67,8 @@ export interface HitboxDef {
 export type MoveEvent =
   | { frame: number; action: 'projectile'; id: string; x: number; y: number; vx: number; vy: number }
   | { frame: number; action: 'deploy'; id: string; x: number; y: number }
-  | { frame: number; action: 'teleport'; dist: number; dir?: 'stick8' | 'forward' | 'up' | 'back' }
+  | { frame: number; action: 'teleport'; dist: number; dir?: 'stick8' | 'forward' | 'up' | 'up8' | 'back'; /** Deployable id to drop at the departure point (Blink marker). */ leaveMarker?: string }
+  | { frame: number; action: 'recall'; id: string }
   | { frame: number; action: 'barrier'; frames: number; x: number; y: number; w: number; h: number }
   | { frame: number; action: 'tether'; angle: number; range: number; speed: number; grabsOpponents?: boolean }
   | { frame: number; action: 'ledgeSnap'; range: number }

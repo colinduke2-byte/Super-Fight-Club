@@ -173,6 +173,29 @@ Full frame data: [`docs/frame-data-brick.md`](docs/frame-data-brick.md) (regener
 | Vent (down special) | Heat burst, see above |
 | Meltdown (ultimate) | cinematic grab; detonates a huge blast that KOs at low percent |
 
+### Vex: space-pirate rogue (complete, Phase 5)
+
+Weight 80, very fast (run 3.1), high air speed, floaty fall, **two** double jumps, a ground dash with a short
+invincibility window. Low damage, easy to KO, punishable when a blink ends. Frame data:
+[`docs/frame-data-vex.md`](docs/frame-data-vex.md). Try her with `?char=vex`.
+
+**BLINK TRAIL**: any teleport (Blink Strike, Shadow Climb) leaves one glowing marker at the departure point for
+3 seconds (HUD seam shows the time left). Press neutral special again to recall to the marker (invulnerable
+on arrival; one recall per marker). Blink Strike: tap Special with a neutral stick, then push any of 8
+directions during the start-up; usable once per airtime.
+
+| Move | Notes |
+|---|---|
+| Jab | up to 5 rapid slashes, the last angles upward: a combo starter |
+| Double Cross (fsmash) | two sweeping slashes; the second launches upward |
+| Scarf Whip / Low Sweep | usmash wide overhead arc / dsmash both sides at the feet |
+| Aerials | Twin Spin (nair), Diagonal Slash (fair, spikes on the late hit), Back Kick, Juggle Slash, Dive Kick (bounces off enemies) |
+| Blink Strike (neutral special) | 8-way teleport + slash, leaves the marker |
+| Pirate's Dash (side special) | fast sliding slash, low-risk approach |
+| Shadow Climb (up special) | teleports up and grabs a ledge from up to 110px away; arrival is vulnerable and helpless |
+| Snare Mine (down special) | proximity trap (max 2), launches upward, enemies can destroy it |
+| Pirate King's Raid (ultimate) | cinematic grab: a 9-hit teleport flurry then a big finisher |
+
 ## Add a character
 
 1. Create `src/characters/<id>.ts` exporting a `CharacterData` (copy `brick.ts`): stats, body size,

@@ -11,6 +11,7 @@ next phase starts.
 | 1 | Physics sandbox: fixed 60 Hz sim, jumps, platforms, ledges, tech, input layer (keyboard + gamepad), debug overlay | done |
 | 2 | Combat core: JSON frame data, hitboxes, hitlag, trades, armor, shield/dodge/grab/throw, stocks/KOs | done |
 | 2b | Art pass: 64px characters, matching stage / background / effects / HUD / pixel font | done |
+| 5 | Vex complete: Blink Trail marker/recall, mines, dash, full moveset | done |
 | 4 | Brick complete: Heat, Charge Shoulder, Grapple Slam, Jet Boost, Vent, Meltdown, frame-data doc, tests, training scenarios | done |
 | 3 | Character engine hooks: behaviour interface + resources, projectiles, deployables, status effects, teleport / dash / tether / ledge snap, meter + cinematic ultimates, reflect, training scenarios, SFX engine | done |
 

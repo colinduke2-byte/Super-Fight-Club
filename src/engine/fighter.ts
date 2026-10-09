@@ -444,7 +444,7 @@ export class Fighter implements Body {
   }
 
   /** Hard-place the fighter (teleports): no interpolation, collision state refreshed on the next move. */
-  placeAt(x: number, y: number): void {
+  placeAt(x: number, y: number, platforms: readonly Platform[] = []): void {
     this.x = x;
     this.y = y;
     this.startBottom = y;
@@ -452,6 +452,15 @@ export class Fighter implements Body {
     this.vy = 0;
     this.grounded = false;
     this.groundPlat = null;
+    // arriving on a surface keeps the fighter standing (so a ground move is not mistaken for a landing)
+    for (const p of platforms) {
+      if (Math.abs(p.top - y) < 0.75 && x + this.fhw > p.x && x - this.fhw < p.right) {
+        this.grounded = true;
+        this.groundPlat = p;
+        this.y = p.top;
+        break;
+      }
+    }
     this.snapped = true;
   }
 
@@ -744,6 +753,14 @@ export class Fighter implements Body {
     if (inp.stickY < -0.6) id = 'upB';
     else if (inp.stickY > 0.6) id = 'downB';
     else if (Math.abs(inp.stickX) > 0.6) id = 'sideB';
+    if (this.data.behavior?.chooseMove) {
+      const chosen = this.data.behavior.chooseMove(this, id, world);
+      if (chosen === null) {
+        this.buffer.consume(Button.Special); // the press is swallowed (e.g. no air blink left)
+        return false;
+      }
+      id = chosen;
+    }
     if (!this.data.moves[id]) return false;
     this.buffer.consume(Button.Special);
     this.chargeButton = Button.Special; // chargeable specials hold on the Special button

@@ -122,6 +122,10 @@ export interface PlaceholderLook {
     armLen: number;
     helmet: 'visor' | 'hood' | 'pointed' | 'dome';
   };
+  /** What the front hand holds. Default 'piston' (Brick's piston fist). */
+  weapon?: 'piston' | 'blades' | 'staff' | 'wrench';
+  /** Silhouette accessories: scarf, bracer, cloak, toolbox, grapple. */
+  extras?: ('scarf' | 'bracer' | 'cloak' | 'toolbox' | 'grapple')[];
 }
 
 export interface CharacterData {

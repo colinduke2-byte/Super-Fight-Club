@@ -1,0 +1,89 @@
+import type { CharacterBehavior } from '../engine/behavior';
+import { moveTotal, parseMoves, validateReferences, type CharacterJson } from '../engine/moves';
+import type { CharacterData } from '../engine/types';
+import { standardAnimations } from './common';
+import movesJson from './vex.moves.json';
+
+const json = movesJson as unknown as CharacterJson;
+const MARKER_LIFE = 180; // 3 seconds
+
+/**
+ * Vex: fast space-pirate rogue. Hit-and-run, mixups and traps.
+ * BLINK TRAIL: any teleport (Blink Strike, Shadow Climb) leaves a glowing marker at the departure point for
+ * 3 seconds. Pressing neutral special again recalls Vex to it (invulnerable on arrival). One marker at a time.
+ * Blink Strike can be used once per airtime.
+ */
+const behavior: CharacterBehavior = {
+  onTick(f, world) {
+    if (f.grounded || f.state === 'ledge') f.res.blinkAir = 1;
+    // HUD seam: remaining marker time (0..100)
+    const m = world.findDeployables(f.id, 'marker')[0];
+    f.res.markerTime = m ? Math.max(0, (1 - m.age / MARKER_LIFE) * 100) : 0;
+  },
+  chooseMove(f, id, world) {
+    if (id !== 'neutralB') return id;
+    if (world.findDeployables(f.id, 'marker').length > 0) return 'recall'; // press special again to return
+    if (!f.grounded && (f.res.blinkAir ?? 0) <= 0) return null; // one air blink per airtime
+    return 'neutralB';
+  },
+  onMoveStart(f, m) {
+    if (m.id === 'neutralB' && !f.grounded) f.res.blinkAir = 0;
+  },
+  onHitDealt(f) {
+    // Dive Kick bounces off the opponent
+    if (f.move?.id === 'dair') {
+      f.vy = -6.2;
+      f.vx *= -0.3;
+      f.moveFrame = Math.max(f.moveFrame, moveTotal(f.move) - 6); // skip to the tail so Vex regains control quickly
+    }
+  },
+};
+
+const moves = parseMoves(json as never, 'vex');
+validateReferences(moves, json.projectiles, json.deployables, 'vex');
+
+export const vex: CharacterData = {
+  id: 'vex',
+  name: 'Vex',
+  tagline: 'Space-pirate rogue. Blink, bait, and vanish.',
+  stats: {
+    weight: 80,
+    runSpeed: 3.1,
+    airSpeed: 2.2,
+    groundAccel: 0.42,
+    groundFriction: 0.4,
+    airAccel: 0.2,
+    airFriction: 0.05,
+    gravity: 0.4,
+    fallSpeed: 5.4,
+    fastFallSpeed: 8.6,
+    jumpHeight: 70,
+    shortHopHeight: 32,
+    doubleJumpHeight: 60,
+    doubleJumps: 2,
+    jumpsquatFrames: 3,
+  },
+  body: { width: 16, height: 26, footHalfWidth: 5 },
+  dash: { speed: 5.4, frames: 11, invuln: [2, 7], cooldown: 22 },
+  sprite: {
+    frameSize: 64,
+    pixelScale: 0.5,
+    animations: standardAnimations(['castF', 'castU', 'castD', 'dashS', 'raid']),
+    placeholder: {
+      skin: '#e8b890',
+      armor: '#2f7f95',
+      armorDark: '#183a52',
+      accent: '#ff4fa8',
+      outline: '#0c1022',
+      build: { shoulderW: 12, torsoH: 9, legH: 11, headSize: 7, armLen: 9, helmet: 'hood' },
+      weapon: 'blades',
+      extras: ['scarf', 'bracer'],
+    },
+  },
+  moves,
+  deployables: json.deployables,
+  resources: { blinkAir: 1, markerTime: 0 },
+  ultimate: { cost: 100, gainDealt: 0.8, gainTaken: 1.0 },
+  hud: { resource: 'markerTime', max: 100, color: 0x7fe8ff, hotAt: 101 },
+  behavior,
+};

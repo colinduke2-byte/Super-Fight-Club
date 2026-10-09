@@ -174,6 +174,31 @@ function attackPose(anim: string, f: number, p: Pose): void {
       [2, 0, [0, -30], [-2, -30], [5, 0], [-5, 0]],
       [0, 0, [4, -10], [-4, -10], [5, 0], [-5, 0]],
     ],
+    castF: [
+      [-3, 1, [10, -8], [-6, -4], [6, 0], [-6, 0]],
+      [2, 0, [18, -8], [10, -6], [8, 0], [-8, 0]],
+      [0, 0, [8, -4], [-2, -2], [5, 0], [-5, 0]],
+    ],
+    castU: [
+      [0, 2, [2, -6], [-2, -6], [5, 0], [-5, 0]],
+      [0, 0, [3, -34], [-3, -34], [4, 0], [-4, 0]],
+      [0, 0, [3, -20], [-3, -20], [5, 0], [-5, 0]],
+    ],
+    castD: [
+      [0, 6, [6, 0], [-4, 0], [7, 0], [-7, 0]],
+      [0, 8, [10, 6], [-2, 6], [9, 0], [-8, 0]],
+      [0, 3, [6, 2], [-2, 2], [6, 0], [-6, 0]],
+    ],
+    dashS: [
+      [-6, 4, [-8, -2], [8, -4], [10, 0], [-10, 0]],
+      [-2, 2, [20, -4], [-12, -2], [14, 0], [-12, 0]],
+      [0, 2, [10, -2], [-4, -2], [8, 0], [-6, 0]],
+    ],
+    raid: [
+      [-6, 4, [-6, -10], [-8, -8], [8, 0], [-8, 0]],
+      [4, 0, [16, -16], [-14, -16], [10, 4], [-10, 4]],
+      [0, 0, [6, -4], [-4, -4], [6, 0], [-6, 0]],
+    ],
     shield: [[-2, 3, [10, -8], [4, -6], [5, 0], [-5, 0]]],
     dodge: [[-4, 8, [0, -2], [-2, 0], [6, 0], [-6, 0]]],
   };
@@ -237,7 +262,7 @@ function palette(look: PlaceholderLook): Pal {
   };
 }
 
-function drawFighterFrame(ctx: Ctx, size: number, look: PlaceholderLook, pose: Pose): void {
+function drawFighterFrame(ctx: Ctx, size: number, look: PlaceholderLook, pose: Pose, phase = 0): void {
   const P = palette(look);
   const b = look.build;
   const cx = size / 2 - 5; // body sits left of centre: the piston fist reaches forward
@@ -261,11 +286,24 @@ function drawFighterFrame(ctx: Ctx, size: number, look: PlaceholderLook, pose: P
 
   const foot = (f: V2, side: number): V2 => [cx + side * 4 + lean * 0.5 + f[0], base - f[1]];
 
+  const extras = look.extras ?? [];
+  const weapon = look.weapon ?? 'piston';
+  // ---------- cloak / backpack (behind everything) ----------
+  if (extras.includes('cloak')) drawCloak(ctx, P, cx + lean * 0.5 - 2, torsoTop0(hipY, torsoH, pose), base, tw, phase);
+  if (extras.includes('toolbox')) drawToolbox(ctx, P, x0 - 9, hipY - torsoH + 1 + pose.bob, phase);
+
   // ---------- back arm (in shadow) ----------
   const bs: V2 = [x0 + 2, shoulderY + 2];
   const bh: V2 = [bs[0] - 4 + pose.backHand[0], bs[1] + b.armLen * 2 - 2 + pose.backHand[1]];
   limb(ctx, P.deep, bs[0], bs[1], bh[0], bh[1], 8);
   R(ctx, P.dark, bh[0] - 5, bh[1] - 3, 10, 9);
+  if (weapon === 'blades') drawBlade(ctx, P, bs, bh, 11);
+  if (extras.includes('bracer')) {
+    R(ctx, P.deep, bh[0] - 4, bh[1] - 6, 9, 5);
+    R(ctx, P.accent, bh[0] - 3, bh[1] - 5, 7, 3);
+    R(ctx, ((phase + 1) & 1) === 0 ? P.glow : P.accent, bh[0] - 1, bh[1] - 4, 3, 1);
+  }
+  if (extras.includes('grapple')) drawClaw(ctx, P, bs, bh);
 
   // ---------- back leg ----------
   const bf = foot(pose.backFoot, -1);
@@ -307,33 +345,159 @@ function drawFighterFrame(ctx: Ctx, size: number, look: PlaceholderLook, pose: P
   const headTop = torsoTop - hs + 4;
   const hx = Math.round(cx - hs / 2 + lean + 2);
   R(ctx, P.dark, hx + 2, torsoTop - 1, hs - 5, 3); // neck
+  if (extras.includes('scarf')) drawScarf(ctx, P, x0 + 5, torsoTop + 2, pose, phase);
   drawHead(ctx, look, P, hx, headTop, hs);
 
-  // ---------- front shoulder: pauldron + piston-fist arm ----------
+  // ---------- front shoulder + weapon arm ----------
   const sx = x0 + tw - 2;
   const sy = shoulderY + 2;
   const hand: V2 = [sx + 7 + pose.frontHand[0], sy + b.armLen * 2 + pose.frontHand[1] + 2];
-  // arm housing -> exposed piston rod -> fist
-  const mid: V2 = [sx + (hand[0] - sx) * 0.5, sy + (hand[1] - sy) * 0.5];
-  limb(ctx, P.dark, sx, sy, mid[0], mid[1], 12);
-  limb(ctx, P.armor, sx, sy, mid[0], mid[1], 10);
-  limb(ctx, P.steel, mid[0], mid[1], hand[0], hand[1] - 5, 5);
-  limb(ctx, P.steelDark, mid[0] + 1, mid[1], hand[0] + 1, hand[1] - 5, 2);
-  R(ctx, P.dark, mid[0] - 6, mid[1] - 2, 12, 5); // piston collar
-  R(ctx, P.accent, mid[0] - 6, mid[1], 12, 1);
-  // fist
-  R(ctx, P.deep, hand[0] - 9, hand[1] - 8, 19, 16);
-  R(ctx, P.armor, hand[0] - 8, hand[1] - 8, 17, 14);
-  R(ctx, P.light, hand[0] - 8, hand[1] - 8, 17, 2);
-  for (let k = 0; k < 3; k++) R(ctx, P.dark, hand[0] - 6 + k * 5, hand[1] - 2, 1, 7); // knuckle lines
-  R(ctx, P.accent, hand[0] - 8, hand[1] + 4, 17, 2);
-  // pauldron on top
-  R(ctx, P.deep, sx - 8, sy - 8, 19, 13);
-  R(ctx, P.armor, sx - 7, sy - 8, 17, 11);
-  R(ctx, P.light, sx - 7, sy - 8, 17, 2);
-  R(ctx, P.accent, sx - 7, sy + 1, 17, 2);
-  R(ctx, P.steel, sx - 4, sy - 5, 2, 2);
-  R(ctx, P.steel, sx + 4, sy - 5, 2, 2);
+  drawFrontArm(ctx, P, weapon, sx, sy, hand);
+}
+
+function torsoTop0(hipY: number, torsoH: number, pose: Pose): number {
+  return hipY - torsoH + 2 + pose.bob;
+}
+
+/** Steel blade from the hand along the arm direction. */
+function drawBlade(ctx: Ctx, P: Pal, from: V2, hand: V2, len: number): void {
+  let dx = hand[0] - from[0];
+  let dy = hand[1] - from[1];
+  const l = Math.hypot(dx, dy) || 1;
+  dx /= l;
+  dy /= l;
+  // a hanging arm holds the blade angled forward-down instead of straight down
+  if (dy > 0.8) {
+    dx = 0.55;
+    dy = 0.83;
+  }
+  const tip: V2 = [hand[0] + dx * len, hand[1] + dy * len];
+  limb(ctx, P.steelDark, hand[0], hand[1], tip[0], tip[1], 3);
+  limb(ctx, '#e8eef8', hand[0] + 1, hand[1], tip[0] + 1, tip[1], 1);
+  R(ctx, P.accent, hand[0] - 2, hand[1] - 1, 5, 3); // hilt
+}
+
+function drawStaffLike(ctx: Ctx, P: Pal, from: V2, hand: V2, len: number, head: boolean): void {
+  let dx = hand[0] - from[0];
+  let dy = hand[1] - from[1];
+  const l = Math.hypot(dx, dy) || 1;
+  dx /= l;
+  dy /= l;
+  if (dy > 0.7) {
+    // resting: planted upright
+    dx = 0.1;
+    dy = -1;
+  }
+  const tip: V2 = [hand[0] + dx * len, hand[1] + dy * len];
+  const tail: V2 = [hand[0] - dx * (len * 0.4), hand[1] - dy * (len * 0.4)];
+  limb(ctx, '#6a4a2a', tail[0], tail[1], tip[0], tip[1], 3);
+  limb(ctx, '#a87a44', tail[0] + 1, tail[1], tip[0] + 1, tip[1], 1);
+  if (head) {
+    R(ctx, P.accent, tip[0] - 3, tip[1] - 3, 7, 7);
+    R(ctx, P.glow, tip[0] - 1, tip[1] - 1, 3, 3);
+  }
+}
+
+function drawFrontArm(ctx: Ctx, P: Pal, weapon: NonNullable<PlaceholderLook['weapon']>, sx: number, sy: number, hand: V2): void {
+  if (weapon === 'piston') {
+    // arm housing -> exposed piston rod -> fist
+    const mid: V2 = [sx + (hand[0] - sx) * 0.5, sy + (hand[1] - sy) * 0.5];
+    limb(ctx, P.dark, sx, sy, mid[0], mid[1], 12);
+    limb(ctx, P.armor, sx, sy, mid[0], mid[1], 10);
+    limb(ctx, P.steel, mid[0], mid[1], hand[0], hand[1] - 5, 5);
+    limb(ctx, P.steelDark, mid[0] + 1, mid[1], hand[0] + 1, hand[1] - 5, 2);
+    R(ctx, P.dark, mid[0] - 6, mid[1] - 2, 12, 5); // piston collar
+    R(ctx, P.accent, mid[0] - 6, mid[1], 12, 1);
+    R(ctx, P.deep, hand[0] - 9, hand[1] - 8, 19, 16);
+    R(ctx, P.armor, hand[0] - 8, hand[1] - 8, 17, 14);
+    R(ctx, P.light, hand[0] - 8, hand[1] - 8, 17, 2);
+    for (let k = 0; k < 3; k++) R(ctx, P.dark, hand[0] - 6 + k * 5, hand[1] - 2, 1, 7); // knuckle lines
+    R(ctx, P.accent, hand[0] - 8, hand[1] + 4, 17, 2);
+    // pauldron on top
+    R(ctx, P.deep, sx - 8, sy - 8, 19, 13);
+    R(ctx, P.armor, sx - 7, sy - 8, 17, 11);
+    R(ctx, P.light, sx - 7, sy - 8, 17, 2);
+    R(ctx, P.accent, sx - 7, sy + 1, 17, 2);
+    R(ctx, P.steel, sx - 4, sy - 5, 2, 2);
+    R(ctx, P.steel, sx + 4, sy - 5, 2, 2);
+    return;
+  }
+  // slimmer arm for the other styles
+  limb(ctx, P.deep, sx, sy, hand[0], hand[1], 8);
+  limb(ctx, P.armor, sx, sy, hand[0], hand[1], 6);
+  limb(ctx, P.light, sx - 1, sy, hand[0] - 1, hand[1], 1);
+  R(ctx, P.armor, sx - 5, sy - 4, 11, 7); // shoulder guard
+  R(ctx, P.light, sx - 5, sy - 4, 11, 1);
+  R(ctx, P.accent, sx - 4, sy + 2, 9, 1);
+  R(ctx, P.skin, hand[0] - 3, hand[1] - 3, 6, 6); // hand
+  if (weapon === 'blades') drawBlade(ctx, P, [sx, sy], hand, 15);
+  else if (weapon === 'staff') drawStaffLike(ctx, P, [sx, sy], hand, 30, true);
+  else {
+    // wrench: handle + open-jaw head
+    let dx = hand[0] - sx;
+    let dy = hand[1] - sy;
+    const l = Math.hypot(dx, dy) || 1;
+    dx /= l;
+    dy /= l;
+    if (dy > 0.8) (dx = 0.5), (dy = 0.85);
+    const tip: V2 = [hand[0] + dx * 12, hand[1] + dy * 12];
+    limb(ctx, P.steelDark, hand[0], hand[1], tip[0], tip[1], 3);
+    limb(ctx, '#e0e6f4', hand[0] + 1, hand[1], tip[0] + 1, tip[1], 1);
+    R(ctx, P.steel, tip[0] - 4, tip[1] - 4, 9, 9);
+    R(ctx, P.deep, tip[0] - 1, tip[1] - 2, 5, 5); // jaw gap
+    R(ctx, P.accent, tip[0] - 4, tip[1] + 4, 9, 1);
+  }
+}
+
+function drawCloak(ctx: Ctx, P: Pal, cx: number, top: number, base: number, tw: number, phase: number): void {
+  for (let y = top; y < base - 1; y++) {
+    const t = (y - top) / Math.max(1, base - top);
+    const half = tw / 2 + 2 + t * 9;
+    const sway = Math.round(Math.sin(phase * 1.3 + t * 3) * 2 * t) - Math.round(t * 3);
+    const x0 = Math.round(cx - half + sway);
+    const w = Math.round(half * 2);
+    R(ctx, P.deep, x0, y, w, 1);
+    R(ctx, P.dark, x0 + 2, y, w - 5, 1);
+    R(ctx, P.armor, x0 + w - 4, y, 3, 1); // lit right edge
+  }
+  // scalloped hem
+  for (let k = 0; k < 6; k++) R(ctx, P.accent, Math.round(cx - 14 + k * 5), base - 3 - (k % 2), 3, 1);
+}
+
+function drawToolbox(ctx: Ctx, P: Pal, x: number, y: number, phase: number): void {
+  R(ctx, P.deep, x - 1, y - 1, 13, 18);
+  R(ctx, P.dark, x, y, 11, 16);
+  R(ctx, P.accent, x, y, 11, 3); // lid
+  R(ctx, P.steel, x + 4, y - 3, 3, 3); // handle
+  R(ctx, P.deep, x + 1, y + 6, 9, 1);
+  R(ctx, P.steel, x + 3, y + 8, 5, 4);
+  R(ctx, P.glow, x + 5, y + 9, 1, 2);
+  // wrench handle sticking out of the top
+  limb(ctx, P.steelDark, x + 9, y - 1, x + 12, y - 9, 2);
+  R(ctx, P.steel, x + 10, y - 12, 5, 4);
+  R(ctx, P.deep, x + 12, y - 11, 2, 2);
+  if ((phase & 1) === 0) R(ctx, P.glow, x + 1, y + 1, 1, 1);
+}
+
+function drawClaw(ctx: Ctx, P: Pal, shoulder: V2, hand: V2): void {
+  // grappling arm: cable-wrapped forearm ending in a three-prong claw
+  limb(ctx, P.steelDark, shoulder[0], shoulder[1], hand[0], hand[1], 4);
+  R(ctx, P.steel, hand[0] - 3, hand[1] - 2, 7, 5);
+  R(ctx, P.accent, hand[0] - 3, hand[1] - 2, 7, 1);
+  for (const dx of [-3, 0, 3]) limb(ctx, '#e0e6f4', hand[0] + dx, hand[1] + 3, hand[0] + dx + Math.sign(dx), hand[1] + 8, 1);
+}
+
+function drawScarf(ctx: Ctx, P: Pal, nx: number, ny: number, pose: Pose, phase: number): void {
+  // flows backward; streams level when running, trails up when airborne, droops when standing
+  const flow = pose.lean > 2 ? 0 : pose.frontHand[1] < -8 ? -0.55 : 0.45;
+  for (let i = 0; i < 16; i++) {
+    const wave = Math.sin(phase * 1.2 + i * 0.55) * (1 + i * 0.12);
+    const x = nx - 3 - i * 1.7;
+    const y = ny + i * flow * 1.4 + wave;
+    R(ctx, i % 5 === 4 ? P.light : P.accent, x, y, 3, 3);
+    if (i > 2) R(ctx, P.deep, x, y + 3, 3, 1);
+  }
+  R(ctx, P.accent, nx - 2, ny - 1, 6, 4); // knot
 }
 
 function drawHead(ctx: Ctx, look: PlaceholderLook, P: Pal, hx: number, top: number, hs: number): void {
@@ -450,7 +614,7 @@ export function buildPlaceholderSheet(scene: Phaser.Scene, data: CharacterData):
     const def = sprite.animations[name];
     for (let f = 0; f < def.frames; f++) {
       tctx.clearRect(0, 0, size, size);
-      drawFighterFrame(tctx, size, sprite.placeholder, poseFor(name, f, def.frames));
+      drawFighterFrame(tctx, size, sprite.placeholder, poseFor(name, f, def.frames), f);
       finish(tctx, size, sprite.placeholder.outline);
       sctx.drawImage(tmp, f * size, row * size);
     }
