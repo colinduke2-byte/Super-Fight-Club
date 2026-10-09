@@ -1,0 +1,42 @@
+export type SmashMode = 'flick' | 'button';
+export type ParticleQuality = 'low' | 'medium' | 'high';
+
+export interface Settings {
+  /** Radial stick deadzone, 0..0.9. */
+  deadzone: number;
+  /** Flicking the stick up jumps. */
+  tapJump: boolean;
+  /** How smash attacks are triggered (wired up in the combat milestone). */
+  smashMode: SmashMode;
+  particleQuality: ParticleQuality;
+  showPerf: boolean;
+}
+
+export const DEFAULT_SETTINGS: Settings = {
+  deadzone: 0.2,
+  tapJump: true,
+  smashMode: 'flick',
+  particleQuality: 'high',
+  showPerf: true,
+};
+
+const KEY = 'sfc.settings.v1';
+
+export const settings: Settings = { ...DEFAULT_SETTINGS };
+
+export function loadSettings(): void {
+  try {
+    const raw = localStorage.getItem(KEY);
+    if (raw) Object.assign(settings, JSON.parse(raw) as Partial<Settings>);
+  } catch {
+    /* storage unavailable or corrupt: keep defaults */
+  }
+}
+
+export function saveSettings(): void {
+  try {
+    localStorage.setItem(KEY, JSON.stringify(settings));
+  } catch {
+    /* ignore */
+  }
+}
