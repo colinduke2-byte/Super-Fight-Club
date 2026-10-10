@@ -250,6 +250,8 @@ export class CpuController implements Controller {
       const follow = this.params.smart || this.rnd() < 0.5;
       if (follow && world.tick % 3 === 0) this.held |= Button.Attack;
     }
+    // hit-confirm cancels: after connecting, route into the next move (combos)
+    if (m.cancels && self.moveHit && this.params.smart && tgt && this.rnd() < 0.25 + 0.5 * this.params.punish) this.cancelInput(self, m, tgt);
     // drift toward the target during aerials; recovery specials steer toward the ledge
     if (self.state === 'attack' && !self.grounded && tgt && m.kind === 'aerial') this.sx = Math.sign(tgt.x - self.x) * 0.6;
     if (this.mode === 'recover' && this.episode) {
@@ -258,6 +260,45 @@ export class CpuController implements Controller {
         this.sx = this.rec.sx;
         this.sy = this.rec.sy;
       }
+    }
+  }
+
+  /** Press the input of a random eligible cancel route (see MoveCancel). */
+  private cancelInput(self: Fighter, m: NonNullable<Fighter['move']>, tgt: Fighter): void {
+    let pick = -1;
+    let n = 0;
+    const cs = m.cancels!;
+    for (let i = 0; i < cs.length; i++) {
+      const c = cs[i];
+      if (self.moveFrame < c.from || (c.to !== undefined && self.moveFrame > c.to)) continue;
+      if (c.air !== undefined && c.air !== !self.grounded) continue;
+      if (c.into === '@jump' && !(tgt.y < self.y - 20)) continue;
+      if (Math.abs(tgt.x - self.x) > 140) continue;
+      if (this.rnd() < 1 / ++n) pick = i; // reservoir pick
+    }
+    if (pick < 0) return;
+    const c = cs[pick];
+    this.held |= c.button === 'attack' ? Button.Attack : c.button === 'special' ? Button.Special : c.button === 'smash' ? Button.Smash : c.button === 'grab' ? Button.Grab : Button.Jump;
+    const mag = c.button === 'attack' ? 0.6 : 0.9; // a half-pressed stick on Attack is a tilt, not a smash flick
+    const toward = tgt.x >= self.x ? 1 : -1;
+    switch (c.dir) {
+      case 'forward':
+        this.sx = self.facing * mag;
+        break;
+      case 'back':
+        this.sx = -self.facing * mag;
+        break;
+      case 'side':
+        this.sx = toward * Math.max(0.8, mag);
+        break;
+      case 'up':
+        this.sy = -mag;
+        break;
+      case 'down':
+        this.sy = mag;
+        break;
+      default:
+        break;
     }
   }
 

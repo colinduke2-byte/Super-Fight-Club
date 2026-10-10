@@ -83,24 +83,27 @@ export type PadProfileId = 'nintendo' | 'standard';
  * map by label (A = right button attacks, B = bottom button specials) to match muscle memory.
  */
 export const DEFAULT_PAD_PROFILES: Record<PadProfileId, PadBindings> = {
+  // Xbox / PlayStation / generic (positional): Smash-style. A attack, B special, X / Y jump, LB / RB grab, LT / RT shield,
+  // R3 smash (a flick of the stick + attack also smashes), L3 ultimate, Menu pause.
   standard: {
-    jump: [0, 3],
-    attack: [2],
+    jump: [2, 3],
+    attack: [0],
     special: [1],
-    shield: [4, 6, 7],
-    grab: [5],
-    smash: [],
-    ultimate: [10, 11],
+    shield: [6, 7],
+    grab: [4, 5],
+    smash: [11],
+    ultimate: [10],
     pause: [9],
   },
+  // Nintendo layout (A is the right button, B the bottom one): same physical positions as Smash on Switch.
   nintendo: {
     jump: [2, 3],
     attack: [1],
     special: [0],
     shield: [6, 7],
     grab: [4, 5],
-    smash: [],
-    ultimate: [10, 11],
+    smash: [11],
+    ultimate: [10],
     pause: [9],
   },
 };

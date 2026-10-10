@@ -15,7 +15,7 @@ const PROFILE_NAME: Record<Profile, string> = {
   standard: 'GAMEPAD (XBOX / PS / GENERIC)',
   nintendo: 'GAMEPAD (NINTENDO)',
 };
-const PAD_NAMES = ['A/CROSS', 'B/CIRCLE', 'X/SQUARE', 'Y/TRIANGLE', 'LB/L1', 'RB/R1', 'LT/L2', 'RT/R2', 'SELECT', 'START', 'L-STICK', 'R-STICK', 'D-UP', 'D-DOWN', 'D-LEFT', 'D-RIGHT'];
+const PAD_NAMES = ['A', 'B', 'X', 'Y', 'LB', 'RB', 'LT', 'RT', 'VIEW', 'MENU', 'L3', 'R3', 'D-UP', 'D-DOWN', 'D-LEFT', 'D-RIGHT'];
 
 export function keyName(code: string): string {
   return code.replace(/^Key/, '').replace(/^Digit/, '').replace(/^Arrow/, '').replace(/^Numpad/, 'NUM ').replace('Right', 'R-').replace(/^R-$/, 'RIGHT').toUpperCase();

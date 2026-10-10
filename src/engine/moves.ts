@@ -87,6 +87,23 @@ export interface Cinematic {
 
 export type MoveKind = 'jab' | 'tilt' | 'dashAttack' | 'smash' | 'aerial' | 'special' | 'grab' | 'throw' | 'ultimate';
 
+/**
+ * Hit-confirm / whiff cancel: while the move is in [from, to] (and, by default, after it has connected) a buffered press of
+ * `button` in direction `dir` immediately starts move `into` (or '@jump': a jump cancel). This is what makes combos flow.
+ */
+export interface MoveCancel {
+  button: 'attack' | 'special' | 'smash' | 'grab' | 'jump';
+  /** Stick direction relative to facing. 'side' = forward or back. Default 'any'. */
+  dir?: 'neutral' | 'forward' | 'back' | 'side' | 'up' | 'down' | 'any';
+  into: string;
+  from: number;
+  to?: number;
+  /** Only after the move hit something (default true). */
+  onHit?: boolean;
+  /** true: only in the air, false: only on the ground, omitted: either. */
+  air?: boolean;
+}
+
 export interface MoveDef {
   id: string;
   name: string;
@@ -129,6 +146,8 @@ export interface MoveDef {
   cinematic?: Cinematic;
   /** Not listed in training mode (internal follow-up moves such as a command grab's slam). */
   hidden?: boolean;
+  /** Cancel windows into other moves (combo routes). */
+  cancels?: MoveCancel[];
   /** Gate: a resource must be at least this much to start the move (the cost is spent by an event). */
   requires?: { key: string; min: number };
 }

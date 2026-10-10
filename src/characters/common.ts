@@ -15,10 +15,10 @@ export function standardAnimations(extra: string[] = []): Record<string, AnimDef
     down: still(),
     ko: still(),
   };
-  for (const n of ['jab', 'smashF', 'smashU', 'smashD', 'aerialN', 'aerialF', 'aerialB', 'aerialU', 'aerialD']) anims[n] = still(3);
+  for (const n of ['jab', 'smashF', 'smashU', 'smashD', 'aerialN', 'aerialF', 'aerialB', 'aerialU', 'aerialD']) anims[n] = still(6);
   anims.grab = still(2);
   anims.shield = still();
   anims.dodge = still();
-  for (const n of extra) anims[n] = still(3);
+  for (const n of extra) anims[n] = still(6);
   return anims;
 }

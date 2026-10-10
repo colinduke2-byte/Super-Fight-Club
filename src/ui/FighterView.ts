@@ -16,9 +16,17 @@ export class FighterView {
   private orbGlow: Phaser.GameObjects.Image | null = null;
   private orbX = 0;
   private orbY = 0;
+  private readonly ghosts: Phaser.GameObjects.Sprite[] = [];
+  private readonly ghostLife: number[] = [];
+  private nextGhost = 0;
+  private lastGhostTick = -9;
+  private readonly layer: Phaser.GameObjects.Layer;
+  private readonly scene: Phaser.Scene;
 
   constructor(scene: Phaser.Scene, layer: Phaser.GameObjects.Layer, readonly fighter: Fighter, tint?: number) {
     this.baseTint = tint;
+    this.layer = layer;
+    this.scene = scene;
     const key = fighterTextureKey(fighter.data.id);
     this.shadow = scene.add.image(0, 0, 'px').setTint(0x000000).setAlpha(0.25).setScale(5, 0.7);
     this.sprite = scene.add.sprite(0, 0, key, 0).setOrigin(0.5, 1).setScale(fighter.data.sprite.pixelScale);
@@ -122,12 +130,53 @@ export class FighterView {
 
     this.updateOrb(f, tick);
     this.updateCounter(f);
+    this.updateGhosts(f, tick);
     const bubble = this.bubble;
     const shielding = f.state === 'shield' || f.state === 'shieldstun';
     bubble.setVisible(shielding);
     if (shielding) {
       const d = (f.shieldRadius * 2) / 64;
       bubble.setPosition(this.x, this.y - f.h / 2).setScale(d).setAlpha(f.state === 'shieldstun' ? 1 : 0.8);
+    }
+  }
+
+  /** Spawn a fading copy of the current sprite (afterimage) at a world position. */
+  afterimage(x: number, y: number, tint = 0xffffff, life = 7): void {
+    let g = this.ghosts[this.nextGhost];
+    if (!g) {
+      g = this.scene.add.sprite(0, 0, this.sprite.texture.key, 0).setOrigin(0.5, 1).setBlendMode(Phaser.BlendModes.ADD);
+      this.layer.add(g);
+      this.layer.sendToBack(g);
+      this.ghosts[this.nextGhost] = g;
+      this.ghostLife[this.nextGhost] = 0;
+    }
+    const s = this.sprite;
+    g.setTexture(s.texture.key, s.frame.name as unknown as number)
+      .setPosition(x, y + 1)
+      .setScale(s.scaleX, s.scaleY)
+      .setFlipX(s.flipX)
+      .setTint(tint)
+      .setAlpha(0.5)
+      .setVisible(true);
+    this.ghostLife[this.nextGhost] = life;
+    this.nextGhost = (this.nextGhost + 1) % 6;
+  }
+
+  /** Fade existing afterimages and drop new ones while the fighter is moving fast (dashes, lunges, big launches). */
+  private updateGhosts(f: Fighter, tick: number): void {
+    for (let i = 0; i < this.ghosts.length; i++) {
+      const g = this.ghosts[i];
+      if (!g.visible) continue;
+      this.ghostLife[i]--;
+      if (this.ghostLife[i] <= 0) g.setVisible(false);
+      else g.setAlpha(0.5 * (this.ghostLife[i] / 7));
+    }
+    const speed = Math.hypot(f.vx, f.vy);
+    const fast = f.state === 'dash' || (f.state === 'attack' && speed > 3.2) || (f.state === 'hitstun' && speed > 9);
+    if (fast && tick - this.lastGhostTick >= 2 && f.hitlag === 0) {
+      this.lastGhostTick = tick;
+      const hex = parseInt(f.data.sprite.placeholder.accent.slice(1), 16);
+      this.afterimage(this.x, this.y, f.state === 'hitstun' ? 0xff8080 : hex);
     }
   }
 
@@ -169,5 +218,6 @@ export class FighterView {
     this.counter?.destroy();
     this.orb?.destroy();
     this.orbGlow?.destroy();
+    for (const g of this.ghosts) g.destroy();
   }
 }

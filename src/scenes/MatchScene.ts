@@ -31,6 +31,8 @@ import { FighterHud } from '../ui/FighterHud';
 import { MenuList } from '../ui/menuKit';
 import { PIXEL_FONT, up } from '../art/pixelFont';
 import { StageView } from '../ui/StageView';
+import { SlashArcs } from '../ui/SlashArcs';
+import { updateAuraFx, updateMoveTrails } from '../ui/moveTrails';
 import { HazardView } from '../ui/HazardView';
 import { DummyController, NullController, type Controller } from '../game/controllers';
 import { BossController } from '../ai/boss';
@@ -66,6 +68,7 @@ export class MatchScene extends Phaser.Scene {
   private views: FighterView[] = [];
   private stageView!: StageView;
   private hazardView: HazardView | null = null;
+  private slashes!: SlashArcs;
   private bg!: BackgroundView;
   private effects!: Effects;
   private debug!: DebugOverlay;
@@ -203,6 +206,7 @@ export class MatchScene extends Phaser.Scene {
     this.effects = new Effects(this, this.worldLayer);
     this.effects.cap = this.adaptive.cap; // a reduction earlier in the session carries over to rematches
     this.entityViews = new EntityViews(this, this.worldLayer, this.world);
+    this.slashes = new SlashArcs(this, this.worldLayer);
     if (this.isTraining) this.training = new TrainingRunner(this.world, this.fighters[0], this.fighters[1]);
     sfx.arm();
     music.play(this.slots.some((s) => s.boss) ? 'boss' : (stage.music ?? 'classic'));
@@ -490,6 +494,8 @@ export class MatchScene extends Phaser.Scene {
   private ambientFx(): void {
     if (this.world.tick === this.lastFxTick) return;
     this.lastFxTick = this.world.tick;
+    updateMoveTrails(this.world, this.effects, this.world.tick);
+    updateAuraFx(this.world, this.effects, this.world.tick);
     for (const f of this.fighters) {
       const m = f.move;
       if (m?.id === 'upB' && f.state === 'attack' && f.moveFrame >= 12 && f.moveFrame <= 34) {
@@ -561,6 +567,7 @@ export class MatchScene extends Phaser.Scene {
     this.bg.update(cx, cy, zoom, this.time.now / 1000);
 
     this.stageView.update(alpha);
+    this.slashes.update(this.world);
     this.hazardView?.update(this.world.tick);
     for (const v of this.views) v.update(alpha, this.world.tick);
     this.entityViews.update(alpha, this.world.tick);
@@ -610,6 +617,7 @@ export class MatchScene extends Phaser.Scene {
         }
         break;
       case 'teleport':
+        this.views[f.id]?.afterimage(f.tpFromX, f.tpFromY, 0x7fe8ff, 12);
         e.trail(f.tpFromX, f.tpFromY - f.h / 2, x, y - f.h / 2, 0x7fe8ff);
         e.ring(f.tpFromX, f.tpFromY - f.h / 2, 14, 0x7fe8ff, 0.25);
         e.ring(x, y - f.h / 2, 18, 0xffffff, 0.3);
@@ -656,11 +664,23 @@ export class MatchScene extends Phaser.Scene {
         e.flash(x, y, 4, 0xffffff);
         this.shake = Math.max(this.shake, 6);
         break;
-      case 'cinematicHit':
+      case 'cinematicHit': {
+        const atk = this.world.cinematic?.attacker;
+        if (atk?.data.id === 'vex') {
+          // blade storm: crossing slashes through the victim
+          const a = Math.random() * Math.PI;
+          e.trail(x - Math.cos(a) * 26, y - Math.sin(a) * 26, x + Math.cos(a) * 26, y + Math.sin(a) * 26, 0xffffff);
+          e.trail(x + Math.cos(a + 1.2) * 22, y + Math.sin(a + 1.2) * 22, x - Math.cos(a + 1.2) * 22, y - Math.sin(a + 1.2) * 22, 0xff4fa8);
+        } else if (atk?.data.id === 'brick') {
+          e.ring(x, y, 30 + extra * 2, 0xff8a30, 0.35);
+          e.burst(x, y, 12, 90, 0xffd46a, 0.4, 3);
+        }
+        // falls through to the generic impact below
         e.flash(x, y, 2 + extra * 0.1, 0xffffff);
         e.burst(x, y, 16, 120, 0xffe14a, 0.4, 3);
         this.shake = Math.max(this.shake, mag > 0 ? 12 : 5);
         break;
+      }
       case 'cinematicEnd':
         e.ring(x, y, 80, 0xffe14a, 0.6);
         break;
@@ -788,6 +808,8 @@ export class MatchScene extends Phaser.Scene {
         break;
       }
       case 'slam':
+        e.trail(x + dir * 10, y - 1, x + dir * 80, y - 1, 0xffb02e);
+        e.trail(x + dir * 20, y - 1, x + dir * 60, y + 1, 0xffffff);
         e.dust(x + dir * 18, y, 12, 0);
         e.ring(x + dir * 18, y - 2, 30, 0xffffff, 0.3);
         e.flash(x + dir * 18, y - 8, 2, 0xffffff);

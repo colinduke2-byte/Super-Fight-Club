@@ -28,25 +28,25 @@
     "jab1": {
       "name": "Wrench Whack 1", "kind": "jab", "anim": "jab", "startup": 5, "active": 2, "recovery": 10,
       "next": { "id": "jab2", "from": 5, "to": 14, "at": 12 },
-      "hitboxes": [{ "x": 20, "y": -11, "w": 26, "h": 14, "damage": 2.5, "angle": 361, "base": 8, "scaling": 0.15, "minHitstun": 16, "fx": "punch" }]
+      "cancels": [{"button": "special", "into": "sideB", "from": 6, "dir": "side"}, {"button": "special", "into": "neutralB", "from": 6, "dir": "neutral"}], "hitboxes": [{ "x": 20, "y": -11, "w": 26, "h": 14, "damage": 2.5, "angle": 361, "base": 8, "scaling": 0.15, "minHitstun": 16, "fx": "punch" }]
     },
     "jab2": {
       "name": "Wrench Whack 2", "kind": "jab", "anim": "jab", "startup": 5, "active": 2, "recovery": 10,
       "next": { "id": "jab3", "from": 5, "to": 14, "at": 12 },
-      "hitboxes": [{ "x": 20, "y": -11, "w": 26, "h": 14, "damage": 2.5, "angle": 361, "base": 8, "scaling": 0.15, "minHitstun": 16, "fx": "punch" }]
+      "cancels": [{"button": "special", "into": "sideB", "from": 6, "dir": "side"}, {"button": "special", "into": "neutralB", "from": 6, "dir": "neutral"}], "hitboxes": [{ "x": 20, "y": -11, "w": 26, "h": 14, "damage": 2.5, "angle": 361, "base": 8, "scaling": 0.15, "minHitstun": 16, "fx": "punch" }]
     },
     "jab3": {
       "name": "Wrench Smash", "kind": "jab", "anim": "jab", "startup": 8, "active": 3, "recovery": 20,
-      "hitboxes": [{ "x": 24, "y": -11, "w": 30, "h": 18, "damage": 5, "angle": 40, "base": 40, "scaling": 0.6, "hitlag": 1.2, "fx": "heavy" }]
+      "cancels": [{"button": "grab", "into": "grab", "from": 9}, {"button": "special", "into": "sideB", "from": 9, "dir": "side"}], "motion": [{"frame": 6, "vx": 1.2}], "hitboxes": [{ "x": 24, "y": -11, "w": 30, "h": 18, "damage": 5, "angle": 40, "base": 40, "scaling": 0.6, "hitlag": 1.2, "fx": "heavy" }]
     },
-    "ftilt": {"name": "Wrench Poke", "kind": "tilt", "anim": "jab", "startup": 7, "active": 3, "recovery": 15, "hitboxes": [{"x": 30, "y": -14, "w": 38, "h": 16, "damage": 6, "angle": 38, "base": 28, "scaling": 0.6, "fx": "punch"}]},
-    "utilt": {"name": "Spark Pop", "kind": "tilt", "anim": "smashU", "startup": 7, "active": 4, "recovery": 16, "hitboxes": [{"x": 4, "y": -34, "w": 30, "h": 30, "damage": 5, "angle": 85, "base": 26, "scaling": 0.5, "dir": "away", "fx": "punch", "status": {"type": "stun", "frames": 10}}]},
-    "dtilt": {"name": "Foot Drill", "kind": "tilt", "anim": "smashD", "startup": 6, "active": 6, "recovery": 14, "hitboxes": [{"x": 24, "y": -4, "w": 28, "h": 10, "damage": 3.5, "angle": 70, "base": 18, "scaling": 0.3, "fx": "punch", "minHitstun": 8}]},
-    "dashAttack": {"name": "Rocket Ram", "kind": "dashAttack", "anim": "jab", "startup": 7, "active": 8, "recovery": 22, "motion": [{"frame": 3, "vx": 4}], "hitboxes": [{"x": 20, "y": -14, "w": 30, "h": 26, "damage": 7, "angle": 45, "base": 36, "scaling": 0.7, "hitlag": 1.1, "fx": "heavy"}]},
+    "ftilt": {"name": "Wrench Poke", "kind": "tilt", "anim": "jab", "startup": 7, "active": 3, "recovery": 15, "cancels": [{"button": "special", "into": "sideB", "from": 6, "dir": "side"}, {"button": "grab", "into": "grab", "from": 6}, {"button": "jump", "into": "@jump", "from": 6}], "motion": [{"frame": 5, "vx": 1.4}], "hitboxes": [{"x": 30, "y": -14, "w": 38, "h": 16, "damage": 6, "angle": 38, "base": 28, "scaling": 0.6, "fx": "punch"}]},
+    "utilt": {"name": "Spark Pop", "kind": "tilt", "anim": "smashU", "startup": 7, "active": 4, "recovery": 16, "cancels": [{"button": "jump", "into": "@jump", "from": 6}], "hitboxes": [{"x": 4, "y": -34, "w": 30, "h": 30, "damage": 5, "angle": 85, "base": 26, "scaling": 0.5, "dir": "away", "fx": "punch", "status": {"type": "stun", "frames": 10}}]},
+    "dtilt": {"name": "Foot Drill", "kind": "tilt", "anim": "smashD", "startup": 6, "active": 6, "recovery": 14, "cancels": [{"button": "special", "into": "neutralB", "from": 6, "dir": "neutral"}, {"button": "attack", "into": "ftilt", "from": 6, "dir": "forward"}], "hitboxes": [{"x": 24, "y": -4, "w": 28, "h": 10, "damage": 3.5, "angle": 70, "base": 18, "scaling": 0.3, "fx": "punch", "minHitstun": 8}]},
+    "dashAttack": {"name": "Rocket Ram", "kind": "dashAttack", "anim": "jab", "startup": 7, "active": 8, "recovery": 22, "motion": [{"frame": 3, "vx": 4}], "cancels": [{"button": "smash", "into": "fsmash", "from": 9}, {"button": "grab", "into": "grab", "from": 9}], "hitboxes": [{"x": 20, "y": -14, "w": 30, "h": 26, "damage": 7, "angle": 45, "base": 36, "scaling": 0.7, "hitlag": 1.1, "fx": "heavy"}]},
     "fsmash": {
       "name": "Wrench Swing", "kind": "smash", "anim": "smashF", "startup": 20, "active": 4, "recovery": 34,
       "charge": { "frame": 7, "max": 60, "damageMult": 1.4, "kbMult": 1.2 },
-      "hitboxes": [
+      "motion": [{"frame": 14, "vx": 1.6}], "hitboxes": [
         { "x": 42, "y": -12, "w": 20, "h": 22, "damage": 15, "angle": 38, "base": 46, "scaling": 0.9, "hitlag": 1.3, "fx": "heavy", "status": { "type": "stun", "frames": 28 } },
         { "x": 24, "y": -12, "w": 32, "h": 24, "damage": 12, "angle": 40, "base": 40, "scaling": 0.8, "hitlag": 1.2, "fx": "heavy" }
       ]
@@ -67,7 +67,7 @@
     "nair": {
       "name": "Spinning Gear", "kind": "aerial", "anim": "aerialN", "startup": 5, "active": 16, "recovery": 12,
       "landingLag": 10, "autocancel": [[1, 4], [28, 32]],
-      "hitboxes": [
+      "cancels": [{"button": "attack", "into": "fair", "from": 6, "dir": "forward", "air": true}, {"button": "attack", "into": "bair", "from": 6, "dir": "back", "air": true}], "hitboxes": [
         { "x": 0, "y": -11, "w": 42, "h": 28, "damage": 3.5, "angle": 50, "base": 32, "scaling": 0.55, "window": [13, 16], "group": 1, "dir": "away", "fx": "punch" },
         { "x": 0, "y": -11, "w": 42, "h": 28, "damage": 1.4, "angle": 361, "base": 8, "scaling": 0.1, "window": [1, 12], "group": 0, "rehit": 5, "dir": "away", "minHitstun": 9, "hitlag": 0.6, "fx": "punch" }
       ]
@@ -76,7 +76,7 @@
       "name": "Drill Jab", "kind": "aerial", "anim": "aerialF", "startup": 9, "active": 12, "recovery": 14,
       "landingLag": 14, "autocancel": [[1, 5], [30, 34]],
       "motion": [{ "frame": 8, "vx": 1.0 }],
-      "hitboxes": [
+      "cancels": [{"button": "attack", "into": "bair", "from": 12, "dir": "back", "air": true}, {"button": "attack", "into": "dair", "from": 12, "dir": "down", "air": true}], "hitboxes": [
         { "x": 28, "y": -10, "w": 30, "h": 14, "damage": 3.5, "angle": 40, "base": 30, "scaling": 0.4, "window": [10, 12], "group": 1, "fx": "heavy" },
         { "x": 28, "y": -10, "w": 30, "h": 14, "damage": 1.2, "angle": 361, "base": 8, "scaling": 0.1, "window": [1, 9], "group": 0, "rehit": 3, "minHitstun": 8, "hitlag": 0.5, "fx": "punch" }
       ]

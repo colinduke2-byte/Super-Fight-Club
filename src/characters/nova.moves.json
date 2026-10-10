@@ -57,25 +57,25 @@
     "jab1": {
       "name": "Staff Poke 1", "kind": "jab", "anim": "jab", "startup": 6, "active": 2, "recovery": 12,
       "next": { "id": "jab2", "from": 6, "to": 16, "at": 15 },
-      "hitboxes": [{ "x": 26, "y": -15, "w": 30, "h": 8, "damage": 1.8, "angle": 361, "base": 8, "scaling": 0.1, "minHitstun": 20, "fx": "punch" }]
+      "cancels": [{"button": "special", "into": "neutralB", "from": 6, "dir": "neutral"}], "hitboxes": [{ "x": 26, "y": -15, "w": 30, "h": 8, "damage": 1.8, "angle": 361, "base": 8, "scaling": 0.1, "minHitstun": 20, "fx": "punch" }]
     },
     "jab2": {
       "name": "Staff Poke 2", "kind": "jab", "anim": "jab", "startup": 6, "active": 2, "recovery": 12,
       "next": { "id": "jab3", "from": 6, "to": 16, "at": 15 },
-      "hitboxes": [{ "x": 26, "y": -15, "w": 30, "h": 8, "damage": 1.8, "angle": 361, "base": 8, "scaling": 0.1, "minHitstun": 22, "fx": "punch" }]
+      "cancels": [{"button": "special", "into": "neutralB", "from": 6, "dir": "neutral"}], "hitboxes": [{ "x": 26, "y": -15, "w": 30, "h": 8, "damage": 1.8, "angle": 361, "base": 8, "scaling": 0.1, "minHitstun": 22, "fx": "punch" }]
     },
     "jab3": {
       "name": "Burst Poke", "kind": "jab", "anim": "jab", "startup": 8, "active": 3, "recovery": 22,
-      "hitboxes": [{ "x": 30, "y": -15, "w": 34, "h": 22, "damage": 3.5, "angle": 40, "base": 26, "scaling": 0.4, "hitlag": 1.1, "fx": "burst" }]
+      "cancels": [{"button": "special", "into": "sideB", "from": 9, "dir": "side"}, {"button": "special", "into": "neutralB", "from": 9, "dir": "neutral"}], "hitboxes": [{ "x": 30, "y": -15, "w": 34, "h": 22, "damage": 3.5, "angle": 40, "base": 26, "scaling": 0.4, "hitlag": 1.1, "fx": "burst" }]
     },
-    "ftilt": {"name": "Staff Thrust", "kind": "tilt", "anim": "jab", "startup": 8, "active": 3, "recovery": 16, "hitboxes": [{"x": 34, "y": -16, "w": 44, "h": 12, "damage": 6, "angle": 40, "base": 28, "scaling": 0.6, "fx": "punch"}]},
-    "utilt": {"name": "Staff Arc", "kind": "tilt", "anim": "smashU", "startup": 8, "active": 4, "recovery": 16, "hitboxes": [{"x": 8, "y": -38, "w": 40, "h": 34, "damage": 5, "angle": 85, "base": 26, "scaling": 0.5, "dir": "away", "fx": "punch"}]},
-    "dtilt": {"name": "Low Sweep", "kind": "tilt", "anim": "smashD", "startup": 7, "active": 3, "recovery": 14, "hitboxes": [{"x": 30, "y": -4, "w": 44, "h": 10, "damage": 5, "angle": 75, "base": 22, "scaling": 0.45, "fx": "punch"}]},
-    "dashAttack": {"name": "Aether Slide", "kind": "dashAttack", "anim": "jab", "startup": 7, "active": 8, "recovery": 22, "motion": [{"frame": 3, "vx": 3.6}], "hitboxes": [{"x": 20, "y": -14, "w": 34, "h": 24, "damage": 6, "angle": 50, "base": 30, "scaling": 0.6, "fx": "punch"}]},
+    "ftilt": {"name": "Staff Thrust", "kind": "tilt", "anim": "jab", "startup": 8, "active": 3, "recovery": 16, "cancels": [{"button": "special", "into": "neutralB", "from": 6, "dir": "neutral"}, {"button": "attack", "into": "utilt", "from": 6, "dir": "up"}, {"button": "jump", "into": "@jump", "from": 6}], "motion": [{"frame": 6, "vx": 1.0}], "hitboxes": [{"x": 34, "y": -16, "w": 44, "h": 12, "damage": 6, "angle": 40, "base": 28, "scaling": 0.6, "fx": "punch"}]},
+    "utilt": {"name": "Staff Arc", "kind": "tilt", "anim": "smashU", "startup": 8, "active": 4, "recovery": 16, "cancels": [{"button": "jump", "into": "@jump", "from": 6}, {"button": "special", "into": "neutralB", "from": 6, "dir": "neutral"}], "hitboxes": [{"x": 8, "y": -38, "w": 40, "h": 34, "damage": 5, "angle": 85, "base": 26, "scaling": 0.5, "dir": "away", "fx": "punch"}]},
+    "dtilt": {"name": "Low Sweep", "kind": "tilt", "anim": "smashD", "startup": 7, "active": 3, "recovery": 14, "cancels": [{"button": "special", "into": "sideB", "from": 5, "dir": "side"}, {"button": "attack", "into": "ftilt", "from": 5, "dir": "forward"}], "hitboxes": [{"x": 30, "y": -4, "w": 44, "h": 10, "damage": 5, "angle": 75, "base": 22, "scaling": 0.45, "fx": "punch"}]},
+    "dashAttack": {"name": "Aether Slide", "kind": "dashAttack", "anim": "jab", "startup": 7, "active": 8, "recovery": 22, "motion": [{"frame": 3, "vx": 3.6}], "cancels": [{"button": "special", "into": "neutralB", "from": 9, "dir": "neutral"}, {"button": "smash", "into": "fsmash", "from": 9}], "hitboxes": [{"x": 20, "y": -14, "w": 34, "h": 24, "damage": 6, "angle": 50, "base": 30, "scaling": 0.6, "fx": "punch"}]},
     "fsmash": {
       "name": "Staff Burst", "kind": "smash", "anim": "smashF", "startup": 16, "active": 3, "recovery": 30,
       "charge": { "frame": 6, "max": 60, "damageMult": 1.4, "kbMult": 1.2 },
-      "hitboxes": [{ "x": 38, "y": -16, "w": 46, "h": 26, "damage": 14, "angle": 38, "base": 44, "scaling": 0.9, "hitlag": 1.2, "fx": "burst" }]
+      "motion": [{"frame": 10, "vx": 1.4}], "hitboxes": [{ "x": 38, "y": -16, "w": 46, "h": 26, "damage": 14, "angle": 38, "base": 44, "scaling": 0.9, "hitlag": 1.2, "fx": "burst" }]
     },
     "usmash": {
       "name": "Skyward Spell", "kind": "smash", "anim": "smashU", "startup": 13, "active": 4, "recovery": 28,
@@ -93,7 +93,7 @@
     "nair": {
       "name": "Orb Spin", "kind": "aerial", "anim": "aerialN", "startup": 8, "active": 20, "recovery": 12,
       "landingLag": 12, "autocancel": [[1, 5], [36, 40]],
-      "hitboxes": [
+      "cancels": [{"button": "special", "into": "neutralB", "from": 9, "dir": "neutral", "air": true}, {"button": "attack", "into": "fair", "from": 9, "dir": "forward", "air": true}], "hitboxes": [
         { "x": 0, "y": -14, "w": 48, "h": 34, "damage": 3, "angle": 55, "base": 34, "scaling": 0.6, "window": [17, 20], "group": 1, "dir": "away", "fx": "burst" },
         { "x": 0, "y": -14, "w": 48, "h": 34, "damage": 1.5, "angle": 361, "base": 10, "scaling": 0.1, "window": [1, 16], "group": 0, "rehit": 6, "dir": "away", "minHitstun": 10, "hitlag": 0.6, "fx": "burst" }
       ]
@@ -101,7 +101,7 @@
     "fair": {
       "name": "Staff Swing", "kind": "aerial", "anim": "aerialF", "startup": 11, "active": 4, "recovery": 20,
       "landingLag": 16, "autocancel": [[1, 6], [32, 35]],
-      "hitboxes": [
+      "cancels": [{"button": "special", "into": "neutralB", "from": 12, "dir": "neutral", "air": true}], "hitboxes": [
         { "x": 38, "y": -16, "w": 30, "h": 26, "damage": 11, "angle": 38, "base": 40, "scaling": 0.85, "hitlag": 1.2, "fx": "punch" },
         { "x": 20, "y": -16, "w": 26, "h": 22, "damage": 6, "angle": 45, "base": 28, "scaling": 0.55, "fx": "punch" }
       ]

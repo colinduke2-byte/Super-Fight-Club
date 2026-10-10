@@ -80,14 +80,19 @@ Dev shortcut: `?stage=<id>&players=<2-4>&cpu=<1-3>` starts a versus match withou
 
 ## Match / training controls
 
-| Action | Keyboard P1 (default) | Gamepad |
-|---|---|---|
-| Move / crouch | W A S D | Left stick / D-pad |
-| Jump | I (or W with tap-jump) | Xbox/PS: A/Cross or Y/Triangle · Nintendo: X or Y |
-| Attack / Special | J / K | Xbox/PS: X / B · Nintendo: A / B |
-| Shield (also **tech**) | L | Bumper / trigger |
-| Grab / Smash / Ultimate / Pause | U / O / Q / Esc | Bumper / – / stick-click / Start |
-| Drop through thin platform | Down + Jump | Down + Jump |
+| Action | Keyboard P1 (default) | Xbox / PlayStation pad (Smash-style) | Nintendo pad |
+|---|---|---|---|
+| Move / crouch | W A S D | Left stick / D-pad | same |
+| Attack | J | A (Cross) | A |
+| Special | K | B (Circle) | B |
+| Jump | I (or W with tap-jump) | X or Y (Square / Triangle) | X or Y |
+| Shield (also **tech**, air dodge) | L | LT or RT (L2 / R2) | ZL / ZR |
+| Grab | U | LB or RB (L1 / R1) | L / R |
+| Smash (or flick the stick + Attack) | O | R3 (right-stick click) | R3 |
+| Ultimate (taunt when empty) | Q | L3 (left-stick click) | L3 |
+| Pause | Esc | Menu (Start) | + |
+
+Everything is rebindable in Settings > Controls (button names there use the Xbox labels A B X Y LB RB LT RT).
 
 Player 2 keyboard scheme (used in Versus): arrows + numpad (`1` attack, `2` special, `3` shield, `5`
 jump, `4` grab, `6` smash), with laptop-friendly alternates `, . /` and Right Shift. Keys are matched by
@@ -158,6 +163,18 @@ Key design points
 - **Items:** Versus Setup > Items (off / low / high): Heart (-25%), Energy Cell (+50 ultimate meter) and Overdrive (10 s of +30% damage) drop onto the stage; the CPU goes for them. Drops use a seeded generator, so they are deterministic.
 - **Rumble:** gamepad vibration on hits, pickups and KOs (Chromium / Edge; Settings > Controller rumble).
 Dev shortcut: add `&teams&items=2` to a 4-player `?stage=...&players=4` URL.
+
+## Combos, flow and animation
+
+- **Hit-confirm cancels** (`MoveDef.cancels` in each moves file): after a move connects, a buffered press can cancel straight into the
+  next move, or into a **jump** (`@jump`) so you can follow up in the air. Each fighter has its own combo web (Vex: jab strings into
+  tilts, Pirate's Dash and jump-cancelled juggles; Brick: jab/tilt into smashes and grabs; Nova: melee into elemental bolts and runes;
+  Gizmo: melee into Rocket Fist, turrets and grabs). The CPU uses them too.
+- **Momentum in attacks:** tilts, jabs and forward smashes step forward (`motion` in the move data), dash attacks slide.
+- **Animation:** every attack uses six poses (wind-up, anticipation, fast in-between, strike, follow-through, recovery) driven by the
+  move's real frame data, with tapered slash arcs along each live hitbox in the fighter's colour (Nova's follow her element), afterimages
+  on dashes, blinks and big launches, and per-character flourishes: Vex blade storms and speed streaks, Brick ground cracks, embers and
+  dust, Nova's rotating rune circle while casting, Gizmo's welding sparks and Mech-mode gears and steam.
 
 ## Combat and frame data
 

@@ -83,14 +83,14 @@ function poseFor(anim: string, f: number, frames: number): Pose {
       p.lying = true;
       break;
     default:
-      attackPose(anim, f, p);
+      attackPose(anim, f, p, frames);
       break;
   }
   return p;
 }
 
 /** Attack/defence key poses. Frame 0 = wind-up, 1 = active, 2 = recovery (see Fighter.attackPhase). */
-function attackPose(anim: string, f: number, p: Pose): void {
+function attackPose(anim: string, f: number, p: Pose, frames = 3): void {
   const set = (lean: number, crouch: number, fh: V2, bh: V2, ff: V2, bf: V2): void => {
     p.lean = lean;
     p.crouch = crouch;
@@ -204,6 +204,17 @@ function attackPose(anim: string, f: number, p: Pose): void {
   };
   const row = T[anim];
   if (!row) return;
+  if (frames >= 6 && row.length === 3) {
+    // six frames from three key poses: wind-up, an exaggerated anticipation (pulls back past the wind-up), the fast
+    // in-between, the strike, follow-through and recovery. Frame 3 is the active pose.
+    const mix = (a: number, b: number, t: number): number => Math.round(a + (b - a) * t);
+    const mixV = (a: V2, b: V2, t: number): V2 => [mix(a[0], b[0], t), mix(a[1], b[1], t)];
+    const lerp = (a: (typeof row)[number], b: (typeof row)[number], t: number): (typeof row)[number] => [mix(a[0], b[0], t), mix(a[1], b[1], t), mixV(a[2], b[2], t), mixV(a[3], b[3], t), mixV(a[4], b[4], t), mixV(a[5], b[5], t)];
+    const [A, B, C] = row;
+    const e = [A, lerp(A, B, -0.28), lerp(A, B, 0.62), B, lerp(B, C, 0.5), C][Math.min(f, 5)];
+    set(e[0], e[1], e[2], e[3], e[4], e[5]);
+    return;
+  }
   const e = row[Math.min(f, row.length - 1)];
   set(e[0], e[1], e[2], e[3], e[4], e[5]);
 }

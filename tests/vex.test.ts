@@ -210,7 +210,7 @@ describe('Snare Mine', () => {
 
   it('enemies can destroy it with an attack', () => {
     const r = rig(60);
-    const d = r.world.spawnDeployable(0, 'mine', r.b.x - 24, 0)!;
+    const d = r.world.spawnDeployable(0, 'mine', r.b.x - 40, 0)!;
     r.run(25);
     r.b.facing = -1;
     r.b.startMove('jab1', null, r.world);

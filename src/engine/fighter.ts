@@ -379,8 +379,20 @@ export class Fighter implements Body {
   get attackPhase(): number {
     const m = this.move;
     if (!m) return 0;
-    if (this.moveFrame <= m.startup) return 0;
-    return this.moveFrame <= m.startup + m.active ? 1 : 2;
+    const n = this.data.sprite.animations[m.anim]?.frames ?? 3;
+    if (n < 6) {
+      if (this.moveFrame <= m.startup) return 0;
+      return this.moveFrame <= m.startup + m.active ? 1 : 2;
+    }
+    // six-pose attack animations: 0 wind-up, 1 anticipation, 2 fast in-between, 3 strike, 4 follow-through, 5 recovery
+    if (this.moveFrame <= m.startup) {
+      if (m.startup <= 3) return 2;
+      const t = this.moveFrame / m.startup;
+      return t < 0.35 ? 0 : t < 0.75 ? 1 : 2;
+    }
+    if (this.moveFrame <= m.startup + m.active) return 3;
+    const r = (this.moveFrame - m.startup - m.active) / Math.max(1, m.recovery);
+    return r < 0.3 ? 4 : 5;
   }
 
   get isAirborne(): boolean {
@@ -987,6 +999,65 @@ export class Fighter implements Body {
     return true;
   }
 
+  /** Hit-confirm cancel routes (see MoveCancel). Returns true when a cancel started a new move / jump. */
+  private tryCancel(m: MoveDef, inp: FighterInput, world: World): boolean {
+    const cs = m.cancels!;
+    for (let i = 0; i < cs.length; i++) {
+      const c = cs[i];
+      if (this.moveFrame < c.from || (c.to !== undefined && this.moveFrame > c.to)) continue;
+      if (c.onHit !== false && !this.moveHit) continue;
+      if (c.air !== undefined && c.air !== !this.grounded) continue;
+      const mask = c.button === 'attack' ? Button.Attack : c.button === 'special' ? Button.Special : c.button === 'smash' ? Button.Smash : c.button === 'grab' ? Button.Grab : Button.Jump;
+      if (!this.buffer.has(mask)) continue;
+      const fx = inp.stickX * this.facing;
+      const ok =
+        c.dir === undefined || c.dir === 'any' ? true
+        : c.dir === 'neutral' ? Math.abs(inp.stickX) < 0.5 && Math.abs(inp.stickY) < 0.5
+        : c.dir === 'forward' ? fx > 0.5
+        : c.dir === 'back' ? fx < -0.5
+        : c.dir === 'side' ? Math.abs(inp.stickX) > 0.5
+        : c.dir === 'up' ? inp.stickY < -0.5
+        : inp.stickY > 0.5;
+      if (!ok) continue;
+      if (c.into === '@jump') {
+        this.buffer.consume(mask);
+        if (this.jumpCancel(inp, world)) return true;
+        continue;
+      }
+      if (c.dir === 'forward' && Math.abs(inp.stickX) > 0.5) this.facing = inp.stickX > 0 ? 1 : -1;
+      this.buffer.consume(mask);
+      if (c.button === 'special' || c.button === 'smash') this.chargeButton = c.button === 'special' ? Button.Special : Button.Smash;
+      let into = c.into;
+      if (c.button === 'special' && this.data.behavior?.chooseMove) {
+        const chosen = this.data.behavior.chooseMove(this, into, world); // e.g. Nova's element variant
+        if (chosen === null) continue;
+        into = chosen;
+      }
+      if (this.startMove(into, inp, world)) return true;
+    }
+    return false;
+  }
+
+  private jumpCancel(inp: FighterInput, world: World): boolean {
+    if (!this.grounded && this.jumpsLeft <= 0) return false;
+    this.endMoveState();
+    if (this.grounded) {
+      this.setState('jumpsquat');
+      return true;
+    }
+    if (this.jumpsLeft > 0) {
+      const s = this.stats;
+      this.jumpsLeft--;
+      this.vy = -Math.sqrt(2 * s.gravity * s.doubleJumpHeight);
+      this.fastFalling = false;
+      this.vx = Math.abs(inp.stickX) > 0.3 ? inp.stickX * s.airSpeed : this.vx * 0.5;
+      this.setState('air');
+      world.emit('doubleJump', this, this.x, this.y - this.h / 2, 0, 0);
+      return true;
+    }
+    return false;
+  }
+
   private attackLogic(inp: FighterInput, world: World): void {
     const m = this.move;
     if (!m) {
@@ -998,6 +1069,8 @@ export class Fighter implements Body {
     for (let i = 0; i < this.rehit.length; i++) {
       if (this.rehit[i] > 0 && --this.rehit[i] === 0) this.hitMask[(i / MAX_GROUPS) | 0] &= ~(1 << (i % MAX_GROUPS));
     }
+
+    if (m.cancels && this.tryCancel(m, inp, world)) return;
 
     // smash charge: hold on the charge frame while the button is down
     if (m.charge && this.moveFrame === m.charge.frame && this.chargeFrames < m.charge.max && (inp.held & this.chargeButton) !== 0) {

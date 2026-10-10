@@ -11,36 +11,36 @@
     "jab1": {
       "name": "Rapid Slash 1", "kind": "jab", "anim": "jab", "startup": 3, "active": 2, "recovery": 7,
       "next": { "id": "jab2", "from": 4, "to": 11, "at": 8 },
-      "hitboxes": [{ "x": 18, "y": -14, "w": 24, "h": 12, "damage": 1.7, "angle": 361, "base": 6, "scaling": 0.1, "minHitstun": 14, "hitlag": 0.7, "fx": "slash" }]
+      "cancels": [{"button": "attack", "into": "ftilt", "from": 3, "dir": "forward"}, {"button": "special", "into": "sideB", "from": 3, "dir": "side"}, {"button": "jump", "into": "@jump", "from": 3}], "motion": [{"frame": 2, "vx": 0.8}], "hitboxes": [{ "x": 18, "y": -14, "w": 24, "h": 12, "damage": 1.7, "angle": 361, "base": 6, "scaling": 0.1, "minHitstun": 14, "hitlag": 0.7, "fx": "slash" }]
     },
     "jab2": {
       "name": "Rapid Slash 2", "kind": "jab", "anim": "jab", "startup": 3, "active": 2, "recovery": 7,
       "next": { "id": "jab3", "from": 4, "to": 11, "at": 8 },
-      "hitboxes": [{ "x": 18, "y": -14, "w": 24, "h": 12, "damage": 1.7, "angle": 361, "base": 6, "scaling": 0.1, "minHitstun": 14, "hitlag": 0.7, "fx": "slash" }]
+      "cancels": [{"button": "attack", "into": "ftilt", "from": 3, "dir": "forward"}, {"button": "special", "into": "sideB", "from": 3, "dir": "side"}, {"button": "jump", "into": "@jump", "from": 3}], "motion": [{"frame": 2, "vx": 0.8}], "hitboxes": [{ "x": 18, "y": -14, "w": 24, "h": 12, "damage": 1.7, "angle": 361, "base": 6, "scaling": 0.1, "minHitstun": 14, "hitlag": 0.7, "fx": "slash" }]
     },
     "jab3": {
       "name": "Rapid Slash 3", "kind": "jab", "anim": "jab", "startup": 3, "active": 2, "recovery": 7,
       "next": { "id": "jab4", "from": 4, "to": 11, "at": 8 },
-      "hitboxes": [{ "x": 18, "y": -14, "w": 24, "h": 12, "damage": 1.7, "angle": 361, "base": 6, "scaling": 0.1, "minHitstun": 14, "hitlag": 0.7, "fx": "slash" }]
+      "cancels": [{"button": "attack", "into": "utilt", "from": 3, "dir": "up"}, {"button": "jump", "into": "@jump", "from": 3}], "motion": [{"frame": 2, "vx": 0.8}], "hitboxes": [{ "x": 18, "y": -14, "w": 24, "h": 12, "damage": 1.7, "angle": 361, "base": 6, "scaling": 0.1, "minHitstun": 14, "hitlag": 0.7, "fx": "slash" }]
     },
     "jab4": {
       "name": "Rapid Slash 4", "kind": "jab", "anim": "jab", "startup": 3, "active": 2, "recovery": 7,
       "next": { "id": "jab5", "from": 4, "to": 11, "at": 8 },
-      "hitboxes": [{ "x": 18, "y": -14, "w": 24, "h": 12, "damage": 1.7, "angle": 361, "base": 6, "scaling": 0.1, "minHitstun": 14, "hitlag": 0.7, "fx": "slash" }]
+      "cancels": [{"button": "jump", "into": "@jump", "from": 3}, {"button": "special", "into": "neutralB", "from": 3, "dir": "neutral"}], "motion": [{"frame": 2, "vx": 0.8}], "hitboxes": [{ "x": 18, "y": -14, "w": 24, "h": 12, "damage": 1.7, "angle": 361, "base": 6, "scaling": 0.1, "minHitstun": 14, "hitlag": 0.7, "fx": "slash" }]
     },
     "jab5": {
       "name": "Cross Cut", "kind": "jab", "anim": "jab", "startup": 4, "active": 3, "recovery": 16,
-      "hitboxes": [{ "x": 20, "y": -14, "w": 30, "h": 16, "damage": 3, "angle": 55, "base": 32, "scaling": 0.35, "hitlag": 1.1, "fx": "slash" }]
+      "motion": [{"frame": 3, "vx": 1.8}], "hitboxes": [{ "x": 20, "y": -14, "w": 30, "h": 16, "damage": 3, "angle": 55, "base": 32, "scaling": 0.35, "hitlag": 1.1, "fx": "slash" }]
     },
-    "ftilt": {"name": "Quick Slash", "kind": "tilt", "anim": "jab", "startup": 5, "active": 3, "recovery": 12, "hitboxes": [{"x": 24, "y": -14, "w": 34, "h": 18, "damage": 5, "angle": 50, "base": 24, "scaling": 0.5, "fx": "slash"}]},
-    "utilt": {"name": "Rising Slash", "kind": "tilt", "anim": "smashU", "startup": 5, "active": 4, "recovery": 13, "hitboxes": [{"x": 6, "y": -34, "w": 34, "h": 30, "damage": 4.5, "angle": 85, "base": 26, "scaling": 0.5, "dir": "away", "fx": "slash"}]},
-    "dtilt": {"name": "Ankle Cut", "kind": "tilt", "anim": "smashD", "startup": 4, "active": 3, "recovery": 12, "hitboxes": [{"x": 26, "y": -4, "w": 36, "h": 10, "damage": 4, "angle": 75, "base": 20, "scaling": 0.4, "fx": "slash"}]},
-    "dashAttack": {"name": "Slide Cut", "kind": "dashAttack", "anim": "jab", "startup": 4, "active": 9, "recovery": 18, "motion": [{"frame": 2, "vx": 4.5}], "hitboxes": [{"x": 22, "y": -10, "w": 34, "h": 18, "damage": 6, "angle": 55, "base": 30, "scaling": 0.6, "fx": "slash"}]},
+    "ftilt": {"name": "Quick Slash", "kind": "tilt", "anim": "jab", "startup": 5, "active": 3, "recovery": 12, "cancels": [{"button": "special", "into": "sideB", "from": 5, "dir": "side"}, {"button": "smash", "into": "fsmash", "from": 5}, {"button": "jump", "into": "@jump", "from": 5}], "motion": [{"frame": 3, "vx": 2.2}], "hitboxes": [{"x": 24, "y": -14, "w": 34, "h": 18, "damage": 5, "angle": 50, "base": 24, "scaling": 0.5, "fx": "slash"}]},
+    "utilt": {"name": "Rising Slash", "kind": "tilt", "anim": "smashU", "startup": 5, "active": 4, "recovery": 13, "cancels": [{"button": "jump", "into": "@jump", "from": 4}, {"button": "attack", "into": "utilt", "from": 9, "dir": "up"}], "hitboxes": [{"x": 6, "y": -34, "w": 34, "h": 30, "damage": 4.5, "angle": 85, "base": 26, "scaling": 0.5, "dir": "away", "fx": "slash"}]},
+    "dtilt": {"name": "Ankle Cut", "kind": "tilt", "anim": "smashD", "startup": 4, "active": 3, "recovery": 12, "cancels": [{"button": "attack", "into": "jab1", "from": 4, "dir": "neutral"}, {"button": "attack", "into": "ftilt", "from": 4, "dir": "forward"}, {"button": "jump", "into": "@jump", "from": 4}], "hitboxes": [{"x": 26, "y": -4, "w": 36, "h": 10, "damage": 4, "angle": 75, "base": 20, "scaling": 0.4, "fx": "slash"}]},
+    "dashAttack": {"name": "Slide Cut", "kind": "dashAttack", "anim": "jab", "startup": 4, "active": 9, "recovery": 18, "motion": [{"frame": 2, "vx": 4.5}], "cancels": [{"button": "jump", "into": "@jump", "from": 5}, {"button": "attack", "into": "utilt", "from": 5, "dir": "up"}, {"button": "attack", "into": "ftilt", "from": 5, "dir": "forward"}, {"button": "special", "into": "neutralB", "from": 5, "dir": "neutral"}], "hitboxes": [{"x": 22, "y": -10, "w": 34, "h": 18, "damage": 6, "angle": 55, "base": 30, "scaling": 0.6, "fx": "slash"}]},
     "fsmash": {
       "name": "Double Cross", "kind": "smash", "anim": "smashF", "startup": 13, "active": 11, "recovery": 26,
       "charge": { "frame": 6, "max": 60, "damageMult": 1.35, "kbMult": 1.15 },
       "motion": [{ "frame": 14, "vx": 1.2 }],
-      "hitboxes": [
+      "motion": [{"frame": 8, "vx": 3.4}], "hitboxes": [
         { "x": 20, "y": -14, "w": 34, "h": 16, "damage": 6, "angle": 30, "base": 12, "scaling": 0.2, "window": [1, 2], "group": 0, "minHitstun": 22, "fx": "slash" },
         { "x": 24, "y": -20, "w": 38, "h": 28, "damage": 11, "angle": 82, "base": 45, "scaling": 0.9, "window": [9, 11], "group": 1, "hitlag": 1.2, "fx": "slash" }
       ]
@@ -61,7 +61,7 @@
     "nair": {
       "name": "Twin Spin", "kind": "aerial", "anim": "aerialN", "startup": 4, "active": 14, "recovery": 10,
       "landingLag": 8, "autocancel": [[1, 3], [24, 28]],
-      "hitboxes": [
+      "cancels": [{"button": "attack", "into": "fair", "from": 5, "dir": "forward", "air": true}, {"button": "attack", "into": "bair", "from": 5, "dir": "back", "air": true}, {"button": "attack", "into": "uair", "from": 5, "dir": "up", "air": true}, {"button": "special", "into": "neutralB", "from": 5, "dir": "neutral", "air": true}], "hitboxes": [
         { "x": 0, "y": -13, "w": 46, "h": 30, "damage": 4.5, "angle": 50, "base": 30, "scaling": 0.5, "window": [11, 14], "group": 1, "dir": "away", "fx": "slash" },
         { "x": 0, "y": -13, "w": 46, "h": 30, "damage": 1.6, "angle": 361, "base": 10, "scaling": 0.1, "window": [1, 10], "group": 0, "rehit": 4, "dir": "away", "minHitstun": 8, "hitlag": 0.6, "fx": "slash" }
       ]
@@ -69,7 +69,7 @@
     "fair": {
       "name": "Diagonal Slash", "kind": "aerial", "anim": "aerialF", "startup": 8, "active": 7, "recovery": 16,
       "landingLag": 14, "autocancel": [[1, 4], [28, 31]],
-      "hitboxes": [
+      "cancels": [{"button": "special", "into": "neutralB", "from": 8, "dir": "neutral", "air": true}, {"button": "attack", "into": "nair", "from": 8, "dir": "neutral", "air": true}], "hitboxes": [
         { "x": 22, "y": -16, "w": 30, "h": 22, "damage": 6, "angle": 40, "base": 32, "scaling": 0.6, "window": [1, 3], "fx": "slash" },
         { "x": 30, "y": -4, "w": 26, "h": 18, "damage": 8, "angle": 285, "base": 28, "scaling": 0.5, "window": [4, 7], "hitlag": 1.2, "fx": "meteor" }
       ]
@@ -82,7 +82,7 @@
     "uair": {
       "name": "Juggle Slash", "kind": "aerial", "anim": "aerialU", "startup": 6, "active": 4, "recovery": 13,
       "landingLag": 10, "autocancel": [[1, 3], [18, 22]],
-      "hitboxes": [{ "x": 4, "y": -38, "w": 34, "h": 28, "damage": 5, "angle": 88, "base": 24, "scaling": 0.35, "fx": "slash" }]
+      "cancels": [{"button": "attack", "into": "uair", "from": 6, "dir": "up", "air": true}, {"button": "attack", "into": "fair", "from": 6, "dir": "forward", "air": true}], "hitboxes": [{ "x": 4, "y": -38, "w": 34, "h": 28, "damage": 5, "angle": 88, "base": 24, "scaling": 0.35, "fx": "slash" }]
     },
     "dair": {
       "name": "Dive Kick", "kind": "aerial", "anim": "aerialD", "startup": 9, "active": 12, "recovery": 12,
@@ -113,7 +113,7 @@
     "neutralB": {
       "name": "Blink Strike", "kind": "special", "anim": "dashS", "startup": 5, "active": 4, "recovery": 12,
       "events": [{ "frame": 5, "action": "teleport", "dist": 62, "dir": "stick8", "leaveMarker": "marker" }, { "frame": 5, "action": "fx", "name": "blink" }],
-      "hitboxes": [{ "x": 18, "y": -14, "w": 30, "h": 22, "damage": 3, "angle": 361, "base": 20, "scaling": 0.2, "minHitstun": 10, "fx": "slash" }]
+      "cancels": [{"button": "attack", "into": "nair", "from": 5, "dir": "neutral", "air": true}, {"button": "attack", "into": "jab1", "from": 6, "dir": "neutral", "air": false}, {"button": "attack", "into": "fair", "from": 5, "dir": "forward", "air": true}], "hitboxes": [{ "x": 18, "y": -14, "w": 30, "h": 22, "damage": 3, "angle": 361, "base": 20, "scaling": 0.2, "minHitstun": 10, "fx": "slash" }]
     },
     "recall": {
       "name": "Blink Recall", "kind": "special", "anim": "castF", "hidden": true, "startup": 3, "active": 1, "recovery": 10,
