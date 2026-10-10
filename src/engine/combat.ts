@@ -230,6 +230,7 @@ export function deliverHit(world: World, d: HitDelivery): void {
     { damage: d.damage, base: hb.base, scaling: hb.scaling, angle: hb.angle, direction, moveWeight: hb.weight, hitlag: hl, minHitstun: hb.minHitstun, kbMult: d.kbMult, attackerId: d.ownerId },
     world,
   );
+  def.lastHitFx = hb.fx ?? '';
   if (hb.status) def.applyStatus(hb.status, world);
   if (owner) owner.hitlag = hl;
   if (atk) {

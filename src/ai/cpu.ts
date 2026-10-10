@@ -513,7 +513,12 @@ export class CpuController implements Controller {
     if (self.stateFrame <= 1) this.diOn = this.rnd() < this.params.di;
     if (this.diOn) {
       const center = this.mainPlatform(world);
-      this.sx = Math.sign(center.x + center.w / 2 - self.x) * 0.9;
+      // bend the launch toward the stage centre (applied once when the hitlag ends, see Fighter.applyDirectionalInfluence)
+      const dx = center.x + center.w / 2 - self.x;
+      const dy = center.y - 40 - self.y;
+      const len = Math.hypot(dx, dy) || 1;
+      this.sx = (dx / len) * 0.95;
+      this.sy = (dy / len) * 0.95;
     }
     // tech: press shield just before touching a surface
     if (!this.techTried && !self.grounded && self.vy > 1 && self.techLock === 0 && this.rnd() < this.params.tech) {

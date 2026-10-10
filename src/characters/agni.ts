@@ -48,7 +48,7 @@ export const agni: CharacterData = {
   name: 'Agni',
   tagline: 'Fire-god brawler. Build the flame, spend it big.',
   stats: {
-    weight: 96,
+    weight: 92,
     runSpeed: 1.95,
     airSpeed: 1.7,
     groundAccel: 0.25,

@@ -78,6 +78,60 @@ function poseFor(anim: string, f: number, frames: number): Pose {
       p.frontHand = [10, -8];
       p.backHand = [-10, -2];
       break;
+    case 'hurtL': // light flinch: a small recoil, still on both feet
+      p.lean = -3;
+      p.crouch = 1;
+      p.frontFoot = [7, 0];
+      p.backFoot = [-6, 0];
+      p.frontHand = [6, -4];
+      p.backHand = [-6, -2];
+      break;
+    case 'hurtU': // launched upward: back arched, arms flung up, legs trailing
+      p.lean = -7;
+      p.frontFoot = [6, 6];
+      p.backFoot = [-6, 8];
+      p.frontHand = [8, -18];
+      p.backHand = [-8, -18];
+      break;
+    case 'hurtD': // spiked / driven downward: curled forward, arms down
+      p.lean = 6;
+      p.crouch = 3;
+      p.frontFoot = [4, 5];
+      p.backFoot = [-4, 7];
+      p.frontHand = [4, 7];
+      p.backHand = [-2, 7];
+      break;
+    case 'dash': // two alternating strides, body low and leaning in
+      p.lean = 7;
+      p.crouch = 3;
+      p.frontFoot = f % 2 === 0 ? [13, 0] : [-3, 4];
+      p.backFoot = f % 2 === 0 ? [-9, 3] : [9, 0];
+      p.frontHand = [-4, -2];
+      p.backHand = [-8, 0];
+      break;
+    case 'skid': // braking: weight thrown back, front foot dug in
+      p.lean = -5;
+      p.crouch = 3;
+      p.frontFoot = [11, 0];
+      p.backFoot = [-5, 0];
+      p.frontHand = [8, -6];
+      p.backHand = [-6, -4];
+      break;
+    case 'roll': // tucked ball (the view spins the sprite)
+      p.lean = 4;
+      p.crouch = 10;
+      p.frontFoot = [6, 6];
+      p.backFoot = [-6, 6];
+      p.frontHand = [4, 0];
+      p.backHand = [-2, 0];
+      break;
+    case 'held': // dangling in a grab
+      p.lean = -3;
+      p.frontFoot = [4, 6];
+      p.backFoot = [-4, 8];
+      p.frontHand = [8, -22];
+      p.backHand = [-8, -22];
+      break;
     case 'down':
     case 'ko':
       p.lying = true;

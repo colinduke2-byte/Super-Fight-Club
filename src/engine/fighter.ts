@@ -51,6 +51,13 @@ const BOUNCE_MIN_SPEED = 3;
 const BOUNCE_FLOOR = 0.7;
 const BOUNCE_WALL = 0.75;
 const HITSTUN_GROUND_FRICTION = 0.35;
+/** Knockback multiplier when hit while crouching on the ground. */
+export const CROUCH_CANCEL = 0.8;
+/** Gravity multiplier while launched (floaty launches: upward hits can actually reach the top blast zone). */
+export const HITSTUN_RISE_GRAVITY = 0.2;
+export const HITSTUN_FALL_GRAVITY = 0.9;
+/** Max trajectory bend from directional influence (radians, ~17 degrees). */
+export const DI_MAX_ANGLE = 0.3;
 const LEDGE_MAX_HANG = 300;
 const LEDGE_ACTION_DELAY = 8;
 const LEDGE_BASE_INVULN = 60;
@@ -160,6 +167,12 @@ export class Fighter implements Body {
   techWindow = 0;
   techLock = 0;
   lastHitBy = -1;
+  /** Which hurt pose the view shows while in hitstun (set by the launch): light flinch / heavy / launched up / spiked down. */
+  hurtKind: 'hurtL' | 'hurt' | 'hurtU' | 'hurtD' = 'hurt';
+  /** Visual effect tag of the last clean hit taken (drives the hit-stop flash colour). */
+  lastHitFx = '';
+  /** Directional influence is applied once, on the first hitstun tick. */
+  private diDone = false;
 
   // Attacking
   move: MoveDef | null = null;
@@ -330,38 +343,43 @@ export class Fighter implements Body {
 
   /** Animation name for the view layer (attack states use `attackAnim` + move phase instead). */
   get anim(): string {
+    const pick = (name: string, fallback: string): string => (this.data.sprite.animations[name] ? name : fallback);
     switch (this.state) {
       case 'idle':
-        return 'idle';
+        // braking after a run / dash: skid with the feet planted
+        return Math.abs(this.vx) > 1.6 && this.grounded ? pick('skid', 'idle') : 'idle';
       case 'run':
         return 'run';
       case 'crouch':
       case 'jumpsquat':
       case 'landing':
-      case 'tech':
         return 'crouch';
+      case 'tech':
+        return pick('roll', 'crouch');
       case 'air':
         return this.vy < 0 ? 'jump' : 'fall';
       case 'ledge':
       case 'ledgeClimb':
         return 'ledge';
       case 'hitstun':
+        return pick(this.hurtKind, 'hurt');
       case 'grabbed':
-        return 'hurt';
+        return pick('held', 'hurt');
       case 'shieldbreak':
       case 'downed':
         return 'down';
       case 'shield':
       case 'shieldstun':
         return 'shield';
-      case 'spotdodge':
       case 'roll':
+        return pick('roll', 'dodge');
+      case 'spotdodge':
       case 'airdodge':
         return 'dodge';
       case 'holding':
         return 'grab';
       case 'dash':
-        return 'run';
+        return pick('dash', 'run');
       case 'tether':
         return 'jump';
       case 'frozen':
@@ -537,7 +555,10 @@ export class Fighter implements Body {
     this.damage += hit.damage;
     if (hit.attackerId !== undefined) this.lastHitBy = hit.attackerId;
     if (hit.attackerId !== undefined && hit.attackerId !== this.id) world.damageDealt[hit.attackerId] = (world.damageDealt[hit.attackerId] ?? 0) + hit.damage;
+    // crouch cancel: taking a hit while crouching on the ground absorbs part of the knockback
+    const crouchCancel = this.state === 'crouch' && this.grounded ? CROUCH_CANCEL : 1;
     const kb =
+      crouchCancel *
       computeKnockback({
         base: hit.base,
         scaling: hit.scaling,
@@ -550,6 +571,13 @@ export class Fighter implements Body {
     if (angle === 361) angle = this.grounded && kb < 32 ? 0 : 44; // "Sakurai angle"
     launchVelocity(kb, angle, hit.direction, tmpLaunch);
     this.launch(tmpLaunch.vx, tmpLaunch.vy, Math.max(hitstunFrames(kb), hit.minHitstun ?? 0));
+    // recoil: knocked sideways, the victim turns to face where the hit came from; near-vertical launches keep their facing
+    if (Math.abs(tmpLaunch.vx) > 0.6 && Math.abs(tmpLaunch.vx) > Math.abs(tmpLaunch.vy) * 0.35) this.facing = tmpLaunch.vx > 0 ? -1 : 1;
+    const speed = Math.hypot(tmpLaunch.vx, tmpLaunch.vy);
+    if (tmpLaunch.vy < -Math.abs(tmpLaunch.vx) * 1.3 && speed > 3) this.hurtKind = 'hurtU';
+    else if (tmpLaunch.vy > 1.5 && tmpLaunch.vy > Math.abs(tmpLaunch.vx) * 0.8) this.hurtKind = 'hurtD';
+    else if (speed < 3.4 && this.hitstun < 18) this.hurtKind = 'hurtL';
+    else this.hurtKind = 'hurt';
     this.hitlag = hit.hitlag ?? 0;
     this.gainMeterTaken(hit.damage, world);
     world.emit('hit', this, this.x, this.y - this.h / 2, kb, hit.damage);
@@ -568,6 +596,7 @@ export class Fighter implements Body {
     this.vy = vy;
     this.techWindow = 0;
     this.techLock = 0;
+    this.diDone = false;
     this.fastFalling = false;
     this.ledgeGrabs = 0;
     this.helpless = false;
@@ -1426,11 +1455,15 @@ export class Fighter implements Body {
       this.techLock = TECH_LOCKOUT;
     }
 
+    if (!this.diDone && this.hitlag === 0) {
+      this.diDone = true;
+      this.applyDirectionalInfluence(inp);
+    }
     this.hitstun--;
     if (this.grounded) {
       this.vx = approach(this.vx, 0, HITSTUN_GROUND_FRICTION);
     } else {
-      this.vy += s.gravity;
+      this.vy += s.gravity * (this.vy < 0 ? HITSTUN_RISE_GRAVITY : HITSTUN_FALL_GRAVITY);
       if (this.vy > s.fastFallSpeed) this.vy = s.fastFallSpeed;
       this.vx = approach(this.vx, 0, LAUNCH_DRAG);
     }
@@ -1443,6 +1476,24 @@ export class Fighter implements Body {
       else if (this.grounded) this.setState('idle');
       else this.setState('air');
     }
+  }
+
+  /**
+   * Directional influence: holding the stick across the launch direction bends the trajectory by up to ~17 degrees
+   * (survive by bending out of a blast zone, or fall short of a kill). Applied once, when the hitlag ends.
+   */
+  private applyDirectionalInfluence(inp: FighterInput): void {
+    const sp = Math.hypot(this.vx, this.vy);
+    const mag = Math.hypot(inp.stickX, inp.stickY);
+    if (sp < 2 || mag < 0.35) return;
+    const cross = (this.vx * inp.stickY - this.vy * inp.stickX) / (sp * Math.max(1, mag)); // -1..1, + = stick is clockwise of the launch
+    const a = cross * DI_MAX_ANGLE;
+    const c = Math.cos(a);
+    const sn = Math.sin(a);
+    const vx = this.vx * c - this.vy * sn;
+    const vy = this.vx * sn + this.vy * c;
+    this.vx = vx;
+    this.vy = vy;
   }
 
   private resolveImpacts(inp: FighterInput, world: World): void {

@@ -13,7 +13,7 @@ export const brick: CharacterData = {
   name: 'Brick',
   tagline: 'Heavy cyber-knight. Slow, armored, brutal.',
   stats: {
-    weight: 106,
+    weight: 120,
     runSpeed: 1.9,
     airSpeed: 1.3,
     groundAccel: 0.22,
@@ -43,6 +43,13 @@ export const brick: CharacterData = {
       hurt: { frames: 1, fps: 1, loop: false },
       down: { frames: 1, fps: 1, loop: false },
       ko: { frames: 1, fps: 1, loop: false },
+      dash: { frames: 2, fps: 14, loop: true },
+      skid: { frames: 1, fps: 1, loop: false },
+      roll: { frames: 1, fps: 1, loop: false },
+      held: { frames: 1, fps: 1, loop: false },
+      hurtL: { frames: 1, fps: 1, loop: false },
+      hurtU: { frames: 1, fps: 1, loop: false },
+      hurtD: { frames: 1, fps: 1, loop: false },
       // attack poses: frame 0 = wind-up, 1 = active, 2 = recovery (the view picks the frame from the move phase)
       jab: { frames: 6, fps: 1, loop: false },
       smashF: { frames: 6, fps: 1, loop: false },

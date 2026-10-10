@@ -6,6 +6,9 @@ import type { Fighter } from '../engine/fighter';
 /** Pixels the body is drawn left of the frame centre in the procedural sprite sheet (see proceduralFighter). */
 const BODY_SHIFT = 5;
 
+/** Hit-stop flash colour by the hit's fx tag. */
+const HIT_FLASH: Record<string, number> = { fire: 0xffa860, zap: 0xffff90, ice: 0xa8f0ff, blast: 0xffc080, meteor: 0xffd0d0, shock: 0xe0c0ff };
+
 /** Renders one Fighter: interpolates between sim ticks so 120/144 Hz displays animate smoothly. */
 export class FighterView {
   readonly sprite: Phaser.GameObjects.Sprite;
@@ -91,9 +94,13 @@ export class FighterView {
     // the sprite body is drawn BODY_SHIFT px left of the frame centre (weapon reach); re-centre it on the hurtbox
     s.setPosition(this.x + shake + f.facing * BODY_SHIFT * f.data.sprite.pixelScale * f.sizeMul, this.y + 1);
     s.setFlipX(f.facing < 0);
-    // launched victims tumble around their centre; everything else stands upright on its feet
+    // launched victims tumble around their centre, rolls spin the tucked sprite; everything else stands upright on its feet
     const tumbling = f.state === 'hitstun' && !f.grounded && Math.hypot(f.vx, f.vy) > 5;
-    if (tumbling) {
+    const rolling = f.state === 'roll' || (f.state === 'tech' && Math.abs(f.vx) > 1);
+    if (rolling) {
+      this.spin += Math.sign(f.vx || f.facing) * 0.45;
+      s.setOrigin(0.5, 0.5).setPosition(s.x, this.y - f.h * 0.35 * f.sizeMul).setRotation(this.spin);
+    } else if (tumbling) {
       if (f.hitlag === 0) this.spin += Math.sign(f.vx || f.facing) * Math.min(0.5, Math.hypot(f.vx, f.vy) * 0.03);
       s.setOrigin(0.5, 0.62).setPosition(s.x, this.y - f.h * 0.5 * f.sizeMul).setRotation(this.spin);
     } else {
@@ -139,7 +146,7 @@ export class FighterView {
     else if (tr && big > 1) s.setTint(((tick >> 3) & 1) === 0 ? tr.tint : 0xffffff);
     else if (f.data.hud && (f.res[f.data.hud.resource] ?? 0) >= f.data.hud.hotAt) s.setTint(((tick >> 3) & 1) === 0 ? 0xffd9c0 : 0xffffff);
     else if (f.chargeFrames > 0 && f.state === 'attack') s.setTint(((tick >> 1) & 1) === 0 ? 0xffe14a : 0xffffff);
-    else if (f.hitlag > 0 && f.state === 'hitstun' && (tick & 3) < 2) s.setTintFill(0xffffff); // impact flash during hit-stop
+    else if (f.hitlag > 0 && f.state === 'hitstun' && (tick & 3) < 2) s.setTintFill(HIT_FLASH[f.lastHitFx] ?? 0xffffff); // impact flash during hit-stop, coloured by the hit's element
     else if (this.baseTint !== undefined) s.setTint(this.baseTint);
     else s.clearTint();
 

@@ -342,6 +342,21 @@ Each special has a variant per level (`neutralB_0..3`, ...), picked when you pre
 | Flare Burst (down) | spends ALL flame: a ground eruption that grows with the level | | | |
 | Solar Beam (ultimate) | spends all flame: a screen-wide beam that gets taller and harder-hitting with the level | | | |
 
+## Knockback and hit reactions
+
+- **Knockback** = `(base + damage% x scaling) x moveWeight / targetWeight`; launch speed is `kb x 0.05` (cap 24 px/frame). Launched fighters
+  are floaty: gravity is x0.2 while rising and x0.9 while falling, and horizontal drag is 0.085, tuned so that on the classic stage a
+  forward smash kills mid-weights at about 70-115%, an up smash at about 130-210%, and a back air at about 95-140% (heavier fighters
+  survive longer; Brick is the toughest, Gizmo the lightest).
+- **Directional influence (DI):** hold the stick across the launch direction when the hit-stop ends and the trajectory bends by up to
+  ~17 degrees (applied once). The CPU DIs toward the stage centre.
+- **Crouch cancel:** getting hit while crouching on the ground absorbs 20% of the knockback.
+- **Recoil:** sideways hits turn the victim to face the attacker; near-vertical launches keep their facing.
+- **Hurt poses** are picked from the launch: light flinch (`hurtL`), heavy (`hurt`), launched upward (`hurtU`), spiked down (`hurtD`).
+  Fast launches tumble (rotate around the centre), rolls spin the sprite, and the hit-stop flash is coloured by the hit's element
+  (fire orange, lightning yellow, ice blue, blast, shock).
+- Other movement poses: `dash` (two-stride loop), `skid` (braking), `roll`, `held` (dangling in a grab).
+
 ## Add a character
 
 1. Create `src/characters/<id>.ts` exporting a `CharacterData` (copy `brick.ts`): stats, body size,

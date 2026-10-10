@@ -38,7 +38,7 @@ function blink(r: ReturnType<typeof rig>, dx: number, dy = 0): void {
 describe('Vex identity', () => {
   it('is light, very fast, floaty, with two double jumps and a dash with i-frames', () => {
     const s = vex.stats;
-    expect(s.weight).toBe(104);
+    expect(s.weight).toBe(100);
     expect(s.weight).toBeLessThan(brick.stats.weight); // still lighter than the heavy, even if the roster's weights were compressed for balance
     expect(s.runSpeed).toBeGreaterThanOrEqual(3);
     expect(s.runSpeed).toBeGreaterThan(brick.stats.runSpeed * 1.4);
