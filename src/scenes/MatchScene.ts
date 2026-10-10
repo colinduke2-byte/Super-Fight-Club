@@ -16,6 +16,7 @@ import { MergedDevice } from '../input/device';
 import { inputManager } from '../input/inputManager';
 import { keyboardHub } from '../input/keyboard';
 import { menuInput } from '../input/menuInput';
+import type { GamepadDevice } from '../input/gamepad';
 import { PlayerInput } from '../input/playerInput';
 import { saveSettings, settings } from '../settings';
 import { STAGES } from '../stages';
@@ -166,6 +167,8 @@ export class MatchScene extends Phaser.Scene {
       this.respawn(f.id);
     }
     const rules = session.rules;
+    if (rules.teams && this.fighters.length === 4 && !this.isTraining && session.mode === 'versus') this.fighters.forEach((f, i) => (f.team = i < 2 ? 0 : 1));
+    this.world.config.itemRate = this.isTraining || session.mode === 'arcade' ? 0 : rules.items;
     const cfg: MatchConfig = this.isTraining ? TRAINING : { mode: rules.mode, stocks: rules.stocks, timeLimitSec: rules.timeSec, respawnDelay: 70 };
     this.match = new Match(this.world, cfg);
     this.match.onRespawn = (f) => this.respawn(f.id, true);
@@ -220,7 +223,7 @@ export class MatchScene extends Phaser.Scene {
     this.fighters.forEach((f, i) => {
       const s = this.slots[i];
       const label = s.boss ? 'BOSS' : this.isTraining ? (i === 0 ? 'YOU' : 'DUMMY') : s.type === 'cpu' ? 'CPU' : `P${i + 1}`;
-      this.huds.push(new FighterHud(this, this.uiLayer, f.data, label, i));
+      this.huds.push(new FighterHud(this, this.uiLayer, f.data, f.team >= 0 ? (f.team === 0 ? 'BLUE' : 'RED') : label, f.team >= 0 ? f.team : i));
     });
     this.helpText = this.add.bitmapText(0, 0, PIXEL_FONT, up((this.isTraining ? HELP_TRAINING : HELP_MATCH).join('\n'))).setOrigin(0, 1).setTint(0xb8b0e8);
     this.trainText = this.add.bitmapText(0, 0, PIXEL_FONT, '').setOrigin(0, 0).setTint(0xffe9a8).setLeftAlign();
@@ -328,6 +331,8 @@ export class MatchScene extends Phaser.Scene {
     const device = new MergedDevice('p1', 'Keyboard + Gamepad', () => [inputManager.keyboards[0], ...inputManager.padList]);
     const ids = ['brick', 'vex', 'nova', 'gizmo'];
     session.mode = n > 1 ? 'versus' : 'training';
+    session.rules.teams = q.has('teams');
+    session.rules.items = Math.min(2, Math.max(0, Number(q.get('items') ?? 0))) as 0 | 1 | 2;
     session.stage = q.get('stage') ?? 'sandbox';
     const auto = q.get('auto') !== null; // spectate: every slot is a CPU
     session.players = [{ index: 0, type: auto ? 'cpu' : 'human', device: auto ? null : device, character: id, cpuLevel: 3 }];
@@ -474,7 +479,7 @@ export class MatchScene extends Phaser.Scene {
     if (this.match.over) {
       if (this.endTimer < 0) this.endTimer = END_DELAY;
       else if (--this.endTimer === 0) {
-        session.lastResult = buildResult(this.slots, this.match.scores, this.world.damageDealt, this.elimAt, this.match.cfg, this.match.winner, this.world.tick);
+        session.lastResult = buildResult(this.slots, this.match.scores, this.world.damageDealt, this.elimAt, this.match.cfg, this.match.winner, this.world.tick, this.fighters.map((f) => f.team), this.match.winnerTeam);
         this.scene.start('Results');
       }
     }
@@ -573,7 +578,7 @@ export class MatchScene extends Phaser.Scene {
     if (this.match.over && !this.banner.visible) {
       const w = this.match.winner;
       const head = this.match.cfg.mode === 'time' ? 'TIME!' : 'GAME!';
-      const tail = w < 0 ? 'DRAW' : session.mode === 'arcade' ? (w === 0 ? 'VICTORY' : 'DEFEATED') : `P${w + 1} WINS`;
+      const tail = w < 0 ? 'DRAW' : this.match.winnerTeam >= 0 ? `TEAM ${this.match.winnerTeam === 0 ? 'BLUE' : 'RED'} WINS` : session.mode === 'arcade' ? (w === 0 ? 'VICTORY' : 'DEFEATED') : `P${w + 1} WINS`;
       this.banner.setText(up(`${head}\n${tail}`)).setVisible(true);
     }
 
@@ -680,6 +685,7 @@ export class MatchScene extends Phaser.Scene {
       case 'hit': {
         // bigger hits: more sparks, bigger shake (hitstop itself is the fighters' hitlag)
         const dmg = extra;
+        this.rumble(f, 0.15 + dmg * 0.04, 0.3 + dmg * 0.03, 60 + dmg * 8);
         e.flash(x, y, 0.8 + Math.min(2.2, dmg * 0.09), dmg > 12 ? 0xffffff : 0xfff3b0);
         e.burst(x, y, 10 + Math.min(16, dmg), 80 + mag * 0.4, dmg > 12 ? 0xffffff : 0xffe14a, 0.3 + Math.min(0.3, dmg * 0.012), dmg > 12 ? 4 : 3);
         this.shake = Math.max(this.shake, Math.min(9, 1 + dmg * 0.3 + mag * 0.01));
@@ -726,6 +732,16 @@ export class MatchScene extends Phaser.Scene {
       case 'dodge':
         e.dust(x, y, 4, 0);
         break;
+      case 'itemSpawn':
+        e.ring(x, y, 14, 0xffffff, 0.4);
+        e.burst(x, y, 8, 40, 0xffe14a, 0.4, 2);
+        break;
+      case 'itemPickup':
+        e.ring(x, y, 22, 0xffe14a, 0.4);
+        e.burst(x, y, 14, 90, [0x5fe08a, 0xffd04a, 0xff6a5a][mag | 0] ?? 0xffffff, 0.5, 3);
+        sfx.play('ding', 0.8, 0);
+        this.rumble(f, 0.2, 0.4, 80);
+        break;
       case 'ko': {
         const kx = Phaser.Math.Clamp(f.koX, this.world.blast.left, this.world.blast.right);
         const ky = Phaser.Math.Clamp(f.koY, this.world.blast.top, this.world.blast.bottom);
@@ -733,12 +749,19 @@ export class MatchScene extends Phaser.Scene {
         e.burst(kx, ky, 40, 220, 0xffffff, 0.7, 4);
         e.burst(kx, ky, 24, 140, 0xff5a7a, 0.9, 5);
         this.shake = 10;
+        this.rumble(f, 1, 0.6, 300);
         this.match.onKo(f, extra);
         break;
       }
       default:
         break;
     }
+  }
+
+  /** Vibrate the gamepad of the human slot that owns `f` (no-op for keyboards / CPUs). */
+  private rumble(f: Fighter, strong: number, weak: number, ms: number): void {
+    const d = this.slots[f.id]?.device;
+    if (d && d.kind === 'gamepad') (d as GamepadDevice).rumble(strong, weak, ms);
   }
 
   /** Visuals for move events tagged `fx` in the move data. `dir` = the fighter's facing. */

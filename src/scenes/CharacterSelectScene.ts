@@ -136,6 +136,8 @@ export class CharacterSelectScene extends MenuScene {
         c.sprite.play(fighterAnimKey(data.id, 'idle'));
       }
       const dev = slot.kind === 'human' ? (inputManager.allDevices.find((d) => d.id === slot.deviceId)?.label ?? slot.deviceId ?? '') : slot.kind === 'cpu' ? `CPU LEVEL ${slot.cpuLevel}` : '';
+      const teamTag = session.rules.teams && session.playerCount === 4 ? (i < 2 ? ' BLUE' : ' RED') : '';
+      c.header.setText(up(`P${i + 1}${teamTag}`));
       c.device.setText(up(dev.replace('Keyboard (WASD + JKLI)', 'KEYBOARD WASD').replace('Keyboard (Arrows + Numpad)', 'KEYBOARD ARROWS').slice(0, 15)));
       const shown = slot.kind !== 'empty';
       c.sprite.setVisible(shown).setAlpha(slot.kind === 'cpu' ? 0.75 : 1);

@@ -146,6 +146,19 @@ Key design points
 - **Crisp pixels.** The canvas backing store is `innerWidth × devicePixelRatio` and nearest-neighbour
   filtered; the world is drawn by a zoomed camera, UI/background by zoom-1 cameras.
 
+## More mechanics
+
+- **Tilts:** hold a direction (no flick) and press Attack for a forward / up / down tilt. A flick or the Smash button is still a smash.
+- **Dash attack:** press Attack while running at full stick.
+- **Air dodge:** Shield in the air (stick picks the direction), once per airtime, invulnerable mid-dodge, then helpless until you land.
+- **Wall jump:** Vex only; kick off the side of a solid platform (twice per airtime) as an extra recovery.
+- **Ledge attack / get-up attack:** Attack on the ledge, or while lying down, for an invulnerable attack (generic moves in `src/engine/genericMoves.ts`; a character can override `ledgeAttack` / `getupAttack` in its move file).
+- **Taunt:** press Ultimate while the meter is not full.
+- **Team battles:** Versus Setup > Teams (4 players): P1+P2 vs P3+P4, no friendly fire (hits, projectiles, traps), the match ends when a whole team is out; results rank the winning team first.
+- **Items:** Versus Setup > Items (off / low / high): Heart (-25%), Energy Cell (+50 ultimate meter) and Overdrive (10 s of +30% damage) drop onto the stage; the CPU goes for them. Drops use a seeded generator, so they are deterministic.
+- **Rumble:** gamepad vibration on hits, pickups and KOs (Chromium / Edge; Settings > Controller rumble).
+Dev shortcut: add `&teams&items=2` to a 4-player `?stage=...&players=4` URL.
+
 ## Combat and frame data
 
 Each character has `src/characters/<id>.moves.json`, the single source of truth for frame data. Frame 1

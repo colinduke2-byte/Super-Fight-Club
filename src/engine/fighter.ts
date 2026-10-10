@@ -429,6 +429,11 @@ export class Fighter implements Body {
     this.addMeter(damage * (u?.gainTaken ?? ULT_GAIN_TAKEN), u?.cost ?? ULT_COST, world);
   }
 
+  /** Add ultimate meter directly (items); respects the character's cost. */
+  addMeterRaw(amount: number, world: World): void {
+    this.addMeter(amount, this.data.ultimate?.cost ?? ULT_COST, world);
+  }
+
   private addMeter(amount: number, cost: number, world?: World): void {
     const before = this.meter;
     this.meter = Math.min(cost, this.meter + amount);

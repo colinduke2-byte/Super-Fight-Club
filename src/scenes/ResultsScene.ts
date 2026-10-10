@@ -23,7 +23,7 @@ export class ResultsScene extends MenuScene {
     const r = session.lastResult;
     const arcade = session.mode === 'arcade' && !!session.ladder;
     const winner = r ? r.winner : -1;
-    let label = !r ? 'MATCH OVER' : winner < 0 ? 'DRAW' : `P${winner + 1} WINS`;
+    let label = !r ? 'MATCH OVER' : winner < 0 ? 'DRAW' : r.winnerTeam >= 0 ? `TEAM ${r.winnerTeam === 0 ? 'BLUE' : 'RED'} WINS` : `P${winner + 1} WINS`;
     // arcade: record the fight and decide what comes next
     let outcome: LadderOutcome | null = null;
     if (arcade) {

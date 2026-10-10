@@ -5,7 +5,7 @@ import { endingCards, fightCard, introCards, LINE_WIDTH, wrap } from '../src/gam
 import type { MatchResult, PlayerSlot } from '../src/game/session';
 
 const human: PlayerSlot = { index: 0, type: 'human', device: null, character: 'vex', cpuLevel: 1 };
-const result = (winner: number, kos = 2): MatchResult => ({ winner, durationSec: 75, players: [{ index: 0, character: 'vex', type: 'human', stocks: 1, kos, falls: 1, damageDealt: 100, eliminated: false, placement: 1 }] });
+const result = (winner: number, kos = 2): MatchResult => ({ winner, winnerTeam: -1, durationSec: 75, players: [{ index: 0, character: 'vex', type: 'human', stocks: 1, kos, falls: 1, damageDealt: 100, eliminated: false, placement: 1, team: -1 }] });
 
 describe('arcade ladder', () => {
   for (const c of CHARACTER_LIST) {

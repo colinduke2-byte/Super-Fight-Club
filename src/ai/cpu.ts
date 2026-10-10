@@ -205,6 +205,7 @@ export class CpuController implements Controller {
     // threats (reaction-delayed)
     if (this.defend(self, world, tgt, ai)) return;
 
+    if (this.params.smart && this.chaseItem(self, world, tgt)) return;
     if (!tgt) return;
     this.offense(self, world, tgt, ai);
   }
@@ -334,7 +335,7 @@ export class CpuController implements Controller {
     let found = false;
     for (let i = 0; i < world.fighters.length; i++) {
       const o = world.fighters[i];
-      if (o === self || o.state !== 'attack' || !o.move) continue;
+      if (o === self || o.state !== 'attack' || !o.move || world.allied(self.id, o.id)) continue;
       if (Math.abs(o.x - self.x) > 170 || Math.abs(o.y - self.y) > 140) continue;
       const hbs = o.move.hitboxes;
       for (let k = 0; k < hbs.length; k++) {
@@ -357,7 +358,7 @@ export class CpuController implements Controller {
     }
     for (let i = 0; i < world.projectiles.length; i++) {
       const p = world.projectiles[i];
-      if (!p.active || p.owner === self.id || !p.def) continue;
+      if (!p.active || p.owner === self.id || !p.def || world.allied(self.id, p.owner)) continue;
       const dx = self.x - p.x;
       if (Math.abs(dx) > 150 || Math.sign(dx) !== Math.sign(p.vx) || Math.abs(p.vx) < 0.5) continue;
       const mid = self.y - self.h / 2;
@@ -526,6 +527,27 @@ export class CpuController implements Controller {
     else this.sx = -l.side; // toward the stage = climb
     void tgt;
     void world;
+  }
+
+  /** Grab a nearby item when nobody is on top of us. */
+  private chaseItem(self: Fighter, world: World, tgt: Fighter | null): boolean {
+    if (!self.grounded || world.config.itemRate === 0) return false;
+    if (tgt && Math.abs(tgt.x - self.x) < 60 && Math.abs(tgt.y - self.y) < 50) return false;
+    let best: { x: number; y: number } | null = null;
+    let bd = 220;
+    for (let i = 0; i < world.items.length; i++) {
+      const it = world.items[i];
+      if (!it.active || !it.resting) continue;
+      const d = Math.abs(it.x - self.x);
+      if (d < bd && Math.abs(it.y - self.y) < 70) {
+        bd = d;
+        best = it;
+      }
+    }
+    if (!best) return false;
+    this.sx = Math.abs(best.x - self.x) < 4 ? 0 : Math.sign(best.x - self.x);
+    this.clampEdge(self);
+    return true;
   }
 
   // ---- offence ---------------------------------------------------------------------------------

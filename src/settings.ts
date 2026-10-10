@@ -12,6 +12,8 @@ export interface Settings {
   showPerf: boolean;
   /** Drop particle quality automatically (for the current session only) when the frame rate cannot hold. */
   autoQuality: boolean;
+  /** Gamepad vibration on hits and KOs. */
+  rumble: boolean;
   /** 0..1 master and sound-effect volume. */
   masterVolume: number;
   sfxVolume: number;
@@ -25,6 +27,7 @@ export const DEFAULT_SETTINGS: Settings = {
   particleQuality: 'high',
   showPerf: true,
   autoQuality: true,
+  rumble: true,
   masterVolume: 0.7,
   sfxVolume: 1,
   musicVolume: 0.6,

@@ -1,5 +1,6 @@
 import Phaser from 'phaser';
 import { MAX_DEPLOYABLES, MAX_PROJECTILES } from '../engine/entities';
+import { MAX_ITEMS } from '../engine/items';
 import type { World } from '../engine/world';
 
 const SHAPE_TEX: Record<string, string> = { orb: 'proj-orb', bolt: 'proj-bolt', bullet: 'proj-bullet', fist: 'proj-fist', beam: 'proj-beam' };
@@ -16,6 +17,7 @@ export class EntityViews {
   private readonly depLight: Phaser.GameObjects.Image[] = [];
   private readonly barriers: Phaser.GameObjects.Image[] = [];
   private readonly tether: Phaser.GameObjects.Graphics;
+  private readonly items: Phaser.GameObjects.Image[] = [];
 
   constructor(scene: Phaser.Scene, layer: Phaser.GameObjects.Layer, private readonly world: World) {
     for (let i = 0; i < MAX_PROJECTILES; i++) {
@@ -36,12 +38,27 @@ export class EntityViews {
       layer.add(b);
       this.barriers.push(b);
     }
+    for (let i = 0; i < MAX_ITEMS; i++) {
+      const s = scene.add.image(0, 0, 'item-heal').setVisible(false).setScale(0.5);
+      layer.add(s);
+      this.items.push(s);
+    }
     this.tether = scene.add.graphics().setDepth(5);
     layer.add(this.tether);
   }
 
   update(alpha: number, tick: number): void {
     const w = this.world;
+    for (let i = 0; i < this.items.length; i++) {
+      const it = w.items[i];
+      const s = this.items[i];
+      if (!it.active) {
+        s.setVisible(false);
+        continue;
+      }
+      const blink = it.age > 600 && (tick >> 2) % 2 === 0;
+      s.setTexture(`item-${it.kind}`).setVisible(!blink).setPosition(it.x, it.y + Math.sin(tick * 0.1 + i) * (it.resting ? 1.2 : 0));
+    }
     for (let i = 0; i < this.proj.length; i++) {
       const p = w.projectiles[i];
       const s = this.proj[i];

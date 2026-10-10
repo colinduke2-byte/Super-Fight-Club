@@ -30,6 +30,8 @@ export class VersusSetupScene extends MenuScene {
         onLeft: () => (timed() ? (r.timeSec = clamp(r.timeSec - 60, 60, 480)) : (r.stocks = clamp(r.stocks - 1, 1, 5))),
         onRight: () => (timed() ? (r.timeSec = clamp(r.timeSec + 60, 60, 480)) : (r.stocks = clamp(r.stocks + 1, 1, 5))),
       },
+      { label: 'TEAMS', value: () => (r.teams && session.playerCount === 4 ? '2 V 2' : 'FREE FOR ALL'), enabled: () => session.playerCount === 4, onLeft: () => (r.teams = !r.teams), onRight: () => (r.teams = !r.teams), onConfirm: () => (r.teams = !r.teams) },
+      { label: 'ITEMS', value: () => ['OFF', 'LOW', 'HIGH'][r.items], onLeft: () => (r.items = ((r.items + 2) % 3) as 0 | 1 | 2), onRight: () => (r.items = ((r.items + 1) % 3) as 0 | 1 | 2), onConfirm: () => (r.items = ((r.items + 1) % 3) as 0 | 1 | 2) },
       { label: 'CHOOSE FIGHTERS', onConfirm: () => this.next() },
       { label: 'BACK', onConfirm: () => this.go('ModeSelect') },
     ]);

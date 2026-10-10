@@ -4,6 +4,7 @@ import { resolveEntityCombat, updateEntities } from './entityCombat';
 import type { MoveDef } from './moves';
 import { GRAB_DISTANCE, type Fighter } from './fighter';
 import { stepHazards } from './hazards';
+import { Item, MAX_ITEMS, stepItems } from './items';
 import { Ledge, Platform } from './platform';
 import type { BlastZones, StageData } from './types';
 
@@ -40,6 +41,8 @@ export type WorldEventType =
   | 'meterFull'
   | 'fx'
   | 'hazardWarn'
+  | 'itemSpawn'
+  | 'itemPickup'
   | 'hazardFire'
   | 'ko';
 /** `extra` meaning: hit/armorHit/shieldHit/pummel = damage dealt; ko = id of the last attacker (-1 none). */
@@ -55,6 +58,8 @@ export interface CinematicState {
 export interface WorldConfig {
   /** Flicking the stick + Attack performs a smash (otherwise only the Smash button does). */
   smashFlick: boolean;
+  /** Item drops: 0 off, 1 low, 2 high. */
+  itemRate: number;
 }
 
 /** Holds the stage and fighters and advances them one fixed tick at a time. Deterministic. */
@@ -70,7 +75,9 @@ export class World {
   private deploySerial = 0;
   tick = 0;
   listener: WorldListener | null = null;
-  config: WorldConfig = { smashFlick: true };
+  config: WorldConfig = { smashFlick: true, itemRate: 0 };
+  readonly items: Item[] = Array.from({ length: MAX_ITEMS }, (_, i) => new Item(i));
+  itemSeed = 12345;
 
   /** Damage % each fighter (by id) has inflicted on others; stats only, never read by the sim. */
   readonly damageDealt: number[] = [];
@@ -113,6 +120,7 @@ export class World {
     resolveCombat(this);
     resolveEntityCombat(this);
     stepHazards(this);
+    stepItems(this);
   }
 
   // ---- projectiles / deployables -------------------------------------------------------------

@@ -34,6 +34,8 @@ export class Match {
   over = false;
   /** Winning fighter id, or -1 for a draw / no winner yet. */
   winner = -1;
+  /** Winning team in team battles (-1 otherwise). */
+  winnerTeam = -1;
   /** Called with the fighter that should be placed back on the stage. */
   onRespawn: ((f: Fighter) => void) | null = null;
 
@@ -81,8 +83,11 @@ export class Match {
       if (--this.ticksLeft <= 0) this.finish();
     } else if (this.cfg.mode === 'stock') {
       const alive = this.scores.map((s, i) => (s.eliminated ? -1 : i)).filter((i) => i >= 0);
-      if (alive.length <= 1) {
-        this.winner = alive.length === 1 ? alive[0] : -1;
+      const team0 = alive.length ? w.fighters[alive[0]].team : -1;
+      const oneTeam = team0 >= 0 && alive.every((i) => w.fighters[i].team === team0);
+      if (alive.length <= 1 || oneTeam) {
+        this.winner = alive.length >= 1 ? alive[0] : -1;
+        this.winnerTeam = alive.length >= 1 ? team0 : -1;
         this.over = true;
       }
     }
@@ -93,6 +98,24 @@ export class Match {
     let best = -Infinity;
     let winner = -1;
     let tie = false;
+    const teams = this.world.fighters.some((f) => f.team >= 0);
+    if (teams) {
+      // team score = sum of member points; the winner is the best member of the best team
+      const sums = new Map<number, number>();
+      this.scores.forEach((s, i) => sums.set(this.world.fighters[i].team, (sums.get(this.world.fighters[i].team) ?? 0) + s.kos - s.falls));
+      let bestTeam = -1;
+      for (const [t, v] of sums) {
+        if (v > best) {
+          best = v;
+          bestTeam = t;
+          tie = false;
+        } else if (v === best) tie = true;
+      }
+      this.winnerTeam = tie ? -1 : bestTeam;
+      const mine = this.scores.map((_, i) => i).filter((i) => this.world.fighters[i].team === bestTeam);
+      this.winner = tie ? -1 : mine.sort((a, b) => this.scores[b].kos - this.scores[a].kos)[0];
+      return;
+    }
     this.scores.forEach((s, i) => {
       const pts = s.kos - (this.cfg.mode === 'time' ? s.falls : 0);
       if (pts > best) {

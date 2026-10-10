@@ -20,7 +20,7 @@ export function chooseTarget(self: Fighter, world: World, prev: number, bias: re
   let bestScore = -Infinity;
   const alive = aliveScratch;
   alive.length = 0;
-  for (const f of world.fighters) if (f !== self && f.state !== 'ko') alive.push(f.id);
+  for (const f of world.fighters) if (f !== self && f.state !== 'ko' && !world.allied(self.id, f.id)) alive.push(f.id);
   if (alive.length === 0) return -1;
   if (alive.length === 1) return alive[0];
   for (let k = 0; k < alive.length; k++) {

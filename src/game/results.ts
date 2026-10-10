@@ -14,10 +14,13 @@ export function buildResult(
   cfg: Pick<MatchConfig, 'mode'>,
   winner: number,
   durationTicks: number,
+  teams: readonly number[] = [],
+  winnerTeam = -1,
 ): MatchResult {
   const order = slots.map((_, i) => i);
   const points = (i: number): number => scores[i].kos - (cfg.mode === 'time' ? scores[i].falls : 0);
   order.sort((a, b) => {
+    if (winnerTeam >= 0 && (teams[a] === winnerTeam) !== (teams[b] === winnerTeam)) return teams[a] === winnerTeam ? -1 : 1;
     if (a === winner) return -1;
     if (b === winner) return 1;
     if (cfg.mode === 'time') return points(b) - points(a);
@@ -35,7 +38,8 @@ export function buildResult(
     falls: scores[i].falls,
     damageDealt: damageDealt[i] ?? 0,
     eliminated: scores[i].eliminated,
-    placement: order.indexOf(i) + 1,
+    placement: winnerTeam >= 0 && teams[i] === winnerTeam ? 1 : order.indexOf(i) + 1,
+    team: teams[i] ?? -1,
   }));
-  return { winner, players, durationSec: Math.round(durationTicks / 60) };
+  return { winner, winnerTeam, players, durationSec: Math.round(durationTicks / 60) };
 }

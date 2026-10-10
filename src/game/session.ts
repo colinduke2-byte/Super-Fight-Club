@@ -22,6 +22,10 @@ export interface MatchRules {
   mode: 'stock' | 'time';
   stocks: number;
   timeSec: number;
+  /** 2v2 team battle (4 players): P1+P2 vs P3+P4, no friendly fire. */
+  teams: boolean;
+  /** Item drops: 0 off, 1 low, 2 high. */
+  items: 0 | 1 | 2;
 }
 
 export interface PlayerResult {
@@ -34,10 +38,14 @@ export interface PlayerResult {
   damageDealt: number;
   eliminated: boolean;
   placement: number;
+  /** Team index (team battles), else -1. */
+  team: number;
 }
 
 export interface MatchResult {
   winner: number; // player index or -1 draw
+  /** Winning team in team battles, else -1. */
+  winnerTeam: number;
   players: PlayerResult[];
   durationSec: number;
 }
@@ -56,7 +64,7 @@ export interface Session {
   ladder: LadderState | null;
 }
 
-export const DEFAULT_RULES: MatchRules = { mode: 'stock', stocks: 3, timeSec: 180 };
+export const DEFAULT_RULES: MatchRules = { mode: 'stock', stocks: 3, timeSec: 180, teams: false, items: 0 };
 
 export function newSession(): Session {
   return { mode: 'versus', players: [], stage: 'classic', rules: { ...DEFAULT_RULES }, playerCount: 2, lastResult: null, ladder: null, arcadeHuman: null };

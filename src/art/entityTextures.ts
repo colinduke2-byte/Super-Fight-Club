@@ -25,6 +25,23 @@ export function buildEntityTextures(scene: Phaser.Scene): void {
     scene.textures.addCanvas(key, c);
   };
 
+  // item capsules 16x16: heal (green cross), energy cell (yellow bolt), overdrive (red chevrons)
+  for (const [key, body, glyph] of [['item-heal', '#5fe08a', 'cross'], ['item-cell', '#ffd04a', 'bolt'], ['item-boost', '#ff6a5a', 'chev']] as const) {
+    const [c, g] = mk(16, 16);
+    for (let y = 0; y < 16; y++) {
+      for (let x = 0; x < 16; x++) {
+        const d = Math.hypot(x - 7.5, y - 7.5);
+        if (d > 7.5) continue;
+        px(g, d > 6.3 ? '#1a1030' : d > 5 ? '#ffffff' : body, x, y);
+      }
+    }
+    const ink = '#10201a';
+    if (glyph === 'cross') { px(g, ink, 7, 4, 2, 8); px(g, ink, 4, 7, 8, 2); }
+    else if (glyph === 'bolt') { px(g, ink, 8, 3, 2, 4); px(g, ink, 6, 6, 4, 2); px(g, ink, 6, 8, 2, 5); }
+    else { px(g, ink, 5, 5, 2, 2); px(g, ink, 7, 7, 2, 2); px(g, ink, 9, 9, 2, 2); px(g, ink, 9, 5, 2, 2); px(g, ink, 7, 3, 2, 2); }
+    add(key, c);
+  }
+
   // orb 16x16: bright core, mid body, dithered rim
   {
     const [c, g] = mk(16, 16);

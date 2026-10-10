@@ -84,6 +84,13 @@ export class GamepadDevice implements InputDevice {
     return this._label;
   }
 
+  /** Short dual-motor rumble (Chromium / Edge; silently ignored where unsupported). */
+  rumble(strong: number, weak: number, ms: number): void {
+    if (!settings.rumble || typeof navigator === 'undefined' || !navigator.getGamepads) return;
+    const act = (navigator.getGamepads()[this.index] as unknown as { vibrationActuator?: { playEffect?: (t: string, p: object) => Promise<unknown> } } | null)?.vibrationActuator;
+    void act?.playEffect?.('dual-rumble', { startDelay: 0, duration: ms, strongMagnitude: Math.min(1, strong), weakMagnitude: Math.min(1, weak) })?.catch(() => undefined);
+  }
+
   get profile(): PadProfileId {
     return profileForPadId(gamepadHub.idOf(this.index) ?? '');
   }
