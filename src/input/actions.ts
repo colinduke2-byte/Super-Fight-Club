@@ -69,7 +69,7 @@ export const DEFAULT_KEY_SCHEMES: Record<KeyboardSchemeId, KeyBindings> = {
     shield: ['Numpad3', 'Slash'],
     grab: ['Numpad4', 'Semicolon'],
     smash: ['Numpad6', 'Quote'],
-    ultimate: ['Numpad0', 'Enter'],
+    ultimate: ['Numpad0', 'BracketRight'],
     pause: ['NumpadEnter'],
   },
 };

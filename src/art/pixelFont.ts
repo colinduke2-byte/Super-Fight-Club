@@ -5,7 +5,7 @@ import Phaser from 'phaser';
  * 'pix'. Glyph pixels are white (so BitmapText.setTint recolours them); outline pixels are near-black.
  * Uppercase only: use `up()` on strings.
  */
-const CHARS = " ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789%!?.,:-+/'()=@*[]";
+const CHARS = " ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789%!?.,:-+/'()=@*[]<>|_#";
 const CELL_W = 7;
 const CELL_H = 9;
 const PER_ROW = 16;
@@ -62,6 +62,11 @@ const G: Record<string, string> = {
   '=': '00000 00000 11111 00000 11111 00000 00000',
   '@': '00000 01110 11111 11111 11111 01110 00000', // filled dot (stock pip)
   '*': '00000 10101 01110 11111 01110 10101 00000',
+  '>': '10000 01000 00100 00010 00100 01000 10000',
+  '<': '00001 00010 00100 01000 00100 00010 00001',
+  '|': '00100 00100 00100 00100 00100 00100 00100',
+  '_': '00000 00000 00000 00000 00000 00000 11111',
+  '#': '01010 01010 11111 01010 11111 01010 01010',
   '[': '01110 01000 01000 01000 01000 01000 01110',
   ']': '01110 00010 00010 00010 00010 00010 01110',
 };

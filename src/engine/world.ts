@@ -69,6 +69,9 @@ export class World {
   listener: WorldListener | null = null;
   config: WorldConfig = { smashFlick: true };
 
+  /** Damage % each fighter (by id) has inflicted on others; stats only, never read by the sim. */
+  readonly damageDealt: number[] = [];
+
   constructor(readonly stage: StageData) {
     this.blast = stage.blast;
     this.platforms = stage.platforms.map((d, i) => new Platform(i, d));
@@ -81,6 +84,7 @@ export class World {
 
   addFighter(f: Fighter): void {
     this.fighters.push(f);
+    this.damageDealt.push(0);
   }
 
   step(inputs: ReadonlyArray<Readonly<import('./buttons').FighterInput>>): void {

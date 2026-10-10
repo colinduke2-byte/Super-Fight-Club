@@ -493,6 +493,7 @@ export class Fighter implements Body {
     if (this.state === 'ko') return;
     this.damage += hit.damage;
     if (hit.attackerId !== undefined) this.lastHitBy = hit.attackerId;
+    if (hit.attackerId !== undefined && hit.attackerId !== this.id) world.damageDealt[hit.attackerId] = (world.damageDealt[hit.attackerId] ?? 0) + hit.damage;
     const kb =
       computeKnockback({
         base: hit.base,

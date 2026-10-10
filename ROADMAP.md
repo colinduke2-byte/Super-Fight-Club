@@ -15,6 +15,7 @@ next phase starts.
 | 6 | Nova complete: Arcana Cycle, elemental Spell Bolts, Rune Traps, reflecting barrier, Aether Step, Convergence | done |
 | 5 | Vex complete: Blink Trail marker/recall, mines, dash, full moveset | done |
 | 4 | Brick complete: Heat, Charge Shoulder, Grapple Slam, Jet Boost, Vent, Meltdown, frame-data doc, tests, training scenarios | done |
+| 8 | Menus and game flow: title, mode select, lobby with per-device slots, stage select, N-player match scene, results, settings, rebinding, pause / disconnect handling | done |
 | 3 | Character engine hooks: behaviour interface + resources, projectiles, deployables, status effects, teleport / dash / tether / ledge snap, meter + cinematic ultimates, reflect, training scenarios, SFX engine | done |
 
 Not verified yet, because I have no real hardware here: real Xbox / PlayStation / Switch Pro pads, Safari,
@@ -68,7 +69,7 @@ Tether (ledge / platform / opponent), Overclock, Mega Mech Mode (8 s). Tests: Sc
 *Roster is added one character at a time with a pause after each, per the original brief. If a later
 character needs an engine change, it is made in Phase 3 style (generic) and the earlier characters re-tested.*
 
-## Phase 8: Menus and game flow
+## Phase 8: Menus and game flow *(done)*
 Scenes: Boot, Title, Mode Select, Character Select (2-4 players, CPU toggle + difficulty), Stage Select, Match
 (replaces the Sandbox scene), Results, Settings / Controls.
 - Menus navigable by every device (keyboard, any pad).

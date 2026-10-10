@@ -3,9 +3,10 @@
 A sci-fi/fantasy platform fighter built with **Phaser 3 + TypeScript (Vite)**. All characters, art and
 audio are original and generated in code. The game runs in the browser.
 
-> **Status: Phase 3 – engine hooks done (Phases 1-3 of `ROADMAP.md`).**
-> Combat core + generic systems for the roster: projectiles, deployables, status effects, teleport / dash /
-> tether, meter + cinematic ultimates, training scenarios, synthesized SFX. Roster characters come next.
+> **Status: Phase 8 – menus and game flow done (see `ROADMAP.md`).**
+> Full roster (Brick, Vex, Nova, Gizmo), title / mode select / lobby / stage select / match / results / settings /
+> rebinding scenes. CPU AI, extra stages and the Arcade Ladder follow.
+> Dev shortcuts: `?char=<id>` jumps into training with that fighter, `?scene=<Key>` opens any scene.
 >
 > *Earlier milestone note:* **Milestone 2 – combat.** Hitboxes/frame data, damage %, knockback, hitlag, trades, armor,
 > shield/dodge/grab/throw, stocks and KOs, on one character (Brick, normals only) in the sandbox.
@@ -25,7 +26,17 @@ Chrome, Edge, Safari and Firefox all work. Gamepads: press any button on the pad
 loads (browser requirement); USB, wireless dongles and Bluetooth (macOS) are all handled by the
 browser's Gamepad API.
 
-## Sandbox controls
+## Menus and flow
+
+Title -> Main Menu (Versus / Arcade Ladder / Training / Settings). Every menu works with both keyboard schemes and any
+gamepad: confirm = Attack or Jump (J / I / Enter / Space / pad face buttons), back = Special or Shield (K / L / Esc),
+alt = Grab (U / Tab: add CPU in the lobby), Start = pad Start. In the character lobby each device presses confirm to
+join the next free slot; empty slots are filled with CPUs (a warning says so). Players 3-4 need controllers.
+Settings holds audio, particles, FPS counter, fullscreen, tap-jump, smash mode and deadzone; **Controls** rebinds both
+keyboard schemes and both gamepad profiles (saved to localStorage). Unplugging a pad mid-match pauses with the
+player named; re-plugging (or plugging another pad) re-attaches it.
+
+## Match / training controls
 
 | Action | Keyboard P1 (default) | Gamepad |
 |---|---|---|

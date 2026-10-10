@@ -34,6 +34,8 @@ export class BootScene extends Phaser.Scene {
       if (c.sprite.sheetUrl) registerAnimations(this, c);
       else buildPlaceholderSheet(this, c);
     }
-    this.scene.start('Sandbox');
+    // dev shortcuts: ?char=<id> drops straight into training; ?scene=<Key> opens any scene
+    const q = new URLSearchParams(location.search);
+    this.scene.start(q.get('scene') ?? (q.has('char') ? 'Match' : 'Title'));
   }
 }

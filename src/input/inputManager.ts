@@ -14,7 +14,11 @@ export class InputManager {
   onPadConnect: ((d: GamepadDevice) => void) | null = null;
   onPadDisconnect: ((d: GamepadDevice) => void) | null = null;
 
+  private started = false;
+
   init(): void {
+    if (this.started) return;
+    this.started = true;
     bindings.load();
     keyboardHub.attach();
     gamepadHub.onConnect = (idx, id) => {

@@ -1,6 +1,5 @@
 import Phaser from 'phaser';
-import { brick } from '../characters/brick';
-import { playerCharacter } from '../characters';
+import { devCharacter, CHARACTERS } from '../characters';
 import { sfx } from '../audio/sfx';
 import { soundFor } from '../audio/soundMap';
 import { TrainingRunner } from '../engine/training';
@@ -8,14 +7,17 @@ import { EntityViews } from '../ui/EntityViews';
 import { Button, makeInput, type FighterInput } from '../engine/buttons';
 import { DEFAULT_CAMERA, MultiTargetCamera, type CamPoint } from '../engine/camera';
 import { Fighter } from '../engine/fighter';
+import type { CharacterData } from '../engine/types';
 import { Match, type MatchConfig } from '../engine/match';
 import { FixedTimestep } from '../engine/fixedTimestep';
 import { World, type WorldEventType } from '../engine/world';
 import { MergedDevice } from '../input/device';
 import { inputManager } from '../input/inputManager';
 import { keyboardHub } from '../input/keyboard';
+import { menuInput } from '../input/menuInput';
 import { PlayerInput } from '../input/playerInput';
 import { saveSettings, settings } from '../settings';
+import { STAGES } from '../stages';
 import { sandboxStage } from '../stages/sandbox';
 import { BackgroundView } from '../ui/BackgroundView';
 import { DebugOverlay } from '../ui/DebugOverlay';
@@ -23,25 +25,35 @@ import { Effects } from '../ui/Effects';
 import { FighterView } from '../ui/FighterView';
 import { PerfCounter } from '../ui/PerfCounter';
 import { FighterHud } from '../ui/FighterHud';
+import { MenuList } from '../ui/menuKit';
 import { PIXEL_FONT, up } from '../art/pixelFont';
 import { StageView } from '../ui/StageView';
+import { DummyController, NullController, type Controller } from '../game/controllers';
+import { buildResult } from '../game/results';
+import { session, type PlayerSlot } from '../game/session';
 
 const TRAINING: MatchConfig = { mode: 'training', stocks: 3, timeLimitSec: 0, respawnDelay: 70 };
-const STOCKS: MatchConfig = { mode: 'stock', stocks: 3, timeLimitSec: 0, respawnDelay: 70 };
-const DUMMY_MODES = ['stand', 'shield', 'jump', 'jab'] as const;
-const HELP = [
+const DUPLICATE_TINTS = [undefined, 0xff9a9a, 0x9aff9a, 0x9ac8ff];
+const END_DELAY = 150;
+const HELP_TRAINING = [
   'MOVE WASD  JUMP I  ATTACK J  SPECIAL K  SHIELD L  GRAB U  SMASH O',
   'SMASH = FLICK+J OR O+DIR (HOLD TO CHARGE)  AERIAL = J+DIR',
   '1 DEBUG  2 HIT DUMMY  3 HIT SELF  4 +25%  5 CLEAR  6 DUMMY  9 MODE  0 RESET',
   '[ ] SELECT MOVE  ENTER RUN IT  M SLOW-MO  N STEP MODE  B STEP',
   'T TAP-JUMP  F FULLSCREEN  H HIDE THIS  ESC PAUSE',
 ];
+const HELP_MATCH = ['ESC / START: PAUSE   1 DEBUG   F FULLSCREEN   H HIDE THIS'];
+
+function resolveCharacter(id: string): CharacterData {
+  return CHARACTERS[id] ?? devCharacter() ?? CHARACTERS.brick;
+}
 
 /**
- * Milestone 1 sandbox: one character, one stage, a training dummy, debug overlay.
+ * The match itself: 2-4 fighters (humans on any device, CPUs, or the training dummy) on a chosen stage.
  * Fixed 60 Hz sim with accumulator; rendering interpolates and runs at display rate.
+ * Training mode (`session.mode === 'training'`) keeps the dev tools: frame stepping, move scenarios, hit buttons.
  */
-export class SandboxScene extends Phaser.Scene {
+export class MatchScene extends Phaser.Scene {
   private world!: World;
   private fighters: Fighter[] = [];
   private views: FighterView[] = [];
@@ -61,20 +73,26 @@ export class SandboxScene extends Phaser.Scene {
   private worldCam!: Phaser.Cameras.Scene2D.Camera;
   private uiCam!: Phaser.Cameras.Scene2D.Camera;
 
-  private player = new PlayerInput(new MergedDevice('p1', 'Keyboard + Gamepad', () => [inputManager.keyboards[0], ...inputManager.padList]));
-  private pauseProbe = new PlayerInput(new MergedDevice('pause', 'pause', () => [...inputManager.keyboards, ...inputManager.padList]));
-  private readonly inputs: FighterInput[] = [makeInput(), makeInput()];
-  private readonly probe: FighterInput = makeInput();
+  private slots: PlayerSlot[] = [];
+  private humans: (PlayerInput | null)[] = [];
+  private controllers: Controller[] = [];
+  private inputs: FighterInput[] = [];
+  private readonly dummy = new DummyController();
+  private isTraining = false;
+  private stageData = sandboxStage;
+  private elimAt: number[] = [];
+  private endTimer = -1;
 
   private lastNow = 0;
   private stepsLastFrame = 0;
   private paused = false;
-  private pauseReason = '';
+  private pauseReason: '' | 'user' | 'disconnect' = '';
+  private pauseMenu!: MenuList;
   private pendingHitDummy = false;
   private pendingHitSelf = false;
   private pendingReset = false;
   private match!: Match;
-  private training!: TrainingRunner;
+  private training: TrainingRunner | null = null;
   private entityViews!: EntityViews;
   private trainText!: Phaser.GameObjects.BitmapText;
   private dimOverlay!: Phaser.GameObjects.Rectangle;
@@ -83,9 +101,6 @@ export class SandboxScene extends Phaser.Scene {
   private stepMode = false;
   private stepOnce = false;
   private helpOn = true;
-  private dummyMode = 0;
-  private dummyHeldPrev = 0;
-  private dummyJabTimer = 0;
   private banner!: Phaser.GameObjects.BitmapText;
   private shake = 0;
   private frameCount = 0;
@@ -96,25 +111,32 @@ export class SandboxScene extends Phaser.Scene {
   private toastUntil = 0;
   private pauseOverlay!: Phaser.GameObjects.Rectangle;
   private pauseText!: Phaser.GameObjects.BitmapText;
+  private disconnectedName = '';
 
   constructor() {
-    super('Sandbox');
+    super('Match');
   }
 
   create(): void {
     inputManager.init();
-    const stage = sandboxStage;
+    this.ensureSession();
+    this.slots = session.players;
+    this.isTraining = session.mode === 'training';
+    const stage = (this.stageData = STAGES[session.stage] ?? sandboxStage);
     this.world = new World(stage);
 
-    const player = new Fighter(0, playerCharacter());
-    const dummy = new Fighter(1, brick);
-    this.fighters = [player, dummy];
-    this.world.addFighter(player);
-    this.world.addFighter(dummy);
-    this.respawn(0);
-    this.respawn(1);
-    dummy.facing = -1;
-    this.match = new Match(this.world, TRAINING);
+    this.fighters = this.slots.map((s, i) => new Fighter(i, resolveCharacter(s.character)));
+    this.humans = this.slots.map((s) => (s.type === 'human' && s.device ? new PlayerInput(s.device) : null));
+    this.controllers = this.slots.map((s, i) => (s.type === 'cpu' ? (this.isTraining && i === 1 ? this.dummy : new NullController()) : new NullController()));
+    this.inputs = this.slots.map(() => makeInput());
+    this.elimAt = this.slots.map(() => -1);
+    for (const f of this.fighters) {
+      this.world.addFighter(f);
+      this.respawn(f.id);
+    }
+    const rules = session.rules;
+    const cfg: MatchConfig = this.isTraining ? TRAINING : { mode: rules.mode, stocks: rules.stocks, timeLimitSec: rules.timeSec, respawnDelay: 70 };
+    this.match = new Match(this.world, cfg);
     this.match.onRespawn = (f) => this.respawn(f.id, true);
 
     // --- cameras & layers: bg (zoom 1) -> world (zoom/pan) -> ui (zoom 1)
@@ -133,15 +155,20 @@ export class SandboxScene extends Phaser.Scene {
 
     this.bg = new BackgroundView(this, this.bgLayer);
     this.stageView = new StageView(this, this.worldLayer, this.world);
-    this.views = this.fighters.map((f, i) => new FighterView(this, this.worldLayer, f, i === 1 ? 0xff9a9a : undefined));
+    const seen = new Set<string>();
+    this.views = this.fighters.map((f, i) => {
+      const dup = seen.has(this.slots[i].character);
+      seen.add(this.slots[i].character);
+      return new FighterView(this, this.worldLayer, f, dup ? DUPLICATE_TINTS[i % 4] : undefined);
+    });
     this.effects = new Effects(this, this.worldLayer);
     this.entityViews = new EntityViews(this, this.worldLayer, this.world);
-    this.training = new TrainingRunner(this.world, this.fighters[0], this.fighters[1]);
+    if (this.isTraining) this.training = new TrainingRunner(this.world, this.fighters[0], this.fighters[1]);
     sfx.arm();
 
     const bz = stage.blast;
     this.cam.cfg = { ...DEFAULT_CAMERA, bounds: { x: bz.left, y: bz.top, w: bz.right - bz.left, h: bz.bottom - bz.top } };
-    this.camTargets.push({ x: 0, y: 0 }, { x: 0, y: 0 });
+    for (let i = 0; i < this.fighters.length; i++) this.camTargets.push({ x: 0, y: 0 });
 
     const dpr = this.dpr();
     const fontPx = Math.round(12 * dpr);
@@ -152,10 +179,11 @@ export class SandboxScene extends Phaser.Scene {
     this.dimOverlay = this.add.rectangle(0, 0, 10, 10, 0x000010, 1).setOrigin(0, 0).setAlpha(0);
     this.uiLayer.add(this.dimOverlay);
     this.fighters.forEach((f, i) => {
-      const hud = new FighterHud(this, this.uiLayer, f.data, i === 0 ? 'YOU' : 'DUMMY', i);
-      this.huds.push(hud);
+      const s = this.slots[i];
+      const label = this.isTraining ? (i === 0 ? 'YOU' : 'DUMMY') : s.type === 'cpu' ? 'CPU' : `P${i + 1}`;
+      this.huds.push(new FighterHud(this, this.uiLayer, f.data, label, i));
     });
-    this.helpText = this.add.bitmapText(0, 0, PIXEL_FONT, up(HELP.join('\n'))).setOrigin(0, 1).setTint(0xb8b0e8);
+    this.helpText = this.add.bitmapText(0, 0, PIXEL_FONT, up((this.isTraining ? HELP_TRAINING : HELP_MATCH).join('\n'))).setOrigin(0, 1).setTint(0xb8b0e8);
     this.trainText = this.add.bitmapText(0, 0, PIXEL_FONT, '').setOrigin(0, 0).setTint(0xffe9a8).setLeftAlign();
     this.uiLayer.add(this.trainText);
     this.toast = this.add.bitmapText(0, 0, PIXEL_FONT, '').setOrigin(0.5, 0).setAlpha(0).setCenterAlign();
@@ -163,24 +191,23 @@ export class SandboxScene extends Phaser.Scene {
     this.pauseOverlay = this.add.rectangle(0, 0, 10, 10, 0x000000, 0.6).setOrigin(0, 0).setVisible(false);
     this.pauseText = this.add.bitmapText(0, 0, PIXEL_FONT, '').setOrigin(0.5).setVisible(false).setCenterAlign();
     this.uiLayer.add([this.helpText, this.toast, this.banner, this.pauseOverlay, this.pauseText]);
+    this.pauseMenu = new MenuList(this, this.uiLayer, [
+      { label: 'RESUME', enabled: () => this.pauseReason !== 'disconnect', onConfirm: () => this.setPaused(false) },
+      { label: 'RESTART', onConfirm: () => this.scene.restart() },
+      { label: 'CONTROLS', onConfirm: () => this.scene.start('Controls', { back: 'Match' }) },
+      { label: 'QUIT', onConfirm: () => this.scene.start(this.isTraining ? 'ModeSelect' : 'ModeSelect') },
+    ]);
+    this.pauseMenu.setVisible(false);
 
     this.layout(w, h);
     this.scale.on('resize', this.onResize, this);
 
-    // hotkeys
     keyboardHub.onKeyDown = (code) => this.onKey(code);
-    // controller hot-plug
-    inputManager.onPadConnect = (d) => {
-      this.showToast(`Controller connected: ${d.label}`);
-      if (this.paused && this.pauseReason === 'disconnect') this.setPaused(false);
-    };
-    inputManager.onPadDisconnect = (d) => {
-      this.showToast(`Controller disconnected: ${d.label}`);
-      this.setPaused(true, 'disconnect');
-    };
+    inputManager.onPadConnect = (d) => this.showToast(`Controller connected: ${d.label}`);
+    inputManager.onPadDisconnect = (d) => this.showToast(`Controller disconnected: ${d.label}`);
 
     this.world.listener = (type, f, x, y, mag, extra, tag) => {
-      this.training.onEvent(type, f, x, y, mag, extra);
+      this.training?.onEvent(type, f, x, y, mag, extra);
       this.onWorldEvent(type, f, x, y, mag, extra, tag);
     };
 
@@ -188,7 +215,22 @@ export class SandboxScene extends Phaser.Scene {
     this.events.once('shutdown', () => {
       this.scale.off('resize', this.onResize, this);
       keyboardHub.onKeyDown = null;
+      inputManager.onPadConnect = null;
+      inputManager.onPadDisconnect = null;
     });
+  }
+
+  /** Booting straight into a match (dev shortcut / reload): fall back to a training session. */
+  private ensureSession(): void {
+    if (session.players.length >= 2) return;
+    const id = new URLSearchParams(location.search).get('char') ?? 'brick';
+    const device = new MergedDevice('p1', 'Keyboard + Gamepad', () => [inputManager.keyboards[0], ...inputManager.padList]);
+    session.mode = 'training';
+    session.stage = 'sandbox';
+    session.players = [
+      { index: 0, type: 'human', device, character: id, cpuLevel: 1 },
+      { index: 1, type: 'cpu', device: null, character: id === 'brick' ? 'vex' : 'brick', cpuLevel: 1 },
+    ];
   }
 
   // ---------------------------------------------------------------------------------------------
@@ -199,11 +241,15 @@ export class SandboxScene extends Phaser.Scene {
     this.frameCount++;
     this.perf.push(frameMs);
     if (this.frameCount % 30 === 0) inputManager.poll();
+    this.checkControllers();
 
     this.stepsLastFrame = 0;
     if (this.paused) {
-      this.pauseProbe.sample(this.probe);
-      if (this.probe.pressed & Button.Pause && this.pauseReason === 'user') this.setPaused(false);
+      for (const e of menuInput.poll()) {
+        if (this.pauseMenu.handle(e)) continue;
+        if ((e.action === 'back' || e.action === 'start') && this.pauseReason === 'user') this.setPaused(false);
+      }
+      this.pauseMenu.update(now / 1000);
       inputManager.endTick();
     } else if (this.stepMode) {
       if (this.stepOnce) {
@@ -218,18 +264,52 @@ export class SandboxScene extends Phaser.Scene {
     this.render(frameMs);
   }
 
+  /** A human slot whose gamepad vanished: re-attach a free pad if there is one, else pause until it returns. */
+  private checkControllers(): void {
+    let missing = '';
+    for (let i = 0; i < this.slots.length; i++) {
+      const s = this.slots[i];
+      if (s.type !== 'human' || !s.device || s.device.kind !== 'gamepad' || s.device.connected) continue;
+      const used = new Set(this.slots.map((o) => o.device));
+      const free = inputManager.padList.find((p) => p.connected && !used.has(p));
+      if (free) {
+        s.device = free;
+        this.humans[i]!.device = free;
+        this.humans[i]!.reset();
+        this.showToast(`P${i + 1} controller reconnected`);
+      } else {
+        missing = `P${i + 1}`;
+      }
+    }
+    if (missing) {
+      this.disconnectedName = missing;
+      if (!this.paused || this.pauseReason !== 'disconnect') this.setPaused(true, 'disconnect');
+      else this.setPaused(true, 'disconnect'); // refresh text for a different player
+    } else if (this.paused && this.pauseReason === 'disconnect') {
+      this.setPaused(true, 'user'); // fixed: let the players resume when ready
+    }
+  }
+
   /** One fixed 60 Hz simulation tick. */
   private tick(): void {
-    this.player.sample(this.inputs[0]);
+    let pausePressed = false;
+    for (let i = 0; i < this.slots.length; i++) {
+      const h = this.humans[i];
+      if (h) {
+        h.sample(this.inputs[i]);
+        if (this.inputs[i].pressed & Button.Pause) pausePressed = true;
+      } else {
+        this.controllers[i].update(this.fighters[i], this.world, this.inputs[i]);
+      }
+    }
     this.world.config.smashFlick = settings.smashMode === 'flick';
-    this.dummyInput(this.inputs[1]);
-    if (this.training.running) {
+    if (this.training?.running) {
       const i = this.inputs[0];
       i.held = i.pressed = i.released = 0; // the scenario drives the player
       this.training.step(i);
     }
 
-    if (this.inputs[0].pressed & Button.Pause) {
+    if (pausePressed && this.endTimer < 0) {
       this.setPaused(true, 'user');
       inputManager.endTick();
       return;
@@ -237,9 +317,7 @@ export class SandboxScene extends Phaser.Scene {
 
     if (this.pendingReset) {
       this.pendingReset = false;
-      this.respawn(0);
-      this.respawn(1);
-      this.fighters[1].facing = -1;
+      this.fighters.forEach((f) => this.respawn(f.id));
       this.cam.snap();
     }
     if (this.pendingHitDummy) {
@@ -256,6 +334,7 @@ export class SandboxScene extends Phaser.Scene {
     this.world.step(this.inputs);
     inputManager.endTick();
     this.match.step();
+    this.scores();
 
     // camera follows living fighters
     let n = 0;
@@ -270,28 +349,18 @@ export class SandboxScene extends Phaser.Scene {
     if (this.shake < 0.05) this.shake = 0;
   }
 
-  /** Training-dummy behaviour: stand, hold shield, hop, or jab on a loop. */
-  private dummyInput(out: FighterInput): void {
-    out.stickX = 0;
-    out.stickY = 0;
-    let held = 0;
-    switch (DUMMY_MODES[this.dummyMode]) {
-      case 'shield':
-        held = Button.Shield;
-        break;
-      case 'jump':
-        if (this.world.tick % 80 < 6) held = Button.Jump;
-        break;
-      case 'jab':
-        if (++this.dummyJabTimer % 50 < 2) held = Button.Attack;
-        break;
-      default:
-        break;
+  /** Track eliminations and, a moment after the match ends, hand the result to the Results scene. */
+  private scores(): void {
+    this.match.scores.forEach((s, i) => {
+      if (s.eliminated && this.elimAt[i] < 0) this.elimAt[i] = this.world.tick;
+    });
+    if (this.match.over) {
+      if (this.endTimer < 0) this.endTimer = END_DELAY;
+      else if (--this.endTimer === 0) {
+        session.lastResult = buildResult(this.slots, this.match.scores, this.world.damageDealt, this.elimAt, this.match.cfg, this.match.winner, this.world.tick);
+        this.scene.start('Results');
+      }
     }
-    out.held = held;
-    out.pressed = held & ~this.dummyHeldPrev;
-    out.released = ~held & this.dummyHeldPrev & 0xff;
-    this.dummyHeldPrev = held;
   }
 
   private lastFxTick = -1;
@@ -312,22 +381,13 @@ export class SandboxScene extends Phaser.Scene {
     }
   }
 
-  private startMatch(cfg: MatchConfig): void {
-    this.match = new Match(this.world, cfg);
-    this.match.onRespawn = (f) => this.respawn(f.id, true);
-    this.fighters.forEach((f) => (f.damage = 0));
-    this.pendingReset = true;
-    this.banner.setVisible(false);
-    this.showToast(cfg.mode === 'training' ? 'Training mode (infinite stocks)' : 'Stock match: 3 stocks each');
-  }
-
   private hit(target: Fighter, dir: 1 | -1): void {
     target.receiveHit({ damage: 8, base: 45, scaling: 1.1, angle: 40, direction: dir }, this.world);
   }
 
   private respawn(i: number, fromAbove = false): void {
-    const sp = sandboxStage.spawns[i];
-    this.fighters[i].spawn(sp.x, sp.y - (fromAbove ? 130 : 1), i === 0 ? 1 : -1);
+    const sp = this.stageData.spawns[i % this.stageData.spawns.length];
+    this.fighters[i].spawn(sp.x, sp.y - (fromAbove ? 130 : 1), sp.x <= 0 ? 1 : -1);
   }
 
   // ---------------------------------------------------------------------------------------------
@@ -379,10 +439,10 @@ export class SandboxScene extends Phaser.Scene {
     }
     if (this.match.over && !this.banner.visible) {
       const w = this.match.winner;
-      this.banner.setText(up(w < 0 ? 'DRAW' : `${w === 0 ? 'YOU WIN' : 'DUMMY WINS'}\n\nPRESS 0 TO REMATCH`)).setVisible(true);
+      this.banner.setText(up(this.match.cfg.mode === 'time' ? 'TIME!' : 'GAME!') + up(w < 0 ? '\nDRAW' : `\nP${w + 1} WINS`)).setVisible(true);
     }
 
-    if (this.frameCount % 6 === 0) this.trainText.setText(up(this.training.report().join('\n')) + (this.slowMo ? '\nSLOW-MO' : '') + (this.stepMode ? '\nSTEP MODE (B)' : ''));
+    if (this.training && this.frameCount % 6 === 0) this.trainText.setText(up(this.training.report().join('\n')) + (this.slowMo ? '\nSLOW-MO' : '') + (this.stepMode ? '\nSTEP MODE (B)' : ''));
     this.perf.update(frameMs, `${this.scale.width}x${this.scale.height} @${this.dpr().toFixed(1)}x  z${zoom.toFixed(2)}  ${this.stepsLastFrame}/f`);
     if (this.toastUntil > 0) {
       const left = this.toastUntil - performance.now();
@@ -634,12 +694,35 @@ export class SandboxScene extends Phaser.Scene {
   }
 
   private onKey(code: string): void {
+    if (this.paused) return;
     switch (code) {
       case 'Digit1':
         this.debug.setVisible(!this.debug.visible);
         this.helpText.setVisible(this.helpOn && !this.debug.visible);
         this.placeTrainText();
+        return;
+      case 'KeyH':
+        this.helpOn = !this.helpOn;
+        this.helpText.setVisible(this.helpOn && !this.debug.visible);
+        this.placeTrainText();
+        return;
+      case 'KeyT':
+        settings.tapJump = !settings.tapJump;
+        saveSettings();
+        this.showToast(`Tap-jump ${settings.tapJump ? 'ON' : 'OFF'}`);
+        return;
+      case 'Backquote':
+        this.perf.visible = !this.perf.visible;
+        return;
+      case 'KeyF':
+        if (this.scale.isFullscreen) this.scale.stopFullscreen();
+        else this.scale.startFullscreen();
+        return;
+      default:
         break;
+    }
+    if (!this.training) return;
+    switch (code) {
       case 'BracketLeft':
         this.training.select(-1);
         break;
@@ -647,7 +730,7 @@ export class SandboxScene extends Phaser.Scene {
         this.training.select(1);
         break;
       case 'Enter':
-        if (!this.paused) this.training.start();
+        this.training.start();
         break;
       case 'KeyM':
         this.slowMo = !this.slowMo;
@@ -657,11 +740,6 @@ export class SandboxScene extends Phaser.Scene {
         break;
       case 'KeyB':
         this.stepOnce = true;
-        break;
-      case 'KeyH':
-        this.helpOn = !this.helpOn;
-        this.helpText.setVisible(this.helpOn && !this.debug.visible);
-        this.placeTrainText();
         break;
       case 'Digit2':
         this.pendingHitDummy = true;
@@ -678,46 +756,32 @@ export class SandboxScene extends Phaser.Scene {
         break;
       case 'Digit0':
         this.pendingReset = true;
-        this.banner.setVisible(false);
-        if (this.match.over) this.startMatch(STOCKS);
         break;
       case 'Digit6':
-        this.dummyMode = (this.dummyMode + 1) % DUMMY_MODES.length;
-        this.showToast(`Dummy: ${DUMMY_MODES[this.dummyMode]}`);
-        break;
-      case 'Digit9':
-        this.startMatch(this.match.training ? STOCKS : TRAINING);
-        break;
-      case 'KeyT':
-        settings.tapJump = !settings.tapJump;
-        saveSettings();
-        this.showToast(`Tap-jump ${settings.tapJump ? 'ON' : 'OFF'}`);
-        break;
-      case 'Backquote':
-        this.perf.visible = !this.perf.visible;
-        break;
-      case 'KeyF':
-        if (this.scale.isFullscreen) this.scale.stopFullscreen();
-        else this.scale.startFullscreen();
+        this.showToast(`Dummy: ${this.dummy.cycle()}`);
         break;
       default:
         break;
     }
   }
 
-  private setPaused(p: boolean, reason = ''): void {
+  private setPaused(p: boolean, reason: 'user' | 'disconnect' = 'user'): void {
+    const was = this.paused;
     this.paused = p;
     this.pauseReason = p ? reason : '';
     this.pauseOverlay.setVisible(p);
     this.pauseText.setVisible(p);
+    this.pauseMenu.setVisible(p);
     if (p) {
-      this.pauseText.setText(
-        up(reason === 'disconnect' ? 'CONTROLLER DISCONNECTED\n\nRECONNECT IT TO RESUME\n(OR PRESS ESC / START TO CONTINUE)' : 'PAUSED\n\nESC / START TO RESUME'),
-      );
+      this.pauseText.setText(up(reason === 'disconnect' ? `${this.disconnectedName} CONTROLLER DISCONNECTED\n\nRECONNECT IT TO CONTINUE` : 'PAUSED'));
+      if (!was) {
+        this.pauseMenu.index = reason === 'disconnect' ? 1 : 0;
+        menuInput.reset();
+      }
     } else {
       this.ts.reset();
       this.lastNow = performance.now();
-      this.player.reset();
+      this.humans.forEach((h) => h?.reset());
     }
   }
 
@@ -762,7 +826,8 @@ export class SandboxScene extends Phaser.Scene {
     this.dimOverlay.setSize(w, h);
     this.trainText.setScale(u).setOrigin(0, 0);
     this.placeTrainText();
-    this.pauseText.setScale(u * 2).setPosition(w / 2, h / 2);
+    this.pauseText.setScale(u * 2).setPosition(w / 2, h * 0.3);
+    this.pauseMenu.layout(w / 2, h * 0.42, u, 90);
     this.banner.setScale(u * 4).setPosition(w / 2, h * 0.3);
     const n = this.huds.length;
     this.huds.forEach((hud, i) => hud.layout((w * (i + 1)) / (n + 1), h - m, u));
