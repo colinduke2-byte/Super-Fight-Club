@@ -127,7 +127,7 @@ export const gizmo: CharacterData = {
   projectiles: json.projectiles,
   deployables: json.deployables,
   resources: { scrap: 0, scrapBar: 0, mech: 0 },
-  ultimate: { cost: 100, gainDealt: 0.7, gainTaken: 1.0 },
+  ultimate: { cost: 100, gainDealt: 0.28, gainTaken: 0.4 },
   hud: { resource: 'scrapBar', max: 100, color: 0xffb02e, hotAt: 50 },
   counter: { resource: 'scrap' },
   transform: { resource: 'mech', scale: MECH_SCALE, tint: 0xbfe0ff },

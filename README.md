@@ -3,14 +3,13 @@
 A sci-fi/fantasy platform fighter built with **Phaser 3 + TypeScript (Vite)**. All characters, art and
 audio are original and generated in code. The game runs in the browser.
 
-> **Status: Phase 8 – menus and game flow done (see `ROADMAP.md`).**
-> Full roster (Brick, Vex, Nova, Gizmo), title / mode select / lobby / stage select / match / results / settings /
-> rebinding scenes. CPU AI, extra stages and the Arcade Ladder follow.
-> Dev shortcuts: `?char=<id>` jumps into training with that fighter, `?scene=<Key>` opens any scene.
->
-> *Earlier milestone note:* **Milestone 2 – combat.** Hitboxes/frame data, damage %, knockback, hitlag, trades, armor,
-> shield/dodge/grab/throw, stocks and KOs, on one character (Brick, normals only) in the sandbox.
-> Specials, Heat, ultimate, the rest of the roster, menus, CPU AI, Arcade Ladder and audio follow.
+> **Status: all twelve roadmap phases are built** (see `ROADMAP.md`): four fighters (Brick, Vex, Nova, Gizmo), three stages,
+> Versus for 2-4 (humans on any device + CPUs), Arcade Ladder with story cards and a scripted boss, training mode with frame-data
+> scenarios, rebindable keyboard / gamepad controls, synthesized SFX and chiptune music, CPU AI with three difficulties.
+> What still needs **you**: hands-on play (balance feel), real Xbox / PlayStation / Switch pads, Safari, 120/144 Hz displays and GPU
+> measurements. `?bench=20&stage=reactor&players=4&cpu=3&auto` gives you comparable numbers (see *Performance*).
+> Dev shortcuts: `?char=<id>` training, `?stage=<id>&players=<2-4>&cpu=<1-3>[&auto]` versus, `?arcade=<char>[&fight=<0-5>]` ladder,
+> `?scene=<Key>` any scene, `?bench=<seconds>` benchmark.
 
 ## Run
 
@@ -93,7 +92,8 @@ Dev shortcut: `?stage=<id>&players=<2-4>&cpu=<1-3>` starts a versus match withou
 Player 2 keyboard scheme (used in Versus): arrows + numpad (`1` attack, `2` special, `3` shield, `5`
 jump, `4` grab, `6` smash), with laptop-friendly alternates `, . /` and Right Shift. Keys are matched by
 `KeyboardEvent.code`, so they are layout-independent. All bindings are rebindable data
-(`src/input/bindings.ts`, saved to `localStorage`); the rebinding UI arrives with the Settings scene.
+(`src/input/bindings.ts`, saved to `localStorage`) and rebindable in Settings > Controls (both keyboard schemes and both gamepad
+profiles; Esc cancels a capture).
 
 Combat inputs: **Attack** + direction in the air = aerials (nair/fair/bair/uair/dair). On the ground, a
 **flick** of the stick + Attack, or the **Smash** button + a direction, is a smash (hold to charge); plain
@@ -101,8 +101,8 @@ Attack is the jab chain (tap again to continue). **Shield** (hold) shrinks the b
 shielding flick down = spot dodge, flick sideways = roll, Attack/Grab = grab, Jump = jump out. **Grab**
 holds the victim (mash to escape); pick a direction to throw. Press Shield just before a bounce to **tech**.
 
-Sandbox debug keys: `1` debug overlay · `2` hit dummy · `3` hit yourself · `4` dummy +25% · `5` clear % ·
-`6` dummy mode (stand / shield / jump / jab) · `9` training ↔ 3-stock match · `0` reset · `T` tap-jump on/off · `F` fullscreen · `` ` `` perf counter. Tech a bounce by pressing Shield
+Training-mode keys (the dev tools; in other modes only `1`, `H`, `T`, `F`, `` ` `` and Esc work): `1` debug overlay (hitboxes, frame data) · `2` hit dummy · `3` hit yourself · `4` dummy +25% · `5` clear % ·
+`6` dummy mode (stand / shield / jump / jab / CPU 1-3) · `[` `]` pick a move scenario, `Enter` runs it · `M` slow-mo · `N` / `B` step mode · `0` reset · `T` tap-jump on/off · `F` fullscreen · `` ` `` perf counter. Esc / Start pauses (and losing window focus pauses a live match). Tech a bounce by pressing Shield
 just before you hit the floor/wall.
 
 ## Art density
@@ -129,8 +129,10 @@ src/
   input/       devices (keyboard schemes, gamepad hot-plug), bindings, deadzone, per-player edge/tap-jump
   art/         code-generated placeholder sprite sheets and stage textures
   ui/          Phaser views: fighters, stage, parallax, particles (pooled), debug overlay, perf counter
-  scenes/      Boot, Sandbox (more scenes arrive each milestone)
-  ai/          (CPU AI – later milestone)
+  scenes/      Boot, Title, ModeSelect, VersusSetup, CharacterSelect, StageSelect, Match, Results, LadderMap, Story, Settings, Controls
+  game/        session / lobby / ladder / story / results (pure game-flow logic, unit-tested) and the Controller interface
+  ai/          CPU state machine, targeting, recovery, scripted boss brain, per-character knowledge
+  audio/       WebAudio SFX synth, chiptune tracks (data) + lookahead music player
 ```
 
 Key design points
@@ -306,11 +308,28 @@ shots) and +3 whenever an enemy breaks one of his turrets. Cap 40.
 Create `src/stages/<id>.ts` exporting a `StageData` (platforms with `solid`/`pass`, optional `ledges`
 and `move`, blast zones, spawns, background) and register it in `src/stages/index.ts`.
 
+## Performance
+
+Measured on the build machine's software renderer (so GPU numbers are not meaningful, CPU numbers are):
+the whole sim for 4 fighters + 4 CPUs costs about 0.01-0.05 ms per 60 Hz tick (`tests/perf.test.ts` asserts it stays under 1.5 ms), the
+CPU brains allocate under ~1 KB per tick together with the sim (a regression test uses V8's sampling heap profiler), a 4-player match
+issues about 9 WebGL draw calls per frame (Phaser batches the generated textures, so an atlas would not help), and JS time per frame is
+under 1 ms. Effects, projectiles, deployables and HUD objects are pooled. Particle quality has three tiers, and **auto particle
+quality** (Settings) temporarily drops a tier if the frame rate stays under ~45 fps for a few seconds.
+The perf line (backtick) shows fps, 1% low, sim ms and JS ms per frame. For comparable measurements on your machines open
+`http://localhost:5173/?stage=reactor&players=4&cpu=3&auto&bench=20` in each browser: after 20 s it prints `BENCH RESULT {...}` to the
+console and shows avg fps, 1% low, sim and JS ms per frame on screen. Please send me those lines from the MacBook (Safari + Chrome)
+and the Windows PC (Chrome / Edge).
+
+## Balance
+
+`docs/balance-report.md` is a CPU-vs-CPU round robin (`BALANCE=1 npx vitest run tests/balanceReport.test.ts`). Treat it as a smoke
+test: the CPU plays Brick and Gizmo (straightforward kits) far better than Vex (hit-and-run) and Nova, so it exaggerates the gaps. It
+did find real bugs (simultaneous cinematic grabs and a KO'd grabber could leave a fighter grabbed forever) and tuned values that
+were clearly too strong: ultimate meter gain was roughly halved (about one ultimate per fighter per match), Brick's up / down smashes
+and forward smash are slower, Vex's smashes hit a bit harder. Real balance needs your hands-on feedback.
+
 ## Roadmap
 
-1. ✅ Physics sandbox
-2. ✅ Combat: hitboxes, damage, knockback, stocks, KOs *(feedback checkpoint)*
-3. Roster, one character at a time
-4. Menus, Versus (2–4 players), CPU AI
-5. Arcade Ladder + boss, stages, polish
-6. Performance pass on macOS and Windows
+Phases 1-12 are done. Possible next steps: real sprite sheets (drop in `sheetUrl`), more characters and stages, online play (the
+sim is deterministic, so rollback netcode is feasible), a replay system, and character-specific CPU play-style tuning (Vex).

@@ -181,7 +181,13 @@ export abstract class MenuScene extends Phaser.Scene {
   override update(_t: number, _d: number): void {
     const time = (performance.now() - this.time0) / 1000;
     this.bg.update(time * 6, Math.sin(time * 0.2) * 10, 3, time);
-    for (const e of menuInput.poll()) this.onEvent(e);
+    for (const e of menuInput.poll()) {
+      // tiny UI blips; scenes that consume the event (rebinding etc.) still get it
+      if (e.action === 'confirm') sfx.play('menuOk', 0.7, 0);
+      else if (e.action === 'back') sfx.play('menuBack', 0.7, 0);
+      else if (e.action === 'up' || e.action === 'down' || e.action === 'left' || e.action === 'right') sfx.play('menuMove', 0.6, 0);
+      this.onEvent(e);
+    }
     this.tick(time, 1 / 60);
   }
 

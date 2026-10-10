@@ -149,7 +149,7 @@ describe('CPU targeting (free-for-all)', () => {
 });
 
 describe('CPU matches', () => {
-  function play(chars: string[], levels: CpuLevel[], stage = 'classic', ticks = 7200): { match: Match; world: World; hash: number } {
+  function play(chars: string[], levels: CpuLevel[], stage = 'classic', ticks = 14400): { match: Match; world: World; hash: number } {
     const { world, fighters, match } = arena(chars, stage);
     const cpus = levels.map((l, i) => new CpuController(l, i + 1));
     const ins = fighters.map(() => makeInput());
@@ -183,7 +183,7 @@ describe('CPU matches', () => {
   });
 
   it('four CPUs free-for-all stay sane (finite positions, someone wins)', () => {
-    const r = play(['brick', 'vex', 'nova', 'gizmo'], [2, 2, 2, 2], 'reactor', 10800);
+    const r = play(['brick', 'vex', 'nova', 'gizmo'], [2, 2, 2, 2], 'reactor', 28800);
     for (const f of r.world.fighters) {
       expect(Number.isFinite(f.x)).toBe(true);
       expect(Number.isFinite(f.y)).toBe(true);

@@ -71,7 +71,7 @@
     "fsmash": {
       "name": "Staff Burst", "kind": "smash", "anim": "smashF", "startup": 16, "active": 3, "recovery": 30,
       "charge": { "frame": 6, "max": 60, "damageMult": 1.4, "kbMult": 1.2 },
-      "hitboxes": [{ "x": 38, "y": -16, "w": 46, "h": 26, "damage": 13, "angle": 38, "base": 44, "scaling": 0.9, "hitlag": 1.2, "fx": "burst" }]
+      "hitboxes": [{ "x": 38, "y": -16, "w": 46, "h": 26, "damage": 14, "angle": 38, "base": 44, "scaling": 0.9, "hitlag": 1.2, "fx": "burst" }]
     },
     "usmash": {
       "name": "Skyward Spell", "kind": "smash", "anim": "smashU", "startup": 13, "active": 4, "recovery": 28,
@@ -98,7 +98,7 @@
       "name": "Staff Swing", "kind": "aerial", "anim": "aerialF", "startup": 11, "active": 4, "recovery": 20,
       "landingLag": 16, "autocancel": [[1, 6], [32, 35]],
       "hitboxes": [
-        { "x": 38, "y": -16, "w": 30, "h": 26, "damage": 10, "angle": 38, "base": 40, "scaling": 0.85, "hitlag": 1.2, "fx": "punch" },
+        { "x": 38, "y": -16, "w": 30, "h": 26, "damage": 11, "angle": 38, "base": 40, "scaling": 0.85, "hitlag": 1.2, "fx": "punch" },
         { "x": 20, "y": -16, "w": 26, "h": 22, "damage": 6, "angle": 45, "base": 28, "scaling": 0.55, "fx": "punch" }
       ]
     },

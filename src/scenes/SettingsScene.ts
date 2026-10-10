@@ -37,7 +37,7 @@ export class SettingsScene extends MenuScene {
       saveSettings();
       if (key !== 'deadzone') sfx.play('ding', 0.4, 0);
     };
-    const toggle = (key: 'tapJump' | 'showPerf') => () => {
+    const toggle = (key: 'tapJump' | 'showPerf' | 'autoQuality') => () => {
       settings[key] = !settings[key];
       saveSettings();
     };
@@ -54,6 +54,7 @@ export class SettingsScene extends MenuScene {
         onConfirm: () => { settings.particleQuality = cycle(QUALITY, settings.particleQuality, 1); saveSettings(); },
       },
       { label: 'FPS COUNTER', value: () => (settings.showPerf ? 'ON' : 'OFF'), onLeft: toggle('showPerf'), onRight: toggle('showPerf'), onConfirm: toggle('showPerf') },
+      { label: 'AUTO PARTICLE QUALITY', value: () => (settings.autoQuality ? 'ON' : 'OFF'), onLeft: toggle('autoQuality'), onRight: toggle('autoQuality'), onConfirm: toggle('autoQuality') },
       {
         label: 'FULLSCREEN',
         value: () => (this.scale.isFullscreen ? 'ON' : 'OFF'),

@@ -4,12 +4,16 @@ import type { CharacterData } from '../engine/types';
 /** What the CPU needs to know about one normal move, derived from its frame data. */
 export interface AiMove {
   id: string;
+  /** Position in the character's table (for per-move counters without string keys). */
+  index: number;
   kind: 'jab' | 'smash' | 'aerial' | 'grab';
   startup: number;
   active: number;
   total: number;
   /** Damage of the strongest hitbox plus a share of the rest (multi-hit moves). */
   dmg: number;
+  /** Strongest single hit (compared against an opponent's armor threshold). */
+  maxHit: number;
   /** Launch strength proxy: base + scaling. */
   power: number;
   /** Union of hitboxes, forward-relative to the fighter's feet. */
@@ -71,13 +75,22 @@ export function moveTable(data: CharacterData): AiMove[] {
         power = h.base + h.scaling;
       } else rest += h.damage * 0.4;
     }
+    // jab strings: count the follow-up hits (the CPU keeps pressing while they connect)
+    let chainDmg = 0;
+    let chainFrames = 0;
+    for (let nx = m.next ? data.moves[m.next.id] : undefined, n = 0; nx && n < 4; nx = nx.next ? data.moves[nx.next.id] : undefined, n++) {
+      chainDmg += Math.max(0, ...nx.hitboxes.map((h) => h.damage)) * 0.7;
+      chainFrames += nx.next ? nx.next.at : moveTotal(nx);
+    }
     out.push({
       id,
+      index: out.length,
       kind: m.kind === 'grab' ? 'grab' : (m.kind as AiMove['kind']),
       startup: m.startup,
       active: m.active,
-      total: moveTotal(m),
-      dmg: best + rest,
+      total: moveTotal(m) + chainFrames * 0.5,
+      dmg: best + rest + chainDmg,
+      maxHit: best,
       power,
       minX,
       maxX,

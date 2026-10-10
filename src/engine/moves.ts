@@ -186,10 +186,17 @@ export function moveTotal(m: MoveDef): number {
   return m.startup + m.active + m.recovery;
 }
 
-/** Absolute first/last frame in which a hitbox is live. */
+/** Absolute first / last frame in which a hitbox is live (allocation-free; used in the per-tick hot path). */
+export function hitboxStart(m: MoveDef, hb: HitboxDef): number {
+  return m.startup + (hb.window ? hb.window[0] : 1);
+}
+export function hitboxEnd(m: MoveDef, hb: HitboxDef): number {
+  return m.startup + (hb.window ? hb.window[1] : m.active);
+}
+
+/** Absolute first/last frame in which a hitbox is live, as a pair (convenience for tools; allocates). */
 export function hitboxFrames(m: MoveDef, hb: HitboxDef): [number, number] {
-  const w = hb.window ?? [1, m.active];
-  return [m.startup + w[0], m.startup + w[1]];
+  return [hitboxStart(m, hb), hitboxEnd(m, hb)];
 }
 
 /** Everything a character's JSON file defines. */

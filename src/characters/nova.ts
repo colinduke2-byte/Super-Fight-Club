@@ -98,7 +98,7 @@ export const nova: CharacterData = {
   projectiles: json.projectiles,
   deployables: json.deployables,
   resources: { element: 0, elementBar: 100 },
-  ultimate: { cost: 100, gainDealt: 0.75, gainTaken: 1.0 },
+  ultimate: { cost: 100, gainDealt: 0.3, gainTaken: 0.4 },
   hud: { resource: 'elementBar', max: 100, color: ELEMENT_COLORS[0], hotAt: 101, colors: ELEMENT_COLORS, colorKey: 'element' },
   companion: { resource: 'element', colors: ELEMENT_COLORS },
   behavior,

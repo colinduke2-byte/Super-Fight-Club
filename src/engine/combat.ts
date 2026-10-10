@@ -1,5 +1,5 @@
 import { MAX_GROUPS, GRAB_DISTANCE, type Fighter } from './fighter';
-import { hitboxFrames, type HitboxDef, type MoveDef } from './moves';
+import { hitboxEnd, hitboxStart, type HitboxDef, type MoveDef } from './moves';
 import type { World } from './world';
 
 /** Damage difference below which two simultaneous hits both land (a trade). */
@@ -27,7 +27,7 @@ export function hitboxRect(f: Fighter, hb: HitboxDef, out: number[]): void {
   let oy = hb.y;
   if (hb.travel && f.move) {
     // beams / sweeps: the box moves from its first live frame
-    const off = Math.max(0, f.moveFrame - hitboxFrames(f.move, hb)[0]);
+    const off = Math.max(0, f.moveFrame - hitboxStart(f.move, hb));
     ox += hb.travel.vx * off;
     oy += hb.travel.vy * off;
   }
@@ -56,7 +56,8 @@ function overlap(a: number[], b: number[]): boolean {
 
 /** Is this hitbox live on the fighter's current move frame? */
 export function hitboxActive(f: Fighter, m: MoveDef, hb: HitboxDef): boolean {
-  const [a, b] = hitboxFrames(m, hb);
+  const a = hitboxStart(m, hb);
+  const b = hitboxEnd(m, hb);
   if (hb.minCharge !== undefined && f.chargeFrac < hb.minCharge) return false;
   return f.moveFrame >= a && f.moveFrame <= b;
 }
@@ -138,7 +139,10 @@ function applyHit(world: World, c: Candidate): void {
   // --- grabs ---
   if (hb.grab) {
     if (def.state === 'hitstun' || def.state === 'ledge') return;
+    // simultaneous mutual grabs: whichever candidate applies first wins; the other attacker was grabbed this very tick
+    if (atk.state !== 'attack' || def.state === 'grabbed' || def.state === 'holding') return;
     if (hb.cinematic && move.cinematic) {
+      if (world.cinematic) return; // only one cutscene at a time: a second simultaneous ultimate grab simply whiffs
       world.startCinematic(atk, def, move);
       return;
     }

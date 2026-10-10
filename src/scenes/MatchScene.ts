@@ -22,6 +22,7 @@ import { STAGES } from '../stages';
 import { sandboxStage } from '../stages/sandbox';
 import { BackgroundView } from '../ui/BackgroundView';
 import { DebugOverlay } from '../ui/DebugOverlay';
+import { AdaptiveQuality } from '../ui/adaptiveQuality';
 import { Effects } from '../ui/Effects';
 import { FighterView } from '../ui/FighterView';
 import { PerfCounter } from '../ui/PerfCounter';
@@ -68,6 +69,10 @@ export class MatchScene extends Phaser.Scene {
   private effects!: Effects;
   private debug!: DebugOverlay;
   private perf!: PerfCounter;
+  private readonly adaptive = new AdaptiveQuality();
+  private simMs = 0;
+  private updMs = 0;
+  private bench: { seconds: number; frames: number; t0: number; sim: number; upd: number; done: boolean } | null = null;
 
   private readonly ts = new FixedTimestep();
   private readonly cam = new MultiTargetCamera({ ...DEFAULT_CAMERA, bounds: { x: 0, y: 0, w: 1, h: 1 } });
@@ -143,6 +148,7 @@ export class MatchScene extends Phaser.Scene {
     this.dummy.mode = 0;
     this.hazardView = null;
     this.training = null;
+    this.bench = null;
     inputManager.init();
     this.ensureSession();
     this.slots = session.players;
@@ -192,6 +198,7 @@ export class MatchScene extends Phaser.Scene {
       return new FighterView(this, this.worldLayer, f, dup ? DUPLICATE_TINTS[i % 4] : undefined);
     });
     this.effects = new Effects(this, this.worldLayer);
+    this.effects.cap = this.adaptive.cap; // a reduction earlier in the session carries over to rematches
     this.entityViews = new EntityViews(this, this.worldLayer, this.world);
     if (this.isTraining) this.training = new TrainingRunner(this.world, this.fighters[0], this.fighters[1]);
     sfx.arm();
@@ -238,9 +245,16 @@ export class MatchScene extends Phaser.Scene {
     this.pauseMenu.setVisible(false);
 
     this.layout(w, h);
+    this.startBench();
     this.scale.on('resize', this.onResize, this);
 
     keyboardHub.onKeyDown = (code) => this.onKey(code);
+    // losing focus (alt-tab, another window) pauses a live match instead of letting the CPUs win
+    const onBlur = (): void => {
+      if (!this.paused && this.endTimer < 0 && !this.bench) this.setPaused(true, 'user');
+    };
+    window.addEventListener('blur', onBlur);
+    this.events.once('shutdown', () => window.removeEventListener('blur', onBlur));
     inputManager.onPadConnect = (d) => this.showToast(`Controller connected: ${d.label}`);
     inputManager.onPadDisconnect = (d) => this.showToast(`Controller disconnected: ${d.label}`);
 
@@ -257,6 +271,49 @@ export class MatchScene extends Phaser.Scene {
       inputManager.onPadConnect = null;
       inputManager.onPadDisconnect = null;
     });
+  }
+
+  /**
+   * `?bench=<seconds>` (with a 4-CPU match): measures frame times for that long, then shows and logs the summary. Run it on
+   * each machine / browser to get comparable numbers (fps, 1% low, sim ms, JS ms per frame).
+   */
+  private startBench(): void {
+    const sec = Number(new URLSearchParams(location.search).get('bench') ?? 0);
+    if (!(sec > 0)) return;
+    this.bench = { seconds: sec, frames: 0, t0: performance.now(), sim: 0, upd: 0, done: false };
+    this.helpOn = false;
+    this.helpText.setVisible(false);
+  }
+
+  private benchStep(): void {
+    const b = this.bench!;
+    if (b.done) return;
+    b.frames++;
+    b.sim += this.simMs;
+    b.upd += this.updMs;
+    if ((performance.now() - b.t0) / 1000 < b.seconds) return;
+    b.done = true;
+    const secs = (performance.now() - b.t0) / 1000;
+    const result = {
+      seconds: Number(secs.toFixed(1)),
+      frames: b.frames,
+      avgFps: Number((b.frames / secs).toFixed(1)),
+      oneLowFps: Number(this.perf.lowFps.toFixed(1)),
+      worstFrameMs: Number(this.perf.maxMs.toFixed(1)),
+      simMsPerFrame: Number((b.sim / b.frames).toFixed(3)),
+      jsMsPerFrame: Number((b.upd / b.frames).toFixed(2)),
+      resolution: `${this.scale.width}x${this.scale.height}`,
+      dpr: Number(this.dpr().toFixed(2)),
+      particles: settings.particleQuality,
+      renderer: this.game.renderer.type === Phaser.WEBGL ? 'WebGL' : 'Canvas',
+      userAgent: navigator.userAgent,
+    };
+    (window as unknown as { __benchResult: unknown }).__benchResult = result;
+    console.info('BENCH RESULT', JSON.stringify(result));
+    this.banner
+      .setText(up(`BENCH DONE\n${result.avgFps} FPS AVG   ${result.oneLowFps} FPS 1% LOW\nSIM ${result.simMsPerFrame} MS   JS ${result.jsMsPerFrame} MS PER FRAME`))
+      .setScale(this.hudUnit(this.scale.height) * 1.6)
+      .setVisible(true);
   }
 
   /**
@@ -288,6 +345,13 @@ export class MatchScene extends Phaser.Scene {
     this.lastNow = now;
     this.frameCount++;
     this.perf.push(frameMs);
+    if (settings.autoQuality && !this.paused && this.frameCount > 90) {
+      const cap = this.adaptive.observe(frameMs, settings.particleQuality);
+      if (cap) {
+        this.effects.cap = cap;
+        this.showToast(`Frame rate low: particles reduced (${cap})`);
+      }
+    }
     if (this.frameCount % 30 === 0) inputManager.poll();
     this.checkControllers();
 
@@ -307,9 +371,13 @@ export class MatchScene extends Phaser.Scene {
       }
       inputManager.endTick();
     } else {
+      const s0 = performance.now();
       this.stepsLastFrame = this.ts.advance(this.slowMo ? frameMs * 0.25 : frameMs, () => this.tick());
+      this.simMs += (performance.now() - s0 - this.simMs) * 0.05;
     }
     this.render(frameMs);
+    this.updMs += (performance.now() - now - this.updMs) * 0.05;
+    if (this.bench) this.benchStep();
   }
 
   /** A human slot whose gamepad vanished: re-attach a free pad if there is one, else pause until it returns. */
@@ -510,7 +578,7 @@ export class MatchScene extends Phaser.Scene {
     }
 
     if (this.training && this.frameCount % 6 === 0) this.trainText.setText(up(this.training.report().join('\n')) + (this.slowMo ? '\nSLOW-MO' : '') + (this.stepMode ? '\nSTEP MODE (B)' : ''));
-    this.perf.update(frameMs, `${this.scale.width}x${this.scale.height} @${this.dpr().toFixed(1)}x  z${zoom.toFixed(2)}  ${this.stepsLastFrame}/f`);
+    this.perf.update(frameMs, `${this.scale.width}x${this.scale.height} @${this.dpr().toFixed(1)}x  z${zoom.toFixed(2)}  ${this.stepsLastFrame}/f  sim ${this.simMs.toFixed(2)}ms  frame-js ${this.updMs.toFixed(2)}ms  1%low ${this.perf.lowFps.toFixed(0)}`);
     if (this.toastUntil > 0) {
       const left = this.toastUntil - performance.now();
       this.toast.setAlpha(left <= 0 ? 0 : Math.min(1, left / 400));

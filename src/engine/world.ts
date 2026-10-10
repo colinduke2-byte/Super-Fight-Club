@@ -203,6 +203,12 @@ export class World {
     for (const a of fs) {
       if (a.grabTarget < 0) continue;
       const v = fs[a.grabTarget];
+      if (a.state === 'ko') {
+        // a grabber that was KO'd (or never respawns) must let go, or its victim would stay grabbed forever
+        if (v && v.grabbedBy === a.id) v.releaseGrab();
+        a.grabTarget = -1;
+        continue;
+      }
       if (!v || v.grabbedBy !== a.id || v.state === 'ko') {
         // victim got hit / KO'd out of the grab
         a.grabTarget = -1;

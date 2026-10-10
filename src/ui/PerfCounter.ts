@@ -27,6 +27,18 @@ export class PerfCounter {
     for (let i = 0; i < this.count; i++) s += this.samples[i];
     return this.count ? s / this.count : 0;
   }
+  /** p-th percentile (0..1) of the recent frame times. Allocates: call from reports, not per frame. */
+  percentile(p: number): number {
+    if (this.count === 0) return 0;
+    const a = Array.from(this.samples.subarray(0, this.count)).sort((x, y) => x - y);
+    return a[Math.min(a.length - 1, Math.floor(p * a.length))];
+  }
+
+  /** "1% low" fps: the frame rate of the slowest 1% of recent frames. */
+  get lowFps(): number {
+    return 1000 / Math.max(0.001, this.percentile(0.99));
+  }
+
   get maxMs(): number {
     let m = 0;
     for (let i = 0; i < this.count; i++) if (this.samples[i] > m) m = this.samples[i];

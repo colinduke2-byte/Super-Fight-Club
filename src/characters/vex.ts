@@ -83,7 +83,7 @@ export const vex: CharacterData = {
   moves,
   deployables: json.deployables,
   resources: { blinkAir: 1, markerTime: 0 },
-  ultimate: { cost: 100, gainDealt: 0.8, gainTaken: 1.0 },
+  ultimate: { cost: 100, gainDealt: 0.3, gainTaken: 0.4 },
   hud: { resource: 'markerTime', max: 100, color: 0x7fe8ff, hotAt: 101 },
   behavior,
 };

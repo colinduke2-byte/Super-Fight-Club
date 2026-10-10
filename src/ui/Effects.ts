@@ -1,5 +1,7 @@
 import Phaser from 'phaser';
-import { settings } from '../settings';
+import { settings, type ParticleQuality } from '../settings';
+
+const QUALITY_SCALE: Record<ParticleQuality, number> = { high: 1, medium: 0.55, low: 0.25 };
 
 const POOL = 512;
 const FLASHES = 24;
@@ -49,8 +51,12 @@ export class Effects {
     }
   }
 
+  /** Temporary cap from the adaptive-quality governor (never saved). */
+  cap: ParticleQuality | null = null;
+
   private get quality(): number {
-    return settings.particleQuality === 'high' ? 1 : settings.particleQuality === 'medium' ? 0.55 : 0.25;
+    const q = this.cap && QUALITY_SCALE[this.cap] < QUALITY_SCALE[settings.particleQuality] ? this.cap : settings.particleQuality;
+    return QUALITY_SCALE[q];
   }
 
   emit(x: number, y: number, vx: number, vy: number, life: number, color: number, size: number, gravity: number, additive = false): void {

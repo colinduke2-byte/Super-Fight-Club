@@ -7,6 +7,8 @@ function vulnerable(f: Fighter): number {
   return 0;
 }
 
+const aliveScratch: number[] = [];
+
 /**
  * Free-for-all target choice. A score per opponent: closer is better, damaged opponents are tastier (kill range),
  * whoever just hit us is a grudge target, opponents already in trouble are opportunities. A per-CPU `bias` (seeded
@@ -16,11 +18,13 @@ function vulnerable(f: Fighter): number {
 export function chooseTarget(self: Fighter, world: World, prev: number, bias: readonly number[]): number {
   let best = -1;
   let bestScore = -Infinity;
-  const alive: number[] = [];
+  const alive = aliveScratch;
+  alive.length = 0;
   for (const f of world.fighters) if (f !== self && f.state !== 'ko') alive.push(f.id);
   if (alive.length === 0) return -1;
   if (alive.length === 1) return alive[0];
-  for (const id of alive) {
+  for (let k = 0; k < alive.length; k++) {
+    const id = alive[k];
     const f = world.fighters[id];
     const d = Math.hypot(f.x - self.x, f.y - self.y);
     let s = -d * 0.55;

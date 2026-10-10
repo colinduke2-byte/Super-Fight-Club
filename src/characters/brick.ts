@@ -73,7 +73,7 @@ export const brick: CharacterData = {
   },
   moves: parseMoves(movesJson as never, 'brick'),
   resources: { heat: 0, quiet: 0, ventDmg: 1, ventKb: 1 },
-  ultimate: { cost: 100, gainDealt: 0.55, gainTaken: 0.9 },
+  ultimate: { cost: 100, gainDealt: 0.2, gainTaken: 0.35 },
   hud: { resource: 'heat', max: 100, color: 0xff7a2a, hotAt: 50 },
   behavior: undefined as unknown as CharacterBehavior,
 };

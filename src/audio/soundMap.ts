@@ -3,7 +3,7 @@ import type { WorldEventType } from '../engine/world';
 export type SoundName =
   | 'swing' | 'hit' | 'hitHeavy' | 'clang' | 'shield' | 'shieldBreak' | 'jump' | 'doubleJump' | 'land' | 'landBounce'
   | 'bounce' | 'tech' | 'ledge' | 'dodge' | 'grab' | 'throw' | 'pummel' | 'ko' | 'shoot' | 'zap' | 'reflect' | 'place'
-  | 'boom' | 'break' | 'burn' | 'freeze' | 'slow' | 'stun' | 'blink' | 'hook' | 'charge' | 'ding';
+  | 'boom' | 'break' | 'burn' | 'freeze' | 'slow' | 'stun' | 'blink' | 'hook' | 'charge' | 'ding' | 'menuMove' | 'menuOk' | 'menuBack';
 
 export interface SoundCue {
   name: SoundName;

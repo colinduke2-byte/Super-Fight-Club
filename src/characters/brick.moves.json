@@ -25,7 +25,7 @@
     },
     "fsmash": {
       "name": "Piston Slam", "kind": "smash", "anim": "smashF",
-      "startup": 21, "active": 3, "recovery": 36,
+      "startup": 23, "active": 3, "recovery": 36,
       "charge": { "frame": 6, "max": 60, "damageMult": 1.4, "kbMult": 1.2 },
       "armor": { "from": 8, "to": 20, "threshold": 12 },
       "motion": [{ "frame": 22, "vx": 1.6 }],
@@ -35,7 +35,7 @@
     },
     "usmash": {
       "name": "Overhead Crush", "kind": "smash", "anim": "smashU",
-      "startup": 14, "active": 4, "recovery": 32,
+      "startup": 18, "active": 4, "recovery": 36,
       "charge": { "frame": 5, "max": 60, "damageMult": 1.4, "kbMult": 1.2 },
       "armor": { "from": 6, "to": 17, "threshold": 0 },
       "hitboxes": [
@@ -45,7 +45,7 @@
     },
     "dsmash": {
       "name": "Shockwave Stomp", "kind": "smash", "anim": "smashD",
-      "startup": 12, "active": 4, "recovery": 30,
+      "startup": 16, "active": 4, "recovery": 34,
       "charge": { "frame": 4, "max": 60, "damageMult": 1.4, "kbMult": 1.2 },
       "armor": { "from": 4, "to": 13, "threshold": 0 },
       "hitboxes": [

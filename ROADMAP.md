@@ -15,6 +15,7 @@ next phase starts.
 | 6 | Nova complete: Arcana Cycle, elemental Spell Bolts, Rune Traps, reflecting barrier, Aether Step, Convergence | done |
 | 5 | Vex complete: Blink Trail marker/recall, mines, dash, full moveset | done |
 | 4 | Brick complete: Heat, Charge Shoulder, Grapple Slam, Jet Boost, Vent, Meltdown, frame-data doc, tests, training scenarios | done |
+| 12 | Polish + performance: allocation audit (CPU garbage cut ~10x, budget test), adaptive particle quality, bench mode + perf telemetry, menu SFX, auto-pause on focus loss, grab / cinematic stuck-state fixes, ultimate-meter and frame-data tuning, balance report | done |
 | 11 | Arcade Ladder: ladder map, 5 escalating fights (incl. mirror + brawl) and the scripted Overseer boss with phases, story cards, continues, ending | done |
 | 10 | CPU AI: state machine (approach / spacing / attack / defend / recover / edge-guard), 3 difficulties, FFA targeting, per-character knowledge, tests (recovery, targeting, full-roster duels, determinism) | done |
 | 9 | Versus 2-4 players + stages: Skyline Classic, Training Ring, Reactor Core (moving platforms + geyser hazard), per-stage parallax themes, chiptune loops, 4-fighter camera | done |
@@ -96,7 +97,7 @@ Tests: recovery reaches the stage, target selection is not just "gang up".
 Ladder map scene, 5 escalating CPU fights ending in a boss, pixel-art story cards between fights, boss with
 scripted patterns, continue / retry rules.
 
-## Phase 12: Polish and performance pass **CHECKPOINT**
+## Phase 12: Polish and performance pass *(done; measurements on your machines still needed)*
 - Chiptune loops per stage, remaining SFX, KO blast and hit-effect polish.
 - Allocation audit of the game loop, pooling audit, texture-atlas packing, particle-quality tiers.
 - 60 fps minimum and 120 / 144 fps rendering with 4 fighters + effects.

@@ -144,13 +144,13 @@ export class ControlsScene extends MenuScene {
   }
 
   private relayoutList(): void {
-    this.list.layout(this.scale.width / 2, this.scale.height * 0.2, this.u, 170);
+    this.list.layout(this.scale.width / 2, this.scale.height * 0.17, Math.min(this.u, this.scale.height / 480), 250);
   }
 
   protected override layoutUi(w: number, h: number, u: number): void {
     this.title.setScale(u * 4).setPosition(w / 2, h * 0.1);
     // twelve rows + chrome must fit: shrink the row pitch is not supported, so use the smaller unit if needed
-    this.list.layout(w / 2, h * 0.17, Math.min(u, h / 480), 170);
+    this.list.layout(w / 2, h * 0.17, Math.min(u, h / 480), 250);
     this.hint.setScale(u).setPosition(w / 2, h - 10 * u);
   }
 

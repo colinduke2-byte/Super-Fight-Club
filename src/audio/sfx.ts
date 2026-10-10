@@ -245,6 +245,16 @@ export class Sfx {
         this.tone(d, 'sine', 80, 420, 0.6, 0.5 * k);
         this.tone(d, 'sawtooth', 120, 640, 0.6, 0.18 * k);
         break;
+      case 'menuMove':
+        this.tone(d, 'square', 660, 700, 0.05, 0.12 * k);
+        break;
+      case 'menuOk':
+        this.tone(d, 'square', 520, 520, 0.07, 0.16 * k);
+        this.tone(d, 'square', 780, 780, 0.1, 0.16 * k, 0.06);
+        break;
+      case 'menuBack':
+        this.tone(d, 'square', 420, 300, 0.12, 0.14 * k);
+        break;
       case 'ding':
         this.tone(d, 'sine', 880, 880, 0.35, 0.3 * k);
         this.tone(d, 'sine', 1320, 1320, 0.35, 0.22 * k, 0.07);

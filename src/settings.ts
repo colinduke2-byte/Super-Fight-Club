@@ -10,6 +10,8 @@ export interface Settings {
   smashMode: SmashMode;
   particleQuality: ParticleQuality;
   showPerf: boolean;
+  /** Drop particle quality automatically (for the current session only) when the frame rate cannot hold. */
+  autoQuality: boolean;
   /** 0..1 master and sound-effect volume. */
   masterVolume: number;
   sfxVolume: number;
@@ -22,6 +24,7 @@ export const DEFAULT_SETTINGS: Settings = {
   smashMode: 'flick',
   particleQuality: 'high',
   showPerf: true,
+  autoQuality: true,
   masterVolume: 0.7,
   sfxVolume: 1,
   musicVolume: 0.6,

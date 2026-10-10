@@ -2,7 +2,7 @@ import { Button, type FighterInput } from '../engine/buttons';
 import { hitboxRect, hurtRect } from '../engine/combat';
 import type { Fighter } from '../engine/fighter';
 import { hazardPhase } from '../engine/hazards';
-import { hitboxFrames } from '../engine/moves';
+import { hitboxEnd, hitboxStart } from '../engine/moves';
 import type { Platform } from '../engine/platform';
 import type { World } from '../engine/world';
 import { applyHeld, clearInput, type Controller } from '../game/controllers';
@@ -77,8 +77,8 @@ export class CpuController implements Controller {
   private hopTarget = false;
   /** Frames since anybody took damage: a stalled mirror match makes the CPU stop zoning and close in. */
   private stall = 0;
-  private lastMove = '';
-  private repeats = 0;
+  /** Decaying per-move usage counts (staleness). */
+  private readonly useCount = new Float32Array(16);
   private lastDamageSum = 0;
 
   private sx = 0;
@@ -265,9 +265,18 @@ export class CpuController implements Controller {
   private clampEdge(self: Fighter): void {
     const pl = self.groundPlat;
     if (!pl || !self.grounded || this.sx === 0) return;
-    const margin = 10;
+    // leave room to brake: a fast runner / dasher needs a few frames to stop
+    const margin = 10 + Math.abs(self.vx) * 7;
     if (this.sx > 0 && self.x > pl.right - margin) this.sx = 0;
     else if (this.sx < 0 && self.x < pl.x + margin) this.sx = 0;
+  }
+
+  /** True when the fighter's current ground speed would carry it off its platform within ~14 frames. */
+  private slidingOffEdge(self: Fighter): boolean {
+    const pl = self.groundPlat;
+    if (!pl || !self.grounded) return false;
+    const reach = Math.abs(self.vx) * 14;
+    return (self.vx > 1 && pl.right - self.x < reach) || (self.vx < -1 && self.x - pl.x < reach);
   }
 
   // ---- recovery --------------------------------------------------------------------------------
@@ -310,24 +319,38 @@ export class CpuController implements Controller {
   }
 
   // ---- defence ---------------------------------------------------------------------------------
-  private detectThreat(self: Fighter, world: World): { eta: number; grab: boolean; proj: boolean; fromX: number } | null {
+  private readonly threat = { eta: 0, grab: false, proj: false, fromX: 0 };
+
+  /** Fills `this.threat` and returns true when something is about to hit us (melee hitbox or projectile). */
+  private detectThreat(self: Fighter, world: World): boolean {
     hurtRect(self, rB);
-    let best: { eta: number; grab: boolean; proj: boolean; fromX: number } | null = null;
-    for (const o of world.fighters) {
-      if (o === self || o.state === 'ko' || o.state !== 'attack' || !o.move) continue;
+    const th = this.threat;
+    let found = false;
+    for (let i = 0; i < world.fighters.length; i++) {
+      const o = world.fighters[i];
+      if (o === self || o.state !== 'attack' || !o.move) continue;
       if (Math.abs(o.x - self.x) > 170 || Math.abs(o.y - self.y) > 140) continue;
-      for (const hb of o.move.hitboxes) {
+      const hbs = o.move.hitboxes;
+      for (let k = 0; k < hbs.length; k++) {
+        const hb = hbs[k];
         if (hb.damage <= 0 && !hb.grab) continue;
-        const [a, b] = hitboxFrames(o.move, hb);
-        if (o.moveFrame > b || a - o.moveFrame > 20) continue;
+        const a = hitboxStart(o.move, hb);
+        if (o.moveFrame > hitboxEnd(o.move, hb) || a - o.moveFrame > 20) continue;
         hitboxRect(o, hb, rA);
         if (rA[0] - 8 < rB[0] + rB[2] && rA[0] + rA[2] + 8 > rB[0] && rA[1] - 8 < rB[1] + rB[3] && rA[1] + rA[3] + 8 > rB[1]) {
           const eta = Math.max(0, a - o.moveFrame);
-          if (!best || eta < best.eta) best = { eta, grab: !!hb.grab, proj: false, fromX: o.x };
+          if (!found || eta < th.eta) {
+            found = true;
+            th.eta = eta;
+            th.grab = !!hb.grab;
+            th.proj = false;
+            th.fromX = o.x;
+          }
         }
       }
     }
-    for (const p of world.projectiles) {
+    for (let i = 0; i < world.projectiles.length; i++) {
+      const p = world.projectiles[i];
       if (!p.active || p.owner === self.id || !p.def) continue;
       const dx = self.x - p.x;
       if (Math.abs(dx) > 150 || Math.sign(dx) !== Math.sign(p.vx) || Math.abs(p.vx) < 0.5) continue;
@@ -335,17 +358,23 @@ export class CpuController implements Controller {
       if (Math.abs(mid - p.y) > self.h / 2 + p.def.h / 2 + 8) continue;
       const eta = Math.max(0, Math.abs(dx) / Math.abs(p.vx) - 2);
       if (eta > 22) continue;
-      if (!best || eta < best.eta) best = { eta, grab: false, proj: true, fromX: p.x };
+      if (!found || eta < th.eta) {
+        found = true;
+        th.eta = eta;
+        th.grab = false;
+        th.proj = true;
+        th.fromX = p.x;
+      }
     }
-    return best;
+    return found;
   }
 
   private defend(self: Fighter, world: World, tgt: Fighter | null, ai: CharacterAi): boolean {
-    const th = this.detectThreat(self, world);
-    if (!th) {
+    if (!this.detectThreat(self, world)) {
       this.threatFrames = 0;
       return false;
     }
+    const th = this.threat;
     this.threatFrames++;
     if (this.threatFrames < this.params.reaction) return false;
     if (th.eta > 12 && !th.proj) return false;
@@ -365,6 +394,16 @@ export class CpuController implements Controller {
     if (th.proj && ai.defensive && this.params.smart && !this.cooldownBusy('def', 40)) {
       const [dx, dy] = SPECIAL_DIR[ai.defensive] ?? [0, 0];
       this.startPlan(world, 'defensive', Button.Special, dx, dy, { holdFrames: ai.holds[ai.defensive] ?? 0 });
+      this.runPlan(self, world);
+      return true;
+    }
+    // fighters with an invulnerable dash (Vex) slip out of attacks instead of shielding them: the flick needs the stick to
+    // go from neutral to full in one frame, hence the one-frame neutral press of the plan
+    const dash = self.data.dash;
+    const runOut = dash && self.groundPlat ? dash.speed * dash.frames * 0.9 : 0;
+    const roomAway = self.groundPlat ? (away > 0 ? self.groundPlat.right - self.x : self.x - self.groundPlat.x) : 0;
+    if (this.params.smart && dash && self.dashCd === 0 && th.eta >= 1 && th.eta <= 9 && roomAway > runOut + 12 && this.rnd() < 0.85) {
+      this.startPlan(world, 'dash', 0, 0, 0, { pressFrames: 1, sx2: away, sy2: 0, stickFrames: 3 });
       this.runPlan(self, world);
       return true;
     }
@@ -391,7 +430,7 @@ export class CpuController implements Controller {
   }
 
   private shielding(self: Fighter, world: World, tgt: Fighter | null): void {
-    const th = this.detectThreat(self, world);
+    const th = this.detectThreat(self, world) ? this.threat : null;
     if (th) this.shieldHold = Math.max(this.shieldHold, 6);
     this.shieldHold--;
     // grab out of shield when the target is right there and its move is spent (or it is shielding too)
@@ -495,7 +534,10 @@ export class CpuController implements Controller {
 
     // thinking cadence: only roll new attack decisions every few frames
     const decide = --this.thinkLeft <= 0;
-    if (decide) this.thinkLeft = p.thinkEvery;
+    if (decide) {
+      this.thinkLeft = p.thinkEvery;
+      for (let k = 0; k < 16; k++) this.useCount[k] *= 0.93;
+    }
 
     // face the target (ground) before committing to anything
     if (grounded && self.facing !== dir && dist > 4 && self.state !== 'dash') {
@@ -537,7 +579,7 @@ export class CpuController implements Controller {
     const shielding = tgt.state === 'shield' || tgt.state === 'shieldstun';
     s -= lag * (shielding ? 0.12 : 0.03);
     if (m.charge) s *= 0.9;
-    if (m.id === this.lastMove) s *= Math.max(0.5, 1 - 0.18 * this.repeats); // staleness: mix things up
+    s /= 1 + 0.45 * this.useCount[m.index]; // staleness: recently used moves lose appeal, so the CPU mixes things up
     if (m.kind === 'grab') s = shielding ? 12 : 3 + (tgt.state === 'run' ? 0 : 1);
     return s + this.rnd() * 1.5;
   }
@@ -585,6 +627,10 @@ export class CpuController implements Controller {
     }
 
     // opponent is blocked: grab it (smart) or just keep hitting (easy)
+    if (grounded && this.slidingOffEdge(self) && this.mode !== 'edgeguard') {
+      this.sx = 0; // stop first: attacking out of a dash at the stage edge slides the CPU off the stage
+      return true;
+    }
     const candidates: AiMove[] = [];
     for (const m of table) {
       if (grounded === (m.kind === 'aerial')) continue; // aerials only in the air, ground moves only on the ground
@@ -592,13 +638,21 @@ export class CpuController implements Controller {
       if (this.reaches(self, m, tgt)) candidates.push(m);
     }
 
+    if (p.smart && tgt.armorThreshold() > 0 && grounded && dist < 90 && candidates.every((m) => m.kind !== 'grab' && m.maxHit <= tgt.armorThreshold())) {
+      // the target is mid armored windup and nothing we have breaks it: step out of range and punish the lag
+      this.sx = -dir;
+      this.clampEdge(self);
+      return true;
+    }
     if (candidates.length > 0) {
       // aggression gate (a CPU in range does not always swing)
       const punishing = tgtVulnerable && this.rnd() < p.punish;
       if (!punishing && this.stall < 300 && this.rnd() > p.aggression) return false;
       let best: AiMove | null = null;
       let bestScore = -Infinity;
+      const armor = tgt.armorThreshold(); // an armored move cannot be interrupted by weak hits: do not poke into it
       for (const m of candidates) {
+        if (p.smart && armor > 0 && m.kind !== 'grab' && m.maxHit <= armor) continue;
         if (p.smart && shielding && m.kind !== 'grab' && candidates.some((c) => c.kind === 'grab')) continue;
         if (!p.smart && m.kind === 'grab' && this.rnd() < 0.7) continue;
         if (punishing && tgtLag > 0 && tgt.move && m.startup > tgt.move.startup + tgt.move.active + tgt.move.recovery - tgt.moveFrame + 2) continue;
@@ -620,7 +674,9 @@ export class CpuController implements Controller {
     }
 
     // go up to the opponent in the air with an aerial approach
-    if (grounded && p.smart && dist < 110 && dist > 40 && Math.abs(dy) < 70 && this.rnd() < 0.18 * p.aggression + 0.05 && !this.cooldownBusy('hop', 40)) {
+    const main = this.mainPlatform(world);
+    const tgtNearEdge = tgt.x > main.right - 30 || tgt.x < main.x + 30;
+    if (grounded && p.smart && !tgtNearEdge && dist < 110 && dist > 40 && Math.abs(dy) < 70 && this.rnd() < 0.18 * p.aggression + 0.05 && !this.cooldownBusy('hop', 40)) {
       this.hopTarget = true;
       this.held |= Button.Jump;
       this.sx = dir;
@@ -630,8 +686,7 @@ export class CpuController implements Controller {
   }
 
   private execMove(self: Fighter, world: World, m: AiMove, tgt: Fighter, dir: number, safe: boolean): void {
-    this.repeats = m.id === this.lastMove ? this.repeats + 1 : 0;
-    this.lastMove = m.id;
+    this.useCount[m.index]++;
     const mi = NORMAL_INPUTS[m.id];
     const p = this.params;
     const btn = mi.button === 'smash' ? Button.Smash : mi.button === 'grab' ? Button.Grab : Button.Attack;
@@ -704,6 +759,11 @@ export class CpuController implements Controller {
     if (!self.grounded) {
       // air: drift toward the target, land on something; aerial when it reaches
       this.sx = dist > 20 ? dir : 0;
+      // do not follow the target out past the stage edge unless deliberately edge-guarding
+      if (this.mode !== 'edgeguard') {
+        const main = this.mainPlatform(world);
+        if ((this.sx > 0 && self.x > main.right - 6) || (this.sx < 0 && self.x < main.x + 6)) this.sx = 0;
+      }
       if (p.smart && this.tryAerial(self, world, tgt, p.aggression)) return;
       if (self.vy > 0 && tgt.y > self.y + 30 && dist < 40 && p.smart) this.sy = 1; // fast fall onto them
       return;
