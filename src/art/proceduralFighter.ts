@@ -307,11 +307,19 @@ function drawFighterFrame(ctx: Ctx, size: number, look: PlaceholderLook, pose: P
 
   // ---------- back leg ----------
   const bf = foot(pose.backFoot, -1);
-  limb(ctx, P.deep, cx - 5 + lean * 0.5, hipY, bf[0], bf[1] - 4, 10);
-  R(ctx, P.deep, bf[0] - 6, bf[1] - 4, 13, 5); // boot
-  R(ctx, P.dark, bf[0] - 6, bf[1] - 4, 13, 2);
+  if (b.round) {
+    limb(ctx, P.deep, cx - 4 + lean * 0.5, hipY, bf[0], bf[1] - 4, 6);
+    ellipse(ctx, P.deep, bf[0], bf[1] - 2, 8, 4);
+    ellipse(ctx, P.dark, bf[0] - 1, bf[1] - 3, 6, 2);
+  } else {
+    limb(ctx, P.deep, cx - 5 + lean * 0.5, hipY, bf[0], bf[1] - 4, 10);
+    R(ctx, P.deep, bf[0] - 6, bf[1] - 4, 13, 5); // boot
+    R(ctx, P.dark, bf[0] - 6, bf[1] - 4, 13, 2);
+  }
 
   // ---------- torso ----------
+  if (b.round) drawRoundTorso(ctx, P, Math.round(cx + lean), torsoTop, tw, torsoH);
+  else {
   R(ctx, P.armor, x0, torsoTop, tw, torsoH);
   R(ctx, P.light, x0 + 3, torsoTop, tw - 6, 2); // top highlight
   R(ctx, P.light, x0 + 3, torsoTop + 2, tw - 10, 6); // chest plate
@@ -329,9 +337,19 @@ function drawFighterFrame(ctx: Ctx, size: number, look: PlaceholderLook, pose: P
   // belt
   R(ctx, P.deep, x0, torsoTop + torsoH - 5, tw, 5);
   R(ctx, P.steel, x0 + tw / 2 - 3, torsoTop + torsoH - 4, 6, 3);
+  }
 
   // ---------- front leg ----------
   const ff = foot(pose.frontFoot, 1);
+  if (b.round) {
+    limb(ctx, P.dark, cx + 4 + lean * 0.5, hipY, ff[0], ff[1] - 4, 7);
+    limb(ctx, P.armor, cx + 4 + lean * 0.5, hipY, ff[0], ff[1] - 4, 5);
+    ellipse(ctx, P.steelDark, (cx + 4 + lean * 0.5 + ff[0]) / 2, (hipY + ff[1] - 4) / 2, 4, 3); // ball joint
+    ellipse(ctx, P.deep, ff[0], ff[1] - 2, 9, 4);
+    ellipse(ctx, P.armor, ff[0], ff[1] - 3, 8, 3);
+    ellipse(ctx, P.light, ff[0] - 2, ff[1] - 4, 4, 1);
+    R(ctx, P.accent, ff[0] - 6, ff[1] - 1, 13, 1);
+  } else {
   limb(ctx, P.armor, cx + 4 + lean * 0.5, hipY, ff[0], ff[1] - 4, 10);
   const kx = (cx + 4 + lean * 0.5 + ff[0]) / 2;
   const ky = (hipY + ff[1] - 4) / 2;
@@ -340,19 +358,74 @@ function drawFighterFrame(ctx: Ctx, size: number, look: PlaceholderLook, pose: P
   R(ctx, P.dark, ff[0] - 6, ff[1] - 5, 15, 6); // boot
   R(ctx, P.armor, ff[0] - 6, ff[1] - 5, 15, 2);
   R(ctx, P.deep, ff[0] - 6, ff[1], 15, 1);
+  }
 
   // ---------- head ----------
   const headTop = torsoTop - hs + 4;
   const hx = Math.round(cx - hs / 2 + lean + 2);
-  R(ctx, P.dark, hx + 2, torsoTop - 1, hs - 5, 3); // neck
+  if (!b.round) R(ctx, P.dark, hx + 2, torsoTop - 1, hs - 5, 3); // neck
   if (extras.includes('scarf')) drawScarf(ctx, P, x0 + 5, torsoTop + 2, pose, phase);
-  drawHead(ctx, look, P, hx, headTop, hs);
+  if (b.round) drawRoundHead(ctx, P, hx, headTop + 2, hs, phase);
+  else drawHead(ctx, look, P, hx, headTop, hs);
 
   // ---------- front shoulder + weapon arm ----------
   const sx = x0 + tw - 2;
   const sy = shoulderY + 2;
   const hand: V2 = [sx + 7 + pose.frontHand[0], sy + b.armLen * 2 + pose.frontHand[1] + 2];
   drawFrontArm(ctx, P, weapon, sx, sy, hand);
+}
+
+/** Filled ellipse in pixel rows (soft shapes for round builds). */
+function ellipse(ctx: Ctx, color: string, cx: number, cy: number, rx: number, ry: number): void {
+  ctx.fillStyle = color;
+  for (let y = -Math.ceil(ry); y <= Math.ceil(ry); y++) {
+    const k = 1 - (y * y) / (ry * ry);
+    if (k < 0) continue;
+    const half = Math.round(rx * Math.sqrt(k));
+    ctx.fillRect(Math.round(cx - half), Math.round(cy + y), half * 2 + 1, 1);
+  }
+}
+
+/** Rounded torso: pot belly with a glowing core, riveted belt and shaded underside. */
+function drawRoundTorso(ctx: Ctx, P: Pal, cx: number, top: number, w: number, h: number): void {
+  const cy = top + h / 2;
+  const rx = w / 2 + 1;
+  const ry = h / 2 + 1;
+  ellipse(ctx, P.deep, cx, cy + 1, rx + 1, ry + 1);
+  ellipse(ctx, P.armor, cx, cy, rx, ry);
+  ellipse(ctx, P.dark, cx + 3, cy + 3, rx - 3, ry - 3); // underside shade
+  ellipse(ctx, P.armor, cx - 1, cy - 1, rx - 3, ry - 4);
+  ellipse(ctx, P.light, cx - 5, cy - ry / 2, rx / 2.5, 2); // top-left shine
+  // belly hatch: steel ring, dark well, glowing core
+  ellipse(ctx, P.steelDark, cx + 2, cy + 1, 7, 6);
+  ellipse(ctx, P.deep, cx + 2, cy + 1, 5, 4);
+  ellipse(ctx, P.accent, cx + 2, cy + 1, 3, 3);
+  ellipse(ctx, P.glow, cx + 2, cy, 1, 1);
+  // rivets and a seam
+  for (const [dx, dy] of [[-9, -1], [-8, 4], [12, -1], [11, 4]] as const) R(ctx, P.steel, cx + dx, cy + dy, 2, 2);
+  R(ctx, P.deep, cx - rx + 3, cy + ry - 4, w - 4, 1);
+}
+
+/** Domed robot head: neck ring, shell, big glass lens with a glint, side bolts and a blinking antenna. */
+function drawRoundHead(ctx: Ctx, P: Pal, hx: number, top: number, hs: number, phase: number): void {
+  const cx = hx + hs / 2;
+  const cy = top + hs / 2;
+  R(ctx, P.steelDark, cx - 5, cy + hs / 2 - 3, 10, 4); // neck ring
+  ellipse(ctx, P.deep, cx, cy + 1, hs / 2 + 1, hs / 2 - 1);
+  ellipse(ctx, P.armor, cx, cy, hs / 2, hs / 2 - 2);
+  ellipse(ctx, P.dark, cx + 3, cy + 3, hs / 2 - 4, hs / 2 - 6);
+  ellipse(ctx, P.armor, cx - 1, cy - 1, hs / 2 - 3, hs / 2 - 5);
+  ellipse(ctx, P.light, cx - 4, cy - hs / 2 + 4, 5, 2); // shine
+  // glass lens (faces forward / right)
+  ellipse(ctx, P.deep, cx + 3, cy + 1, hs / 3 + 1, hs / 3 - 1);
+  ellipse(ctx, P.skin, cx + 3, cy + 1, hs / 3 - 1, hs / 3 - 3);
+  ellipse(ctx, P.accent, cx + 5, cy + 2, 3, 3); // eye
+  ellipse(ctx, P.deep, cx + 5, cy + 2, 1, 1);
+  R(ctx, '#ffffff', cx + 1, cy - 2, 3, 1); // glint
+  // side bolt + antenna with a blinking bulb
+  R(ctx, P.steel, cx - hs / 2 + 1, cy + 1, 3, 3);
+  R(ctx, P.steelDark, cx - 1, top - 5, 2, 6);
+  ellipse(ctx, (phase & 1) === 0 ? P.glow : P.accent, cx, top - 6, 2, 2);
 }
 
 function torsoTop0(hipY: number, torsoH: number, pose: Pose): number {
