@@ -76,7 +76,7 @@ export const vex: CharacterData = {
       armorDark: '#183a52',
       accent: '#ff4fa8',
       outline: '#0c1022',
-      build: { shoulderW: 12, torsoH: 9, legH: 11, headSize: 7, armLen: 9, helmet: 'hood' },
+      build: { shoulderW: 9, torsoH: 8, legH: 13, headSize: 6, armLen: 10, helmet: 'hood' },
       weapon: 'blades',
       extras: ['scarf', 'bracer'],
     },

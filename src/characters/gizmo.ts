@@ -118,7 +118,7 @@ export const gizmo: CharacterData = {
       armorDark: '#7a4a1c',
       accent: '#5fe8ff',
       outline: '#1a1208',
-      build: { shoulderW: 14, torsoH: 8, legH: 6, headSize: 10, armLen: 7, helmet: 'dome' },
+      build: { shoulderW: 17, torsoH: 6, legH: 4, headSize: 12, armLen: 6, helmet: 'dome' },
       weapon: 'wrench',
       extras: ['toolbox', 'grapple'],
     },

@@ -68,7 +68,7 @@ export const brick: CharacterData = {
       armorDark: '#2c4a8a',
       accent: '#ffb02e',
       outline: '#10142a',
-      build: { shoulderW: 18, torsoH: 10, legH: 8, headSize: 8, armLen: 8, helmet: 'visor' }, // 32px-grid units; the generator doubles them for the 64px frame
+      build: { shoulderW: 21, torsoH: 12, legH: 8, headSize: 7, armLen: 9, helmet: 'visor' }, // 32px-grid units; the generator doubles them for the 64px frame
     },
   },
   moves: parseMoves(movesJson as never, 'brick'),

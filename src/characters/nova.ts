@@ -89,7 +89,7 @@ export const nova: CharacterData = {
       armorDark: '#33206c',
       accent: '#7fe8ff',
       outline: '#0f0c26',
-      build: { shoulderW: 12, torsoH: 10, legH: 8, headSize: 7, armLen: 9, helmet: 'pointed' },
+      build: { shoulderW: 13, torsoH: 12, legH: 5, headSize: 8, armLen: 9, helmet: 'pointed' },
       weapon: 'staff',
       extras: ['cloak'],
     },
