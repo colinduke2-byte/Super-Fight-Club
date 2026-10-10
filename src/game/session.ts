@@ -1,4 +1,5 @@
 import type { InputDevice } from '../input/device';
+import type { LadderState } from './ladder';
 import type { CpuLevel } from './lobby';
 
 export type GameMode = 'versus' | 'arcade' | 'training';
@@ -11,6 +12,10 @@ export interface PlayerSlot {
   /** Roster id (CHARACTERS key). */
   character: string;
   cpuLevel: CpuLevel;
+  /** Starting stocks for this slot (arcade handicaps / boss life); default = the match rules. */
+  stocks?: number;
+  /** Driven by the scripted boss brain instead of a CPU. */
+  boss?: boolean;
 }
 
 export interface MatchRules {
@@ -45,14 +50,16 @@ export interface Session {
   rules: MatchRules;
   playerCount: number;
   lastResult: MatchResult | null;
-  /** Arcade ladder progress (Phase 11). */
-  ladder: { stage: number; won: number } | null;
+  /** The human slot of the running arcade ladder (kept across fights). */
+  arcadeHuman: PlayerSlot | null;
+  /** Arcade ladder progress. */
+  ladder: LadderState | null;
 }
 
 export const DEFAULT_RULES: MatchRules = { mode: 'stock', stocks: 3, timeSec: 180 };
 
 export function newSession(): Session {
-  return { mode: 'versus', players: [], stage: 'classic', rules: { ...DEFAULT_RULES }, playerCount: 2, lastResult: null, ladder: null };
+  return { mode: 'versus', players: [], stage: 'classic', rules: { ...DEFAULT_RULES }, playerCount: 2, lastResult: null, ladder: null, arcadeHuman: null };
 }
 
 export const session: Session = newSession();

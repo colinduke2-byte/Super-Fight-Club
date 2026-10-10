@@ -36,6 +36,19 @@ Settings holds audio, particles, FPS counter, fullscreen, tap-jump, smash mode a
 keyboard schemes and both gamepad profiles (saved to localStorage). Unplugging a pad mid-match pauses with the
 player named; re-plugging (or plugging another pad) re-attaches it.
 
+## Arcade Ladder and the boss
+
+Pick Arcade Ladder, choose a fighter, and climb six fights: three opponents from the roster (Easy, Easy, Normal), a **mirror match**, a
+**two-on-one brawl** (Hard + Normal, on Skyline Classic), then **The Overseer** (`src/characters/overseer.*`), the arena AI's warden body.
+Story cards (pixel-art scenes drawn in code, `src/art/storyArt.ts`, text in `src/game/story.ts`) play before each fight and in
+the ending, with lines specific to your fighter. You get **3 continues**: losing a fight retries it (stocks reset) until they run out
+and then it is game over; opponents start with fewer stocks than you in the early fights (`src/game/ladder.ts`).
+The Overseer is not a reactive CPU but a **scripted pattern machine** (`src/ai/boss.ts`): it idles and repositions, picks a pattern
+(claws, overhead slam, quake, orb volley, plasma beam, summon drones, skyfist, leap slam) by distance / height without repeating, shows a
+long windup (armored on the big ones) and then leaves a punish window. At one stock left it **enrages** (+35% damage, shorter pauses,
+a double-smash combo) and uses **Cataclysm**, a telegraphed set of ground pillars across the stage. It is very heavy (weight 300), so
+expect to land many hits per stock. Dev shortcut: `?arcade=<char>&fight=<0-5>` jumps straight onto the ladder.
+
 ## CPU opponents
 
 `src/ai/` is a CPU that produces the same input a human would (so it works for every character and for modded ones).

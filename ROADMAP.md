@@ -15,6 +15,7 @@ next phase starts.
 | 6 | Nova complete: Arcana Cycle, elemental Spell Bolts, Rune Traps, reflecting barrier, Aether Step, Convergence | done |
 | 5 | Vex complete: Blink Trail marker/recall, mines, dash, full moveset | done |
 | 4 | Brick complete: Heat, Charge Shoulder, Grapple Slam, Jet Boost, Vent, Meltdown, frame-data doc, tests, training scenarios | done |
+| 11 | Arcade Ladder: ladder map, 5 escalating fights (incl. mirror + brawl) and the scripted Overseer boss with phases, story cards, continues, ending | done |
 | 10 | CPU AI: state machine (approach / spacing / attack / defend / recover / edge-guard), 3 difficulties, FFA targeting, per-character knowledge, tests (recovery, targeting, full-roster duels, determinism) | done |
 | 9 | Versus 2-4 players + stages: Skyline Classic, Training Ring, Reactor Core (moving platforms + geyser hazard), per-stage parallax themes, chiptune loops, 4-fighter camera | done |
 | 8 | Menus and game flow: title, mode select, lobby with per-device slots, stage select, N-player match scene, results, settings, rebinding, pause / disconnect handling | done |
@@ -91,7 +92,7 @@ State machine (approach, spacing, attack, defend, recover, edge-guard), 3 diffic
 targeting, per-character move knowledge via data (ranges, recovery routes, trap / projectile usage).
 Tests: recovery reaches the stage, target selection is not just "gang up".
 
-## Phase 11: Arcade Ladder
+## Phase 11: Arcade Ladder *(done)*
 Ladder map scene, 5 escalating CPU fights ending in a boss, pixel-art story cards between fights, boss with
 scripted patterns, continue / retry rules.
 

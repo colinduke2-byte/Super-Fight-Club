@@ -1,5 +1,5 @@
 import Phaser from 'phaser';
-import { devCharacter, CHARACTERS } from '../characters';
+import { characterById, CHARACTERS } from '../characters';
 import { music } from '../audio/music';
 import { sfx } from '../audio/sfx';
 import { soundFor } from '../audio/soundMap';
@@ -31,7 +31,9 @@ import { PIXEL_FONT, up } from '../art/pixelFont';
 import { StageView } from '../ui/StageView';
 import { HazardView } from '../ui/HazardView';
 import { DummyController, NullController, type Controller } from '../game/controllers';
+import { BossController } from '../ai/boss';
 import { CpuController } from '../ai/cpu';
+import { currentFight } from '../game/ladder';
 import { buildResult } from '../game/results';
 import { session, type PlayerSlot } from '../game/session';
 
@@ -48,7 +50,7 @@ const HELP_TRAINING = [
 const HELP_MATCH = ['ESC / START: PAUSE   1 DEBUG   F FULLSCREEN   H HIDE THIS'];
 
 function resolveCharacter(id: string): CharacterData {
-  return CHARACTERS[id] ?? devCharacter() ?? CHARACTERS.brick;
+  return characterById(id) ?? CHARACTERS.brick;
 }
 
 /**
@@ -106,6 +108,7 @@ export class MatchScene extends Phaser.Scene {
   private stepOnce = false;
   private helpOn = true;
   private banner!: Phaser.GameObjects.BitmapText;
+  private introTicks = 0;
   private shake = 0;
   private frameCount = 0;
 
@@ -122,6 +125,24 @@ export class MatchScene extends Phaser.Scene {
   }
 
   create(): void {
+    // Phaser reuses this Scene instance on restart / rematch: reset everything that persists between runs
+    this.huds = [];
+    this.camTargets.length = 0;
+    this.ts.reset();
+    this.paused = false;
+    this.pauseReason = '';
+    this.endTimer = -1;
+    this.introTicks = 0;
+    this.slowMo = this.stepMode = this.stepOnce = false;
+    this.pendingHitDummy = this.pendingHitSelf = this.pendingReset = false;
+    this.cinT = 0;
+    this.shake = 0;
+    this.frameCount = 0;
+    this.lastFxTick = -1;
+    this.dummyIdx = 0;
+    this.dummy.mode = 0;
+    this.hazardView = null;
+    this.training = null;
     inputManager.init();
     this.ensureSession();
     this.slots = session.players;
@@ -131,7 +152,7 @@ export class MatchScene extends Phaser.Scene {
 
     this.fighters = this.slots.map((s, i) => new Fighter(i, resolveCharacter(s.character)));
     this.humans = this.slots.map((s) => (s.type === 'human' && s.device ? new PlayerInput(s.device) : null));
-    this.controllers = this.slots.map((s, i) => (s.type === 'cpu' ? (this.isTraining && i === 1 ? this.dummy : new CpuController(s.cpuLevel, i + 1)) : new NullController()));
+    this.controllers = this.slots.map((s, i) => (s.type !== 'cpu' ? new NullController() : s.boss ? new BossController(() => this.match.scores[i].stocks, 1) : this.isTraining && i === 1 ? this.dummy : new CpuController(s.cpuLevel, i + 1)));
     this.inputs = this.slots.map(() => makeInput());
     this.elimAt = this.slots.map(() => -1);
     for (const f of this.fighters) {
@@ -142,6 +163,9 @@ export class MatchScene extends Phaser.Scene {
     const cfg: MatchConfig = this.isTraining ? TRAINING : { mode: rules.mode, stocks: rules.stocks, timeLimitSec: rules.timeSec, respawnDelay: 70 };
     this.match = new Match(this.world, cfg);
     this.match.onRespawn = (f) => this.respawn(f.id, true);
+    this.slots.forEach((s, i) => {
+      if (s.stocks && !this.isTraining) this.match.scores[i].stocks = s.stocks;
+    });
 
     // --- cameras & layers: bg (zoom 1) -> world (zoom/pan) -> ui (zoom 1)
     this.bgLayer = this.add.layer();
@@ -171,11 +195,12 @@ export class MatchScene extends Phaser.Scene {
     this.entityViews = new EntityViews(this, this.worldLayer, this.world);
     if (this.isTraining) this.training = new TrainingRunner(this.world, this.fighters[0], this.fighters[1]);
     sfx.arm();
-    music.play(stage.music ?? 'classic');
+    music.play(this.slots.some((s) => s.boss) ? 'boss' : (stage.music ?? 'classic'));
 
     const bz = stage.blast;
     this.cam.cfg = { ...DEFAULT_CAMERA, bounds: { x: bz.left, y: bz.top, w: bz.right - bz.left, h: bz.bottom - bz.top } };
     for (let i = 0; i < this.fighters.length; i++) this.camTargets.push({ x: 0, y: 0 });
+    this.cam.snap();
 
     const dpr = this.dpr();
     const fontPx = Math.round(12 * dpr);
@@ -187,7 +212,7 @@ export class MatchScene extends Phaser.Scene {
     this.uiLayer.add(this.dimOverlay);
     this.fighters.forEach((f, i) => {
       const s = this.slots[i];
-      const label = this.isTraining ? (i === 0 ? 'YOU' : 'DUMMY') : s.type === 'cpu' ? 'CPU' : `P${i + 1}`;
+      const label = s.boss ? 'BOSS' : this.isTraining ? (i === 0 ? 'YOU' : 'DUMMY') : s.type === 'cpu' ? 'CPU' : `P${i + 1}`;
       this.huds.push(new FighterHud(this, this.uiLayer, f.data, label, i));
     });
     this.helpText = this.add.bitmapText(0, 0, PIXEL_FONT, up((this.isTraining ? HELP_TRAINING : HELP_MATCH).join('\n'))).setOrigin(0, 1).setTint(0xb8b0e8);
@@ -198,9 +223,15 @@ export class MatchScene extends Phaser.Scene {
     this.pauseOverlay = this.add.rectangle(0, 0, 10, 10, 0x000000, 0.6).setOrigin(0, 0).setVisible(false);
     this.pauseText = this.add.bitmapText(0, 0, PIXEL_FONT, '').setOrigin(0.5).setVisible(false).setCenterAlign();
     this.uiLayer.add([this.helpText, this.toast, this.banner, this.pauseOverlay, this.pauseText]);
+    if (!this.isTraining) {
+      const lad = session.mode === 'arcade' ? session.ladder : null;
+      const fight = lad ? currentFight(lad) : null;
+      this.banner.setText(up(fight ? `FIGHT ${fight.index + 1}\n${fight.title}` : 'FIGHT!')).setVisible(true);
+      this.introTicks = 110;
+    }
     this.pauseMenu = new MenuList(this, this.uiLayer, [
       { label: 'RESUME', enabled: () => this.pauseReason !== 'disconnect', onConfirm: () => this.setPaused(false) },
-      { label: 'RESTART', onConfirm: () => this.scene.restart() },
+      ...(session.mode !== 'arcade' ? [{ label: 'RESTART', onConfirm: () => this.scene.restart() }] : []),
       { label: 'CONTROLS', onConfirm: () => this.scene.start('Controls', { back: 'Match' }) },
       { label: 'QUIT', onConfirm: () => this.scene.start(this.isTraining ? 'ModeSelect' : 'ModeSelect') },
     ]);
@@ -351,6 +382,7 @@ export class MatchScene extends Phaser.Scene {
     this.world.step(this.inputs);
     inputManager.endTick();
     this.match.step();
+    if (this.introTicks > 0 && --this.introTicks === 0 && !this.match.over) this.banner.setVisible(false);
     this.scores();
 
     // camera follows living fighters
@@ -472,7 +504,9 @@ export class MatchScene extends Phaser.Scene {
     }
     if (this.match.over && !this.banner.visible) {
       const w = this.match.winner;
-      this.banner.setText(up(this.match.cfg.mode === 'time' ? 'TIME!' : 'GAME!') + up(w < 0 ? '\nDRAW' : `\nP${w + 1} WINS`)).setVisible(true);
+      const head = this.match.cfg.mode === 'time' ? 'TIME!' : 'GAME!';
+      const tail = w < 0 ? 'DRAW' : session.mode === 'arcade' ? (w === 0 ? 'VICTORY' : 'DEFEATED') : `P${w + 1} WINS`;
+      this.banner.setText(up(`${head}\n${tail}`)).setVisible(true);
     }
 
     if (this.training && this.frameCount % 6 === 0) this.trainText.setText(up(this.training.report().join('\n')) + (this.slowMo ? '\nSLOW-MO' : '') + (this.stepMode ? '\nSTEP MODE (B)' : ''));

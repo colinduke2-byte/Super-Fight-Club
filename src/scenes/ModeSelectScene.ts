@@ -44,7 +44,7 @@ export class ModeSelectScene extends MenuScene {
   private start(mode: 'arcade' | 'training'): void {
     session.mode = mode;
     session.playerCount = 1;
-    session.ladder = mode === 'arcade' ? { stage: 0, won: 0 } : null;
+    session.ladder = null;
     this.go('CharacterSelect');
   }
 

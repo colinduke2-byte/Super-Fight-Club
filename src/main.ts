@@ -8,8 +8,10 @@ import { StageSelectScene } from './scenes/StageSelectScene';
 import { MatchScene } from './scenes/MatchScene';
 import { ResultsScene } from './scenes/ResultsScene';
 import { LadderMapScene } from './scenes/LadderMapScene';
+import { StoryScene } from './scenes/StoryScene';
 import { SettingsScene } from './scenes/SettingsScene';
 import { ControlsScene } from './scenes/ControlsScene';
+import { session } from './game/session';
 import { loadSettings } from './settings';
 
 loadSettings();
@@ -40,7 +42,7 @@ const game = new Phaser.Game({
   fps: { smoothStep: false },
   input: { keyboard: false, gamepad: false, mouse: true, touch: false },
   disableContextMenu: true,
-  scene: [BootScene, TitleScene, ModeSelectScene, VersusSetupScene, CharacterSelectScene, StageSelectScene, MatchScene, ResultsScene, LadderMapScene, SettingsScene, ControlsScene],
+  scene: [BootScene, TitleScene, ModeSelectScene, VersusSetupScene, CharacterSelectScene, StageSelectScene, MatchScene, ResultsScene, LadderMapScene, StoryScene, SettingsScene, ControlsScene],
 });
 
 function applySize(): void {
@@ -61,4 +63,5 @@ function watchDpr(): void {
 watchDpr();
 game.events.once('ready', applySize);
 
-(window as unknown as { __game: Phaser.Game }).__game = game;
+(window as unknown as { __game: Phaser.Game; __session: typeof session }).__game = game;
+(window as unknown as { __session: typeof session }).__session = session; // dev / test hook

@@ -3,6 +3,8 @@ import { animFrameIndex, fighterAnimKey, fighterTextureKey } from '../art/proced
 import { PIXEL_FONT } from '../art/pixelFont';
 import { CHARACTER_LIST } from '../characters';
 import { Lobby } from '../game/lobby';
+import { buildLadder } from '../game/ladder';
+import { introCards } from '../game/story';
 import { session, type PlayerSlot } from '../game/session';
 import { inputManager } from '../input/inputManager';
 import type { MenuEvent } from '../input/menuInput';
@@ -35,6 +37,8 @@ export class CharacterSelectScene extends MenuScene {
   }
 
   protected build(): void {
+    this.cards = [];
+    this.roster = [];
     this.lobby = new Lobby(session.playerCount, CHARACTER_LIST.length);
     this.lobby.slots.forEach((s, i) => (s.character = i % CHARACTER_LIST.length));
     const title = session.mode === 'versus' ? 'CHOOSE YOUR FIGHTERS' : session.mode === 'arcade' ? 'CHOOSE YOUR CHAMPION' : 'TRAINING: CHOOSE A FIGHTER';
@@ -174,7 +178,12 @@ export class CharacterSelectScene extends MenuScene {
     });
     session.players = slots;
     if (session.mode === 'versus') this.go('StageSelect');
-    else if (session.mode === 'arcade') this.go('LadderMap');
+    else if (session.mode === 'arcade') {
+      session.arcadeHuman = slots[0];
+      session.ladder = buildLadder(slots[0].character);
+      session.ladder.introduced = true;
+      this.go('Story', { cards: introCards(slots[0].character), next: 'LadderMap' });
+    }
     else {
       session.stage = 'sandbox';
       session.players = [slots[0], { index: 1, type: 'cpu', device: null, character: slots[0].character === 'brick' ? 'vex' : 'brick', cpuLevel: 1 }];

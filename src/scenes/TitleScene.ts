@@ -21,6 +21,7 @@ export class TitleScene extends MenuScene {
   }
 
   protected build(): void {
+    this.sprites = [];
     sfx.arm();
     inputManager.init();
     this.logo1 = this.add.bitmapText(0, 0, PIXEL_FONT, 'SUPER').setOrigin(0.5).setTint(COLORS.title);

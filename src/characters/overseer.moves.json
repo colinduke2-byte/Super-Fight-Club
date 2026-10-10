@@ -1,0 +1,625 @@
+{
+ "projectiles": {
+  "quake": {
+   "w": 16,
+   "h": 20,
+   "life": 60,
+   "pierce": true,
+   "hit": {
+    "x": 0,
+    "y": 0,
+    "w": 1,
+    "h": 1,
+    "damage": 10,
+    "angle": 65,
+    "base": 38,
+    "scaling": 0.7,
+    "hitlag": 1.2,
+    "fx": "heavy",
+    "dir": "away"
+   },
+   "look": {
+    "shape": "bolt",
+    "color": "#ff9a6a",
+    "size": 1.3
+   }
+  },
+  "orb": {
+   "w": 12,
+   "h": 12,
+   "gravity": 0.03,
+   "life": 110,
+   "health": 2,
+   "hit": {
+    "x": 0,
+    "y": 0,
+    "w": 1,
+    "h": 1,
+    "damage": 7,
+    "angle": 40,
+    "base": 34,
+    "scaling": 0.6,
+    "hitlag": 1.2,
+    "fx": "blast"
+   },
+   "look": {
+    "shape": "orb",
+    "color": "#ff4a6a",
+    "size": 1.3
+   }
+  },
+  "beam": {
+   "w": 96,
+   "h": 18,
+   "life": 22,
+   "pierce": true,
+   "hit": {
+    "x": 0,
+    "y": 0,
+    "w": 1,
+    "h": 1,
+    "damage": 11,
+    "angle": 30,
+    "base": 40,
+    "scaling": 0.7,
+    "hitlag": 1.2,
+    "fx": "blast",
+    "rehit": 40
+   },
+   "look": {
+    "shape": "beam",
+    "color": "#ff4a6a"
+   }
+  },
+  "pillar": {
+   "w": 22,
+   "h": 130,
+   "life": 20,
+   "pierce": true,
+   "hit": {
+    "x": 0,
+    "y": 0,
+    "w": 1,
+    "h": 1,
+    "damage": 16,
+    "angle": 82,
+    "base": 50,
+    "scaling": 0.9,
+    "hitlag": 1.2,
+    "fx": "heavy"
+   },
+   "look": {
+    "shape": "beam",
+    "color": "#ff7a30"
+   }
+  },
+  "drone_shot": {
+   "w": 6,
+   "h": 6,
+   "life": 80,
+   "health": 1,
+   "hit": {
+    "x": 0,
+    "y": 0,
+    "w": 1,
+    "h": 1,
+    "damage": 3.5,
+    "angle": 40,
+    "base": 26,
+    "scaling": 0.3,
+    "hitlag": 0.8,
+    "fx": "bullet"
+   },
+   "look": {
+    "shape": "bullet",
+    "color": "#ff7a8a"
+   }
+  }
+ },
+ "deployables": {
+  "drone": {
+   "w": 12,
+   "h": 12,
+   "health": 6,
+   "limit": 2,
+   "replaceOldest": true,
+   "gravity": true,
+   "armFrames": 20,
+   "life": 900,
+   "turret": {
+    "range": 220,
+    "interval": 80,
+    "projectile": "drone_shot",
+    "muzzleX": 8,
+    "muzzleY": -6,
+    "speed": 2.6
+   },
+   "look": {
+    "shape": "turret",
+    "color": "#ff4a6a"
+   }
+  },
+  "warn": {
+   "w": 10,
+   "h": 10,
+   "health": 999,
+   "limit": 8,
+   "life": 44,
+   "look": {
+    "shape": "marker",
+    "color": "#ff4a4a"
+   }
+  }
+ },
+ "moves": {
+  "jab1": {
+   "name": "Claw Swipe",
+   "kind": "jab",
+   "anim": "jab",
+   "startup": 10,
+   "active": 3,
+   "recovery": 16,
+   "hitboxes": [
+    {
+     "x": 34,
+     "y": -24,
+     "w": 56,
+     "h": 40,
+     "damage": 8,
+     "angle": 45,
+     "base": 38,
+     "scaling": 0.7,
+     "hitlag": 1.2,
+     "fx": "punch"
+    }
+   ],
+   "armor": {
+    "from": 3,
+    "to": 13,
+    "threshold": 8
+   }
+  },
+  "fsmash": {
+   "name": "Overhead Slam",
+   "kind": "smash",
+   "anim": "smashF",
+   "startup": 30,
+   "active": 5,
+   "recovery": 42,
+   "armor": {
+    "from": 10,
+    "to": 34,
+    "threshold": 20
+   },
+   "events": [
+    {
+     "frame": 31,
+     "action": "fx",
+     "name": "slam"
+    }
+   ],
+   "hitboxes": [
+    {
+     "x": 52,
+     "y": -22,
+     "w": 80,
+     "h": 56,
+     "damage": 24,
+     "angle": 50,
+     "base": 58,
+     "scaling": 1.05,
+     "hitlag": 1.5,
+     "fx": "heavy",
+     "dir": "facing"
+    }
+   ]
+  },
+  "usmash": {
+   "name": "Skyfist",
+   "kind": "smash",
+   "anim": "smashU",
+   "startup": 14,
+   "active": 5,
+   "recovery": 30,
+   "armor": {
+    "from": 4,
+    "to": 19,
+    "threshold": 14
+   },
+   "hitboxes": [
+    {
+     "x": 6,
+     "y": -56,
+     "w": 64,
+     "h": 80,
+     "damage": 15,
+     "angle": 88,
+     "base": 50,
+     "scaling": 0.9,
+     "hitlag": 1.2,
+     "fx": "heavy"
+    }
+   ]
+  },
+  "dsmash": {
+   "name": "Quake",
+   "kind": "smash",
+   "anim": "smashD",
+   "startup": 24,
+   "active": 4,
+   "recovery": 38,
+   "events": [
+    {
+     "frame": 25,
+     "action": "fx",
+     "name": "stomp"
+    },
+    {
+     "frame": 25,
+     "action": "projectile",
+     "id": "quake",
+     "x": 44,
+     "y": -8,
+     "vx": 3.6,
+     "vy": 0
+    },
+    {
+     "frame": 25,
+     "action": "projectile",
+     "id": "quake",
+     "x": -44,
+     "y": -8,
+     "vx": -3.6,
+     "vy": 0
+    }
+   ],
+   "hitboxes": [
+    {
+     "x": 0,
+     "y": -10,
+     "w": 92,
+     "h": 26,
+     "damage": 11,
+     "angle": 70,
+     "base": 40,
+     "scaling": 0.8,
+     "hitlag": 1.2,
+     "dir": "away",
+     "fx": "heavy"
+    }
+   ],
+   "armor": {
+    "from": 4,
+    "to": 26,
+    "threshold": 12
+   }
+  },
+  "nair": {
+   "name": "Spin Crush",
+   "kind": "aerial",
+   "anim": "aerialN",
+   "startup": 6,
+   "active": 18,
+   "recovery": 16,
+   "landingLag": 14,
+   "autocancel": [
+    [
+     1,
+     18
+    ]
+   ],
+   "hitboxes": [
+    {
+     "x": 0,
+     "y": -26,
+     "w": 84,
+     "h": 60,
+     "damage": 8,
+     "angle": 55,
+     "base": 40,
+     "scaling": 0.8,
+     "hitlag": 1.2,
+     "window": [
+      1,
+      5
+     ],
+     "dir": "away"
+    },
+    {
+     "x": 0,
+     "y": -26,
+     "w": 84,
+     "h": 60,
+     "damage": 4,
+     "angle": 60,
+     "base": 22,
+     "scaling": 0.5,
+     "hitlag": 1.2,
+     "window": [
+      6,
+      18
+     ],
+     "dir": "away"
+    }
+   ]
+  },
+  "neutralB": {
+   "name": "Orb Volley",
+   "kind": "special",
+   "anim": "castF",
+   "startup": 22,
+   "active": 1,
+   "recovery": 24,
+   "events": [
+    {
+     "frame": 20,
+     "action": "fx",
+     "name": "cast"
+    },
+    {
+     "frame": 20,
+     "action": "projectile",
+     "id": "orb",
+     "x": 40,
+     "y": -38,
+     "vx": 3.2,
+     "vy": -1.3
+    },
+    {
+     "frame": 20,
+     "action": "projectile",
+     "id": "orb",
+     "x": 40,
+     "y": -34,
+     "vx": 3.6,
+     "vy": 0
+    },
+    {
+     "frame": 20,
+     "action": "projectile",
+     "id": "orb",
+     "x": 40,
+     "y": -30,
+     "vx": 3.2,
+     "vy": 1.3
+    }
+   ],
+   "hitboxes": [],
+   "armor": {
+    "from": 6,
+    "to": 22,
+    "threshold": 10
+   }
+  },
+  "sideB": {
+   "name": "Plasma Beam",
+   "kind": "special",
+   "anim": "castF",
+   "startup": 36,
+   "active": 1,
+   "recovery": 30,
+   "events": [
+    {
+     "frame": 34,
+     "action": "fx",
+     "name": "beam"
+    },
+    {
+     "frame": 34,
+     "action": "projectile",
+     "id": "beam",
+     "x": 60,
+     "y": -26,
+     "vx": 8.5,
+     "vy": 0
+    }
+   ],
+   "hitboxes": [],
+   "armor": {
+    "from": 6,
+    "to": 36,
+    "threshold": 10
+   }
+  },
+  "downB": {
+   "name": "Summon Drones",
+   "kind": "special",
+   "anim": "castD",
+   "startup": 26,
+   "active": 1,
+   "recovery": 24,
+   "events": [
+    {
+     "frame": 26,
+     "action": "fx",
+     "name": "place"
+    },
+    {
+     "frame": 26,
+     "action": "deploy",
+     "id": "drone",
+     "x": 90,
+     "y": -4
+    },
+    {
+     "frame": 26,
+     "action": "deploy",
+     "id": "drone",
+     "x": -90,
+     "y": -4
+    }
+   ],
+   "hitboxes": []
+  },
+  "upB": {
+   "name": "Leap Slam",
+   "kind": "special",
+   "anim": "castU",
+   "startup": 30,
+   "active": 14,
+   "recovery": 26,
+   "helpless": true,
+   "noLedge": 20,
+   "gravityScale": 0.6,
+   "motion": [
+    {
+     "frame": 8,
+     "vy": -11,
+     "vx": 3.5
+    },
+    {
+     "frame": 24,
+     "vy": 13,
+     "vx": 1
+    }
+   ],
+   "events": [
+    {
+     "frame": 38,
+     "action": "fx",
+     "name": "slam"
+    }
+   ],
+   "hitboxes": [
+    {
+     "x": 0,
+     "y": 6,
+     "w": 70,
+     "h": 44,
+     "damage": 14,
+     "angle": 75,
+     "base": 45,
+     "scaling": 0.8,
+     "hitlag": 1.2,
+     "dir": "away",
+     "fx": "heavy",
+     "window": [
+      1,
+      14
+     ]
+    }
+   ]
+  },
+  "ultimate": {
+   "name": "Cataclysm",
+   "kind": "ultimate",
+   "anim": "raid",
+   "startup": 70,
+   "active": 1,
+   "recovery": 40,
+   "armor": {
+    "from": 1,
+    "to": 70
+   },
+   "events": [
+    {
+     "frame": 2,
+     "action": "fx",
+     "name": "overload"
+    },
+    {
+     "frame": 24,
+     "action": "deploy",
+     "id": "warn",
+     "x": -240,
+     "y": -2
+    },
+    {
+     "frame": 26,
+     "action": "deploy",
+     "id": "warn",
+     "x": -160,
+     "y": -2
+    },
+    {
+     "frame": 28,
+     "action": "deploy",
+     "id": "warn",
+     "x": -80,
+     "y": -2
+    },
+    {
+     "frame": 30,
+     "action": "deploy",
+     "id": "warn",
+     "x": 80,
+     "y": -2
+    },
+    {
+     "frame": 32,
+     "action": "deploy",
+     "id": "warn",
+     "x": 160,
+     "y": -2
+    },
+    {
+     "frame": 34,
+     "action": "deploy",
+     "id": "warn",
+     "x": 240,
+     "y": -2
+    },
+    {
+     "frame": 66,
+     "action": "projectile",
+     "id": "pillar",
+     "x": -240,
+     "y": -66,
+     "vx": 0,
+     "vy": 0
+    },
+    {
+     "frame": 66,
+     "action": "projectile",
+     "id": "pillar",
+     "x": -160,
+     "y": -66,
+     "vx": 0,
+     "vy": 0
+    },
+    {
+     "frame": 66,
+     "action": "projectile",
+     "id": "pillar",
+     "x": -80,
+     "y": -66,
+     "vx": 0,
+     "vy": 0
+    },
+    {
+     "frame": 66,
+     "action": "projectile",
+     "id": "pillar",
+     "x": 80,
+     "y": -66,
+     "vx": 0,
+     "vy": 0
+    },
+    {
+     "frame": 66,
+     "action": "projectile",
+     "id": "pillar",
+     "x": 160,
+     "y": -66,
+     "vx": 0,
+     "vy": 0
+    },
+    {
+     "frame": 66,
+     "action": "projectile",
+     "id": "pillar",
+     "x": 240,
+     "y": -66,
+     "vx": 0,
+     "vy": 0
+    },
+    {
+     "frame": 66,
+     "action": "fx",
+     "name": "beam"
+    }
+   ],
+   "hitboxes": []
+  }
+ }
+}

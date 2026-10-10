@@ -3,6 +3,7 @@ import { brick } from './brick';
 import { gizmo } from './gizmo';
 import { nova } from './nova';
 import { vex } from './vex';
+import { overseer } from './overseer';
 import { makeProtoBase } from './proto';
 
 /** Registry. Adding a character = one data file + one export here (+ a sprite sheet, optionally). */
@@ -13,6 +14,14 @@ export const CHARACTERS: Record<string, CharacterData> = {
   [gizmo.id]: gizmo,
 };
 export const CHARACTER_LIST: CharacterData[] = Object.values(CHARACTERS);
+
+/** Non-roster fighters (never in character select): the Arcade Ladder boss. */
+export const BOSSES: Record<string, CharacterData> = { [overseer.id]: overseer };
+
+/** Roster, boss and dev fighters by id. */
+export function characterById(id: string): CharacterData | undefined {
+  return CHARACTERS[id] ?? BOSSES[id] ?? devCharacter() ?? undefined;
+}
 
 /** The character the sandbox player uses: `?char=<id>` (roster id or the dev-only `proto`), default Brick. */
 export function playerCharacter(): CharacterData {
