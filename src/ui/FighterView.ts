@@ -3,6 +3,9 @@ import { PIXEL_FONT } from '../art/pixelFont';
 import { animFrameIndex, fighterAnimKey, fighterTextureKey } from '../art/proceduralFighter';
 import type { Fighter } from '../engine/fighter';
 
+/** Pixels the body is drawn left of the frame centre in the procedural sprite sheet (see proceduralFighter). */
+const BODY_SHIFT = 5;
+
 /** Renders one Fighter: interpolates between sim ticks so 120/144 Hz displays animate smoothly. */
 export class FighterView {
   readonly sprite: Phaser.GameObjects.Sprite;
@@ -84,7 +87,8 @@ export class FighterView {
     }
     // hitlag: victims shake
     const shake = f.hitlag > 0 && f.state === 'hitstun' ? ((tick & 1) === 0 ? 1.5 : -1.5) : 0;
-    s.setPosition(this.x + shake, this.y + 1);
+    // the sprite body is drawn BODY_SHIFT px left of the frame centre (weapon reach); re-centre it on the hurtbox
+    s.setPosition(this.x + shake + f.facing * BODY_SHIFT * f.data.sprite.pixelScale * f.sizeMul, this.y + 1);
     s.setFlipX(f.facing < 0);
     this.shadow.setPosition(this.x, f.groundPlat ? f.groundPlat.top + 1 : this.y + 1);
 
@@ -152,7 +156,7 @@ export class FighterView {
     }
     const s = this.sprite;
     g.setTexture(s.texture.key, s.frame.name as unknown as number)
-      .setPosition(x, y + 1)
+      .setPosition(x + (s.flipX ? -1 : 1) * BODY_SHIFT * s.scaleX, y + 1)
       .setScale(s.scaleX, s.scaleY)
       .setFlipX(s.flipX)
       .setTint(tint)
