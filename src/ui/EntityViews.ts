@@ -73,8 +73,14 @@ export class EntityViews {
       const base = 0.5 * (look.size ?? 1);
       if (look.shape === 'bolt' || look.shape === 'bullet') s.setRotation(Math.atan2(p.vy, Math.abs(p.vx)) * (p.vx < 0 ? -1 : 1));
       else s.setRotation(0);
-      if (look.shape === 'beam') s.setScale(p.def.w / 48, p.def.h / 12);
-      else s.setScale(base);
+      if (look.shape === 'beam') {
+        // the hitbox is the head; draw it with a long glowing tail behind (additive, gently pulsing)
+        const len = Math.max(p.def.w * 3, 200);
+        s.x += (p.vx < 0 ? -1 : 1) * p.def.w * 0.5;
+        s.setOrigin(p.vx < 0 ? 0 : 1, 0.5).setScale(len / 64, (p.def.h / 32) * (1 + 0.06 * Math.sin(tick * 0.5))).setBlendMode(Phaser.BlendModes.ADD);
+      } else {
+        s.setOrigin(0.5, 0.5).setBlendMode(Phaser.BlendModes.NORMAL).setScale(base);
+      }
       // fade out in the last frames of life
       s.setAlpha(p.def.life - p.age < 8 ? (p.def.life - p.age) / 8 : 1);
     }

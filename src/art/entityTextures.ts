@@ -83,13 +83,21 @@ export function buildEntityTextures(scene: Phaser.Scene): void {
     for (let k = 0; k < 3; k++) px(g, '#5a5a78', 4 + k * 4, 4, 1, 6);
     add('proj-fist', c);
   }
-  // beam 48x12
+  // beam 64x32: soft glowing bolt, bright head on the right fading into a tail on the left (tinted + additive in the view)
   {
-    const [c, g] = mk(48, 12);
-    px(g, '#8a8aa8', 0, 1, 48, 10);
-    px(g, '#d8d8e8', 0, 3, 48, 6);
-    px(g, '#ffffff', 0, 5, 48, 2);
-    for (let x = 0; x < 48; x += 6) px(g, '#ffffff', x, 2 + ((x / 6) % 2) * 6, 3, 1);
+    const [c, g] = mk(64, 32);
+    for (let x = 0; x < 64; x++) {
+      const along = Math.pow(x / 63, 0.7); // 0 at the tail .. 1 at the head
+      for (let y = 0; y < 32; y++) {
+        const d = Math.abs(y - 15.5) / 15.5; // 0 centre .. 1 edge
+        const band = d < 0.22 ? 1 : d < 0.55 ? 0.62 : d < 0.85 ? 0.28 : 0.08;
+        const a = Math.min(1, band * along * 1.15);
+        if (a < 0.03) continue;
+        const v = d < 0.22 ? 255 : d < 0.55 ? 230 : 200;
+        g.fillStyle = `rgba(${v},${v},${v},${a.toFixed(2)})`;
+        g.fillRect(x, y, 1, 1);
+      }
+    }
     add('proj-beam', c);
   }
   // mine 20x12
