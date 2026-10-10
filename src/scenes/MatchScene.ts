@@ -119,6 +119,8 @@ export class MatchScene extends Phaser.Scene {
   private banner!: Phaser.GameObjects.BitmapText;
   private introTicks = 0;
   private shake = 0;
+  /** Brief camera push-in on heavy hits (decays each tick). */
+  private punch = 0;
   private frameCount = 0;
 
   private huds: FighterHud[] = [];
@@ -146,6 +148,7 @@ export class MatchScene extends Phaser.Scene {
     this.pendingHitDummy = this.pendingHitSelf = this.pendingReset = false;
     this.cinT = 0;
     this.shake = 0;
+    this.punch = 0;
     this.frameCount = 0;
     this.lastFxTick = -1;
     this.dummyIdx = 0;
@@ -472,6 +475,7 @@ export class MatchScene extends Phaser.Scene {
     }
     this.cam.step(this.camTargets, n, this.worldCam.width, this.worldCam.height);
     this.shake *= 0.88;
+    this.punch *= 0.86;
     if (this.shake < 0.05) this.shake = 0;
   }
 
@@ -500,6 +504,13 @@ export class MatchScene extends Phaser.Scene {
       const m = f.move;
       if (m?.id === 'upB' && f.state === 'attack' && f.moveFrame >= 12 && f.moveFrame <= 34) {
         this.effects.emit(f.x - 2 + Math.random() * 4, f.y + 2, (Math.random() - 0.5) * 20, 60 + Math.random() * 60, 0.3, Math.random() > 0.5 ? 0xffb02e : 0xff6a30, 3, 0, true);
+      }
+      // footwork dust: dash bursts, run puffs, and skid clouds when a fast fighter brakes
+      if (f.grounded && f.hitlag === 0) {
+        const sp = Math.abs(f.vx);
+        if (f.state === 'dash' && f.stateFrame % 3 === 0) this.effects.dust(f.x - f.facing * 6, f.y, 2, -f.facing);
+        else if (f.state === 'run' && f.stateFrame % 9 === 4) this.effects.dust(f.x - f.facing * 4, f.y, 1, -f.facing);
+        else if ((f.state === 'idle' || f.state === 'landing') && sp > 2.2 && this.world.tick % 2 === 0) this.effects.dust(f.x, f.y, 2, Math.sign(f.vx));
       }
       const hd = f.data.hud;
       if (hd && (f.res[hd.resource] ?? 0) >= hd.hotAt && f.state !== 'ko' && this.world.tick % 6 === 0) {
@@ -562,7 +573,7 @@ export class MatchScene extends Phaser.Scene {
 
     const sx = this.shake > 0 ? (Math.random() - 0.5) * this.shake * 2 : 0;
     const sy = this.shake > 0 ? (Math.random() - 0.5) * this.shake * 2 : 0;
-    this.worldCam.setZoom(zoom);
+    this.worldCam.setZoom(zoom * (1 + this.punch));
     this.worldCam.centerOn(cx + sx, cy + sy);
     this.bg.update(cx, cy, zoom, this.time.now / 1000);
 
@@ -709,6 +720,7 @@ export class MatchScene extends Phaser.Scene {
         e.flash(x, y, 0.8 + Math.min(2.2, dmg * 0.09), dmg > 12 ? 0xffffff : 0xfff3b0);
         e.burst(x, y, 10 + Math.min(16, dmg), 80 + mag * 0.4, dmg > 12 ? 0xffffff : 0xffe14a, 0.3 + Math.min(0.3, dmg * 0.012), dmg > 12 ? 4 : 3);
         this.shake = Math.max(this.shake, Math.min(9, 1 + dmg * 0.3 + mag * 0.01));
+        if (dmg >= 10) this.punch = Math.max(this.punch, Math.min(0.06, dmg * 0.0035));
         break;
       }
       case 'armorHit':

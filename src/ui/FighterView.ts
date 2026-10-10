@@ -139,6 +139,7 @@ export class FighterView {
     else if (tr && big > 1) s.setTint(((tick >> 3) & 1) === 0 ? tr.tint : 0xffffff);
     else if (f.data.hud && (f.res[f.data.hud.resource] ?? 0) >= f.data.hud.hotAt) s.setTint(((tick >> 3) & 1) === 0 ? 0xffd9c0 : 0xffffff);
     else if (f.chargeFrames > 0 && f.state === 'attack') s.setTint(((tick >> 1) & 1) === 0 ? 0xffe14a : 0xffffff);
+    else if (f.hitlag > 0 && f.state === 'hitstun' && (tick & 3) < 2) s.setTintFill(0xffffff); // impact flash during hit-stop
     else if (this.baseTint !== undefined) s.setTint(this.baseTint);
     else s.clearTint();
 
