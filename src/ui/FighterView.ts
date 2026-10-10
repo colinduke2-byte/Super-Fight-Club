@@ -22,6 +22,7 @@ export class FighterView {
   private readonly ghosts: Phaser.GameObjects.Sprite[] = [];
   private readonly ghostLife: number[] = [];
   private nextGhost = 0;
+  private spin = 0;
   private lastGhostTick = -9;
   private readonly layer: Phaser.GameObjects.Layer;
   private readonly scene: Phaser.Scene;
@@ -90,6 +91,15 @@ export class FighterView {
     // the sprite body is drawn BODY_SHIFT px left of the frame centre (weapon reach); re-centre it on the hurtbox
     s.setPosition(this.x + shake + f.facing * BODY_SHIFT * f.data.sprite.pixelScale * f.sizeMul, this.y + 1);
     s.setFlipX(f.facing < 0);
+    // launched victims tumble around their centre; everything else stands upright on its feet
+    const tumbling = f.state === 'hitstun' && !f.grounded && Math.hypot(f.vx, f.vy) > 5;
+    if (tumbling) {
+      if (f.hitlag === 0) this.spin += Math.sign(f.vx || f.facing) * Math.min(0.5, Math.hypot(f.vx, f.vy) * 0.03);
+      s.setOrigin(0.5, 0.62).setPosition(s.x, this.y - f.h * 0.5 * f.sizeMul).setRotation(this.spin);
+    } else {
+      this.spin = 0;
+      s.setOrigin(0.5, 1).setRotation(0);
+    }
     this.shadow.setPosition(this.x, f.groundPlat ? f.groundPlat.top + 1 : this.y + 1);
 
     // squash & stretch
