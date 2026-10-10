@@ -45,6 +45,28 @@ export interface StageBackground {
   bottomColor: number;
   /** Parallax layer ids understood by the stage renderer. */
   layers: string[];
+  /** Look of the parallax backdrop and tiles (palette + tints); see `BACKDROPS` in the UI layer. */
+  theme?: 'skyline' | 'void' | 'reactor';
+}
+
+/** A stage hazard. Phase is a pure function of the sim tick, so it is deterministic and needs no state. */
+export interface HazardDef {
+  kind: 'geyser';
+  /** Column centre x and the y of its base (it grows upward by `h`). */
+  x: number;
+  y: number;
+  w: number;
+  h: number;
+  /** Frames per cycle; the last `warn` + `active` frames of each cycle are the telegraph and the eruption. */
+  period: number;
+  offset?: number;
+  warn: number;
+  active: number;
+  damage: number;
+  base: number;
+  scaling: number;
+  /** Launch angle in degrees (90 = straight up). */
+  angle: number;
 }
 
 export interface StageData {
@@ -54,6 +76,7 @@ export interface StageData {
   blast: BlastZones;
   spawns: { x: number; y: number }[];
   background: StageBackground;
+  hazards?: HazardDef[];
   /** Chiptune loop id (resolved by the audio layer). */
   music?: string;
 }

@@ -1,5 +1,6 @@
 import Phaser from 'phaser';
 import { devCharacter, CHARACTERS } from '../characters';
+import { music } from '../audio/music';
 import { sfx } from '../audio/sfx';
 import { soundFor } from '../audio/soundMap';
 import { TrainingRunner } from '../engine/training';
@@ -28,6 +29,7 @@ import { FighterHud } from '../ui/FighterHud';
 import { MenuList } from '../ui/menuKit';
 import { PIXEL_FONT, up } from '../art/pixelFont';
 import { StageView } from '../ui/StageView';
+import { HazardView } from '../ui/HazardView';
 import { DummyController, NullController, type Controller } from '../game/controllers';
 import { buildResult } from '../game/results';
 import { session, type PlayerSlot } from '../game/session';
@@ -58,6 +60,7 @@ export class MatchScene extends Phaser.Scene {
   private fighters: Fighter[] = [];
   private views: FighterView[] = [];
   private stageView!: StageView;
+  private hazardView: HazardView | null = null;
   private bg!: BackgroundView;
   private effects!: Effects;
   private debug!: DebugOverlay;
@@ -154,7 +157,9 @@ export class MatchScene extends Phaser.Scene {
     this.uiCam.ignore([this.bgLayer, this.worldLayer]);
 
     this.bg = new BackgroundView(this, this.bgLayer);
+    this.bg.setTheme(stage.background.theme);
     this.stageView = new StageView(this, this.worldLayer, this.world);
+    if (stage.hazards) this.hazardView = new HazardView(this, this.worldLayer, stage.hazards);
     const seen = new Set<string>();
     this.views = this.fighters.map((f, i) => {
       const dup = seen.has(this.slots[i].character);
@@ -165,6 +170,7 @@ export class MatchScene extends Phaser.Scene {
     this.entityViews = new EntityViews(this, this.worldLayer, this.world);
     if (this.isTraining) this.training = new TrainingRunner(this.world, this.fighters[0], this.fighters[1]);
     sfx.arm();
+    music.play(stage.music ?? 'classic');
 
     const bz = stage.blast;
     this.cam.cfg = { ...DEFAULT_CAMERA, bounds: { x: bz.left, y: bz.top, w: bz.right - bz.left, h: bz.bottom - bz.top } };
@@ -215,22 +221,30 @@ export class MatchScene extends Phaser.Scene {
     this.events.once('shutdown', () => {
       this.scale.off('resize', this.onResize, this);
       keyboardHub.onKeyDown = null;
+      music.setDuck(1);
       inputManager.onPadConnect = null;
       inputManager.onPadDisconnect = null;
     });
   }
 
-  /** Booting straight into a match (dev shortcut / reload): fall back to a training session. */
+  /**
+   * Booting straight into a match (dev shortcut / reload): `?char=<id>` training, or `?stage=<id>&players=<2-4>` for a
+   * versus match against idle CPUs (no menus needed for screenshots and perf checks).
+   */
   private ensureSession(): void {
     if (session.players.length >= 2) return;
-    const id = new URLSearchParams(location.search).get('char') ?? 'brick';
+    const q = new URLSearchParams(location.search);
+    const id = q.get('char') ?? 'brick';
+    const n = Math.min(4, Math.max(1, Number(q.get('players') ?? 1)));
     const device = new MergedDevice('p1', 'Keyboard + Gamepad', () => [inputManager.keyboards[0], ...inputManager.padList]);
-    session.mode = 'training';
-    session.stage = 'sandbox';
-    session.players = [
-      { index: 0, type: 'human', device, character: id, cpuLevel: 1 },
-      { index: 1, type: 'cpu', device: null, character: id === 'brick' ? 'vex' : 'brick', cpuLevel: 1 },
-    ];
+    const ids = ['brick', 'vex', 'nova', 'gizmo'];
+    session.mode = n > 1 ? 'versus' : 'training';
+    session.stage = q.get('stage') ?? 'sandbox';
+    session.players = [{ index: 0, type: 'human', device, character: id, cpuLevel: 1 }];
+    for (let i = 1; i < Math.max(2, n); i++) {
+      const pick = ids.filter((c) => c !== id)[(i - 1) % 3];
+      session.players.push({ index: i, type: 'cpu', device: null, character: pick, cpuLevel: 1 });
+    }
   }
 
   // ---------------------------------------------------------------------------------------------
@@ -424,6 +438,7 @@ export class MatchScene extends Phaser.Scene {
     this.bg.update(cx, cy, zoom, this.time.now / 1000);
 
     this.stageView.update(alpha);
+    this.hazardView?.update(this.world.tick);
     for (const v of this.views) v.update(alpha, this.world.tick);
     this.entityViews.update(alpha, this.world.tick);
     this.ambientFx();
@@ -499,6 +514,17 @@ export class MatchScene extends Phaser.Scene {
       }
       case 'tether':
         e.flash(x, y, 0.9, 0xffffff);
+        break;
+      case 'hazardWarn':
+        e.burst(x, y, 8, 40, 0xff8a30, 0.6, 2);
+        sfx.play('charge', 0.6, 0);
+        break;
+      case 'hazardFire':
+        e.burst(x, y - 20, 30, 160, 0xffa040, 0.6, 4);
+        e.ring(x, y - 4, 40, 0xffd46a, 0.4);
+        e.flash(x, y - 40, 3, 0xffe9a8);
+        this.shake = Math.max(this.shake, 6);
+        sfx.play('boom', 0.8, 0);
         break;
       case 'cinematicStart':
         e.ring(x, y, 60, 0xffffff, 0.5);
@@ -772,6 +798,7 @@ export class MatchScene extends Phaser.Scene {
     this.pauseOverlay.setVisible(p);
     this.pauseText.setVisible(p);
     this.pauseMenu.setVisible(p);
+    music.setDuck(p ? 0.3 : 1);
     if (p) {
       this.pauseText.setText(up(reason === 'disconnect' ? `${this.disconnectedName} CONTROLLER DISCONNECTED\n\nRECONNECT IT TO CONTINUE` : 'PAUSED'));
       if (!was) {

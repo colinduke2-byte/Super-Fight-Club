@@ -3,6 +3,7 @@ import { Deployable, MAX_DEPLOYABLES, MAX_PROJECTILES, Projectile } from './enti
 import { resolveEntityCombat, updateEntities } from './entityCombat';
 import type { MoveDef } from './moves';
 import { GRAB_DISTANCE, type Fighter } from './fighter';
+import { stepHazards } from './hazards';
 import { Ledge, Platform } from './platform';
 import type { BlastZones, StageData } from './types';
 
@@ -38,6 +39,8 @@ export type WorldEventType =
   | 'cinematicEnd'
   | 'meterFull'
   | 'fx'
+  | 'hazardWarn'
+  | 'hazardFire'
   | 'ko';
 /** `extra` meaning: hit/armorHit/shieldHit/pummel = damage dealt; ko = id of the last attacker (-1 none). */
 export type WorldListener = (type: WorldEventType, fighter: Fighter, x: number, y: number, magnitude: number, extra: number, tag?: string) => void;
@@ -71,9 +74,12 @@ export class World {
 
   /** Damage % each fighter (by id) has inflicted on others; stats only, never read by the sim. */
   readonly damageDealt: number[] = [];
+  /** hazardHit[hazard][fighter] = cycle of the last eruption that hit them. */
+  readonly hazardHit: number[][];
 
   constructor(readonly stage: StageData) {
     this.blast = stage.blast;
+    this.hazardHit = (stage.hazards ?? []).map(() => []);
     this.platforms = stage.platforms.map((d, i) => new Platform(i, d));
     for (const p of this.platforms) {
       if (p.ledges) {
@@ -99,6 +105,7 @@ export class World {
     updateEntities(this);
     resolveCombat(this);
     resolveEntityCombat(this);
+    stepHazards(this);
   }
 
   // ---- projectiles / deployables -------------------------------------------------------------

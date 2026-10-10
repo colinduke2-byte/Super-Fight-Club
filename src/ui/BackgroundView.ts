@@ -1,6 +1,37 @@
 import Phaser from 'phaser';
 
 const SKY = ['#070520', '#0c0928', '#150e3a', '#231552', '#3a1f6a', '#5a2b78', '#8a4488'];
+export interface Backdrop {
+  sky: string[];
+  planet: boolean;
+  /** Multiplicative tints for the nebula, stars and the two skylines. */
+  nebula: number;
+  far: number;
+  near: number;
+  /** Tint for stage tiles (platforms) so each stage feels distinct. */
+  tiles: number;
+}
+
+export const BACKDROPS: Record<string, Backdrop> = {
+  skyline: { sky: SKY, planet: true, nebula: 0xffffff, far: 0xffffff, near: 0xffffff, tiles: 0xffffff },
+  void: {
+    sky: ['#030a14', '#061424', '#0a2236', '#103350', '#1a4d6e', '#2a6e8a', '#4a9aa8'],
+    planet: false,
+    nebula: 0x70e0ff,
+    far: 0x4a9ac0,
+    near: 0x2a6a90,
+    tiles: 0xb8e8ff,
+  },
+  reactor: {
+    sky: ['#120404', '#240808', '#3a0e0a', '#5a1a0c', '#8a2c0c', '#c0501a', '#f08a30'],
+    planet: false,
+    nebula: 0xff7a40,
+    far: 0xb05030,
+    near: 0x70281a,
+    tiles: 0xffc8a8,
+  },
+};
+
 const BAYER = [0, 8, 2, 10, 12, 4, 14, 6, 3, 11, 1, 9, 15, 7, 13, 5];
 
 /**
@@ -16,6 +47,7 @@ export class BackgroundView {
   private readonly planet: Phaser.GameObjects.Image;
   private readonly far: Phaser.GameObjects.TileSprite;
   private readonly near: Phaser.GameObjects.TileSprite;
+  private sky = SKY;
   private w = 1;
   private h = 1;
   /** Device pixels per background art pixel (integer). */
@@ -34,6 +66,16 @@ export class BackgroundView {
     layer.add([this.nebula, this.starsA, this.starsB, this.planet, this.far, this.near]);
   }
 
+  setTheme(id: string | undefined): void {
+    const b = BACKDROPS[id ?? 'skyline'] ?? BACKDROPS.skyline;
+    this.sky = b.sky;
+    this.planet.setVisible(b.planet);
+    this.nebula.setTint(b.nebula);
+    this.far.setTint(b.far);
+    this.near.setTint(b.near);
+    if (this.w > 1) this.resize(this.w, this.h);
+  }
+
   resize(w: number, h: number): void {
     this.w = w;
     this.h = h;
@@ -47,10 +89,11 @@ export class BackgroundView {
     c.height = gh;
     const g = c.getContext('2d')!;
     const img = g.createImageData(gw, gh);
-    const rgb = SKY.map((s) => [parseInt(s.slice(1, 3), 16), parseInt(s.slice(3, 5), 16), parseInt(s.slice(5, 7), 16)]);
+    const SKYC = this.sky;
+    const rgb = SKYC.map((s) => [parseInt(s.slice(1, 3), 16), parseInt(s.slice(3, 5), 16), parseInt(s.slice(5, 7), 16)]);
     for (let y = 0; y < gh; y++) {
-      const t = (y / (gh - 1)) * (SKY.length - 1);
-      const i0 = Math.min(SKY.length - 2, Math.floor(t));
+      const t = (y / (gh - 1)) * (SKYC.length - 1);
+      const i0 = Math.min(SKYC.length - 2, Math.floor(t));
       const f = t - i0;
       for (let x = 0; x < gw; x++) {
         const lv = f > BAYER[(y & 3) * 4 + (x & 3)] / 16 ? i0 + 1 : i0;

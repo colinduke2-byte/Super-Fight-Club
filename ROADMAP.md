@@ -15,6 +15,7 @@ next phase starts.
 | 6 | Nova complete: Arcana Cycle, elemental Spell Bolts, Rune Traps, reflecting barrier, Aether Step, Convergence | done |
 | 5 | Vex complete: Blink Trail marker/recall, mines, dash, full moveset | done |
 | 4 | Brick complete: Heat, Charge Shoulder, Grapple Slam, Jet Boost, Vent, Meltdown, frame-data doc, tests, training scenarios | done |
+| 9 | Versus 2-4 players + stages: Skyline Classic, Training Ring, Reactor Core (moving platforms + geyser hazard), per-stage parallax themes, chiptune loops, 4-fighter camera | done |
 | 8 | Menus and game flow: title, mode select, lobby with per-device slots, stage select, N-player match scene, results, settings, rebinding, pause / disconnect handling | done |
 | 3 | Character engine hooks: behaviour interface + resources, projectiles, deployables, status effects, teleport / dash / tether / ledge snap, meter + cinematic ultimates, reflect, training scenarios, SFX engine | done |
 
@@ -77,7 +78,7 @@ Scenes: Boot, Title, Mode Select, Character Select (2-4 players, CPU toggle + di
 - Rebinding UI on top of the existing saved bindings; deadzone, tap-jump, smash-mode settings; particle quality.
 - Pause on controller disconnect per slot, reconnect to resume.
 
-## Phase 9: Versus (2-4 players) and stages **CHECKPOINT**
+## Phase 9: Versus (2-4 players) and stages *(done; real-controller test still needs you)*
 - Free-for-all, stocks (default 3) or timed; results screen.
 - Stages: flat training ring, classic 3-platform, hazard stage (moving platforms + periodic hazard), each with
   blast zones and a parallax background, chiptune loop per stage.

@@ -52,7 +52,7 @@ export interface Session {
 export const DEFAULT_RULES: MatchRules = { mode: 'stock', stocks: 3, timeSec: 180 };
 
 export function newSession(): Session {
-  return { mode: 'versus', players: [], stage: 'sandbox', rules: { ...DEFAULT_RULES }, playerCount: 2, lastResult: null, ladder: null };
+  return { mode: 'versus', players: [], stage: 'classic', rules: { ...DEFAULT_RULES }, playerCount: 2, lastResult: null, ladder: null };
 }
 
 export const session: Session = newSession();

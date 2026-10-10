@@ -1,5 +1,7 @@
 import Phaser from 'phaser';
 import { PIXEL_FONT, up } from '../art/pixelFont';
+import { music } from '../audio/music';
+import { sfx } from '../audio/sfx';
 import { inputManager } from '../input/inputManager';
 import { menuInput, type MenuEvent } from '../input/menuInput';
 import { BackgroundView } from './BackgroundView';
@@ -156,6 +158,8 @@ export abstract class MenuScene extends Phaser.Scene {
 
   create(): void {
     inputManager.init();
+    sfx.arm();
+    music.play('menu');
     this.bgLayer = this.add.layer();
     this.ui = this.add.layer();
     const w = this.scale.width;

@@ -36,6 +36,20 @@ Settings holds audio, particles, FPS counter, fullscreen, tap-jump, smash mode a
 keyboard schemes and both gamepad profiles (saved to localStorage). Unplugging a pad mid-match pauses with the
 player named; re-plugging (or plugging another pad) re-attaches it.
 
+## Stages and music
+
+| Stage | What it is |
+|---|---|
+| Skyline Classic | main stage with ledges + three pass-through platforms; purple dusk skyline |
+| Training Ring | one wide flat platform, nothing else; cold cyan void |
+| Reactor Core | short main stage, two moving platforms and a **plasma geyser** in the middle: 1.5 s telegraph, then an eruption every 10 s that hurts (12%) and launches upward. Damage-only: it never KOs by itself |
+
+Stages are data (`src/stages/*.ts`: platforms, blast zones, spawns, hazards, `background.theme`, `music`); register a new
+one in `src/stages/index.ts`. Hazards are a pure function of the sim tick (`engine/hazards.ts`), so they stay deterministic.
+Each stage and the menus have a synthesized chiptune loop (`src/audio/tracks.ts`: 4-bar patterns as data, played by
+`src/audio/music.ts` with a WebAudio lookahead scheduler). Music volume is in Settings.
+Dev shortcut: `?stage=<id>&players=<2-4>` starts a versus match (idle CPUs) without the menus.
+
 ## Match / training controls
 
 | Action | Keyboard P1 (default) | Gamepad |

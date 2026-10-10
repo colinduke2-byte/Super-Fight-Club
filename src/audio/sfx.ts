@@ -33,6 +33,14 @@ export class Sfx {
     target.addEventListener('pointerdown', unlock);
   }
 
+  /** The shared context and noise buffer (null until the first user gesture); used by the music player. */
+  get context(): AudioContext | null {
+    return this.ctx && this.ctx.state === 'running' ? this.ctx : null;
+  }
+  get noiseBuffer(): AudioBuffer | null {
+    return this.noise;
+  }
+
   private ensure(): boolean {
     if (this.ctx) return true;
     const Ctor = window.AudioContext ?? (window as unknown as { webkitAudioContext?: typeof AudioContext }).webkitAudioContext;

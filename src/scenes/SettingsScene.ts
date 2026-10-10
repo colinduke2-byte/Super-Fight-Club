@@ -32,7 +32,7 @@ export class SettingsScene extends MenuScene {
   protected build(): void {
     this.title = this.add.bitmapText(0, 0, PIXEL_FONT, 'SETTINGS').setOrigin(0.5).setTint(COLORS.title);
     this.ui.add(this.title);
-    const step = (key: 'masterVolume' | 'sfxVolume' | 'deadzone', d: number, lo: number, hi: number) => () => {
+    const step = (key: 'masterVolume' | 'sfxVolume' | 'musicVolume' | 'deadzone', d: number, lo: number, hi: number) => () => {
       settings[key] = clamp(Math.round((settings[key] + d) * 100) / 100, lo, hi);
       saveSettings();
       if (key !== 'deadzone') sfx.play('ding', 0.4, 0);
@@ -45,6 +45,7 @@ export class SettingsScene extends MenuScene {
       { label: 'CONTROLS...', onConfirm: () => this.go('Controls', { back: 'Settings', backData: { back: this.back } }) },
       { label: 'MASTER VOLUME', value: () => pct(settings.masterVolume), onLeft: step('masterVolume', -0.05, 0, 1), onRight: step('masterVolume', 0.05, 0, 1) },
       { label: 'SFX VOLUME', value: () => pct(settings.sfxVolume), onLeft: step('sfxVolume', -0.05, 0, 1), onRight: step('sfxVolume', 0.05, 0, 1) },
+      { label: 'MUSIC VOLUME', value: () => pct(settings.musicVolume), onLeft: step('musicVolume', -0.05, 0, 1), onRight: step('musicVolume', 0.05, 0, 1) },
       {
         label: 'PARTICLES',
         value: () => settings.particleQuality.toUpperCase(),

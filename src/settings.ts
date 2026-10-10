@@ -13,6 +13,7 @@ export interface Settings {
   /** 0..1 master and sound-effect volume. */
   masterVolume: number;
   sfxVolume: number;
+  musicVolume: number;
 }
 
 export const DEFAULT_SETTINGS: Settings = {
@@ -23,6 +24,7 @@ export const DEFAULT_SETTINGS: Settings = {
   showPerf: true,
   masterVolume: 0.7,
   sfxVolume: 1,
+  musicVolume: 0.6,
 };
 
 const KEY = 'sfc.settings.v1';

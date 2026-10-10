@@ -36,6 +36,6 @@ export class BootScene extends Phaser.Scene {
     }
     // dev shortcuts: ?char=<id> drops straight into training; ?scene=<Key> opens any scene
     const q = new URLSearchParams(location.search);
-    this.scene.start(q.get('scene') ?? (q.has('char') ? 'Match' : 'Title'));
+    this.scene.start(q.get('scene') ?? ((q.has('char') || q.has('stage')) ? 'Match' : 'Title'));
   }
 }
