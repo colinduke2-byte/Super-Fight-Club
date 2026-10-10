@@ -68,7 +68,7 @@
     },
     "fair": {
       "name": "Diagonal Slash", "kind": "aerial", "anim": "aerialF", "startup": 8, "active": 7, "recovery": 16,
-      "landingLag": 14, "autocancel": [[1, 4], [28, 31]],
+      "landingLag": 11, "autocancel": [[1, 4], [28, 31]],
       "cancels": [{"button": "special", "into": "neutralB", "from": 8, "dir": "neutral", "air": true}, {"button": "attack", "into": "nair", "from": 8, "dir": "neutral", "air": true}], "hitboxes": [
         { "x": 22, "y": -16, "w": 30, "h": 22, "damage": 6, "angle": 40, "base": 32, "scaling": 0.6, "window": [1, 3], "fx": "slash" },
         { "x": 30, "y": -4, "w": 26, "h": 18, "damage": 8, "angle": 285, "base": 28, "scaling": 0.5, "window": [4, 7], "hitlag": 1.2, "fx": "meteor" }
@@ -86,7 +86,7 @@
     },
     "dair": {
       "name": "Dive Kick", "kind": "aerial", "anim": "aerialD", "startup": 9, "active": 12, "recovery": 12,
-      "landingLag": 16, "autocancel": [[1, 4]],
+      "landingLag": 12, "autocancel": [[1, 4]],
       "motion": [{ "frame": 6, "vx": 2.4, "vy": 5.6 }],
       "hitboxes": [{ "x": 4, "y": 2, "w": 22, "h": 20, "damage": 6, "angle": 280, "base": 18, "scaling": 0.3, "hitlag": 1.1, "fx": "kick" }]
     },

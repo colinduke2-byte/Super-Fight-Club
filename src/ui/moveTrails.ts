@@ -58,6 +58,7 @@ export function updateMoveTrails(world: World, fx: Effects, tick: number): void 
 export function updateAuraFx(world: World, fx: Effects, tick: number): void {
   for (const f of world.fighters) {
     if (f.state === 'ko') continue;
+    if (f.state === 'attack' && f.chargeFrames > 0) chargeFx(f, fx, tick);
     if (f.data.id === 'gizmo' && (f.res.mech ?? 0) > 0 && tick % 3 === 0) {
       const a = tick * 0.35;
       const mid = f.y - f.h * f.sizeMul * 0.5;
@@ -71,3 +72,31 @@ export function updateAuraFx(world: World, fx: Effects, tick: number): void {
   }
 }
 
+
+/** Smash-charge aura: particles converge on the fighter and speed up as the charge fills; each character has its own flavour. */
+function chargeFx(f: Fighter, fx: Effects, tick: number): void {
+  const max = f.move?.charge?.max ?? 60;
+  const t = Math.min(1, f.chargeFrames / max);
+  if (tick % (t > 0.6 ? 2 : 3) !== 0) return;
+  const col = trailColor(f);
+  const mid = f.y - f.h * f.sizeMul * 0.5;
+  const a = Math.random() * Math.PI * 2;
+  const r = 20 + 10 * Math.random();
+  const px = f.x + Math.cos(a) * r;
+  const py = mid + Math.sin(a) * r;
+  switch (f.data.id) {
+    case 'brick': // heat shimmer rising off the armour, embers when well charged
+      fx.emit(f.x + (Math.random() - 0.5) * 16, f.y - 4, (Math.random() - 0.5) * 10, -30 - 30 * t, 0.4, t > 0.5 ? 0xff9a40 : 0xe8e8f4, 2, 0, t > 0.5);
+      break;
+    case 'vex': // shadow motes pulled in toward the blades
+      fx.emit(px, py, (f.x - px) * 4, (mid - py) * 4, 0.25, col, 2, 0, true);
+      break;
+    case 'nova': // rune sparks spiral inward
+      fx.emit(px, py, (f.x - px) * 3 - Math.sin(a) * 40, (mid - py) * 3 + Math.cos(a) * 40, 0.3, col, 2, 0, true);
+      break;
+    default: // gizmo: welding sparks fly off, orbiting gear flecks
+      fx.emit(f.x + f.facing * 8, mid, (Math.random() - 0.3) * 50 * f.facing, -20 - Math.random() * 40, 0.25, 0xfff0a0, 2, 60, true);
+      break;
+  }
+  if (t >= 1 && tick % 6 === 0) fx.ring(f.x, mid, 16, col, 0.25); // fully charged pulse
+}
