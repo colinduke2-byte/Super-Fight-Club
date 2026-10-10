@@ -9,7 +9,8 @@
     "preview": "vite preview",
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
-    "framedata": "node scripts/framedata.mjs"
+    "framedata": "node scripts/framedata.mjs",
+    "artifact": "npm run build && node scripts/make-artifact.mjs"
   },
   "dependencies": {
     "phaser": "^3.90.0"
