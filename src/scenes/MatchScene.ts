@@ -336,7 +336,7 @@ export class MatchScene extends Phaser.Scene {
     const id = q.get('char') ?? 'brick';
     const n = Math.min(4, Math.max(1, Number(q.get('players') ?? 1)));
     const device = new MergedDevice('p1', 'Keyboard + Gamepad', () => [inputManager.keyboards[0], ...inputManager.padList]);
-    const ids = ['brick', 'vex', 'nova', 'gizmo'];
+    const ids = ['brick', 'vex', 'nova', 'gizmo', 'agni'];
     session.mode = n > 1 ? 'versus' : 'training';
     session.rules.teams = q.has('teams');
     session.rules.items = Math.min(2, Math.max(0, Number(q.get('items') ?? 0))) as 0 | 1 | 2;
@@ -345,7 +345,7 @@ export class MatchScene extends Phaser.Scene {
     session.players = [{ index: 0, type: auto ? 'cpu' : 'human', device: auto ? null : device, character: id, cpuLevel: 3 }];
     const lvl = Math.min(3, Math.max(1, Number(q.get('cpu') ?? 1))) as 1 | 2 | 3;
     for (let i = 1; i < Math.max(2, n); i++) {
-      const pick = ids.filter((c) => c !== id)[(i - 1) % 3];
+      const pick = ids.filter((c) => c !== id)[(i - 1) % 4];
       session.players.push({ index: i, type: 'cpu', device: null, character: pick, cpuLevel: lvl });
     }
   }

@@ -3,7 +3,7 @@
 A sci-fi/fantasy platform fighter built with **Phaser 3 + TypeScript (Vite)**. All characters, art and
 audio are original and generated in code. The game runs in the browser.
 
-> **Status: all twelve roadmap phases are built** (see `ROADMAP.md`): four fighters (Brick, Vex, Nova, Gizmo), three stages,
+> **Status: all twelve roadmap phases are built** (see `ROADMAP.md`): five fighters (Brick, Vex, Nova, Gizmo, Agni), three stages,
 > Versus for 2-4 (humans on any device + CPUs), Arcade Ladder with story cards and a scripted boss, training mode with frame-data
 > scenarios, rebindable keyboard / gamepad controls, synthesized SFX and chiptune music, CPU AI with three difficulties.
 > What still needs **you**: hands-on play (balance feel), real Xbox / PlayStation / Switch pads, Safari, 120/144 Hz displays and GPU
@@ -303,7 +303,7 @@ sweep across the screen; the lightning beam is the finisher.
 
 ### Gizmo: tricky tinkerer mech (complete, Phase 7)
 
-Weight 95, medium speed, one double jump, a small low-profile hurtbox, a solid tether recovery. Weak without
+Weight 88, medium speed, one double jump, a small low-profile hurtbox, a solid tether recovery. Weak without
 setup; turrets can be destroyed. Frame data: [`docs/frame-data-gizmo.md`](docs/frame-data-gizmo.md).
 Try him with `?char=gizmo`.
 
@@ -324,6 +324,23 @@ shots) and +3 whenever an enemy breaks one of his turrets. Cap 40.
 | Grapple Tether (up special) | wide-cone hook: latches ledges / platforms, or grabs an opponent mid-air; helpless if it whiffs |
 | Overclock (down special) | see above |
 | Mega Mech Mode (ultimate) | 8 seconds in a giant suit: 1.7x size, super-armor, +35% damage, mech punch / stomp / missiles |
+
+### Agni: fire-god all-rounder (Phase 15)
+
+Weight 96, medium speed, one double jump. Solid fundamentals (quick jabs and tilts, a dash attack, three smashes, five aerials,
+four throws) and a stored-energy mechanic. Frame data: [`docs/frame-data-agni.md`](docs/frame-data-agni.md). Try him with `?char=agni`.
+
+**INNER FLAME** (bar on the HUD plate, embers off his gauntlets): fills by dealing (+0.9 per damage) and taking (+0.7 per damage)
+damage, and only drains after 5 quiet seconds. Level 1 / 2 / 3 at 25 / 55 / 85 flame; every level also adds +3% damage to all his moves.
+Each special has a variant per level (`neutralB_0..3`, ...), picked when you press it:
+
+| Special | L0 | L1 | L2 | L3 |
+|---|---|---|---|---|
+| Flame Orb (neutral) | fireball | faster, longer burn | pierces | big piercing orb |
+| Blazing Spin Kick (side) | 2-hit | 2-hit, more reach | 3-hit, burns | 4-hit, burns |
+| Rising Flare (up, recovery) | uppercut | stronger | invincible start | higher, burns |
+| Flare Burst (down) | spends ALL flame: a ground eruption that grows with the level | | | |
+| Solar Beam (ultimate) | spends all flame: a screen-wide beam that gets taller and harder-hitting with the level | | | |
 
 ## Add a character
 
@@ -357,7 +374,10 @@ and the Windows PC (Chrome / Edge).
 test: the CPU plays Brick and Gizmo (straightforward kits) far better than Vex (hit-and-run) and Nova, so it exaggerates the gaps. It
 did find real bugs (simultaneous cinematic grabs and a KO'd grabber could leave a fighter grabbed forever) and tuned values that
 were clearly too strong: ultimate meter gain was roughly halved (about one ultimate per fighter per match), Brick's up / down smashes
-and forward smash are slower, Vex's smashes hit a bit harder. Real balance needs your hands-on feedback.
+and forward smash are slower. The Phase 15 pass (five fighters) compressed the weights (Brick 106, Vex 104, Nova 100, Agni 96, Gizmo 88
+instead of 125 / 80 / 90 / n/a / 95: weight was by far the strongest lever and made Brick unbeatable and Vex unwinnable), raised Vex's
+damage by 25% and Nova's fire / ice bolts by 25%, and slowed Gizmo's turrets and Mech punches. Hard CPUs now sit at roughly 39-58%
+(Brick 50, Vex 39, Nova 47, Gizmo 58, Agni 56). Real balance needs your hands-on feedback.
 
 ## Roadmap
 

@@ -62,7 +62,7 @@ export const nova: CharacterData = {
   name: 'Nova',
   tagline: 'Spell-slinging zoner. Fire, ice, lightning.',
   stats: {
-    weight: 90,
+    weight: 100,
     runSpeed: 2.3,
     airSpeed: 2.0,
     groundAccel: 0.26,

@@ -13,7 +13,7 @@ export const brick: CharacterData = {
   name: 'Brick',
   tagline: 'Heavy cyber-knight. Slow, armored, brutal.',
   stats: {
-    weight: 125,
+    weight: 106,
     runSpeed: 1.9,
     airSpeed: 1.3,
     groundAccel: 0.22,

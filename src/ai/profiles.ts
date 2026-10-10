@@ -119,6 +119,16 @@ export const CHARACTER_AI: Record<string, CharacterAi> = {
   },
 };
 
+CHARACTER_AI.agni = {
+  ...GENERIC,
+  ranged: ['neutralB'],
+  closers: ['sideB'],
+  finishers: ['fsmash', 'usmash', 'fair', 'bair'],
+  recovery: { slot: 'upB', up: 95, out: 45, aim: 'fixed' },
+  ultimateRange: 320,
+  spacing: 42,
+};
+
 export function aiFor(id: string): CharacterAi {
   return CHARACTER_AI[id] ?? GENERIC;
 }

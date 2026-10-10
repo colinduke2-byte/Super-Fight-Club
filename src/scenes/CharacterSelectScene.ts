@@ -87,10 +87,13 @@ export class CharacterSelectScene extends MenuScene {
     this.hint = text(this, this.ui, '', COLORS.dim).setOrigin(0.5);
   }
 
+  private cardW = 100;
+
   protected override layoutUi(w: number, h: number, u: number): void {
     this.title.setScale(u * 3).setPosition(w / 2, h * 0.07);
     const n = this.cards.length;
     const cw = Math.min(w / (n + 0.4), 112 * u * 1.1);
+    this.cardW = cw;
     this.cards.forEach((c, i) => {
       const cx = w / 2 + (i - (n - 1) / 2) * cw;
       const top = h * 0.14;
@@ -144,7 +147,10 @@ export class CharacterSelectScene extends MenuScene {
       c.name.setText(shown ? up(data.name) : '');
       c.status.setText(slot.kind === 'empty' ? 'PRESS A BUTTON' : slot.kind === 'cpu' ? 'CPU' : slot.locked ? 'READY!' : 'SELECTING')
         .setTint(slot.locked ? COLORS.good : slot.kind === 'empty' ? ((time * 2) | 0) % 2 === 0 ? COLORS.warn : COLORS.dim : COLORS.text);
-      const stats = [this.norm(data.stats.weight, 70, 130), this.norm(data.stats.runSpeed, 1.6, 3.3), this.norm(data.stats.jumpHeight, 55, 82)];
+      c.status.setScale(this.u * 1.2);
+      const limit = this.cardW * 0.86;
+      if (c.status.displayWidth > limit) c.status.setScale((this.u * 1.2 * limit) / c.status.displayWidth);
+      const stats = [this.norm(data.stats.weight, 80, 110), this.norm(data.stats.runSpeed, 1.6, 3.3), this.norm(data.stats.jumpHeight, 55, 82)];
       c.bars.forEach((b, k) => b.setVisible(shown).setScale((stats[k] * c.barW) / 4, (4 * u) / 4));
     });
     this.roster.forEach((r, i) => {

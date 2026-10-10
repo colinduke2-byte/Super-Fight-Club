@@ -309,6 +309,7 @@ function drawFighterFrame(ctx: Ctx, size: number, look: PlaceholderLook, pose: P
   limb(ctx, P.deep, bs[0], bs[1], bh[0], bh[1], 8);
   R(ctx, P.dark, bh[0] - 5, bh[1] - 3, 10, 9);
   if (weapon === 'blades') drawBlade(ctx, P, bs, bh, 11);
+  if (weapon === 'gauntlet') drawGauntlet(ctx, P, bh, phase + 1, true);
   if (extras.includes('bracer')) {
     R(ctx, P.deep, bh[0] - 4, bh[1] - 6, 9, 5);
     R(ctx, P.accent, bh[0] - 3, bh[1] - 5, 7, 3);
@@ -376,6 +377,7 @@ function drawFighterFrame(ctx: Ctx, size: number, look: PlaceholderLook, pose: P
   const hx = Math.round(cx - hs / 2 + lean + 2);
   if (!b.round) R(ctx, P.dark, hx + 2, torsoTop - 1, hs - 5, 3); // neck
   if (extras.includes('scarf')) drawScarf(ctx, P, x0 + 5, torsoTop + 2, pose, phase);
+  if (extras.includes('sash')) drawScarf(ctx, P, x0 + 4, torsoTop + torsoH - 3, pose, phase); // flame-trimmed sash from the belt
   if (b.round) drawRoundHead(ctx, P, hx, headTop + 2, hs, phase);
   else drawHead(ctx, look, P, hx, headTop, hs);
 
@@ -506,6 +508,16 @@ function drawFrontArm(ctx: Ctx, P: Pal, weapon: NonNullable<PlaceholderLook['wea
     R(ctx, P.steel, sx + 4, sy - 5, 2, 2);
     return;
   }
+  if (weapon === 'gauntlet') {
+    // bare arm -> shoulder wrap -> flame gauntlet
+    limb(ctx, P.deep, sx, sy, hand[0], hand[1], 8);
+    limb(ctx, P.skin, sx, sy, hand[0], hand[1], 6);
+    R(ctx, P.armor, sx - 5, sy - 4, 11, 7);
+    R(ctx, P.light, sx - 5, sy - 4, 11, 1);
+    R(ctx, P.accent, sx - 4, sy + 2, 9, 1);
+    drawGauntlet(ctx, P, hand, 0, false);
+    return;
+  }
   // slimmer arm for the other styles
   limb(ctx, P.deep, sx, sy, hand[0], hand[1], 8);
   limb(ctx, P.armor, sx, sy, hand[0], hand[1], 6);
@@ -571,6 +583,22 @@ function drawClaw(ctx: Ctx, P: Pal, shoulder: V2, hand: V2): void {
   for (const dx of [-3, 0, 3]) limb(ctx, '#e0e6f4', hand[0] + dx, hand[1] + 3, hand[0] + dx + Math.sign(dx), hand[1] + 8, 1);
 }
 
+/** Flame gauntlet: armoured fist with glowing knuckles and a licking flame crest. */
+function drawGauntlet(ctx: Ctx, P: Pal, hand: V2, phase: number, back: boolean): void {
+  const [hx, hy] = hand;
+  R(ctx, P.deep, hx - 7, hy - 7, 15, 14);
+  R(ctx, back ? P.dark : P.armor, hx - 6, hy - 7, 13, 12);
+  R(ctx, P.light, hx - 6, hy - 7, 13, 2);
+  for (let k = 0; k < 3; k++) R(ctx, P.dark, hx - 4 + k * 4, hy - 2, 1, 6); // knuckle lines
+  R(ctx, P.accent, hx - 6, hy + 3, 13, 2);
+  R(ctx, P.glow, hx - 6 + (phase & 1), hy + 3, 3, 1);
+  // flame crest on the back of the fist
+  R(ctx, P.accent, hx - 4, hy - 10, 3, 4);
+  R(ctx, P.accent, hx + 1, hy - 12 + (phase & 1), 3, 6);
+  R(ctx, P.glow, hx - 3, hy - 9, 1, 2);
+  R(ctx, P.glow, hx + 2, hy - 10, 1, 3);
+}
+
 function drawScarf(ctx: Ctx, P: Pal, nx: number, ny: number, pose: Pose, phase: number): void {
   // flows backward; streams level when running, trails up when airborne, droops when standing
   const flow = pose.lean > 2 ? 0 : pose.frontHand[1] < -8 ? -0.55 : 0.45;
@@ -611,6 +639,19 @@ function drawHead(ctx: Ctx, look: PlaceholderLook, P: Pal, hx: number, top: numb
       R(ctx, P.light, hx + 3, top - 7, hs - 6, 2);
       R(ctx, P.skin, hx + hs / 2, top + 6, hs / 2, hs - 8);
       R(ctx, P.accent, hx + hs / 2 + 2, top + 8, 3, 2);
+      break;
+    case 'band':
+      R(ctx, P.skin, hx, top + 1, hs, hs - 1);
+      R(ctx, P.deep, hx, top - 1, hs, 4); // hair base
+      for (let k = 0; k < 4; k++) {
+        R(ctx, P.accent, hx + 1 + k * 3, top - 6 - (k % 2) * 3, 3, 7); // flame-spike hair
+        R(ctx, P.glow, hx + 2 + k * 3, top - 5 - (k % 2) * 3, 1, 4);
+      }
+      R(ctx, P.light, hx, top + 3, hs, 3); // headband
+      R(ctx, P.accent, hx, top + 4, hs, 1);
+      R(ctx, P.accent, hx - 5, top + 4, 6, 2); // band tail
+      R(ctx, P.deep, hx + hs - 5, top + 7, 3, 2); // eye
+      R(ctx, P.dark, hx, top + 8, 4, hs - 9); // rear shade
       break;
     case 'dome':
       R(ctx, P.armor, hx, top, hs, hs);

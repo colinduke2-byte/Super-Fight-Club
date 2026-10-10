@@ -66,6 +66,11 @@ export function updateAuraFx(world: World, fx: Effects, tick: number): void {
       fx.emit(f.x + Math.cos(a) * 26, mid + Math.sin(a) * 18, -Math.sin(a) * 30, Math.cos(a) * 30, 0.25, 0xbfe0ff, 3, 0, true);
       if (tick % 9 === 0) fx.emit(f.x - f.facing * 14, mid - 6, -f.facing * 8, -26, 0.5, 0xe8e8f4, 3, 0);
     }
+    if (f.data.id === 'agni' && (f.res.level ?? 0) > 0 && tick % (6 - 1.5 * f.res.level) < 1) {
+      // embers lift off the gauntlets; the higher the flame, the more of them
+      const hand = f.x + f.facing * 12;
+      fx.emit(hand + (Math.random() - 0.5) * 8, f.y - f.h * (0.35 + Math.random() * 0.4), (Math.random() - 0.5) * 14, -28 - 10 * f.res.level, 0.4, f.res.level >= 3 ? 0xfff0a0 : 0xff8a2a, 2, 0, true);
+    }
     if (f.data.id === 'brick' && (f.res.heat ?? 0) >= 80 && tick % 4 === 0) {
       fx.emit(f.x + (Math.random() - 0.5) * 14, f.y - f.h * (0.5 + Math.random() * 0.5), (Math.random() - 0.5) * 12, -30, 0.4, 0xff9a40, 2, 0, true); // embers
     }

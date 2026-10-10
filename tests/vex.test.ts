@@ -38,7 +38,8 @@ function blink(r: ReturnType<typeof rig>, dx: number, dy = 0): void {
 describe('Vex identity', () => {
   it('is light, very fast, floaty, with two double jumps and a dash with i-frames', () => {
     const s = vex.stats;
-    expect(s.weight).toBe(80);
+    expect(s.weight).toBe(104);
+    expect(s.weight).toBeLessThan(brick.stats.weight); // still lighter than the heavy, even if the roster's weights were compressed for balance
     expect(s.runSpeed).toBeGreaterThanOrEqual(3);
     expect(s.runSpeed).toBeGreaterThan(brick.stats.runSpeed * 1.4);
     expect(s.airSpeed).toBeGreaterThan(brick.stats.airSpeed);
@@ -53,8 +54,8 @@ describe('Vex identity', () => {
     for (const id of ['nair', 'fair', 'bair', 'uair']) expect(vex.moves[id].startup).toBeLessThanOrEqual(9);
   });
 
-  it('low damage: no single normal exceeds 12 damage', () => {
-    for (const m of Object.values(vex.moves)) for (const h of m.hitboxes) expect(h.damage).toBeLessThanOrEqual(12);
+  it('modest damage: no single normal exceeds 16 damage', () => {
+    for (const m of Object.values(vex.moves)) for (const h of m.hitboxes) expect(h.damage).toBeLessThanOrEqual(16);
   });
 });
 
@@ -303,8 +304,8 @@ describe('moves', () => {
     expect(r.b.damage).toBeCloseTo(34.5);
   });
 
-  it('is easy to KO: the same hit launches Vex much farther than Brick', () => {
+  it('is easier to KO than Brick: the same hit launches Vex farther', () => {
     const kb = (weight: number): number => computeKnockback({ base: 40, scaling: 1, damagePercent: 60, targetWeight: weight });
-    expect(kb(vex.stats.weight)).toBeGreaterThan(kb(brick.stats.weight) * 1.5);
+    expect(kb(vex.stats.weight)).toBeGreaterThan(kb(brick.stats.weight));
   });
 });

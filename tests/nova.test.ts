@@ -33,7 +33,7 @@ function cycle(r: ReturnType<typeof rig>): void {
 
 describe('Nova identity', () => {
   it('is mid-weight and floaty with good air drift and one double jump', () => {
-    expect(nova.stats.weight).toBe(90);
+    expect(nova.stats.weight).toBe(100);
     expect(nova.stats.gravity).toBeLessThan(brick.stats.gravity);
     expect(nova.stats.airSpeed).toBeGreaterThanOrEqual(2);
     expect(nova.stats.doubleJumps).toBe(1);

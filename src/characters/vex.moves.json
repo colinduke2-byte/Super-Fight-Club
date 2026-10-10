@@ -32,63 +32,63 @@
       "name": "Cross Cut", "kind": "jab", "anim": "jab", "startup": 4, "active": 3, "recovery": 16,
       "motion": [{"frame": 3, "vx": 1.8}], "hitboxes": [{ "x": 20, "y": -14, "w": 30, "h": 16, "damage": 3, "angle": 55, "base": 32, "scaling": 0.35, "hitlag": 1.1, "fx": "slash" }]
     },
-    "ftilt": {"name": "Quick Slash", "kind": "tilt", "anim": "jab", "startup": 5, "active": 3, "recovery": 12, "cancels": [{"button": "special", "into": "sideB", "from": 5, "dir": "side"}, {"button": "smash", "into": "fsmash", "from": 5}, {"button": "jump", "into": "@jump", "from": 5}], "motion": [{"frame": 3, "vx": 2.2}], "hitboxes": [{"x": 24, "y": -14, "w": 34, "h": 18, "damage": 5, "angle": 50, "base": 24, "scaling": 0.5, "fx": "slash"}]},
-    "utilt": {"name": "Rising Slash", "kind": "tilt", "anim": "smashU", "startup": 5, "active": 4, "recovery": 13, "cancels": [{"button": "jump", "into": "@jump", "from": 4}, {"button": "attack", "into": "utilt", "from": 9, "dir": "up"}], "hitboxes": [{"x": 6, "y": -34, "w": 34, "h": 30, "damage": 4.5, "angle": 85, "base": 26, "scaling": 0.5, "dir": "away", "fx": "slash"}]},
-    "dtilt": {"name": "Ankle Cut", "kind": "tilt", "anim": "smashD", "startup": 4, "active": 3, "recovery": 12, "cancels": [{"button": "attack", "into": "jab1", "from": 4, "dir": "neutral"}, {"button": "attack", "into": "ftilt", "from": 4, "dir": "forward"}, {"button": "jump", "into": "@jump", "from": 4}], "hitboxes": [{"x": 26, "y": -4, "w": 36, "h": 10, "damage": 4, "angle": 75, "base": 20, "scaling": 0.4, "fx": "slash"}]},
-    "dashAttack": {"name": "Slide Cut", "kind": "dashAttack", "anim": "jab", "startup": 4, "active": 9, "recovery": 18, "motion": [{"frame": 2, "vx": 4.5}], "cancels": [{"button": "jump", "into": "@jump", "from": 5}, {"button": "attack", "into": "utilt", "from": 5, "dir": "up"}, {"button": "attack", "into": "ftilt", "from": 5, "dir": "forward"}, {"button": "special", "into": "neutralB", "from": 5, "dir": "neutral"}], "hitboxes": [{"x": 22, "y": -10, "w": 34, "h": 18, "damage": 6, "angle": 55, "base": 30, "scaling": 0.6, "fx": "slash"}]},
+    "ftilt": {"name": "Quick Slash", "kind": "tilt", "anim": "jab", "startup": 5, "active": 3, "recovery": 12, "cancels": [{"button": "special", "into": "sideB", "from": 5, "dir": "side"}, {"button": "smash", "into": "fsmash", "from": 5}, {"button": "jump", "into": "@jump", "from": 5}], "motion": [{"frame": 3, "vx": 2.2}], "hitboxes": [{"x": 24, "y": -14, "w": 34, "h": 18, "damage": 6.2, "angle": 50, "base": 24, "scaling": 0.5, "fx": "slash"}]},
+    "utilt": {"name": "Rising Slash", "kind": "tilt", "anim": "smashU", "startup": 5, "active": 4, "recovery": 13, "cancels": [{"button": "jump", "into": "@jump", "from": 4}, {"button": "attack", "into": "utilt", "from": 9, "dir": "up"}], "hitboxes": [{"x": 6, "y": -34, "w": 34, "h": 30, "damage": 5.6, "angle": 85, "base": 26, "scaling": 0.5, "dir": "away", "fx": "slash"}]},
+    "dtilt": {"name": "Ankle Cut", "kind": "tilt", "anim": "smashD", "startup": 4, "active": 3, "recovery": 12, "cancels": [{"button": "attack", "into": "jab1", "from": 4, "dir": "neutral"}, {"button": "attack", "into": "ftilt", "from": 4, "dir": "forward"}, {"button": "jump", "into": "@jump", "from": 4}], "hitboxes": [{"x": 26, "y": -4, "w": 36, "h": 10, "damage": 5.0, "angle": 75, "base": 20, "scaling": 0.4, "fx": "slash"}]},
+    "dashAttack": {"name": "Slide Cut", "kind": "dashAttack", "anim": "jab", "startup": 4, "active": 9, "recovery": 18, "motion": [{"frame": 2, "vx": 4.5}], "cancels": [{"button": "jump", "into": "@jump", "from": 5}, {"button": "attack", "into": "utilt", "from": 5, "dir": "up"}, {"button": "attack", "into": "ftilt", "from": 5, "dir": "forward"}, {"button": "special", "into": "neutralB", "from": 5, "dir": "neutral"}], "hitboxes": [{"x": 22, "y": -10, "w": 34, "h": 18, "damage": 7.5, "angle": 55, "base": 30, "scaling": 0.6, "fx": "slash"}]},
     "fsmash": {
       "name": "Double Cross", "kind": "smash", "anim": "smashF", "startup": 13, "active": 11, "recovery": 26,
       "charge": { "frame": 6, "max": 60, "damageMult": 1.35, "kbMult": 1.15 },
       "motion": [{ "frame": 14, "vx": 1.2 }],
       "motion": [{"frame": 8, "vx": 3.4}], "hitboxes": [
-        { "x": 20, "y": -14, "w": 34, "h": 16, "damage": 6, "angle": 30, "base": 12, "scaling": 0.2, "window": [1, 2], "group": 0, "minHitstun": 22, "fx": "slash" },
-        { "x": 24, "y": -20, "w": 38, "h": 28, "damage": 11, "angle": 82, "base": 45, "scaling": 0.9, "window": [9, 11], "group": 1, "hitlag": 1.2, "fx": "slash" }
+        { "x": 20, "y": -14, "w": 34, "h": 16, "damage": 7.5, "angle": 30, "base": 12, "scaling": 0.2, "window": [1, 2], "group": 0, "minHitstun": 22, "fx": "slash" },
+        { "x": 24, "y": -20, "w": 38, "h": 28, "damage": 13.8, "angle": 82, "base": 45, "scaling": 0.9, "window": [9, 11], "group": 1, "hitlag": 1.2, "fx": "slash" }
       ]
     },
     "usmash": {
       "name": "Scarf Whip", "kind": "smash", "anim": "smashU", "startup": 10, "active": 5, "recovery": 24,
       "charge": { "frame": 4, "max": 60, "damageMult": 1.35, "kbMult": 1.15 },
-      "hitboxes": [{ "x": 4, "y": -34, "w": 66, "h": 24, "damage": 12, "angle": 88, "base": 38, "scaling": 0.85, "dir": "away", "fx": "whip" }]
+      "hitboxes": [{ "x": 4, "y": -34, "w": 66, "h": 24, "damage": 15.0, "angle": 88, "base": 38, "scaling": 0.85, "dir": "away", "fx": "whip" }]
     },
     "dsmash": {
       "name": "Low Sweep", "kind": "smash", "anim": "smashD", "startup": 9, "active": 4, "recovery": 22,
       "charge": { "frame": 3, "max": 60, "damageMult": 1.35, "kbMult": 1.15 },
       "hitboxes": [
-        { "x": 26, "y": -5, "w": 44, "h": 10, "damage": 10, "angle": 48, "base": 34, "scaling": 0.7, "dir": "away", "fx": "slash" },
-        { "x": -26, "y": -5, "w": 44, "h": 10, "damage": 10, "angle": 48, "base": 34, "scaling": 0.7, "dir": "away", "fx": "slash" }
+        { "x": 26, "y": -5, "w": 44, "h": 10, "damage": 12.5, "angle": 48, "base": 34, "scaling": 0.7, "dir": "away", "fx": "slash" },
+        { "x": -26, "y": -5, "w": 44, "h": 10, "damage": 12.5, "angle": 48, "base": 34, "scaling": 0.7, "dir": "away", "fx": "slash" }
       ]
     },
     "nair": {
       "name": "Twin Spin", "kind": "aerial", "anim": "aerialN", "startup": 4, "active": 14, "recovery": 10,
       "landingLag": 8, "autocancel": [[1, 3], [24, 28]],
       "cancels": [{"button": "attack", "into": "fair", "from": 5, "dir": "forward", "air": true}, {"button": "attack", "into": "bair", "from": 5, "dir": "back", "air": true}, {"button": "attack", "into": "uair", "from": 5, "dir": "up", "air": true}, {"button": "special", "into": "neutralB", "from": 5, "dir": "neutral", "air": true}], "hitboxes": [
-        { "x": 0, "y": -13, "w": 46, "h": 30, "damage": 4.5, "angle": 50, "base": 30, "scaling": 0.5, "window": [11, 14], "group": 1, "dir": "away", "fx": "slash" },
-        { "x": 0, "y": -13, "w": 46, "h": 30, "damage": 1.6, "angle": 361, "base": 10, "scaling": 0.1, "window": [1, 10], "group": 0, "rehit": 4, "dir": "away", "minHitstun": 8, "hitlag": 0.6, "fx": "slash" }
+        { "x": 0, "y": -13, "w": 46, "h": 30, "damage": 5.6, "angle": 50, "base": 30, "scaling": 0.5, "window": [11, 14], "group": 1, "dir": "away", "fx": "slash" },
+        { "x": 0, "y": -13, "w": 46, "h": 30, "damage": 2.0, "angle": 361, "base": 10, "scaling": 0.1, "window": [1, 10], "group": 0, "rehit": 4, "dir": "away", "minHitstun": 8, "hitlag": 0.6, "fx": "slash" }
       ]
     },
     "fair": {
       "name": "Diagonal Slash", "kind": "aerial", "anim": "aerialF", "startup": 8, "active": 7, "recovery": 16,
       "landingLag": 11, "autocancel": [[1, 4], [28, 31]],
       "cancels": [{"button": "special", "into": "neutralB", "from": 8, "dir": "neutral", "air": true}, {"button": "attack", "into": "nair", "from": 8, "dir": "neutral", "air": true}], "hitboxes": [
-        { "x": 22, "y": -16, "w": 30, "h": 22, "damage": 6, "angle": 40, "base": 32, "scaling": 0.6, "window": [1, 3], "fx": "slash" },
-        { "x": 30, "y": -4, "w": 26, "h": 18, "damage": 8, "angle": 285, "base": 28, "scaling": 0.5, "window": [4, 7], "hitlag": 1.2, "fx": "meteor" }
+        { "x": 22, "y": -16, "w": 30, "h": 22, "damage": 7.5, "angle": 40, "base": 32, "scaling": 0.6, "window": [1, 3], "fx": "slash" },
+        { "x": 30, "y": -4, "w": 26, "h": 18, "damage": 10.0, "angle": 285, "base": 28, "scaling": 0.5, "window": [4, 7], "hitlag": 1.2, "fx": "meteor" }
       ]
     },
     "bair": {
       "name": "Back Kick", "kind": "aerial", "anim": "aerialB", "startup": 5, "active": 3, "recovery": 11,
       "landingLag": 9, "autocancel": [[1, 3], [16, 19]],
-      "hitboxes": [{ "x": -20, "y": -12, "w": 26, "h": 18, "damage": 5, "angle": 150, "base": 28, "scaling": 0.6, "fx": "kick" }]
+      "hitboxes": [{ "x": -20, "y": -12, "w": 26, "h": 18, "damage": 6.2, "angle": 150, "base": 28, "scaling": 0.6, "fx": "kick" }]
     },
     "uair": {
       "name": "Juggle Slash", "kind": "aerial", "anim": "aerialU", "startup": 6, "active": 4, "recovery": 13,
       "landingLag": 10, "autocancel": [[1, 3], [18, 22]],
-      "cancels": [{"button": "attack", "into": "uair", "from": 6, "dir": "up", "air": true}, {"button": "attack", "into": "fair", "from": 6, "dir": "forward", "air": true}], "hitboxes": [{ "x": 4, "y": -38, "w": 34, "h": 28, "damage": 5, "angle": 88, "base": 24, "scaling": 0.35, "fx": "slash" }]
+      "cancels": [{"button": "attack", "into": "uair", "from": 6, "dir": "up", "air": true}, {"button": "attack", "into": "fair", "from": 6, "dir": "forward", "air": true}], "hitboxes": [{ "x": 4, "y": -38, "w": 34, "h": 28, "damage": 6.2, "angle": 88, "base": 24, "scaling": 0.35, "fx": "slash" }]
     },
     "dair": {
       "name": "Dive Kick", "kind": "aerial", "anim": "aerialD", "startup": 9, "active": 12, "recovery": 12,
       "landingLag": 12, "autocancel": [[1, 4]],
       "motion": [{ "frame": 6, "vx": 2.4, "vy": 5.6 }],
-      "hitboxes": [{ "x": 4, "y": 2, "w": 22, "h": 20, "damage": 6, "angle": 280, "base": 18, "scaling": 0.3, "hitlag": 1.1, "fx": "kick" }]
+      "hitboxes": [{ "x": 4, "y": 2, "w": 22, "h": 20, "damage": 7.5, "angle": 280, "base": 18, "scaling": 0.3, "hitlag": 1.1, "fx": "kick" }]
     },
     "grab": {
       "name": "Snatch", "kind": "grab", "anim": "grab", "startup": 5, "active": 2, "recovery": 20,
@@ -124,7 +124,7 @@
     "sideB": {
       "name": "Pirate's Dash", "kind": "special", "anim": "dashS", "startup": 6, "active": 8, "recovery": 12,
       "motion": [{ "frame": 4, "vx": 6.0 }],
-      "hitboxes": [{ "x": 16, "y": -12, "w": 30, "h": 14, "damage": 5, "angle": 40, "base": 30, "scaling": 0.5, "hitlag": 1.1, "fx": "slash" }]
+      "hitboxes": [{ "x": 16, "y": -12, "w": 30, "h": 14, "damage": 6.2, "angle": 40, "base": 30, "scaling": 0.5, "hitlag": 1.1, "fx": "slash" }]
     },
     "upB": {
       "name": "Shadow Climb", "kind": "special", "anim": "castU", "startup": 5, "active": 1, "recovery": 26,

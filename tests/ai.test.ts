@@ -63,7 +63,7 @@ describe('CPU frame-data knowledge', () => {
         const has = c.moves[slot] || Object.keys(c.moves).some((k) => k.startsWith(`${slot}_`));
         expect(has, `${c.id}.${slot}`).toBeTruthy();
       }
-      expect(c.moves[ai.recovery.slot]).toBeDefined();
+      expect(c.moves[ai.recovery.slot] || Object.keys(c.moves).some((k) => k.startsWith(`${ai.recovery.slot}_`))).toBeTruthy();
     }
   });
   it('difficulty levels get strictly sharper', () => {
@@ -77,7 +77,7 @@ describe('CPU frame-data knowledge', () => {
 describe('CPU recovery', () => {
   // off-stage spots a human could get back from (the last two are the hard ones)
   const reachable: [number, number][] = [[-230, 40], [230, 40], [-200, 120], [200, 120], [260, 80], [-260, 160]];
-  for (const char of ['brick', 'vex', 'nova', 'gizmo']) {
+  for (const char of ['brick', 'vex', 'nova', 'gizmo', 'agni']) {
     it(`${char}: Normal and Hard CPUs get back to the stage from every reachable spot`, () => {
       for (const level of [2, 3] as const) {
         for (const [x, y] of reachable) expect(recover(char, level, x, y), `${char} L${level} from ${x},${y}`).toBe(true);
@@ -87,14 +87,14 @@ describe('CPU recovery', () => {
   it('Easy recovers less reliably than Hard overall', () => {
     let easy = 0;
     let hard = 0;
-    for (const char of ['brick', 'vex', 'nova', 'gizmo']) {
+    for (const char of ['brick', 'vex', 'nova', 'gizmo', 'agni']) {
       for (const [x, y] of reachable) {
         if (recover(char, 1, x, y)) easy++;
         if (recover(char, 3, x, y)) hard++;
       }
     }
     expect(hard).toBeGreaterThanOrEqual(easy);
-    expect(hard).toBe(reachable.length * 4);
+    expect(hard).toBe(reachable.length * 5);
   });
   it('knows when it is off the stage', () => {
     const { world, fighters } = arena(['brick', 'vex']);

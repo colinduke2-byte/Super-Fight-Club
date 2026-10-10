@@ -1,4 +1,5 @@
 import type { CharacterData } from '../engine/types';
+import { agni } from './agni';
 import { brick } from './brick';
 import { gizmo } from './gizmo';
 import { nova } from './nova';
@@ -12,6 +13,7 @@ export const CHARACTERS: Record<string, CharacterData> = {
   [vex.id]: vex,
   [nova.id]: nova,
   [gizmo.id]: gizmo,
+  [agni.id]: agni,
 };
 export const CHARACTER_LIST: CharacterData[] = Object.values(CHARACTERS);
 

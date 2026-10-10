@@ -91,7 +91,7 @@ export const gizmo: CharacterData = {
   name: 'Gizmo',
   tagline: 'Tinkerer mech. Set the trap, spend the scrap.',
   stats: {
-    weight: 95,
+    weight: 88,
     runSpeed: 2.4,
     airSpeed: 1.8,
     groundAccel: 0.3,

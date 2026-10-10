@@ -19,7 +19,7 @@
   "deployables": {
     "turret": {
       "w": 14, "h": 14, "health": 8, "limit": 2, "armFrames": 24, "life": 2400, "gravity": true,
-      "turret": { "range": 150, "interval": 55, "projectile": "turret_shot", "muzzleX": 9, "muzzleY": -8, "speed": 2.6 },
+      "turret": { "range": 150, "interval": 66, "projectile": "turret_shot", "muzzleX": 9, "muzzleY": -8, "speed": 2.6 },
       "reward": { "key": "scrap", "add": 3 },
       "look": { "shape": "turret", "color": "#e08a2c" }
     }
@@ -147,14 +147,14 @@
     },
     "mech_punch": {
       "name": "Mech Punch", "kind": "smash", "anim": "smashF", "hidden": true, "startup": 10, "active": 4, "recovery": 22,
-      "hitboxes": [{ "x": 42, "y": -16, "w": 66, "h": 56, "damage": 14, "angle": 38, "base": 58, "scaling": 0.95, "hitlag": 1.3, "fx": "heavy" }]
+      "hitboxes": [{ "x": 42, "y": -16, "w": 66, "h": 56, "damage": 11.9, "angle": 38, "base": 58, "scaling": 0.95, "hitlag": 1.3, "fx": "heavy" }]
     },
     "mech_stomp": {
       "name": "Mech Stomp", "kind": "smash", "anim": "smashD", "hidden": true, "startup": 8, "active": 5, "recovery": 24,
       "events": [{ "frame": 9, "action": "fx", "name": "stomp" }],
       "hitboxes": [
-        { "x": 40, "y": -8, "w": 72, "h": 26, "damage": 11, "angle": 72, "base": 44, "scaling": 0.8, "dir": "away", "hitlag": 1.2, "fx": "heavy" },
-        { "x": -40, "y": -8, "w": 72, "h": 26, "damage": 11, "angle": 72, "base": 44, "scaling": 0.8, "dir": "away", "hitlag": 1.2, "fx": "heavy" }
+        { "x": 40, "y": -8, "w": 72, "h": 26, "damage": 9.3, "angle": 72, "base": 44, "scaling": 0.8, "dir": "away", "hitlag": 1.2, "fx": "heavy" },
+        { "x": -40, "y": -8, "w": 72, "h": 26, "damage": 9.3, "angle": 72, "base": 44, "scaling": 0.8, "dir": "away", "hitlag": 1.2, "fx": "heavy" }
       ]
     },
     "mech_missiles": {

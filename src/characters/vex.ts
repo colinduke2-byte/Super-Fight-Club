@@ -47,7 +47,7 @@ export const vex: CharacterData = {
   name: 'Vex',
   tagline: 'Space-pirate rogue. Blink, bait, and vanish.',
   stats: {
-    weight: 80,
+    weight: 104,
     runSpeed: 3.1,
     airSpeed: 2.2,
     groundAccel: 0.42,
