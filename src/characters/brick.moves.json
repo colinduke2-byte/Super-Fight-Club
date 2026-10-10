@@ -9,7 +9,7 @@
       ]
     },
     "jab2": {
-      "name": "Piston Jab 2", "kind": "jab", "anim": "jab",
+      "name": "Piston Jab 2", "kind": "jab", "anim": "jabB",
       "startup": 6, "active": 2, "recovery": 12,
       "next": { "id": "jab3", "from": 7, "to": 16, "at": 16 },
       "cancels": [{"button": "attack", "into": "ftilt", "from": 7, "dir": "forward"}, {"button": "smash", "into": "fsmash", "from": 7}], "hitboxes": [
@@ -17,7 +17,7 @@
       ]
     },
     "jab3": {
-      "name": "Piston Shove", "kind": "jab", "anim": "jab",
+      "name": "Piston Shove", "kind": "jab", "anim": "smashF",
       "startup": 8, "active": 3, "recovery": 22,
       "cancels": [{"button": "smash", "into": "fsmash", "from": 9}, {"button": "grab", "into": "grab", "from": 9}], "motion": [{"frame": 6, "vx": 1.2}], "hitboxes": [
         { "x": 26, "y": -16, "w": 30, "h": 20, "damage": 6, "angle": 28, "base": 58, "scaling": 0.5, "hitlag": 1.25, "fx": "heavy" }
@@ -25,8 +25,8 @@
     },
     "ftilt": {"name": "Piston Hook", "kind": "tilt", "anim": "jab", "startup": 10, "active": 3, "recovery": 20, "cancels": [{"button": "smash", "into": "fsmash", "from": 7}, {"button": "attack", "into": "utilt", "from": 7, "dir": "up"}, {"button": "jump", "into": "@jump", "from": 8}], "motion": [{"frame": 5, "vx": 1.4}], "hitboxes": [{"x": 28, "y": -16, "w": 34, "h": 16, "damage": 8, "angle": 40, "base": 32, "scaling": 0.7, "hitlag": 1.1, "fx": "punch"}]},
     "utilt": {"name": "Overhead Swing", "kind": "tilt", "anim": "smashU", "startup": 9, "active": 4, "recovery": 20, "cancels": [{"button": "jump", "into": "@jump", "from": 7}, {"button": "smash", "into": "usmash", "from": 8}], "hitboxes": [{"x": 6, "y": -34, "w": 36, "h": 30, "damage": 7, "angle": 80, "base": 30, "scaling": 0.65, "dir": "away", "fx": "punch"}]},
-    "dtilt": {"name": "Low Sweep Kick", "kind": "tilt", "anim": "smashD", "startup": 8, "active": 3, "recovery": 16, "cancels": [{"button": "attack", "into": "ftilt", "from": 6, "dir": "forward"}, {"button": "jump", "into": "@jump", "from": 6}], "hitboxes": [{"x": 28, "y": -4, "w": 36, "h": 10, "damage": 6, "angle": 75, "base": 24, "scaling": 0.5, "fx": "punch"}]},
-    "dashAttack": {"name": "Shoulder Charge", "kind": "dashAttack", "anim": "jab", "startup": 8, "active": 8, "recovery": 24, "motion": [{"frame": 4, "vx": 3.2}], "cancels": [{"button": "grab", "into": "grab", "from": 9}, {"button": "smash", "into": "fsmash", "from": 9}, {"button": "attack", "into": "utilt", "from": 9, "dir": "up"}], "hitboxes": [{"x": 22, "y": -14, "w": 30, "h": 26, "damage": 9, "angle": 45, "base": 40, "scaling": 0.8, "hitlag": 1.1, "fx": "heavy"}]},
+    "dtilt": {"name": "Low Sweep Kick", "kind": "tilt", "anim": "sweep", "startup": 8, "active": 3, "recovery": 16, "cancels": [{"button": "attack", "into": "ftilt", "from": 6, "dir": "forward"}, {"button": "jump", "into": "@jump", "from": 6}], "hitboxes": [{"x": 28, "y": -4, "w": 36, "h": 10, "damage": 6, "angle": 75, "base": 24, "scaling": 0.5, "fx": "punch"}]},
+    "dashAttack": {"name": "Shoulder Charge", "kind": "dashAttack", "anim": "shoulder", "startup": 8, "active": 8, "recovery": 24, "motion": [{"frame": 4, "vx": 3.2}], "cancels": [{"button": "grab", "into": "grab", "from": 9}, {"button": "smash", "into": "fsmash", "from": 9}, {"button": "attack", "into": "utilt", "from": 9, "dir": "up"}], "hitboxes": [{"x": 22, "y": -14, "w": 30, "h": 26, "damage": 9, "angle": 45, "base": 40, "scaling": 0.8, "hitlag": 1.1, "fx": "heavy"}]},
     "fsmash": {
       "name": "Piston Slam", "kind": "smash", "anim": "smashF",
       "startup": 23, "active": 3, "recovery": 36,
@@ -108,22 +108,22 @@
       ]
     },
     "fthrow": {
-      "name": "Piston Toss", "kind": "throw", "anim": "grab", "throwDir": "forward",
+      "name": "Piston Toss", "kind": "throw", "anim": "throwF", "throwDir": "forward",
       "startup": 8, "active": 1, "recovery": 18,
       "hitboxes": [{ "x": 18, "y": -16, "w": 40, "h": 34, "damage": 9, "angle": 40, "base": 60, "scaling": 0.8, "throw": true, "fx": "heavy" }]
     },
     "bthrow": {
-      "name": "Reverse Hurl", "kind": "throw", "anim": "grab", "throwDir": "back",
+      "name": "Reverse Hurl", "kind": "throw", "anim": "throwB", "throwDir": "back",
       "startup": 10, "active": 1, "recovery": 20,
       "hitboxes": [{ "x": 18, "y": -16, "w": 40, "h": 34, "damage": 10, "angle": 140, "base": 62, "scaling": 0.85, "throw": true, "fx": "heavy" }]
     },
     "uthrow": {
-      "name": "Skyward Heave", "kind": "throw", "anim": "grab", "throwDir": "up",
+      "name": "Skyward Heave", "kind": "throw", "anim": "throwU", "throwDir": "up",
       "startup": 9, "active": 1, "recovery": 20,
       "hitboxes": [{ "x": 18, "y": -16, "w": 40, "h": 34, "damage": 8, "angle": 88, "base": 55, "scaling": 0.7, "throw": true, "fx": "heavy" }]
     },
     "dthrow": {
-      "name": "Ground Pound", "kind": "throw", "anim": "grab", "throwDir": "down",
+      "name": "Ground Pound", "kind": "throw", "anim": "throwD", "throwDir": "down",
       "startup": 8, "active": 1, "recovery": 22,
       "hitboxes": [{ "x": 18, "y": -16, "w": 40, "h": 34, "damage": 7, "angle": 75, "base": 40, "scaling": 0.4, "throw": true, "fx": "heavy" }]
     }

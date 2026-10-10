@@ -15,7 +15,7 @@ export function standardAnimations(extra: string[] = []): Record<string, AnimDef
     down: still(),
     ko: still(),
   };
-  for (const n of ['jab', 'smashF', 'smashU', 'smashD', 'aerialN', 'aerialF', 'aerialB', 'aerialU', 'aerialD']) anims[n] = still(6);
+  for (const n of ['jab', 'smashF', 'smashU', 'smashD', 'aerialN', 'aerialF', 'aerialB', 'aerialU', 'aerialD', 'shoulder', 'sweep', 'jabB', 'throwF', 'throwB', 'throwU', 'throwD']) anims[n] = still(6);
   anims.grab = still(2);
   anims.shield = still();
   anims.dodge = still();

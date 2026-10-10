@@ -286,7 +286,7 @@
   "jab2": {
    "name": "Flame Cross",
    "kind": "jab",
-   "anim": "jab",
+   "anim": "jabB",
    "startup": 4,
    "active": 2,
    "recovery": 10,
@@ -327,7 +327,7 @@
   "jab3": {
    "name": "Blaze Palm",
    "kind": "jab",
-   "anim": "jab",
+   "anim": "smashF",
    "startup": 6,
    "active": 3,
    "recovery": 20,
@@ -470,7 +470,7 @@
   "dtilt": {
    "name": "Ember Sweep",
    "kind": "tilt",
-   "anim": "smashD",
+   "anim": "sweep",
    "startup": 6,
    "active": 3,
    "recovery": 14,
@@ -504,7 +504,7 @@
   "dashAttack": {
    "name": "Blazing Shoulder",
    "kind": "dashAttack",
-   "anim": "jab",
+   "anim": "shoulder",
    "startup": 6,
    "active": 8,
    "recovery": 22,
@@ -911,7 +911,7 @@
   "fthrow": {
    "name": "Fire Toss",
    "kind": "throw",
-   "anim": "grab",
+   "anim": "throwF",
    "throwDir": "forward",
    "startup": 7,
    "active": 1,
@@ -934,7 +934,7 @@
   "bthrow": {
    "name": "Reverse Hurl",
    "kind": "throw",
-   "anim": "grab",
+   "anim": "throwB",
    "throwDir": "back",
    "startup": 9,
    "active": 1,
@@ -957,7 +957,7 @@
   "uthrow": {
    "name": "Rising Flame",
    "kind": "throw",
-   "anim": "grab",
+   "anim": "throwU",
    "throwDir": "up",
    "startup": 7,
    "active": 1,
@@ -980,7 +980,7 @@
   "dthrow": {
    "name": "Scorch Slam",
    "kind": "throw",
-   "anim": "grab",
+   "anim": "throwD",
    "throwDir": "down",
    "startup": 7,
    "active": 1,
@@ -1103,7 +1103,7 @@
   "sideB_0": {
    "name": "Blazing Spin Kick",
    "kind": "special",
-   "anim": "dashS",
+   "anim": "spinKick",
    "startup": 6,
    "active": 8,
    "recovery": 14,
@@ -1154,7 +1154,7 @@
   "sideB_1": {
    "name": "Blazing Spin Kick",
    "kind": "special",
-   "anim": "dashS",
+   "anim": "spinKick",
    "startup": 6,
    "active": 8,
    "recovery": 14,
@@ -1205,7 +1205,7 @@
   "sideB_2": {
    "name": "Blazing Spin Kick",
    "kind": "special",
-   "anim": "dashS",
+   "anim": "spinKick",
    "startup": 6,
    "active": 12,
    "recovery": 14,
@@ -1279,7 +1279,7 @@
   "sideB_3": {
    "name": "Blazing Spin Kick",
    "kind": "special",
-   "anim": "dashS",
+   "anim": "spinKick",
    "startup": 6,
    "active": 16,
    "recovery": 14,
@@ -1371,7 +1371,7 @@
   "upB_0": {
    "name": "Rising Flare",
    "kind": "special",
-   "anim": "castU",
+   "anim": "smashU",
    "startup": 6,
    "active": 7,
    "recovery": 22,
@@ -1415,7 +1415,7 @@
   "upB_1": {
    "name": "Rising Flare",
    "kind": "special",
-   "anim": "castU",
+   "anim": "smashU",
    "startup": 6,
    "active": 7,
    "recovery": 22,
@@ -1459,7 +1459,7 @@
   "upB_2": {
    "name": "Rising Flare",
    "kind": "special",
-   "anim": "castU",
+   "anim": "smashU",
    "startup": 6,
    "active": 7,
    "recovery": 22,
@@ -1507,7 +1507,7 @@
   "upB_3": {
    "name": "Rising Flare",
    "kind": "special",
-   "anim": "castU",
+   "anim": "smashU",
    "startup": 6,
    "active": 7,
    "recovery": 22,
@@ -1695,7 +1695,7 @@
   "ultimate_0": {
    "name": "Solar Beam",
    "kind": "ultimate",
-   "anim": "raid",
+   "anim": "beamF",
    "startup": 36,
    "active": 1,
    "recovery": 40,
@@ -1729,7 +1729,7 @@
   "ultimate_1": {
    "name": "Solar Beam",
    "kind": "ultimate",
-   "anim": "raid",
+   "anim": "beamF",
    "startup": 36,
    "active": 1,
    "recovery": 40,
@@ -1763,7 +1763,7 @@
   "ultimate_2": {
    "name": "Solar Beam",
    "kind": "ultimate",
-   "anim": "raid",
+   "anim": "beamF",
    "startup": 36,
    "active": 1,
    "recovery": 40,
@@ -1797,7 +1797,7 @@
   "ultimate_3": {
    "name": "Solar Beam",
    "kind": "ultimate",
-   "anim": "raid",
+   "anim": "beamF",
    "startup": 36,
    "active": 1,
    "recovery": 40,
@@ -1831,7 +1831,7 @@
   "ultimate": {
    "name": "Solar Beam",
    "kind": "ultimate",
-   "anim": "raid",
+   "anim": "beamF",
    "startup": 36,
    "active": 1,
    "recovery": 40,

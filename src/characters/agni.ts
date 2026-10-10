@@ -68,7 +68,7 @@ export const agni: CharacterData = {
   sprite: {
     frameSize: 64,
     pixelScale: 0.5,
-    animations: standardAnimations(['castF', 'castU', 'castD', 'dashS', 'raid']),
+    animations: standardAnimations(['castF', 'castD', 'spinKick', 'beamF']),
     placeholder: {
       skin: '#d99a62',
       armor: '#b3301c',
