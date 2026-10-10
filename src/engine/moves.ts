@@ -85,7 +85,7 @@ export interface Cinematic {
   zoom?: number;
 }
 
-export type MoveKind = 'jab' | 'smash' | 'aerial' | 'special' | 'grab' | 'throw' | 'ultimate';
+export type MoveKind = 'jab' | 'tilt' | 'dashAttack' | 'smash' | 'aerial' | 'special' | 'grab' | 'throw' | 'ultimate';
 
 export interface MoveDef {
   id: string;

@@ -106,7 +106,7 @@ export class FighterView {
     const ps = f.data.sprite.pixelScale * big;
     s.setScale(sx * ps, sy * ps);
     // invincibility blink (dodges stay translucent), smash-charge glow
-    const dodging = f.state === 'spotdodge' || f.state === 'roll';
+    const dodging = f.state === 'spotdodge' || f.state === 'roll' || f.state === 'airdodge';
     s.setAlpha(dodging ? 0.4 : f.invuln > 0 && (tick >> 2) % 2 === 0 ? 0.45 : 1);
     // tint priority: freeze > stun > burn > slow > transform > smash charge > base
     const st = f.status;

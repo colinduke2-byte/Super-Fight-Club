@@ -167,6 +167,8 @@ export interface CharacterData {
   /** Ultimate meter tuning. Defaults: cost 100, gainDealt 0.6, gainTaken 0.9 per damage point. */
   ultimate?: { cost: number; gainDealt: number; gainTaken: number };
   /** Ground dash (double-tap / flick) with an invulnerability window. */
+  /** Can jump off walls (the sides of solid platforms) while airborne. */
+  wallJump?: boolean;
   dash?: { speed: number; frames: number; invuln: [number, number]; cooldown: number };
   /** HUD resource bar (Heat, Scrap...): drawn as a glowing seam on the player plate; sprite glows once `hotAt` is reached. */
   hud?: { resource: string; max: number; color: number; hotAt: number; /** Per-element seam colours picked by `res[colorKey]`. */ colors?: number[]; colorKey?: string };

@@ -823,6 +823,10 @@ export class MatchScene extends Phaser.Scene {
         e.ring(x, y - 2, 46, 0xffffff, 0.35);
         this.shake = Math.max(this.shake, 8);
         break;
+      case 'taunt':
+        e.ring(x, y - f.h - 6, 12, 0xffe14a, 0.4);
+        e.burst(x, y - f.h - 6, 8, 50, 0xffe14a, 0.4, 2);
+        break;
       case 'blink':
         e.flash(x, y - f.h / 2, 1, 0x7fe8ff);
         break;

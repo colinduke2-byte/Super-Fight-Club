@@ -88,6 +88,13 @@ export class World {
     }
   }
 
+  /** True when both fighters are on the same team (team battles): no friendly fire. */
+  allied(a: number, b: number): boolean {
+    const x = this.fighters[a];
+    const y = this.fighters[b];
+    return !!x && !!y && a !== b && x.team >= 0 && x.team === y.team;
+  }
+
   addFighter(f: Fighter): void {
     this.fighters.push(f);
     this.damageDealt.push(0);

@@ -68,6 +68,10 @@
       "name": "Burst Poke", "kind": "jab", "anim": "jab", "startup": 8, "active": 3, "recovery": 22,
       "hitboxes": [{ "x": 30, "y": -15, "w": 34, "h": 22, "damage": 3.5, "angle": 40, "base": 26, "scaling": 0.4, "hitlag": 1.1, "fx": "burst" }]
     },
+    "ftilt": {"name": "Staff Thrust", "kind": "tilt", "anim": "jab", "startup": 8, "active": 3, "recovery": 16, "hitboxes": [{"x": 34, "y": -16, "w": 44, "h": 12, "damage": 6, "angle": 40, "base": 28, "scaling": 0.6, "fx": "punch"}]},
+    "utilt": {"name": "Staff Arc", "kind": "tilt", "anim": "smashU", "startup": 8, "active": 4, "recovery": 16, "hitboxes": [{"x": 8, "y": -38, "w": 40, "h": 34, "damage": 5, "angle": 85, "base": 26, "scaling": 0.5, "dir": "away", "fx": "punch"}]},
+    "dtilt": {"name": "Low Sweep", "kind": "tilt", "anim": "smashD", "startup": 7, "active": 3, "recovery": 14, "hitboxes": [{"x": 30, "y": -4, "w": 44, "h": 10, "damage": 5, "angle": 75, "base": 22, "scaling": 0.45, "fx": "punch"}]},
+    "dashAttack": {"name": "Aether Slide", "kind": "dashAttack", "anim": "jab", "startup": 7, "active": 8, "recovery": 22, "motion": [{"frame": 3, "vx": 3.6}], "hitboxes": [{"x": 20, "y": -14, "w": 34, "h": 24, "damage": 6, "angle": 50, "base": 30, "scaling": 0.6, "fx": "punch"}]},
     "fsmash": {
       "name": "Staff Burst", "kind": "smash", "anim": "smashF", "startup": 16, "active": 3, "recovery": 30,
       "charge": { "frame": 6, "max": 60, "damageMult": 1.4, "kbMult": 1.2 },

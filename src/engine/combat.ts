@@ -62,10 +62,10 @@ export function hitboxActive(f: Fighter, m: MoveDef, hb: HitboxDef): boolean {
   return f.moveFrame >= a && f.moveFrame <= b;
 }
 
-function canHit(atk: Fighter, def: Fighter, hb: HitboxDef): boolean {
+function canHit(world: World, atk: Fighter, def: Fighter, hb: HitboxDef): boolean {
   const g = hb.group ?? 0;
   if ((atk.hitMask[def.id] & (1 << g)) !== 0) return false;
-  if (def.state === 'ko' || def.id === atk.id) return false;
+  if (def.state === 'ko' || def.id === atk.id || world.allied(atk.id, def.id)) return false;
   if (hb.throw) return def.grabbedBy === atk.id;
   if (def.state === 'grabbed') return false; // grabbed fighters can only be hit by their captor's throw
   if (def.invuln > 0) return false;
@@ -86,7 +86,7 @@ export function resolveCombat(world: World): void {
       if (def === atk) continue;
       hurtRect(def, rB);
       for (const hb of m.hitboxes) {
-        if (!hitboxActive(atk, m, hb) || !canHit(atk, def, hb)) continue;
+        if (!hitboxActive(atk, m, hb) || !canHit(world, atk, def, hb)) continue;
         hitboxRect(atk, hb, rA);
         if (!overlap(rA, rB)) continue;
         if (count < MAX_CANDIDATES) {
@@ -95,7 +95,7 @@ export function resolveCombat(world: World): void {
           c.def = def;
           c.hb = hb;
           c.move = m;
-          c.damage = hb.damage * atk.damageMult * damageCharge(atk, m);
+          c.damage = hb.damage * atk.outMul * damageCharge(atk, m);
           c.alive = true;
         }
         break; // first overlapping hitbox in the list has priority

@@ -23,6 +23,10 @@
         { "x": 26, "y": -16, "w": 30, "h": 20, "damage": 6, "angle": 28, "base": 58, "scaling": 0.5, "hitlag": 1.25, "fx": "heavy" }
       ]
     },
+    "ftilt": {"name": "Piston Hook", "kind": "tilt", "anim": "jab", "startup": 10, "active": 3, "recovery": 20, "hitboxes": [{"x": 28, "y": -16, "w": 34, "h": 16, "damage": 8, "angle": 40, "base": 32, "scaling": 0.7, "hitlag": 1.1, "fx": "punch"}]},
+    "utilt": {"name": "Overhead Swing", "kind": "tilt", "anim": "smashU", "startup": 9, "active": 4, "recovery": 20, "hitboxes": [{"x": 6, "y": -34, "w": 36, "h": 30, "damage": 7, "angle": 80, "base": 30, "scaling": 0.65, "dir": "away", "fx": "punch"}]},
+    "dtilt": {"name": "Low Sweep Kick", "kind": "tilt", "anim": "smashD", "startup": 8, "active": 3, "recovery": 16, "hitboxes": [{"x": 28, "y": -4, "w": 36, "h": 10, "damage": 6, "angle": 75, "base": 24, "scaling": 0.5, "fx": "punch"}]},
+    "dashAttack": {"name": "Shoulder Charge", "kind": "dashAttack", "anim": "jab", "startup": 8, "active": 8, "recovery": 24, "motion": [{"frame": 4, "vx": 3.2}], "hitboxes": [{"x": 22, "y": -14, "w": 30, "h": 26, "damage": 9, "angle": 45, "base": 40, "scaling": 0.8, "hitlag": 1.1, "fx": "heavy"}]},
     "fsmash": {
       "name": "Piston Slam", "kind": "smash", "anim": "smashF",
       "startup": 23, "active": 3, "recovery": 36,

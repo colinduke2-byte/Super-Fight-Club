@@ -452,7 +452,8 @@ describe('meter, ultimate and cinematics', () => {
   it('the ultimate needs a full meter, spends it, and the world freezes during the cinematic', () => {
     const r = rig(26);
     r.tick(press(Button.Ultimate));
-    expect(r.a.state).not.toBe('attack'); // not enough meter
+    expect(r.a.move?.id).not.toBe('ultimate'); // not enough meter: it taunts instead
+    for (let i = 0; i < 70; i++) r.tick();
     r.a.meter = 100;
     const bx = r.b.x;
     r.tick(press(Button.Ultimate));

@@ -124,6 +124,11 @@ export function recoveryStep(f: Fighter, world: World, ai: CharacterAi, ep: Reco
 
   const below = f.y - hy; // > 0 means we are lower than the hang point
   const reach = rec.up;
+  // wall jump (characters that have it): kick off the side of the stage on the way up
+  if (f.data.wallJump && f.wall !== 0 && f.wallJumps < 2 && below > 0) {
+    out.jump = true;
+    return;
+  }
   // 1) double jump: once we are no longer rising and level with / below the hang point
   if (f.jumpsLeft > 0 && f.vy >= -0.5 && below > -6 && t >= ep.jumpDelay) {
     // do not burn the jump if the special alone would clearly make it... still jump: it is almost free

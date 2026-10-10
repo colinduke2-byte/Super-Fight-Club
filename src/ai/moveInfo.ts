@@ -6,7 +6,7 @@ export interface AiMove {
   id: string;
   /** Position in the character's table (for per-move counters without string keys). */
   index: number;
-  kind: 'jab' | 'smash' | 'aerial' | 'grab';
+  kind: 'jab' | 'tilt' | 'smash' | 'aerial' | 'grab';
   startup: number;
   active: number;
   total: number;
@@ -30,10 +30,15 @@ export interface MoveInput {
   fwd: -1 | 0 | 1;
   up: -1 | 0 | 1;
   button: 'attack' | 'smash' | 'grab';
+  /** Half-pressed stick (tilts): full deflection in the same frame would be read as a smash flick. */
+  tilt?: boolean;
 }
 
 export const NORMAL_INPUTS: Record<string, MoveInput> = {
   jab1: { fwd: 0, up: 0, button: 'attack' },
+  ftilt: { fwd: 1, up: 0, button: 'attack', tilt: true },
+  utilt: { fwd: 0, up: -1, button: 'attack', tilt: true },
+  dtilt: { fwd: 0, up: 1, button: 'attack', tilt: true },
   fsmash: { fwd: 1, up: 0, button: 'smash' },
   usmash: { fwd: 0, up: -1, button: 'smash' },
   dsmash: { fwd: 0, up: 1, button: 'smash' },

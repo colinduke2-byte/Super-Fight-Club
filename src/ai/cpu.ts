@@ -157,13 +157,17 @@ export class CpuController implements Controller {
       case 'attack':
         this.duringAttack(self, world, tgt);
         return;
+      case 'downed':
+        // get-up attack when the target is standing right over us
+        if (tgt && self.stateFrame > 8 && Math.abs(tgt.x - self.x) < 45 && this.params.smart && this.rnd() < 0.05) this.held |= Button.Attack;
+        return;
       case 'tether':
       case 'stunned':
       case 'frozen':
       case 'shieldbreak':
       case 'spotdodge':
       case 'roll':
-      case 'downed':
+      case 'airdodge':
       case 'tech':
       case 'ledgeClimb':
       case 'jumpsquat':
@@ -387,7 +391,11 @@ export class CpuController implements Controller {
     }
     const away = th.fromX > self.x ? -1 : 1;
     if (!self.grounded) {
-      // in the air: counter with an aerial if smart, else drift away
+      // in the air: air dodge a close hit, else counter with an aerial if smart, else drift away
+      if (this.params.smart && !self.airDodgeUsed && !self.helpless && th.eta <= 6 && this.rnd() < 0.7) {
+        this.held |= Button.Shield;
+        return true;
+      }
       if (this.params.smart && tgt && this.tryAerial(self, world, tgt, 1.0)) return true;
       this.sx = away;
       return true;
@@ -512,7 +520,8 @@ export class CpuController implements Controller {
     if (self.ledgeFrames < wait) return;
     this.ledgeWait = 0;
     const r = this.rnd();
-    if (r < 0.5 || !this.params.smart) this.sy = -1; // climb up
+    if (this.params.smart && tgt && Math.abs(tgt.x - self.x) < 70 && r > 0.85) this.held |= Button.Attack; // ledge attack
+    else if (r < 0.5 || !this.params.smart) this.sy = -1; // climb up
     else if (r < 0.8) this.held |= Button.Jump; // ledge jump
     else this.sx = -l.side; // toward the stage = climb
     void tgt;
@@ -705,6 +714,10 @@ export class CpuController implements Controller {
       hold = safe ? Math.round(10 + 40 * p.charge * this.rnd()) : Math.round(14 * p.charge * this.rnd());
     }
     if (m.kind === 'jab' && !p.smart) sy = 0;
+    if (mi.tilt) {
+      sx *= 0.6;
+      sy *= 0.6;
+    }
     this.startPlan(world, m.id, btn, sx, sy, { holdFrames: hold });
     void tgt;
     this.runPlan(self, world);

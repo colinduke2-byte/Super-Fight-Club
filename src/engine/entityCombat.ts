@@ -162,7 +162,7 @@ function runTurret(world: World, d: Deployable): void {
   let best: Fighter | null = null;
   let bestDist = Infinity;
   for (const f of world.fighters) {
-    if (f.id === d.owner || f.state === 'ko') continue;
+    if (f.id === d.owner || f.state === 'ko' || world.allied(d.owner, f.id)) continue;
     const dx = f.x - d.x;
     const dy = f.y - f.h / 2 - (d.y - d.def!.h / 2);
     if (Math.abs(dx) > t.range || Math.abs(dy) > 48) continue;
@@ -219,7 +219,7 @@ function projectilesHitFighters(world: World): void {
     const owner = world.fighters[p.owner] ?? null;
     projRect(p, rA);
     for (const f of world.fighters) {
-      if (f.id === p.owner || f.state === 'ko' || f.state === 'grabbed') continue;
+      if (f.id === p.owner || f.state === 'ko' || f.state === 'grabbed' || world.allied(p.owner, f.id)) continue;
       if (p.rehit[f.id] > 0 || (!def.pierce && p.hitOnce[f.id])) continue;
       if (f.invuln > 0) continue;
       hurtRect(f, rB);
@@ -255,27 +255,27 @@ function attacksHitEntities(world: World): void {
       if (!hitboxActive(atk, m, hb) || hb.grab || hb.throw) continue;
       hitboxRect(atk, hb, rA);
       for (const p of world.projectiles) {
-        if (!p.active || p.owner === atk.id || p.hp <= 0) continue;
+        if (!p.active || p.owner === atk.id || p.hp <= 0 || world.allied(p.owner, atk.id)) continue;
         const bit = 1 << (p.index & 31);
         const w = p.index >> 5;
         if (atk.hitProjMask[w] & bit) continue;
         projRect(p, rB);
         if (!overlap(rA, rB)) continue;
         atk.hitProjMask[w] |= bit;
-        p.hp -= hb.damage * atk.damageMult;
+        p.hp -= hb.damage * atk.outMul;
         if (p.hp <= 0) {
           p.deactivate();
           world.emit('projectileHit', atk, p.x, p.y, 0, hb.damage);
         }
       }
       for (const d of world.deployables) {
-        if (!d.active || d.owner === atk.id || d.def!.health <= 0) continue;
+        if (!d.active || d.owner === atk.id || d.def!.health <= 0 || world.allied(d.owner, atk.id)) continue;
         const bit = 1 << (d.index & 31);
         if (atk.hitDepMask & bit) continue;
         depRect(d, rB);
         if (!overlap(rA, rB)) continue;
         atk.hitDepMask |= bit;
-        let dmg = hb.damage * atk.damageMult;
+        let dmg = hb.damage * atk.outMul;
         if (d.shield > 0) {
           const soak = Math.min(d.shield, dmg);
           d.shield -= soak;
@@ -305,7 +305,7 @@ function triggerDeployables(world: World): void {
     if (!trig || d.age < (def.armFrames ?? 0)) continue;
     depRect(d, rA);
     for (const f of world.fighters) {
-      if (f.id === d.owner || f.state === 'ko' || f.invuln > 0 || f.state === 'grabbed') continue;
+      if (f.id === d.owner || f.state === 'ko' || f.invuln > 0 || f.state === 'grabbed' || world.allied(d.owner, f.id)) continue;
       hurtRect(f, rB);
       if (!overlap(rA, rB)) continue;
       const owner = world.fighters[d.owner] ?? null;

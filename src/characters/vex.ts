@@ -64,6 +64,7 @@ export const vex: CharacterData = {
     jumpsquatFrames: 3,
   },
   body: { width: 16, height: 26, footHalfWidth: 5 },
+  wallJump: true,
   dash: { speed: 5.4, frames: 11, invuln: [2, 7], cooldown: 22 },
   sprite: {
     frameSize: 64,

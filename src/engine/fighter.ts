@@ -7,6 +7,7 @@ import { executeMoveEvent } from './actions';
 import { moveTotal, type MoveDef, type StatusApply } from './moves';
 import type { Ledge, Platform } from './platform';
 import type { CharacterData, CharacterStats } from './types';
+import { GENERIC_MOVES } from './genericMoves';
 import type { World } from './world';
 
 export type FighterState =
@@ -27,6 +28,7 @@ export type FighterState =
   | 'shieldbreak'
   | 'spotdodge'
   | 'roll'
+  | 'airdodge'
   | 'holding'
   | 'grabbed'
   | 'dash'
@@ -56,6 +58,8 @@ const LEDGE_INVULN_LOSS_PER_GRAB = 14;
 const LEDGE_REGRAB_COOLDOWN = 30;
 const LEDGE_CLIMB_FRAMES = 24;
 const DROP_NUDGE = 3;
+const AIRDODGE_FRAMES = 28;
+const AIRDODGE_SPEED = 4.6;
 const STICK_DOWN = 0.7;
 const STICK_CROUCH = 0.6;
 const STICK_UP = -0.6;
@@ -197,6 +201,23 @@ export class Fighter implements Body {
   /** After a recovery move: no actions until landing / ledge / hit. */
   helpless = false;
   dashCd = 0;
+  /** Team index for team battles (-1 = free-for-all). Teammates cannot hurt each other. */
+  team = -1;
+  /** Frames of the Overdrive item left (outgoing damage x1.3). */
+  boostFrames = 0;
+  /** One air dodge per airtime; wall jumps are limited too. */
+  airDodgeUsed = false;
+  wallJumps = 0;
+  private wallSide = 0;
+  private wallGrace = 0;
+  private airDodgeDx = 0;
+  private airDodgeDy = 0;
+  private climbAttack = false;
+
+  /** Outgoing damage multiplier including item boosts. */
+  get outMul(): number {
+    return this.damageMult * (this.boostFrames > 0 ? 1.3 : 1);
+  }
   /** Training aid: no gravity while airborne and not in hitstun (test aerials in place). */
   hover = false;
   /** Tether target while in the 'tether' state. */
@@ -297,6 +318,10 @@ export class Fighter implements Body {
     this.barrier.frames = 0;
     this.helpless = false;
     this.dashCd = 0;
+    this.boostFrames = 0;
+    this.airDodgeUsed = false;
+    this.wallJumps = 0;
+    this.climbAttack = false;
     this.releaseLedge();
     this.invuln = 120;
     this.buffer.clear();
@@ -331,6 +356,7 @@ export class Fighter implements Body {
         return 'shield';
       case 'spotdodge':
       case 'roll':
+      case 'airdodge':
         return 'dodge';
       case 'holding':
         return 'grab';
@@ -589,6 +615,7 @@ export class Fighter implements Body {
     if (this.invuln > 0) this.invuln--;
     if (this.barrier.frames > 0) this.barrier.frames--;
     if (this.dashCd > 0) this.dashCd--;
+    if (this.boostFrames > 0) this.boostFrames--;
     if (this.grabCooldown > 0) this.grabCooldown--;
     if (this.techWindow > 0) this.techWindow--;
     if (this.techLock > 0) this.techLock--;
@@ -621,6 +648,9 @@ export class Fighter implements Body {
       case 'spotdodge':
       case 'roll':
         this.dodgeLogic(world);
+        break;
+      case 'airdodge':
+        this.airDodgeLogic(inp, world);
         break;
       case 'shieldbreak':
         this.shieldBreakLogic(world);
@@ -682,12 +712,15 @@ export class Fighter implements Body {
     this.jumpsLeft = s.doubleJumps;
     this.fastFalling = false;
     this.ledgeGrabs = 0;
+    this.airDodgeUsed = false;
+    this.wallJumps = 0;
 
     let target = 0;
     if (this.state === 'landing' && this.stateFrame >= (this.lagFrames || LANDING_FRAMES)) {
       this.lagFrames = 0;
       this.setState('idle');
     }
+    if (this.state === 'downed' && this.stateFrame >= 6 && this.buffer.consume(Button.Attack) && this.startMove('getupAttack', inp, world)) return;
     if (this.state === 'downed' && this.stateFrame >= DOWNED_FRAMES) {
       this.setState('idle');
       this.invuln = Math.max(this.invuln, 10);
@@ -756,7 +789,8 @@ export class Fighter implements Body {
     if (this.buffer.has(Button.Ultimate) && this.data.moves.ultimate) {
       this.buffer.consume(Button.Ultimate);
       const cost = this.data.ultimate?.cost ?? ULT_COST;
-      if (this.meter < cost) return false;
+      if (this.meter < cost) return this.grounded && this.startMove('taunt', inp, world); // no meter: taunt instead
+
       this.meter = 0;
       return this.startMove('ultimate', inp, world);
     }
@@ -810,6 +844,14 @@ export class Fighter implements Body {
       return this.startMove(id, inp, world);
     }
     this.buffer.consume(Button.Attack);
+    const dm = this.data.moves;
+    if ((this.state === 'run' || this.state === 'dash') && Math.abs(this.vx) > 1.6 && Math.abs(inp.stickX) > 0.75 && dm.dashAttack) return this.startMove('dashAttack', inp, world);
+    if (up && dm.utilt) return this.startMove('utilt', inp, world);
+    if (down && dm.dtilt) return this.startMove('dtilt', inp, world);
+    if (side && dm.ftilt) {
+      this.facing = inp.stickX > 0 ? 1 : -1;
+      return this.startMove('ftilt', inp, world);
+    }
     return this.startMove('jab1', inp, world);
   }
 
@@ -910,11 +952,11 @@ export class Fighter implements Body {
 
   // ---- moves ----------------------------------------------------------------------------------
   startMove(id: string, inp: FighterInput | null, world: World): boolean {
-    let m = this.data.moves[id];
+    let m = this.data.moves[id] ?? GENERIC_MOVES[id];
     if (!m && !this.data.behavior?.remapMove) return false;
     if (this.data.behavior?.remapMove) {
       id = this.data.behavior.remapMove(this, id);
-      m = this.data.moves[id];
+      m = this.data.moves[id] ?? GENERIC_MOVES[id];
     }
     if (!m) return false;
     if (m.requires && (this.res[m.requires.key] ?? 0) < m.requires.min) return false;
@@ -1109,6 +1151,24 @@ export class Fighter implements Body {
     this.integrate(world);
   }
 
+  private airDodgeLogic(_inp: FighterInput, world: World): void {
+    const t = this.stateFrame;
+    if (t >= 3 && t <= 20) this.invuln = Math.max(this.invuln, 1);
+    const k = t <= 16 ? 1 - t / 20 : 0;
+    this.vx = this.airDodgeDx * AIRDODGE_SPEED * k;
+    this.vy = this.airDodgeDy * AIRDODGE_SPEED * k;
+    this.integrate(world);
+    if (this.grounded) {
+      this.lagFrames = 8;
+      this.setState('landing');
+      return;
+    }
+    if (t >= AIRDODGE_FRAMES) {
+      this.setState('air');
+      this.helpless = true; // like a special fall: no more actions until you land or grab a ledge
+    }
+  }
+
   private dodgeLogic(world: World): void {
     const spot = this.state === 'spotdodge';
     const total = spot ? SPOTDODGE_FRAMES : ROLL_FRAMES;
@@ -1202,6 +1262,31 @@ export class Fighter implements Body {
   private airLogic(inp: FighterInput, world: World, justLeftGround = false): void {
     const s = this.stats;
 
+    // air dodge: Shield in the air (once per airtime); the stick picks the direction, neutral = dodge in place
+    if (!this.helpless && !justLeftGround && !this.airDodgeUsed && (inp.pressed & Button.Shield) !== 0) {
+      this.airDodgeUsed = true;
+      const mag = Math.hypot(inp.stickX, inp.stickY);
+      this.airDodgeDx = mag > 0.3 ? inp.stickX / mag : 0;
+      this.airDodgeDy = mag > 0.3 ? inp.stickY / mag : 0;
+      this.endMoveState();
+      this.fastFalling = false;
+      this.setState('airdodge');
+      world.emit('dodge', this, this.x, this.y - this.h / 2, 0, 0);
+      return;
+    }
+    if (this.wall !== 0) {
+      this.wallSide = this.wall;
+      this.wallGrace = 6;
+    } else if (this.wallGrace > 0) this.wallGrace--;
+    if (this.data.wallJump && !this.helpless && !justLeftGround && this.wallGrace > 0 && this.wallJumps < 2 && this.buffer.consume(Button.Jump)) {
+      this.wallJumps++;
+      this.wallGrace = 0;
+      this.vy = -Math.sqrt(2 * s.gravity * s.doubleJumpHeight * 0.95);
+      this.vx = -this.wallSide * s.airSpeed * 1.4;
+      this.facing = (-this.wallSide) as 1 | -1;
+      this.fastFalling = false;
+      world.emit('jump', this, this.x, this.y - this.h / 2, 0, 1);
+    }
     if (!this.helpless && !justLeftGround && this.tryStartSpecial(inp, world)) return;
     if (!this.helpless && !justLeftGround && this.tryStartAttack(inp, world, false)) return;
 
@@ -1362,6 +1447,9 @@ export class Fighter implements Body {
     this.endMoveState();
     this.helpless = false;
     this.ledge = l;
+    this.climbAttack = false;
+    this.airDodgeUsed = false;
+    this.wallJumps = 0;
     l.occupant = this.id;
     this.ledgeGrabs++;
     this.ledgeFrames = 0;
@@ -1396,7 +1484,13 @@ export class Fighter implements Body {
     }
     if (this.ledgeFrames < LEDGE_ACTION_DELAY) return;
 
-    if (this.buffer.consume(Button.Jump)) {
+    if (this.buffer.consume(Button.Attack)) {
+      this.climbAttack = true;
+      this.climbFromX = this.x;
+      this.climbFromY = this.y;
+      this.invuln = Math.max(this.invuln, LEDGE_CLIMB_FRAMES + 2);
+      this.setState('ledgeClimb');
+    } else if (this.buffer.consume(Button.Jump)) {
       this.releaseLedge();
       this.grabCooldown = LEDGE_REGRAB_COOLDOWN;
       this.vy = -Math.sqrt(2 * this.stats.gravity * this.stats.jumpHeight * 0.9);
@@ -1443,6 +1537,10 @@ export class Fighter implements Body {
       this.prevY = this.y;
       this.setState('idle');
       world.emit('land', this, this.x, this.y, 0, 0);
+      if (this.climbAttack) {
+        this.climbAttack = false;
+        this.startMove('ledgeAttack', null, world);
+      }
     }
   }
 

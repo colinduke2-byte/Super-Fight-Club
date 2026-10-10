@@ -43,7 +43,7 @@ function isRecovery(m: MoveDef): boolean {
   return m.id === 'upB' || !!m.events?.some((e) => e.action === 'tether' || e.action === 'ledgeSnap');
 }
 
-const KIND_ORDER = ['jab', 'smash', 'aerial', 'grab', 'throw', 'special', 'ultimate'];
+const KIND_ORDER = ['jab', 'tilt', 'dashAttack', 'smash', 'aerial', 'grab', 'throw', 'special', 'ultimate'];
 
 /** Build one scenario per move of the given fighter's character, ordered by move kind. */
 export function buildScenarios(f: Fighter): MoveScenario[] {

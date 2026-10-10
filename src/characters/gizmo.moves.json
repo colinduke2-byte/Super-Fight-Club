@@ -39,6 +39,10 @@
       "name": "Wrench Smash", "kind": "jab", "anim": "jab", "startup": 8, "active": 3, "recovery": 20,
       "hitboxes": [{ "x": 24, "y": -11, "w": 30, "h": 18, "damage": 5, "angle": 40, "base": 40, "scaling": 0.6, "hitlag": 1.2, "fx": "heavy" }]
     },
+    "ftilt": {"name": "Wrench Poke", "kind": "tilt", "anim": "jab", "startup": 7, "active": 3, "recovery": 15, "hitboxes": [{"x": 30, "y": -14, "w": 38, "h": 16, "damage": 6, "angle": 38, "base": 28, "scaling": 0.6, "fx": "punch"}]},
+    "utilt": {"name": "Spark Pop", "kind": "tilt", "anim": "smashU", "startup": 7, "active": 4, "recovery": 16, "hitboxes": [{"x": 4, "y": -34, "w": 30, "h": 30, "damage": 5, "angle": 85, "base": 26, "scaling": 0.5, "dir": "away", "fx": "punch", "status": {"type": "stun", "frames": 10}}]},
+    "dtilt": {"name": "Foot Drill", "kind": "tilt", "anim": "smashD", "startup": 6, "active": 6, "recovery": 14, "hitboxes": [{"x": 24, "y": -4, "w": 28, "h": 10, "damage": 3.5, "angle": 70, "base": 18, "scaling": 0.3, "fx": "punch", "minHitstun": 8}]},
+    "dashAttack": {"name": "Rocket Ram", "kind": "dashAttack", "anim": "jab", "startup": 7, "active": 8, "recovery": 22, "motion": [{"frame": 3, "vx": 4}], "hitboxes": [{"x": 20, "y": -14, "w": 30, "h": 26, "damage": 7, "angle": 45, "base": 36, "scaling": 0.7, "hitlag": 1.1, "fx": "heavy"}]},
     "fsmash": {
       "name": "Wrench Swing", "kind": "smash", "anim": "smashF", "startup": 20, "active": 4, "recovery": 34,
       "charge": { "frame": 7, "max": 60, "damageMult": 1.4, "kbMult": 1.2 },

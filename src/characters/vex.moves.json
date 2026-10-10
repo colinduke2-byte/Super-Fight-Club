@@ -32,6 +32,10 @@
       "name": "Cross Cut", "kind": "jab", "anim": "jab", "startup": 4, "active": 3, "recovery": 16,
       "hitboxes": [{ "x": 20, "y": -14, "w": 30, "h": 16, "damage": 3, "angle": 55, "base": 32, "scaling": 0.35, "hitlag": 1.1, "fx": "slash" }]
     },
+    "ftilt": {"name": "Quick Slash", "kind": "tilt", "anim": "jab", "startup": 5, "active": 3, "recovery": 12, "hitboxes": [{"x": 24, "y": -14, "w": 34, "h": 18, "damage": 5, "angle": 50, "base": 24, "scaling": 0.5, "fx": "slash"}]},
+    "utilt": {"name": "Rising Slash", "kind": "tilt", "anim": "smashU", "startup": 5, "active": 4, "recovery": 13, "hitboxes": [{"x": 6, "y": -34, "w": 34, "h": 30, "damage": 4.5, "angle": 85, "base": 26, "scaling": 0.5, "dir": "away", "fx": "slash"}]},
+    "dtilt": {"name": "Ankle Cut", "kind": "tilt", "anim": "smashD", "startup": 4, "active": 3, "recovery": 12, "hitboxes": [{"x": 26, "y": -4, "w": 36, "h": 10, "damage": 4, "angle": 75, "base": 20, "scaling": 0.4, "fx": "slash"}]},
+    "dashAttack": {"name": "Slide Cut", "kind": "dashAttack", "anim": "jab", "startup": 4, "active": 9, "recovery": 18, "motion": [{"frame": 2, "vx": 4.5}], "hitboxes": [{"x": 22, "y": -10, "w": 34, "h": 18, "damage": 6, "angle": 55, "base": 30, "scaling": 0.6, "fx": "slash"}]},
     "fsmash": {
       "name": "Double Cross", "kind": "smash", "anim": "smashF", "startup": 13, "active": 11, "recovery": 26,
       "charge": { "frame": 6, "max": 60, "damageMult": 1.35, "kbMult": 1.15 },

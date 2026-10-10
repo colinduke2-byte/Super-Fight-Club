@@ -14,7 +14,7 @@ const tmpRect = [0, 0, 0, 0];
 export function executeMoveEvent(f: Fighter, ev: MoveEvent, inp: FighterInput, world: World): void {
   switch (ev.action) {
     case 'projectile':
-      world.spawnProjectile(f.id, ev.id, f.x + f.facing * ev.x, f.y + ev.y, f.facing * ev.vx, ev.vy, f.damageMult * chargeScale(f));
+      world.spawnProjectile(f.id, ev.id, f.x + f.facing * ev.x, f.y + ev.y, f.facing * ev.vx, ev.vy, f.outMul * chargeScale(f));
       break;
     case 'deploy':
       world.spawnDeployable(f.id, ev.id, f.x + f.facing * ev.x, f.y + ev.y);
