@@ -15,6 +15,7 @@ next phase starts.
 | 6 | Nova complete: Arcana Cycle, elemental Spell Bolts, Rune Traps, reflecting barrier, Aether Step, Convergence | done |
 | 5 | Vex complete: Blink Trail marker/recall, mines, dash, full moveset | done |
 | 4 | Brick complete: Heat, Charge Shoulder, Grapple Slam, Jet Boost, Vent, Meltdown, frame-data doc, tests, training scenarios | done |
+| 10 | CPU AI: state machine (approach / spacing / attack / defend / recover / edge-guard), 3 difficulties, FFA targeting, per-character knowledge, tests (recovery, targeting, full-roster duels, determinism) | done |
 | 9 | Versus 2-4 players + stages: Skyline Classic, Training Ring, Reactor Core (moving platforms + geyser hazard), per-stage parallax themes, chiptune loops, 4-fighter camera | done |
 | 8 | Menus and game flow: title, mode select, lobby with per-device slots, stage select, N-player match scene, results, settings, rebinding, pause / disconnect handling | done |
 | 3 | Character engine hooks: behaviour interface + resources, projectiles, deployables, status effects, teleport / dash / tether / ledge snap, meter + cinematic ultimates, reflect, training scenarios, SFX engine | done |
@@ -85,7 +86,7 @@ Scenes: Boot, Title, Mode Select, Character Select (2-4 players, CPU toggle + di
 - Camera tuned for 4 fighters (zoom/pan limits), 4-player performance check.
 - **Needs you:** a 2-4 player test with real controllers (including Bluetooth on the Mac).
 
-## Phase 10: CPU AI
+## Phase 10: CPU AI *(done)*
 State machine (approach, spacing, attack, defend, recover, edge-guard), 3 difficulty levels, sensible FFA
 targeting, per-character move knowledge via data (ranges, recovery routes, trap / projectile usage).
 Tests: recovery reaches the stage, target selection is not just "gang up".

@@ -36,6 +36,22 @@ Settings holds audio, particles, FPS counter, fullscreen, tap-jump, smash mode a
 keyboard schemes and both gamepad profiles (saved to localStorage). Unplugging a pad mid-match pauses with the
 player named; re-plugging (or plugging another pad) re-attaches it.
 
+## CPU opponents
+
+`src/ai/` is a CPU that produces the same input a human would (so it works for every character and for modded ones).
+State machine: neutral (approach / spacing / attack), defend (shield, spot dodge, roll, hop over projectiles, reflect),
+recover (double jump, ledge-aimed recovery special), edge-guard (cut off recoveries, ranged zoning, hard CPUs leap out), plus hitstun
+DI + teching, grab pummel / throw choice, ledge options and a stall breaker for mirror matches. Three levels (`LEVELS`
+in `src/ai/profiles.ts`): **Easy** reacts slowly, rarely defends, never techs or edge-guards, recovers sloppily and wastes
+actions; **Normal** reacts in ~13 frames, shields / techs / DIs about half the time, uses grabs and platforms; **Hard** reacts in
+5 frames, defends, techs and recovers almost perfectly, punishes whiffs and edge-guards.
+Free-for-all targeting (`targeting.ts`) scores distance, damage (kill range), grudges against whoever hit it, openings, and
+penalises piling onto a fighter that others are already brawling with; a per-CPU seeded bias keeps CPUs from all picking the same victim.
+Reach, startup and damage of every normal are read from the move JSON (`moveInfo.ts`); character knowledge that frame data cannot say
+(ranged moves, setups, finishers, recovery reach, preferred spacing) lives in `CHARACTER_AI`. Add an entry when you add a character; unknown
+characters fall back to generic behaviour. The CPU uses a seeded PRNG so matches are reproducible. In training, key **6** cycles the dummy through
+stand / shield / jump / jab / CPU 1-3.
+
 ## Stages and music
 
 | Stage | What it is |
@@ -48,7 +64,7 @@ Stages are data (`src/stages/*.ts`: platforms, blast zones, spawns, hazards, `ba
 one in `src/stages/index.ts`. Hazards are a pure function of the sim tick (`engine/hazards.ts`), so they stay deterministic.
 Each stage and the menus have a synthesized chiptune loop (`src/audio/tracks.ts`: 4-bar patterns as data, played by
 `src/audio/music.ts` with a WebAudio lookahead scheduler). Music volume is in Settings.
-Dev shortcut: `?stage=<id>&players=<2-4>` starts a versus match (idle CPUs) without the menus.
+Dev shortcut: `?stage=<id>&players=<2-4>&cpu=<1-3>` starts a versus match without the menus (add `&auto` to make every slot a CPU and just watch).
 
 ## Match / training controls
 

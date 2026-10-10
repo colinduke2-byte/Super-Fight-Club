@@ -31,6 +31,7 @@ import { PIXEL_FONT, up } from '../art/pixelFont';
 import { StageView } from '../ui/StageView';
 import { HazardView } from '../ui/HazardView';
 import { DummyController, NullController, type Controller } from '../game/controllers';
+import { CpuController } from '../ai/cpu';
 import { buildResult } from '../game/results';
 import { session, type PlayerSlot } from '../game/session';
 
@@ -40,7 +41,7 @@ const END_DELAY = 150;
 const HELP_TRAINING = [
   'MOVE WASD  JUMP I  ATTACK J  SPECIAL K  SHIELD L  GRAB U  SMASH O',
   'SMASH = FLICK+J OR O+DIR (HOLD TO CHARGE)  AERIAL = J+DIR',
-  '1 DEBUG  2 HIT DUMMY  3 HIT SELF  4 +25%  5 CLEAR  6 DUMMY  9 MODE  0 RESET',
+  '1 DEBUG  2 HIT DUMMY  3 HIT SELF  4 +25%  5 CLEAR  6 DUMMY / CPU  0 RESET',
   '[ ] SELECT MOVE  ENTER RUN IT  M SLOW-MO  N STEP MODE  B STEP',
   'T TAP-JUMP  F FULLSCREEN  H HIDE THIS  ESC PAUSE',
 ];
@@ -130,7 +131,7 @@ export class MatchScene extends Phaser.Scene {
 
     this.fighters = this.slots.map((s, i) => new Fighter(i, resolveCharacter(s.character)));
     this.humans = this.slots.map((s) => (s.type === 'human' && s.device ? new PlayerInput(s.device) : null));
-    this.controllers = this.slots.map((s, i) => (s.type === 'cpu' ? (this.isTraining && i === 1 ? this.dummy : new NullController()) : new NullController()));
+    this.controllers = this.slots.map((s, i) => (s.type === 'cpu' ? (this.isTraining && i === 1 ? this.dummy : new CpuController(s.cpuLevel, i + 1)) : new NullController()));
     this.inputs = this.slots.map(() => makeInput());
     this.elimAt = this.slots.map(() => -1);
     for (const f of this.fighters) {
@@ -240,10 +241,12 @@ export class MatchScene extends Phaser.Scene {
     const ids = ['brick', 'vex', 'nova', 'gizmo'];
     session.mode = n > 1 ? 'versus' : 'training';
     session.stage = q.get('stage') ?? 'sandbox';
-    session.players = [{ index: 0, type: 'human', device, character: id, cpuLevel: 1 }];
+    const auto = q.get('auto') !== null; // spectate: every slot is a CPU
+    session.players = [{ index: 0, type: auto ? 'cpu' : 'human', device: auto ? null : device, character: id, cpuLevel: 3 }];
+    const lvl = Math.min(3, Math.max(1, Number(q.get('cpu') ?? 1))) as 1 | 2 | 3;
     for (let i = 1; i < Math.max(2, n); i++) {
       const pick = ids.filter((c) => c !== id)[(i - 1) % 3];
-      session.players.push({ index: i, type: 'cpu', device: null, character: pick, cpuLevel: 1 });
+      session.players.push({ index: i, type: 'cpu', device: null, character: pick, cpuLevel: lvl });
     }
   }
 
@@ -392,6 +395,21 @@ export class MatchScene extends Phaser.Scene {
         // hot: steam leaks from the armour seams
         this.effects.emit(f.x + (Math.random() - 0.5) * 10, f.y - f.h * (0.4 + Math.random() * 0.5), 0, -22, 0.5, 0xe8e8f4, 2, 0);
       }
+    }
+  }
+
+  /** Training key 6: stand / shield / jump / jab, then a real CPU at each difficulty to practise against. */
+  private dummyIdx = 0;
+  private cycleDummy(): void {
+    this.dummyIdx = (this.dummyIdx + 1) % 7;
+    if (this.dummyIdx < 4) {
+      this.dummy.mode = this.dummyIdx;
+      this.controllers[1] = this.dummy;
+      this.showToast(`Dummy: ${['stand', 'shield', 'jump', 'jab'][this.dummyIdx]}`);
+    } else {
+      const lv = (this.dummyIdx - 3) as 1 | 2 | 3;
+      this.controllers[1] = new CpuController(lv, 9);
+      this.showToast(`Dummy: CPU level ${lv}`);
     }
   }
 
@@ -784,7 +802,7 @@ export class MatchScene extends Phaser.Scene {
         this.pendingReset = true;
         break;
       case 'Digit6':
-        this.showToast(`Dummy: ${this.dummy.cycle()}`);
+        this.cycleDummy();
         break;
       default:
         break;
