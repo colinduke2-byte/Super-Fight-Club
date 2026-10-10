@@ -75,6 +75,8 @@ export class CpuController implements Controller {
   private holdPummels = 0;
   private mashToggle = false;
   private hopTarget = false;
+  /** Frames of backing off left after a hit-and-run attack. */
+  private retreat = 0;
   /** Frames since anybody took damage: a stalled mirror match makes the CPU stop zoning and close in. */
   private stall = 0;
   /** Decaying per-move usage counts (staleness). */
@@ -652,6 +654,7 @@ export class CpuController implements Controller {
       let bestScore = -Infinity;
       const armor = tgt.armorThreshold(); // an armored move cannot be interrupted by weak hits: do not poke into it
       for (const m of candidates) {
+        if (ai.style === 'hitandrun' && !punishing && m.total > 34 && m.kind !== 'grab') continue;
         if (p.smart && armor > 0 && m.kind !== 'grab' && m.maxHit <= armor) continue;
         if (p.smart && shielding && m.kind !== 'grab' && candidates.some((c) => c.kind === 'grab')) continue;
         if (!p.smart && m.kind === 'grab' && this.rnd() < 0.7) continue;
@@ -687,6 +690,7 @@ export class CpuController implements Controller {
 
   private execMove(self: Fighter, world: World, m: AiMove, tgt: Fighter, dir: number, safe: boolean): void {
     this.useCount[m.index]++;
+    if (aiFor(self.data.id).style === 'hitandrun') this.retreat = Math.round(m.total * 0.5);
     const mi = NORMAL_INPUTS[m.id];
     const p = this.params;
     const btn = mi.button === 'smash' ? Button.Smash : mi.button === 'grab' ? Button.Grab : Button.Attack;
@@ -756,6 +760,14 @@ export class CpuController implements Controller {
 
   private moveTowards(self: Fighter, world: World, tgt: Fighter, ai: CharacterAi, dist: number, dy: number, dir: number): void {
     const p = this.params;
+    if (this.retreat > 0) {
+      this.retreat--;
+      if (self.grounded && dist < 90 && self.state !== 'attack') {
+        this.sx = -dir;
+        this.clampEdge(self);
+        return;
+      }
+    }
     if (!self.grounded) {
       // air: drift toward the target, land on something; aerial when it reaches
       this.sx = dist > 20 ? dir : 0;

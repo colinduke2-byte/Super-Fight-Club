@@ -59,6 +59,8 @@ export interface CharacterAi {
   recovery: { slot: string; up: number; out: number; aim: 'stick8' | 'tether' | 'fixed' };
   /** Max distance at which the ultimate is used (cinematic grabs need to be close). */
   ultimateRange: number;
+  /** 'hitandrun': prefers quick moves, backs off after each one instead of trading slow smashes. */
+  style?: 'hitandrun';
   /** Preferred fighting distance (px between centres) when approaching. */
   spacing: number;
 }
@@ -93,6 +95,7 @@ export const CHARACTER_AI: Record<string, CharacterAi> = {
     recovery: { slot: 'upB', up: 110, out: 110, aim: 'stick8' },
     ultimateRange: 70,
     spacing: 30,
+    style: 'hitandrun',
   },
   nova: {
     ...GENERIC,

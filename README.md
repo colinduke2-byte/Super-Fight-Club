@@ -332,4 +332,4 @@ and forward smash are slower, Vex's smashes hit a bit harder. Real balance needs
 ## Roadmap
 
 Phases 1-12 are done. Possible next steps: real sprite sheets (drop in `sheetUrl`), more characters and stages, online play (the
-sim is deterministic, so rollback netcode is feasible), a replay system, and character-specific CPU play-style tuning (Vex).
+sim is deterministic, so rollback netcode is feasible), a replay system, and more CPU play-style tuning (Vex now plays hit-and-run; it still loses to the zoners Nova and Gizmo).
