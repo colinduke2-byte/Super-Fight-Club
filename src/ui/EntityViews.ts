@@ -82,7 +82,8 @@ export class EntityViews {
         s.setOrigin(0.5, 0.5).setBlendMode(Phaser.BlendModes.NORMAL).setScale(base);
       }
       // fade out in the last frames of life
-      s.setAlpha(p.def.life - p.age < 8 ? (p.def.life - p.age) / 8 : 1);
+      const fade = p.def.life - p.age < 8 ? (p.def.life - p.age) / 8 : 1;
+      s.setAlpha(look.shape === 'beam' ? fade * 0.55 : fade); // additive beams stack (Nova fires three): keep them from blowing out to white
     }
     for (let i = 0; i < this.dep.length; i++) {
       const d = w.deployables[i];
