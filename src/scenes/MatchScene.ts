@@ -123,6 +123,9 @@ export class MatchScene extends Phaser.Scene {
   private shake = 0;
   /** Brief camera push-in on heavy hits (decays each tick). */
   private punch = 0;
+  /** Sim speed multiplier for kill-cam / heavy-hit slow motion and the sim ticks it still has to run. */
+  private timeScale = 1;
+  private slowTicks = 0;
   private eventFx!: WorldEventFx;
   private trainReport = '';
   private lastInputLine = '';
@@ -150,6 +153,8 @@ export class MatchScene extends Phaser.Scene {
     this.endTimer = -1;
     this.introTicks = 0;
     this.slowMo = this.stepMode = this.stepOnce = false;
+    this.timeScale = 1;
+    this.slowTicks = 0;
     this.pendingHitDummy = this.pendingHitSelf = this.pendingReset = false;
     this.cinT = 0;
     this.shake = 0;
@@ -280,6 +285,10 @@ export class MatchScene extends Phaser.Scene {
       pan: (x) => Phaser.Math.Clamp((x - this.cam.cx) / (this.worldCam.width / Math.max(0.1, this.worldCam.zoom) / 2), -1, 1),
       shake: (n) => (this.shake = Math.max(this.shake, n)),
       punch: (n) => (this.punch = Math.max(this.punch, n)),
+      slow: (scale, ticks) => {
+        if (this.slowTicks <= 0 || scale < this.timeScale) this.timeScale = scale;
+        this.slowTicks = Math.max(this.slowTicks, ticks);
+      },
       rumble: (f, st, wk, ms) => this.rumble(f, st, wk, ms),
       onKo: (f, by) => this.match.onKo(f, by),
     });
@@ -399,7 +408,7 @@ export class MatchScene extends Phaser.Scene {
       inputManager.endTick();
     } else {
       const s0 = performance.now();
-      this.stepsLastFrame = this.ts.advance(this.slowMo ? frameMs * 0.25 : frameMs, () => this.tick());
+      this.stepsLastFrame = this.ts.advance(this.slowMo ? frameMs * 0.25 : frameMs * this.timeScale, () => this.tick());
       this.simMs += (performance.now() - s0 - this.simMs) * 0.05;
     }
     this.render(frameMs);
@@ -435,6 +444,7 @@ export class MatchScene extends Phaser.Scene {
 
   /** One fixed 60 Hz simulation tick. */
   private tick(): void {
+    if (this.slowTicks > 0 && --this.slowTicks === 0) this.timeScale = 1;
     let pausePressed = false;
     for (let i = 0; i < this.slots.length; i++) {
       const h = this.humans[i];

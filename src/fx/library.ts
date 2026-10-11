@@ -42,5 +42,11 @@ export const DEFAULT_RULES: FxRule[] = [
   { when: { charging: true, chargeMin: 1 }, every: 6, ops: [{ op: 'ring', yh: 0.5, radius: 16, color: '@accent', life: 0.25 }] },
 ];
 
+/** Applied to every fighter: speed lines behind dashes and lunging attacks. */
+export const ALWAYS_RULES: FxRule[] = [
+  { when: { states: ['attack', 'dash'], minSpeed: 2.4 }, every: 2, ops: [{ op: 'trail', x: -16, y: -6, yh: 0.3, jy: 14, to: { x: -36 }, color: '@trail' }] },
+  { when: { states: ['air'], minSpeed: 5 }, every: 3, ops: [{ op: 'trail', x: -12, yh: 0.4, jy: 10, to: { x: -28 }, color: 0xffffff }] },
+];
+
 for (const [k, v] of Object.entries(LIBRARY_RECIPES)) validateOps(`library.${k}`, v);
-for (const r of DEFAULT_RULES) validateOps('library.defaultRules', r.ops);
+for (const r of [...DEFAULT_RULES, ...ALWAYS_RULES]) validateOps('library.rules', r.ops);

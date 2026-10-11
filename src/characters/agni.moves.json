@@ -281,6 +281,23 @@
      "minHitstun": 18,
      "fx": "punch"
     }
+   ],
+   "pose": {
+    "hand": "front",
+    "reach": 15,
+    "h": -6,
+    "lean": -3,
+    "step": 3,
+    "t": "punch"
+   },
+   "view": {
+    "arc": "line"
+   },
+   "motion": [
+    {
+     "frame": 4,
+     "vx": 0.8
+    }
    ]
   },
   "jab2": {
@@ -321,6 +338,27 @@
      "scaling": 0.15,
      "minHitstun": 20,
      "fx": "punch"
+    }
+   ],
+   "pose": {
+    "hand": "back",
+    "reach": 16,
+    "h": -5,
+    "step": 5,
+    "crouch": 1,
+    "wind": [
+     -8,
+     0
+    ],
+    "t": "punch"
+   },
+   "view": {
+    "arc": "line"
+   },
+   "motion": [
+    {
+     "frame": 4,
+     "vx": 0.8
     }
    ]
   },
@@ -373,7 +411,19 @@
       "value": 0.03
      }
     }
-   ]
+   ],
+   "pose": {
+    "reach": 18,
+    "h": -8,
+    "lean": 8,
+    "step": 7,
+    "t": "thrust"
+   },
+   "view": {
+    "stretch": 1.1,
+    "arc": "line",
+    "smear": 1.2
+   }
   },
   "ftilt": {
    "name": "Flame Palm",
@@ -425,7 +475,23 @@
      "hitlag": 1.1,
      "fx": "fire"
     }
-   ]
+   ],
+   "pose": {
+    "hand": "front",
+    "wind": [
+     -10,
+     -6
+    ],
+    "reach": 21,
+    "h": -10,
+    "step": 8,
+    "lean": 6,
+    "t": "punch"
+   },
+   "view": {
+    "stretch": 1.08,
+    "arc": "line"
+   }
   },
   "utilt": {
    "name": "Sun Rise",
@@ -465,7 +531,14 @@
      "dir": "away",
      "fx": "fire"
     }
-   ]
+   ],
+   "pose": {
+    "hand": "back",
+    "reach": 8,
+    "h": -36,
+    "crouch": 3,
+    "t": "uppercut"
+   }
   },
   "dtilt": {
    "name": "Ember Sweep",
@@ -499,7 +572,12 @@
      "scaling": 0.45,
      "fx": "punch"
     }
-   ]
+   ],
+   "pose": {
+    "reach": 24,
+    "crouch": 9,
+    "t": "sweep"
+   }
   },
   "dashAttack": {
    "name": "Blazing Shoulder",
@@ -584,7 +662,25 @@
       "value": 0.04
      }
     }
-   ]
+   ],
+   "pose": {
+    "hand": "front",
+    "wind": [
+     -18,
+     -6
+    ],
+    "reach": 25,
+    "h": -6,
+    "lean": 8,
+    "step": 10,
+    "crouch": 2,
+    "t": "hook"
+   },
+   "view": {
+    "stretch": 1.14,
+    "smear": 1.4,
+    "ghosts": true
+   }
   },
   "usmash": {
    "name": "Phoenix Fist",
@@ -626,7 +722,18 @@
      "hitlag": 1.2,
      "fx": "fire"
     }
-   ]
+   ],
+   "pose": {
+    "hand": "front",
+    "reach": 10,
+    "h": -44,
+    "crouch": 7,
+    "t": "uppercut"
+   },
+   "view": {
+    "stretch": 1.1,
+    "smear": 1.3
+   }
   },
   "dsmash": {
    "name": "Ring of Fire",
@@ -666,7 +773,17 @@
      "dir": "away",
      "fx": "fire"
     }
-   ]
+   ],
+   "pose": {
+    "reach": 19,
+    "h": 6,
+    "crouch": 8,
+    "t": "spin"
+   },
+   "view": {
+    "arc": "ring",
+    "smear": 1.2
+   }
   },
   "nair": {
    "name": "Fire Wheel",
@@ -740,7 +857,16 @@
      "hitlag": 0.7,
      "fx": "punch"
     }
-   ]
+   ],
+   "pose": {
+    "reach": 14,
+    "h": -6,
+    "t": "spin"
+   },
+   "view": {
+    "arc": "ring",
+    "ghosts": true
+   }
   },
   "fair": {
    "name": "Flame Hook",
@@ -782,7 +908,19 @@
      "hitlag": 1.15,
      "fx": "fire"
     }
-   ]
+   ],
+   "pose": {
+    "hand": "front",
+    "wind": [
+     -12,
+     -14
+    ],
+    "reach": 21,
+    "h": 6,
+    "lean": 5,
+    "step": 5,
+    "t": "hook"
+   }
   },
   "bair": {
    "name": "Heel Blaze",
@@ -815,7 +953,17 @@
      "hitlag": 1.15,
      "fx": "fire"
     }
-   ]
+   ],
+   "pose": {
+    "foot": "back",
+    "reach": -19,
+    "lift": 8,
+    "wind": [
+     6,
+     6
+    ],
+    "t": "kick"
+   }
   },
   "uair": {
    "name": "Cinder Kick",
@@ -855,7 +1003,20 @@
      "scaling": 0.65,
      "fx": "fire"
     }
-   ]
+   ],
+   "pose": {
+    "foot": "front",
+    "reach": 4,
+    "lift": 22,
+    "wind": [
+     -2,
+     6
+    ],
+    "t": "kick"
+   },
+   "view": {
+    "smear": 1.2
+   }
   },
   "dair": {
    "name": "Meteor Fist",
@@ -884,7 +1045,21 @@
      "hitlag": 1.2,
      "fx": "meteor"
     }
-   ]
+   ],
+   "pose": {
+    "from": [
+     2,
+     -30
+    ],
+    "reach": 8,
+    "h": 16,
+    "lean": 2,
+    "t": "slam"
+   },
+   "view": {
+    "stretch": 1.1,
+    "smear": 1.2
+   }
   },
   "grab": {
    "name": "Seize",

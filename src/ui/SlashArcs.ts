@@ -41,11 +41,34 @@ export class SlashArcs {
         hitboxRect(f, hb, r4);
         const dx = (r4[0] + r4[2] / 2 - chestX) * f.facing;
         const dy = r4[1] + r4[3] / 2 - chestY;
-        const r = Math.max(10, Math.hypot(dx, dy));
+        const r = Math.max(m.view?.arc === 'ring' ? 24 : 10, Math.hypot(dx, dy));
         const centre = Math.atan2(dy, dx);
-        const span = Math.min(1.25, Math.max(0.5, (Math.max(r4[2], r4[3]) * 0.95) / (r + 6)));
+        const span = m.view?.arc === 'ring' ? Math.PI * 0.98 : Math.min(1.25, Math.max(0.5, (Math.max(r4[2], r4[3]) * 0.95) / (r + 6)));
         const prog = after > 0 ? 1 : a1 > a0 ? Math.min(1, Math.max(0, (f.moveFrame - a0) / (a1 - a0 + 1))) : 0.6;
+        const style = m.view?.arc ?? 'curve';
+        if (style === 'none') continue;
         const dir = m.kind === 'aerial' && hb.y > 0 ? -1 : 1;
+        if (style === 'line') {
+          // straight streak (punches, thrusts, pokes): a tapered needle from behind the fist to its tip
+          const ux = dx / r;
+          const uy = dy / r;
+          const reach = r + Math.max(r4[2], r4[3]) * 0.3;
+          const hx = chestX + ux * reach * f.facing;
+          const hy = chestY + uy * reach;
+          const len = (16 + Math.min(r4[2], 44) * 0.7) * (0.45 + 0.55 * prog);
+          const tx = hx - ux * len * f.facing;
+          const ty = hy - uy * len;
+          const px = -uy * f.facing;
+          const py = ux;
+          const wid = Math.min(10, Math.max(4, Math.min(r4[2], r4[3]) * 0.4));
+          const fadeLine = after > 0 ? 1 - after / 6 : 1;
+          for (const [mulW, c, a] of [[1.4, col, 0.35], [0.9, col, 0.75], [0.4, 0xffffff, 0.95]] as const) {
+            const w = (wid * mulW) / 2;
+            g.fillStyle(c, a * fadeLine);
+            g.fillPoints([{ x: tx, y: ty }, { x: hx + px * w, y: hy + py * w }, { x: hx + ux * f.facing * 4, y: hy + uy * 4 }, { x: hx - px * w, y: hy - py * w }] as Phaser.Geom.Point[], true);
+          }
+          continue;
+        }
         const head = centre + span * (2 * prog - 1) * dir;
         const tail = Math.max(centre - span, Math.min(centre + span, head - span * 1.5 * dir));
         const fade = after > 0 ? 1 - after / 6 : 1;

@@ -1,170 +1,1234 @@
 {
-  "projectiles": {
-    "turret_shot": {
-      "w": 6, "h": 6, "life": 90, "health": 1,
-      "hit": { "x": 0, "y": 0, "w": 1, "h": 1, "damage": 2.5, "angle": 40, "base": 22, "scaling": 0.3, "hitlag": 0.8, "fx": "bullet" },
-      "look": { "shape": "bullet", "color": "#ffd46a" }
-    },
-    "fist": {
-      "w": 16, "h": 14, "life": 90, "pierce": true, "health": 3, "boomerang": { "out": 16, "speed": 5.5 },
-      "hit": { "x": 0, "y": 0, "w": 1, "h": 1, "damage": 5, "angle": 40, "base": 32, "scaling": 0.5, "hitlag": 1.1, "fx": "punch" },
-      "look": { "shape": "fist", "color": "#c8d0e0", "size": 1.2 }
-    },
-    "missile": {
-      "w": 10, "h": 8, "gravity": 0.04, "life": 80,
-      "hit": { "x": 0, "y": 0, "w": 1, "h": 1, "damage": 5, "angle": 45, "base": 34, "scaling": 0.6, "hitlag": 1.1, "fx": "blast" },
-      "look": { "shape": "bolt", "color": "#ff9a3a", "size": 1.2 }
-    }
+ "projectiles": {
+  "turret_shot": {
+   "w": 6,
+   "h": 6,
+   "life": 90,
+   "health": 1,
+   "hit": {
+    "x": 0,
+    "y": 0,
+    "w": 1,
+    "h": 1,
+    "damage": 2.5,
+    "angle": 40,
+    "base": 22,
+    "scaling": 0.3,
+    "hitlag": 0.8,
+    "fx": "bullet"
+   },
+   "look": {
+    "shape": "bullet",
+    "color": "#ffd46a"
+   }
   },
-  "deployables": {
-    "turret": {
-      "w": 14, "h": 14, "health": 8, "limit": 2, "armFrames": 24, "life": 2400, "gravity": true,
-      "turret": { "range": 150, "interval": 66, "projectile": "turret_shot", "muzzleX": 9, "muzzleY": -8, "speed": 2.6 },
-      "reward": { "key": "scrap", "add": 3 },
-      "look": { "shape": "turret", "color": "#e08a2c" }
-    }
+  "fist": {
+   "w": 16,
+   "h": 14,
+   "life": 90,
+   "pierce": true,
+   "health": 3,
+   "boomerang": {
+    "out": 16,
+    "speed": 5.5
+   },
+   "hit": {
+    "x": 0,
+    "y": 0,
+    "w": 1,
+    "h": 1,
+    "damage": 5,
+    "angle": 40,
+    "base": 32,
+    "scaling": 0.5,
+    "hitlag": 1.1,
+    "fx": "punch"
+   },
+   "look": {
+    "shape": "fist",
+    "color": "#c8d0e0",
+    "size": 1.2
+   }
   },
-  "moves": {
-    "jab1": {
-      "name": "Wrench Whack 1", "kind": "jab", "anim": "jab", "startup": 5, "active": 2, "recovery": 10,
-      "next": { "id": "jab2", "from": 5, "to": 14, "at": 12 },
-      "cancels": [{"button": "special", "into": "sideB", "from": 6, "dir": "side"}, {"button": "special", "into": "neutralB", "from": 6, "dir": "neutral"}], "hitboxes": [{ "x": 20, "y": -11, "w": 26, "h": 14, "damage": 2.5, "angle": 361, "base": 8, "scaling": 0.15, "minHitstun": 16, "fx": "punch" }]
-    },
-    "jab2": {
-      "name": "Wrench Whack 2", "kind": "jab", "anim": "jabB", "startup": 5, "active": 2, "recovery": 10,
-      "next": { "id": "jab3", "from": 5, "to": 14, "at": 12 },
-      "cancels": [{"button": "special", "into": "sideB", "from": 6, "dir": "side"}, {"button": "special", "into": "neutralB", "from": 6, "dir": "neutral"}], "hitboxes": [{ "x": 20, "y": -11, "w": 26, "h": 14, "damage": 2.5, "angle": 361, "base": 8, "scaling": 0.15, "minHitstun": 16, "fx": "punch" }]
-    },
-    "jab3": {
-      "name": "Wrench Smash", "kind": "jab", "anim": "smashF", "startup": 8, "active": 3, "recovery": 20,
-      "cancels": [{"button": "grab", "into": "grab", "from": 9}, {"button": "special", "into": "sideB", "from": 9, "dir": "side"}], "motion": [{"frame": 6, "vx": 1.2}], "hitboxes": [{ "x": 24, "y": -11, "w": 30, "h": 18, "damage": 5, "angle": 40, "base": 40, "scaling": 0.6, "hitlag": 1.2, "fx": "heavy" }]
-    },
-    "ftilt": {"name": "Wrench Poke", "kind": "tilt", "anim": "jab", "startup": 7, "active": 3, "recovery": 15, "cancels": [{"button": "special", "into": "sideB", "from": 6, "dir": "side"}, {"button": "grab", "into": "grab", "from": 6}, {"button": "jump", "into": "@jump", "from": 6}], "motion": [{"frame": 5, "vx": 1.4}], "hitboxes": [{"x": 30, "y": -14, "w": 38, "h": 16, "damage": 6, "angle": 38, "base": 28, "scaling": 0.6, "fx": "punch"}]},
-    "utilt": {"name": "Spark Pop", "kind": "tilt", "anim": "smashU", "startup": 7, "active": 4, "recovery": 16, "cancels": [{"button": "jump", "into": "@jump", "from": 6}], "hitboxes": [{"x": 4, "y": -34, "w": 30, "h": 30, "damage": 5, "angle": 85, "base": 26, "scaling": 0.5, "dir": "away", "fx": "punch", "status": {"type": "stun", "frames": 10}}]},
-    "dtilt": {"name": "Foot Drill", "kind": "tilt", "anim": "sweep", "startup": 6, "active": 6, "recovery": 14, "cancels": [{"button": "special", "into": "neutralB", "from": 6, "dir": "neutral"}, {"button": "attack", "into": "ftilt", "from": 6, "dir": "forward"}], "hitboxes": [{"x": 24, "y": -4, "w": 28, "h": 10, "damage": 3.5, "angle": 70, "base": 18, "scaling": 0.3, "fx": "punch", "minHitstun": 8}]},
-    "dashAttack": {"name": "Rocket Ram", "kind": "dashAttack", "anim": "shoulder", "startup": 7, "active": 8, "recovery": 22, "motion": [{"frame": 3, "vx": 4}], "cancels": [{"button": "smash", "into": "fsmash", "from": 9}, {"button": "grab", "into": "grab", "from": 9}], "hitboxes": [{"x": 20, "y": -14, "w": 30, "h": 26, "damage": 7, "angle": 45, "base": 36, "scaling": 0.7, "hitlag": 1.1, "fx": "heavy"}]},
-    "fsmash": {
-      "name": "Wrench Swing", "kind": "smash", "anim": "smashF", "startup": 20, "active": 4, "recovery": 34,
-      "charge": { "frame": 7, "max": 60, "damageMult": 1.4, "kbMult": 1.2 },
-      "motion": [{"frame": 14, "vx": 1.6}], "hitboxes": [
-        { "x": 42, "y": -12, "w": 20, "h": 22, "damage": 15, "angle": 38, "base": 46, "scaling": 0.9, "hitlag": 1.3, "fx": "heavy", "status": { "type": "stun", "frames": 28 } },
-        { "x": 24, "y": -12, "w": 32, "h": 24, "damage": 12, "angle": 40, "base": 40, "scaling": 0.8, "hitlag": 1.2, "fx": "heavy" }
-      ]
-    },
-    "usmash": {
-      "name": "Spark Plug", "kind": "smash", "anim": "smashU", "startup": 12, "active": 5, "recovery": 28,
-      "charge": { "frame": 5, "max": 60, "damageMult": 1.4, "kbMult": 1.2 },
-      "hitboxes": [{ "x": 4, "y": -34, "w": 40, "h": 40, "damage": 11, "angle": 90, "base": 38, "scaling": 0.85, "hitlag": 1.1, "fx": "zap", "status": { "type": "stun", "frames": 14 } }]
-    },
-    "dsmash": {
-      "name": "Spin Gear", "kind": "smash", "anim": "smashD", "startup": 11, "active": 6, "recovery": 26,
-      "charge": { "frame": 4, "max": 60, "damageMult": 1.4, "kbMult": 1.2 },
-      "hitboxes": [
-        { "x": 26, "y": -6, "w": 36, "h": 14, "damage": 9, "angle": 361, "base": 30, "scaling": 0.7, "dir": "away", "fx": "punch" },
-        { "x": -26, "y": -6, "w": 36, "h": 14, "damage": 9, "angle": 361, "base": 30, "scaling": 0.7, "dir": "away", "fx": "punch" }
-      ]
-    },
-    "nair": {
-      "name": "Spinning Gear", "kind": "aerial", "anim": "aerialN", "startup": 5, "active": 16, "recovery": 12,
-      "landingLag": 10, "autocancel": [[1, 4], [28, 32]],
-      "cancels": [{"button": "attack", "into": "fair", "from": 6, "dir": "forward", "air": true}, {"button": "attack", "into": "bair", "from": 6, "dir": "back", "air": true}], "hitboxes": [
-        { "x": 0, "y": -11, "w": 42, "h": 28, "damage": 3.5, "angle": 50, "base": 32, "scaling": 0.55, "window": [13, 16], "group": 1, "dir": "away", "fx": "punch" },
-        { "x": 0, "y": -11, "w": 42, "h": 28, "damage": 1.4, "angle": 361, "base": 8, "scaling": 0.1, "window": [1, 12], "group": 0, "rehit": 5, "dir": "away", "minHitstun": 9, "hitlag": 0.6, "fx": "punch" }
-      ]
-    },
-    "fair": {
-      "name": "Drill Jab", "kind": "aerial", "anim": "aerialF", "startup": 9, "active": 12, "recovery": 14,
-      "landingLag": 14, "autocancel": [[1, 5], [30, 34]],
-      "motion": [{ "frame": 8, "vx": 1.0 }],
-      "cancels": [{"button": "attack", "into": "bair", "from": 12, "dir": "back", "air": true}, {"button": "attack", "into": "dair", "from": 12, "dir": "down", "air": true}], "hitboxes": [
-        { "x": 28, "y": -10, "w": 30, "h": 14, "damage": 3.5, "angle": 40, "base": 30, "scaling": 0.4, "window": [10, 12], "group": 1, "fx": "heavy" },
-        { "x": 28, "y": -10, "w": 30, "h": 14, "damage": 1.2, "angle": 361, "base": 8, "scaling": 0.1, "window": [1, 9], "group": 0, "rehit": 3, "minHitstun": 8, "hitlag": 0.5, "fx": "punch" }
-      ]
-    },
-    "bair": {
-      "name": "Rocket Kick", "kind": "aerial", "anim": "aerialB", "startup": 10, "active": 3, "recovery": 16,
-      "landingLag": 12, "autocancel": [[1, 6], [24, 28]],
-      "motion": [{ "frame": 10, "vx": -2.4 }],
-      "hitboxes": [{ "x": -22, "y": -10, "w": 26, "h": 16, "damage": 9, "angle": 150, "base": 38, "scaling": 0.8, "hitlag": 1.2, "fx": "blast" }]
-    },
-    "uair": {
-      "name": "Head-Bolt", "kind": "aerial", "anim": "aerialU", "startup": 6, "active": 4, "recovery": 12,
-      "landingLag": 10, "autocancel": [[1, 3], [18, 22]],
-      "hitboxes": [{ "x": 2, "y": -30, "w": 26, "h": 22, "damage": 7, "angle": 88, "base": 34, "scaling": 0.6, "fx": "punch" }]
-    },
-    "dair": {
-      "name": "Hammer Drop", "kind": "aerial", "anim": "aerialD", "startup": 14, "active": 4, "recovery": 20,
-      "landingLag": 18, "autocancel": [[1, 5]],
-      "hitboxes": [{ "x": 2, "y": 2, "w": 26, "h": 20, "damage": 10, "angle": 280, "base": 30, "scaling": 0.5, "hitlag": 1.2, "fx": "meteor" }]
-    },
-    "grab": {
-      "name": "Grapple Claw", "kind": "grab", "anim": "grab", "startup": 7, "active": 2, "recovery": 24,
-      "hitboxes": [{ "x": 20, "y": -11, "w": 28, "h": 18, "damage": 0, "angle": 0, "base": 0, "scaling": 0, "grab": true, "unblockable": true }]
-    },
-    "fthrow": {
-      "name": "Cable Toss", "kind": "throw", "anim": "throwF", "throwDir": "forward", "startup": 8, "active": 1, "recovery": 16,
-      "hitboxes": [{ "x": 18, "y": -11, "w": 40, "h": 30, "damage": 6, "angle": 40, "base": 52, "scaling": 0.7, "throw": true }]
-    },
-    "bthrow": {
-      "name": "Spin Throw", "kind": "throw", "anim": "throwB", "throwDir": "back", "startup": 10, "active": 1, "recovery": 18,
-      "hitboxes": [{ "x": 18, "y": -11, "w": 40, "h": 30, "damage": 7, "angle": 140, "base": 54, "scaling": 0.75, "throw": true }]
-    },
-    "uthrow": {
-      "name": "Pop Hook", "kind": "throw", "anim": "throwU", "throwDir": "up", "startup": 8, "active": 1, "recovery": 16,
-      "hitboxes": [{ "x": 18, "y": -11, "w": 40, "h": 30, "damage": 5, "angle": 90, "base": 42, "scaling": 0.5, "throw": true }]
-    },
-    "dthrow": {
-      "name": "Press", "kind": "throw", "anim": "throwD", "throwDir": "down", "startup": 8, "active": 1, "recovery": 18,
-      "hitboxes": [{ "x": 18, "y": -11, "w": 40, "h": 30, "damage": 6, "angle": 80, "base": 36, "scaling": 0.4, "throw": true }]
-    },
-    "neutralB": {
-      "name": "Turret Deploy", "kind": "special", "anim": "castD", "startup": 14, "active": 1, "recovery": 16,
-      "events": [{ "frame": 12, "action": "deploy", "id": "turret", "x": 22, "y": 0 }, { "frame": 12, "action": "fx", "name": "place" }],
-      "hitboxes": []
-    },
-    "sideB": {
-      "name": "Rocket Fist", "kind": "special", "anim": "castF", "startup": 14, "active": 1, "recovery": 20,
-      "events": [{ "frame": 12, "action": "projectile", "id": "fist", "x": 18, "y": -12, "vx": 5.5, "vy": 0 }, { "frame": 12, "action": "fx", "name": "rocket" }],
-      "hitboxes": []
-    },
-    "upB": {
-      "name": "Grapple Tether", "kind": "special", "anim": "castU", "startup": 8, "active": 1, "recovery": 30,
-      "helpless": true,
-      "events": [{ "frame": 6, "action": "tether", "angle": 75, "range": 140, "speed": 7, "grabsOpponents": true, "cone": 35 }],
-      "hitboxes": []
-    },
-    "downB": {
-      "name": "Overclock", "kind": "special", "anim": "castD", "startup": 10, "active": 1, "recovery": 16,
-      "charge": { "frame": 5, "max": 16, "damageMult": 1 },
-      "events": [{ "frame": 9, "action": "custom", "name": "overclock" }],
-      "hitboxes": []
-    },
-    "ultimate": {
-      "name": "Mega Mech Mode", "kind": "ultimate", "anim": "raid", "startup": 22, "active": 1, "recovery": 26,
-      "invuln": [1, 22],
-      "events": [{ "frame": 4, "action": "fx", "name": "mechStart" }, { "frame": 20, "action": "custom", "name": "mechStart" }],
-      "hitboxes": []
-    },
-    "mech_punch": {
-      "name": "Mech Punch", "kind": "smash", "anim": "smashF", "hidden": true, "startup": 10, "active": 4, "recovery": 22,
-      "hitboxes": [{ "x": 42, "y": -16, "w": 66, "h": 56, "damage": 11.9, "angle": 38, "base": 58, "scaling": 0.95, "hitlag": 1.3, "fx": "heavy" }]
-    },
-    "mech_stomp": {
-      "name": "Mech Stomp", "kind": "smash", "anim": "smashD", "hidden": true, "startup": 8, "active": 5, "recovery": 24,
-      "events": [{ "frame": 9, "action": "fx", "name": "stomp" }],
-      "hitboxes": [
-        { "x": 40, "y": -8, "w": 72, "h": 26, "damage": 9.3, "angle": 72, "base": 44, "scaling": 0.8, "dir": "away", "hitlag": 1.2, "fx": "heavy" },
-        { "x": -40, "y": -8, "w": 72, "h": 26, "damage": 9.3, "angle": 72, "base": 44, "scaling": 0.8, "dir": "away", "hitlag": 1.2, "fx": "heavy" }
-      ]
-    },
-    "mech_missiles": {
-      "name": "Mech Missiles", "kind": "special", "anim": "castF", "hidden": true, "startup": 8, "active": 1, "recovery": 26,
-      "events": [
-        { "frame": 8, "action": "projectile", "id": "missile", "x": 30, "y": -30, "vx": 5, "vy": -1.5 },
-        { "frame": 12, "action": "projectile", "id": "missile", "x": 30, "y": -22, "vx": 5, "vy": -0.6 },
-        { "frame": 16, "action": "projectile", "id": "missile", "x": 30, "y": -14, "vx": 5, "vy": 0 }
-      ],
-      "hitboxes": []
-    }
+  "missile": {
+   "w": 10,
+   "h": 8,
+   "gravity": 0.04,
+   "life": 80,
+   "hit": {
+    "x": 0,
+    "y": 0,
+    "w": 1,
+    "h": 1,
+    "damage": 5,
+    "angle": 45,
+    "base": 34,
+    "scaling": 0.6,
+    "hitlag": 1.1,
+    "fx": "blast"
+   },
+   "look": {
+    "shape": "bolt",
+    "color": "#ff9a3a",
+    "size": 1.2
+   }
   }
+ },
+ "deployables": {
+  "turret": {
+   "w": 14,
+   "h": 14,
+   "health": 8,
+   "limit": 2,
+   "armFrames": 24,
+   "life": 2400,
+   "gravity": true,
+   "turret": {
+    "range": 150,
+    "interval": 66,
+    "projectile": "turret_shot",
+    "muzzleX": 9,
+    "muzzleY": -8,
+    "speed": 2.6
+   },
+   "reward": {
+    "key": "scrap",
+    "add": 3
+   },
+   "look": {
+    "shape": "turret",
+    "color": "#e08a2c"
+   }
+  }
+ },
+ "moves": {
+  "jab1": {
+   "name": "Wrench Whack 1",
+   "kind": "jab",
+   "anim": "jab",
+   "startup": 5,
+   "active": 2,
+   "recovery": 10,
+   "next": {
+    "id": "jab2",
+    "from": 5,
+    "to": 14,
+    "at": 12
+   },
+   "cancels": [
+    {
+     "button": "special",
+     "into": "sideB",
+     "from": 6,
+     "dir": "side"
+    },
+    {
+     "button": "special",
+     "into": "neutralB",
+     "from": 6,
+     "dir": "neutral"
+    }
+   ],
+   "hitboxes": [
+    {
+     "x": 20,
+     "y": -11,
+     "w": 26,
+     "h": 14,
+     "damage": 2.5,
+     "angle": 361,
+     "base": 8,
+     "scaling": 0.15,
+     "minHitstun": 16,
+     "fx": "punch"
+    }
+   ],
+   "pose": {
+    "hand": "front",
+    "reach": 14,
+    "h": -4,
+    "lean": -3,
+    "step": 2,
+    "t": "punch"
+   },
+   "view": {
+    "arc": "line"
+   }
+  },
+  "jab2": {
+   "name": "Wrench Whack 2",
+   "kind": "jab",
+   "anim": "jabB",
+   "startup": 5,
+   "active": 2,
+   "recovery": 10,
+   "next": {
+    "id": "jab3",
+    "from": 5,
+    "to": 14,
+    "at": 12
+   },
+   "cancels": [
+    {
+     "button": "special",
+     "into": "sideB",
+     "from": 6,
+     "dir": "side"
+    },
+    {
+     "button": "special",
+     "into": "neutralB",
+     "from": 6,
+     "dir": "neutral"
+    }
+   ],
+   "hitboxes": [
+    {
+     "x": 20,
+     "y": -11,
+     "w": 26,
+     "h": 14,
+     "damage": 2.5,
+     "angle": 361,
+     "base": 8,
+     "scaling": 0.15,
+     "minHitstun": 16,
+     "fx": "punch"
+    }
+   ],
+   "pose": {
+    "hand": "front",
+    "wind": [
+     -8,
+     0
+    ],
+    "reach": 15,
+    "h": -10,
+    "lean": 3,
+    "step": 3,
+    "t": "hook"
+   }
+  },
+  "jab3": {
+   "name": "Wrench Smash",
+   "kind": "jab",
+   "anim": "smashF",
+   "startup": 8,
+   "active": 3,
+   "recovery": 20,
+   "cancels": [
+    {
+     "button": "grab",
+     "into": "grab",
+     "from": 9
+    },
+    {
+     "button": "special",
+     "into": "sideB",
+     "from": 9,
+     "dir": "side"
+    }
+   ],
+   "motion": [
+    {
+     "frame": 6,
+     "vx": 1.2
+    }
+   ],
+   "hitboxes": [
+    {
+     "x": 24,
+     "y": -11,
+     "w": 30,
+     "h": 18,
+     "damage": 5,
+     "angle": 40,
+     "base": 40,
+     "scaling": 0.6,
+     "hitlag": 1.2,
+     "fx": "heavy"
+    }
+   ],
+   "pose": {
+    "from": [
+     -2,
+     -26
+    ],
+    "reach": 14,
+    "h": 8,
+    "lean": 6,
+    "t": "overhead"
+   },
+   "view": {
+    "stretch": 1.08,
+    "smear": 1.2
+   }
+  },
+  "ftilt": {
+   "name": "Wrench Poke",
+   "kind": "tilt",
+   "anim": "jab",
+   "startup": 7,
+   "active": 3,
+   "recovery": 15,
+   "cancels": [
+    {
+     "button": "special",
+     "into": "sideB",
+     "from": 6,
+     "dir": "side"
+    },
+    {
+     "button": "grab",
+     "into": "grab",
+     "from": 6
+    },
+    {
+     "button": "jump",
+     "into": "@jump",
+     "from": 6
+    }
+   ],
+   "motion": [
+    {
+     "frame": 5,
+     "vx": 1.4
+    }
+   ],
+   "hitboxes": [
+    {
+     "x": 30,
+     "y": -14,
+     "w": 38,
+     "h": 16,
+     "damage": 6,
+     "angle": 38,
+     "base": 28,
+     "scaling": 0.6,
+     "fx": "punch"
+    }
+   ],
+   "pose": {
+    "reach": 21,
+    "h": -6,
+    "lean": 6,
+    "step": 6,
+    "t": "thrust"
+   },
+   "view": {
+    "arc": "line",
+    "stretch": 1.08
+   }
+  },
+  "utilt": {
+   "name": "Spark Pop",
+   "kind": "tilt",
+   "anim": "smashU",
+   "startup": 7,
+   "active": 4,
+   "recovery": 16,
+   "cancels": [
+    {
+     "button": "jump",
+     "into": "@jump",
+     "from": 6
+    }
+   ],
+   "hitboxes": [
+    {
+     "x": 4,
+     "y": -34,
+     "w": 30,
+     "h": 30,
+     "damage": 5,
+     "angle": 85,
+     "base": 26,
+     "scaling": 0.5,
+     "dir": "away",
+     "fx": "punch",
+     "status": {
+      "type": "stun",
+      "frames": 10
+     }
+    }
+   ],
+   "pose": {
+    "reach": 6,
+    "h": -36,
+    "crouch": 3,
+    "t": "uppercut"
+   }
+  },
+  "dtilt": {
+   "name": "Foot Drill",
+   "kind": "tilt",
+   "anim": "sweep",
+   "startup": 6,
+   "active": 6,
+   "recovery": 14,
+   "cancels": [
+    {
+     "button": "special",
+     "into": "neutralB",
+     "from": 6,
+     "dir": "neutral"
+    },
+    {
+     "button": "attack",
+     "into": "ftilt",
+     "from": 6,
+     "dir": "forward"
+    }
+   ],
+   "hitboxes": [
+    {
+     "x": 24,
+     "y": -4,
+     "w": 28,
+     "h": 10,
+     "damage": 3.5,
+     "angle": 70,
+     "base": 18,
+     "scaling": 0.3,
+     "fx": "punch",
+     "minHitstun": 8
+    }
+   ],
+   "pose": {
+    "reach": 21,
+    "crouch": 8,
+    "t": "sweep"
+   }
+  },
+  "dashAttack": {
+   "name": "Rocket Ram",
+   "kind": "dashAttack",
+   "anim": "shoulder",
+   "startup": 7,
+   "active": 8,
+   "recovery": 22,
+   "motion": [
+    {
+     "frame": 3,
+     "vx": 4
+    }
+   ],
+   "cancels": [
+    {
+     "button": "smash",
+     "into": "fsmash",
+     "from": 9
+    },
+    {
+     "button": "grab",
+     "into": "grab",
+     "from": 9
+    }
+   ],
+   "hitboxes": [
+    {
+     "x": 20,
+     "y": -14,
+     "w": 30,
+     "h": 26,
+     "damage": 7,
+     "angle": 45,
+     "base": 36,
+     "scaling": 0.7,
+     "hitlag": 1.1,
+     "fx": "heavy"
+    }
+   ]
+  },
+  "fsmash": {
+   "name": "Wrench Swing",
+   "kind": "smash",
+   "anim": "smashF",
+   "startup": 20,
+   "active": 4,
+   "recovery": 34,
+   "charge": {
+    "frame": 7,
+    "max": 60,
+    "damageMult": 1.4,
+    "kbMult": 1.2
+   },
+   "motion": [
+    {
+     "frame": 14,
+     "vx": 1.6
+    }
+   ],
+   "hitboxes": [
+    {
+     "x": 42,
+     "y": -12,
+     "w": 20,
+     "h": 22,
+     "damage": 15,
+     "angle": 38,
+     "base": 46,
+     "scaling": 0.9,
+     "hitlag": 1.3,
+     "fx": "heavy",
+     "status": {
+      "type": "stun",
+      "frames": 28
+     }
+    },
+    {
+     "x": 24,
+     "y": -12,
+     "w": 32,
+     "h": 24,
+     "damage": 12,
+     "angle": 40,
+     "base": 40,
+     "scaling": 0.8,
+     "hitlag": 1.2,
+     "fx": "heavy"
+    }
+   ],
+   "pose": {
+    "hand": "front",
+    "from": [
+     -20,
+     -6
+    ],
+    "to": [
+     23,
+     -2
+    ],
+    "lean": 7,
+    "step": 9,
+    "t": "slash"
+   },
+   "view": {
+    "stretch": 1.12,
+    "smear": 1.4
+   }
+  },
+  "usmash": {
+   "name": "Spark Plug",
+   "kind": "smash",
+   "anim": "smashU",
+   "startup": 12,
+   "active": 5,
+   "recovery": 28,
+   "charge": {
+    "frame": 5,
+    "max": 60,
+    "damageMult": 1.4,
+    "kbMult": 1.2
+   },
+   "hitboxes": [
+    {
+     "x": 4,
+     "y": -34,
+     "w": 40,
+     "h": 40,
+     "damage": 11,
+     "angle": 90,
+     "base": 38,
+     "scaling": 0.85,
+     "hitlag": 1.1,
+     "fx": "zap",
+     "status": {
+      "type": "stun",
+      "frames": 14
+     }
+    }
+   ],
+   "pose": {
+    "reach": 8,
+    "h": -44,
+    "crouch": 6,
+    "t": "uppercut"
+   },
+   "view": {
+    "smear": 1.3
+   }
+  },
+  "dsmash": {
+   "name": "Spin Gear",
+   "kind": "smash",
+   "anim": "smashD",
+   "startup": 11,
+   "active": 6,
+   "recovery": 26,
+   "charge": {
+    "frame": 4,
+    "max": 60,
+    "damageMult": 1.4,
+    "kbMult": 1.2
+   },
+   "hitboxes": [
+    {
+     "x": 26,
+     "y": -6,
+     "w": 36,
+     "h": 14,
+     "damage": 9,
+     "angle": 361,
+     "base": 30,
+     "scaling": 0.7,
+     "dir": "away",
+     "fx": "punch"
+    },
+    {
+     "x": -26,
+     "y": -6,
+     "w": 36,
+     "h": 14,
+     "damage": 9,
+     "angle": 361,
+     "base": 30,
+     "scaling": 0.7,
+     "dir": "away",
+     "fx": "punch"
+    }
+   ],
+   "pose": {
+    "reach": 18,
+    "h": 6,
+    "crouch": 7,
+    "t": "spin"
+   },
+   "view": {
+    "arc": "ring",
+    "smear": 1.2
+   }
+  },
+  "nair": {
+   "name": "Spinning Gear",
+   "kind": "aerial",
+   "anim": "aerialN",
+   "startup": 5,
+   "active": 16,
+   "recovery": 12,
+   "landingLag": 10,
+   "autocancel": [
+    [
+     1,
+     4
+    ],
+    [
+     28,
+     32
+    ]
+   ],
+   "cancels": [
+    {
+     "button": "attack",
+     "into": "fair",
+     "from": 6,
+     "dir": "forward",
+     "air": true
+    },
+    {
+     "button": "attack",
+     "into": "bair",
+     "from": 6,
+     "dir": "back",
+     "air": true
+    }
+   ],
+   "hitboxes": [
+    {
+     "x": 0,
+     "y": -11,
+     "w": 42,
+     "h": 28,
+     "damage": 3.5,
+     "angle": 50,
+     "base": 32,
+     "scaling": 0.55,
+     "window": [
+      13,
+      16
+     ],
+     "group": 1,
+     "dir": "away",
+     "fx": "punch"
+    },
+    {
+     "x": 0,
+     "y": -11,
+     "w": 42,
+     "h": 28,
+     "damage": 1.4,
+     "angle": 361,
+     "base": 8,
+     "scaling": 0.1,
+     "window": [
+      1,
+      12
+     ],
+     "group": 0,
+     "rehit": 5,
+     "dir": "away",
+     "minHitstun": 9,
+     "hitlag": 0.6,
+     "fx": "punch"
+    }
+   ],
+   "pose": {
+    "reach": 12,
+    "h": -8,
+    "t": "spin"
+   },
+   "view": {
+    "arc": "ring"
+   }
+  },
+  "fair": {
+   "name": "Drill Jab",
+   "kind": "aerial",
+   "anim": "aerialF",
+   "startup": 9,
+   "active": 12,
+   "recovery": 14,
+   "landingLag": 14,
+   "autocancel": [
+    [
+     1,
+     5
+    ],
+    [
+     30,
+     34
+    ]
+   ],
+   "motion": [
+    {
+     "frame": 8,
+     "vx": 1.0
+    }
+   ],
+   "cancels": [
+    {
+     "button": "attack",
+     "into": "bair",
+     "from": 12,
+     "dir": "back",
+     "air": true
+    },
+    {
+     "button": "attack",
+     "into": "dair",
+     "from": 12,
+     "dir": "down",
+     "air": true
+    }
+   ],
+   "hitboxes": [
+    {
+     "x": 28,
+     "y": -10,
+     "w": 30,
+     "h": 14,
+     "damage": 3.5,
+     "angle": 40,
+     "base": 30,
+     "scaling": 0.4,
+     "window": [
+      10,
+      12
+     ],
+     "group": 1,
+     "fx": "heavy"
+    },
+    {
+     "x": 28,
+     "y": -10,
+     "w": 30,
+     "h": 14,
+     "damage": 1.2,
+     "angle": 361,
+     "base": 8,
+     "scaling": 0.1,
+     "window": [
+      1,
+      9
+     ],
+     "group": 0,
+     "rehit": 3,
+     "minHitstun": 8,
+     "hitlag": 0.5,
+     "fx": "punch"
+    }
+   ],
+   "pose": {
+    "reach": 22,
+    "h": -8,
+    "lean": 6,
+    "step": 5,
+    "t": "thrust"
+   },
+   "view": {
+    "arc": "line"
+   }
+  },
+  "bair": {
+   "name": "Rocket Kick",
+   "kind": "aerial",
+   "anim": "aerialB",
+   "startup": 10,
+   "active": 3,
+   "recovery": 16,
+   "landingLag": 12,
+   "autocancel": [
+    [
+     1,
+     6
+    ],
+    [
+     24,
+     28
+    ]
+   ],
+   "motion": [
+    {
+     "frame": 10,
+     "vx": -2.4
+    }
+   ],
+   "hitboxes": [
+    {
+     "x": -22,
+     "y": -10,
+     "w": 26,
+     "h": 16,
+     "damage": 9,
+     "angle": 150,
+     "base": 38,
+     "scaling": 0.8,
+     "hitlag": 1.2,
+     "fx": "blast"
+    }
+   ],
+   "pose": {
+    "foot": "back",
+    "reach": -18,
+    "lift": 6,
+    "wind": [
+     6,
+     6
+    ],
+    "t": "kick"
+   }
+  },
+  "uair": {
+   "name": "Head-Bolt",
+   "kind": "aerial",
+   "anim": "aerialU",
+   "startup": 6,
+   "active": 4,
+   "recovery": 12,
+   "landingLag": 10,
+   "autocancel": [
+    [
+     1,
+     3
+    ],
+    [
+     18,
+     22
+    ]
+   ],
+   "hitboxes": [
+    {
+     "x": 2,
+     "y": -30,
+     "w": 26,
+     "h": 22,
+     "damage": 7,
+     "angle": 88,
+     "base": 34,
+     "scaling": 0.6,
+     "fx": "punch"
+    }
+   ],
+   "pose": {
+    "reach": 4,
+    "h": -40,
+    "crouch": 1,
+    "t": "uppercut"
+   }
+  },
+  "dair": {
+   "name": "Hammer Drop",
+   "kind": "aerial",
+   "anim": "aerialD",
+   "startup": 14,
+   "active": 4,
+   "recovery": 20,
+   "landingLag": 18,
+   "autocancel": [
+    [
+     1,
+     5
+    ]
+   ],
+   "hitboxes": [
+    {
+     "x": 2,
+     "y": 2,
+     "w": 26,
+     "h": 20,
+     "damage": 10,
+     "angle": 280,
+     "base": 30,
+     "scaling": 0.5,
+     "hitlag": 1.2,
+     "fx": "meteor"
+    }
+   ],
+   "pose": {
+    "from": [
+     2,
+     -30
+    ],
+    "reach": 8,
+    "h": 16,
+    "lean": 2,
+    "t": "slam"
+   },
+   "view": {
+    "stretch": 1.1,
+    "smear": 1.2
+   }
+  },
+  "grab": {
+   "name": "Grapple Claw",
+   "kind": "grab",
+   "anim": "grab",
+   "startup": 7,
+   "active": 2,
+   "recovery": 24,
+   "hitboxes": [
+    {
+     "x": 20,
+     "y": -11,
+     "w": 28,
+     "h": 18,
+     "damage": 0,
+     "angle": 0,
+     "base": 0,
+     "scaling": 0,
+     "grab": true,
+     "unblockable": true
+    }
+   ]
+  },
+  "fthrow": {
+   "name": "Cable Toss",
+   "kind": "throw",
+   "anim": "throwF",
+   "throwDir": "forward",
+   "startup": 8,
+   "active": 1,
+   "recovery": 16,
+   "hitboxes": [
+    {
+     "x": 18,
+     "y": -11,
+     "w": 40,
+     "h": 30,
+     "damage": 6,
+     "angle": 40,
+     "base": 52,
+     "scaling": 0.7,
+     "throw": true
+    }
+   ]
+  },
+  "bthrow": {
+   "name": "Spin Throw",
+   "kind": "throw",
+   "anim": "throwB",
+   "throwDir": "back",
+   "startup": 10,
+   "active": 1,
+   "recovery": 18,
+   "hitboxes": [
+    {
+     "x": 18,
+     "y": -11,
+     "w": 40,
+     "h": 30,
+     "damage": 7,
+     "angle": 140,
+     "base": 54,
+     "scaling": 0.75,
+     "throw": true
+    }
+   ]
+  },
+  "uthrow": {
+   "name": "Pop Hook",
+   "kind": "throw",
+   "anim": "throwU",
+   "throwDir": "up",
+   "startup": 8,
+   "active": 1,
+   "recovery": 16,
+   "hitboxes": [
+    {
+     "x": 18,
+     "y": -11,
+     "w": 40,
+     "h": 30,
+     "damage": 5,
+     "angle": 90,
+     "base": 42,
+     "scaling": 0.5,
+     "throw": true
+    }
+   ]
+  },
+  "dthrow": {
+   "name": "Press",
+   "kind": "throw",
+   "anim": "throwD",
+   "throwDir": "down",
+   "startup": 8,
+   "active": 1,
+   "recovery": 18,
+   "hitboxes": [
+    {
+     "x": 18,
+     "y": -11,
+     "w": 40,
+     "h": 30,
+     "damage": 6,
+     "angle": 80,
+     "base": 36,
+     "scaling": 0.4,
+     "throw": true
+    }
+   ]
+  },
+  "neutralB": {
+   "name": "Turret Deploy",
+   "kind": "special",
+   "anim": "castD",
+   "startup": 14,
+   "active": 1,
+   "recovery": 16,
+   "events": [
+    {
+     "frame": 12,
+     "action": "deploy",
+     "id": "turret",
+     "x": 22,
+     "y": 0
+    },
+    {
+     "frame": 12,
+     "action": "fx",
+     "name": "place"
+    }
+   ],
+   "hitboxes": []
+  },
+  "sideB": {
+   "name": "Rocket Fist",
+   "kind": "special",
+   "anim": "castF",
+   "startup": 14,
+   "active": 1,
+   "recovery": 20,
+   "events": [
+    {
+     "frame": 12,
+     "action": "projectile",
+     "id": "fist",
+     "x": 18,
+     "y": -12,
+     "vx": 5.5,
+     "vy": 0
+    },
+    {
+     "frame": 12,
+     "action": "fx",
+     "name": "rocket"
+    }
+   ],
+   "hitboxes": []
+  },
+  "upB": {
+   "name": "Grapple Tether",
+   "kind": "special",
+   "anim": "castU",
+   "startup": 8,
+   "active": 1,
+   "recovery": 30,
+   "helpless": true,
+   "events": [
+    {
+     "frame": 6,
+     "action": "tether",
+     "angle": 75,
+     "range": 140,
+     "speed": 7,
+     "grabsOpponents": true,
+     "cone": 35
+    }
+   ],
+   "hitboxes": []
+  },
+  "downB": {
+   "name": "Overclock",
+   "kind": "special",
+   "anim": "castD",
+   "startup": 10,
+   "active": 1,
+   "recovery": 16,
+   "charge": {
+    "frame": 5,
+    "max": 16,
+    "damageMult": 1
+   },
+   "events": [
+    {
+     "frame": 9,
+     "action": "custom",
+     "name": "overclock"
+    }
+   ],
+   "hitboxes": []
+  },
+  "ultimate": {
+   "name": "Mega Mech Mode",
+   "kind": "ultimate",
+   "anim": "raid",
+   "startup": 22,
+   "active": 1,
+   "recovery": 26,
+   "invuln": [
+    1,
+    22
+   ],
+   "events": [
+    {
+     "frame": 4,
+     "action": "fx",
+     "name": "mechStart"
+    },
+    {
+     "frame": 20,
+     "action": "custom",
+     "name": "mechStart"
+    }
+   ],
+   "hitboxes": []
+  },
+  "mech_punch": {
+   "name": "Mech Punch",
+   "kind": "smash",
+   "anim": "smashF",
+   "hidden": true,
+   "startup": 10,
+   "active": 4,
+   "recovery": 22,
+   "hitboxes": [
+    {
+     "x": 42,
+     "y": -16,
+     "w": 66,
+     "h": 56,
+     "damage": 11.9,
+     "angle": 38,
+     "base": 58,
+     "scaling": 0.95,
+     "hitlag": 1.3,
+     "fx": "heavy"
+    }
+   ]
+  },
+  "mech_stomp": {
+   "name": "Mech Stomp",
+   "kind": "smash",
+   "anim": "smashD",
+   "hidden": true,
+   "startup": 8,
+   "active": 5,
+   "recovery": 24,
+   "events": [
+    {
+     "frame": 9,
+     "action": "fx",
+     "name": "stomp"
+    }
+   ],
+   "hitboxes": [
+    {
+     "x": 40,
+     "y": -8,
+     "w": 72,
+     "h": 26,
+     "damage": 9.3,
+     "angle": 72,
+     "base": 44,
+     "scaling": 0.8,
+     "dir": "away",
+     "hitlag": 1.2,
+     "fx": "heavy"
+    },
+    {
+     "x": -40,
+     "y": -8,
+     "w": 72,
+     "h": 26,
+     "damage": 9.3,
+     "angle": 72,
+     "base": 44,
+     "scaling": 0.8,
+     "dir": "away",
+     "hitlag": 1.2,
+     "fx": "heavy"
+    }
+   ]
+  },
+  "mech_missiles": {
+   "name": "Mech Missiles",
+   "kind": "special",
+   "anim": "castF",
+   "hidden": true,
+   "startup": 8,
+   "active": 1,
+   "recovery": 26,
+   "events": [
+    {
+     "frame": 8,
+     "action": "projectile",
+     "id": "missile",
+     "x": 30,
+     "y": -30,
+     "vx": 5,
+     "vy": -1.5
+    },
+    {
+     "frame": 12,
+     "action": "projectile",
+     "id": "missile",
+     "x": 30,
+     "y": -22,
+     "vx": 5,
+     "vy": -0.6
+    },
+    {
+     "frame": 16,
+     "action": "projectile",
+     "id": "missile",
+     "x": 30,
+     "y": -14,
+     "vx": 5,
+     "vy": 0
+    }
+   ],
+   "hitboxes": []
+  }
+ }
 }

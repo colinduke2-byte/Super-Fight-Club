@@ -27,3 +27,14 @@
 1. `src/stages/<id>.ts` exporting a `StageData` (platforms, blast zones, 4+ spawns standing on ground, background theme, hazards, music id).
 2. Register in `src/stages/index.ts` (`STAGES`, and `STAGE_LIST` if it should appear in Stage Select).
 3. `tests/content.test.ts` runs `validateStage` on every registered stage (sizes, ledges only on solid platforms, everything inside the blast zones, spawns supported, hazard timing).
+
+## Give moves a punchy look (all optional, all data)
+
+- `pose` on a move (`{ t: 'punch' | 'hook' | 'uppercut' | 'kick' | 'sweep' | 'slash' | 'thrust' | 'spin' | 'slam' | 'stomp' | 'elbow' | 'overhead' | 'custom', hand, foot, reach, h, ... }`)
+  gives the move its own 6-frame animation (`mv_<id>`: anticipation, strike, recovery). End your character file with `applyMovePoses(data)`.
+  Keep rows x frameSize <= 4096 (a test checks it).
+- `view` on a move: `stretch`, `squash`, `smear` (blurred previous frames in the trail colour), `ghosts` (afterimages) and `arc`
+  (`'curve'` default, `'line'` streak, `'ring'` full circle, `'none'`).
+- `hitlag` on a hitbox scales hit-stop; base hit-stop grows with damage and heavy hits (14+) also trigger a brief slow-motion. KOs get a longer slow-mo.
+- `"sound"` in `<id>.fx.json` picks the synth flavour: plain, heavy, blade, arcane, mech or fire (swing whooshes and hit layers).
+- Speed lines for attacks, dashes and fast air travel are applied to every fighter automatically (`ALWAYS_RULES` in `src/fx/library.ts`).

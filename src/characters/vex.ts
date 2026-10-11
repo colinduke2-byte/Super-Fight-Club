@@ -1,6 +1,7 @@
 import type { CharacterBehavior } from '../engine/behavior';
 import { moveTotal, parseMoves, validateReferences, type CharacterJson } from '../engine/moves';
 import type { CharacterData } from '../engine/types';
+import { applyMovePoses } from '../engine/movePoses';
 import { standardAnimations } from './common';
 import movesJson from './vex.moves.json';
 import fxJson from './vex.fx.json';
@@ -99,3 +100,5 @@ export const vex: CharacterData = {
   hud: { resource: 'markerTime', max: 100, color: 0x7fe8ff, hotAt: 101 },
   behavior,
 };
+
+applyMovePoses(vex);

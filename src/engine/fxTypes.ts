@@ -68,7 +68,13 @@ export interface FxRule {
   ops: FxOp[];
 }
 
+/** Sonic flavour of a fighter's swings and hits. */
+export type SoundStyle = 'plain' | 'heavy' | 'blade' | 'arcane' | 'mech' | 'fire';
+export const SOUND_STYLES: SoundStyle[] = ['plain', 'heavy', 'blade', 'arcane', 'mech', 'fire'];
+
 export interface CharacterFx {
+  /** Swing / hit sound flavour (default 'plain'). */
+  sound?: SoundStyle;
   /** Slash-arc / trail colour (default: the sprite accent). */
   trail?: FxColor;
   /** Named recipes played for `{action:'fx', name}` move events and behaviour events; the shared library fills the gaps. */
@@ -115,6 +121,7 @@ export function validateOps(owner: string, ops: FxOp[]): void {
 export function validateFx(owner: string, fx: CharacterFx | undefined): void {
   if (!fx) return;
   checkColor(`${owner}.fx.trail`, fx.trail);
+  if (fx.sound !== undefined && !SOUND_STYLES.includes(fx.sound)) throw new Error(`${owner}.fx.sound: unknown style '${fx.sound}'`);
   for (const [name, ops] of Object.entries(fx.recipes ?? {})) validateOps(`${owner}.fx.recipes.${name}`, ops);
   (fx.rules ?? []).forEach((r, i) => {
     validateOps(`${owner}.fx.rules[${i}]`, r.ops);

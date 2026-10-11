@@ -1,6 +1,7 @@
 import type { CharacterBehavior } from '../engine/behavior';
 import { parseMoves, validateReferences, validateVariants, type CharacterJson } from '../engine/moves';
 import type { CharacterData } from '../engine/types';
+import { applyMovePoses } from '../engine/movePoses';
 import { standardAnimations } from './common';
 import movesJson from './nova.moves.json';
 import fxJson from './nova.fx.json';
@@ -115,3 +116,5 @@ export const nova: CharacterData = {
   companion: { resource: 'element', colors: ELEMENT_COLORS },
   behavior,
 };
+
+applyMovePoses(nova);

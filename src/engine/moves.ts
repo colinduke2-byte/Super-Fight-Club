@@ -104,12 +104,58 @@ export interface MoveCancel {
   air?: boolean;
 }
 
+/**
+ * Compact description of a move's key poses (wind-up, strike, recovery). The sprite generator builds the six animation frames
+ * from it, so every move can have its own animation without hand-drawing frames. `t` picks a template (see art/poseTemplates.ts):
+ * punch, hook, uppercut, kick, sweep, slash, thrust, spin, slam, stomp, elbow, overhead, or `custom` with explicit `keys`.
+ */
+export interface PoseSpec {
+  t: string;
+  hand?: 'front' | 'back' | 'both';
+  foot?: 'front' | 'back';
+  /** Forward reach of the striking limb at the strike pose. */
+  reach?: number;
+  /** Height of the strike relative to the resting hand (negative = up). */
+  h?: number;
+  /** Wind-up limb position [x, y]. */
+  wind?: [number, number];
+  /** slash: the limb path from -> to. */
+  from?: [number, number];
+  to?: [number, number];
+  lean?: number;
+  crouch?: number;
+  /** Front foot step at the strike. */
+  step?: number;
+  lift?: number;
+  /** custom: three explicit key poses [lean, crouch, frontHand, backHand, frontFoot, backFoot]. */
+  keys?: [number, number, [number, number], [number, number], [number, number], [number, number]][];
+}
+
+/** Optional per-move presentation tweaks (all visual): body squash / lean through the phases, smear and afterimage strength. */
+export interface MoveView {
+  /** Stretch along the facing direction at the strike (1 = none). */
+  stretch?: number;
+  /** Squash during the wind-up (1 = none; <1 squashes tall). */
+  squash?: number;
+  /** Lean of the whole body into the strike, radians (positive = forward). */
+  lean?: number;
+  /** Strength of the motion-blur smear on the strike frames (0..1.5, default 1). */
+  smear?: number;
+  /** Afterimage ghosts while the strike is active. */
+  ghosts?: boolean;
+  /** Swing arc shape: curved crescent (default), straight streak, full ring, or none. */
+  arc?: 'curve' | 'line' | 'ring' | 'none';
+}
+
 export interface MoveDef {
   id: string;
   name: string;
   kind: MoveKind;
   /** Sprite animation row used by the placeholder/real sheet. */
   anim: string;
+  /** Generates this move's own animation (`mv_<id>`) from key poses; overrides `anim` (see applyMovePoses). */
+  pose?: PoseSpec;
+  view?: MoveView;
   startup: number;
   active: number;
   recovery: number;

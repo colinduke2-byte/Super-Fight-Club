@@ -17,6 +17,8 @@ export interface WorldEventHost {
   /** Camera shake / push-in requests (the scene keeps the max). */
   shake(amount: number): void;
   punch(amount: number): void;
+  /** Briefly run the sim at `scale` x speed for `ticks` sim ticks (kill cam / heavy-hit crunch). */
+  slow(scale: number, ticks: number): void;
   rumble(f: Fighter, strong: number, weak: number, ms: number): void;
   onKo(f: Fighter, lastHitBy: number): void;
 }
@@ -29,7 +31,14 @@ export class WorldEventFx {
     const e = this.host.effects;
     const cue = soundFor(type, mag, extra);
     const pan = this.host.pan(x);
-    if (cue) sfx.play(cue.name, cue.intensity, pan);
+    // sound flavour: swings use the mover's style, hits use the attacker's
+    let style = f.data.fx?.sound ?? 'plain';
+    if (type === 'hit') style = this.host.world.fighters[f.lastHitBy]?.data.fx?.sound ?? 'plain';
+    if (type === 'moveStart') {
+      const kind = f.move?.kind;
+      const loud = kind === 'smash' ? 0.7 : kind === 'ultimate' ? 0.8 : kind === 'aerial' || kind === 'dashAttack' ? 0.45 : kind === 'tilt' ? 0.35 : kind === 'jab' ? 0.22 : 0.4;
+      sfx.play('swing', loud, pan, style);
+    } else if (cue) sfx.play(cue.name, cue.intensity, pan, style);
     if (type === 'hit') {
       const layer = hitLayer(f.lastHitFx, mag, extra);
       if (layer) sfx.play(layer.name, layer.intensity, pan);
@@ -133,6 +142,8 @@ export class WorldEventFx {
         e.burst(x, y, 10 + Math.min(16, dmg), 80 + mag * 0.4, dmg > 12 ? 0xffffff : 0xffe14a, 0.3 + Math.min(0.3, dmg * 0.012), dmg > 12 ? 4 : 3);
         this.host.shake(Math.min(9, 1 + dmg * 0.3 + mag * 0.01));
         if (dmg >= 10) this.host.punch(Math.min(0.06, dmg * 0.0035));
+        this.impactLines(f, x, y, dmg, mag);
+        if (dmg >= 14) this.host.slow(0.55, 7);
         break;
       }
       case 'parry':
@@ -216,11 +227,31 @@ export class WorldEventFx {
         this.host.shake(10);
         this.host.rumble(f, 1, 0.6, 300);
         this.host.onKo(f, extra);
+        this.host.slow(0.35, 40);
         break;
       }
       default:
         break;
     }
+  }
+
+  /**
+   * Directional impact lines: sparks thrown along the victim's launch direction (longer for stronger launches), a shockwave ring on
+   * heavy hits and ground debris when the victim is standing.
+   */
+  private impactLines(f: Fighter, x: number, y: number, dmg: number, kb: number): void {
+    const e = this.host.effects;
+    const sp = Math.hypot(f.vx, f.vy);
+    const ang = Math.atan2(f.vy, f.vx);
+    const lines = Math.max(2, Math.min(6, Math.round(2 + dmg / 4)));
+    const colour = dmg > 12 ? 0xffffff : 0xfff3b0;
+    for (let i = 0; i < lines; i++) {
+      const a = ang + (Math.random() - 0.5) * 0.9;
+      const len = 12 + Math.random() * 10 + Math.min(28, sp * 2 + kb * 0.04);
+      e.trail(x, y, x + Math.cos(a) * len, y + Math.sin(a) * len, colour);
+    }
+    if (dmg >= 10) e.ring(x, y, 18 + dmg * 1.2, 0xffffff, 0.22);
+    if (f.grounded && dmg >= 6) e.dust(f.x, f.y, 3 + Math.round(dmg / 4), Math.sign(f.vx));
   }
 
   /** Visuals for move events tagged `fx`: the fighter's own recipe, else the shared library (see src/fx). */

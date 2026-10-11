@@ -2,7 +2,7 @@ import type { Fighter } from '../engine/fighter';
 import type { CharacterFx, FxColor, FxNum, FxOp, FxPos, FxRule, FxWhen } from '../engine/fxTypes';
 import type { World } from '../engine/world';
 import type { Effects } from '../ui/Effects';
-import { DEFAULT_RULES, LIBRARY_RECIPES } from './library';
+import { ALWAYS_RULES, DEFAULT_RULES, LIBRARY_RECIPES } from './library';
 
 /** What a recipe needs to play: the particle pool, camera shake / punch callbacks and the fighter it belongs to. */
 export interface FxContext {
@@ -207,6 +207,11 @@ export function updateFighterFx(world: World, fx: Effects, tick: number, shake: 
       if (!whenOk(r.when, f)) continue;
       const every = Math.max(1, Math.round(num(r.every, c, 1)));
       if (tick % every !== 0) continue;
+      runOps(r.ops, c);
+    }
+    for (const r of ALWAYS_RULES) {
+      if (!whenOk(r.when, f)) continue;
+      if (tick % Math.max(1, Math.round(num(r.every, c, 1))) !== 0) continue;
       runOps(r.ops, c);
     }
     if (!hasChargeRule(f.data.fx)) {

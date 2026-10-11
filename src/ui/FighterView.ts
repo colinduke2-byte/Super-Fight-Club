@@ -2,6 +2,7 @@ import Phaser from 'phaser';
 import { PIXEL_FONT } from '../art/pixelFont';
 import { animFrameIndex, fighterAnimKey, fighterTextureKey } from '../art/proceduralFighter';
 import type { Fighter } from '../engine/fighter';
+import { fighterTrailColor } from '../fx/runner';
 
 /** Pixels the body is drawn left of the frame centre in the procedural sprite sheet (see proceduralFighter). */
 const BODY_SHIFT = 5;
@@ -29,6 +30,8 @@ export class FighterView {
   private nextGhost = 0;
   private spin = 0;
   private lastGhostTick = -9;
+  /** Two additive copies of the previous pose frames behind the strike: a motion-blur smear. */
+  private readonly smear: Phaser.GameObjects.Sprite[] = [];
   private readonly layer: Phaser.GameObjects.Layer;
   private readonly scene: Phaser.Scene;
 
@@ -42,6 +45,11 @@ export class FighterView {
     if (tint !== undefined) this.sprite.setTint(tint);
     this.bubble = scene.add.image(0, 0, 'bubble').setVisible(false);
     layer.add(this.shadow);
+    for (let i = 0; i < 2; i++) {
+      const g = scene.add.sprite(0, 0, key, 0).setOrigin(0.5, 1).setBlendMode(Phaser.BlendModes.ADD).setVisible(false);
+      this.smear.push(g);
+      layer.add(g);
+    }
     layer.add(this.sprite);
     layer.add(this.bubble);
     this.comboText = scene.add.bitmapText(0, 0, PIXEL_FONT, '').setOrigin(0.5, 1).setScale(0.5).setTint(0xffe14a).setVisible(false);
@@ -98,6 +106,7 @@ export class FighterView {
     // the sprite body is drawn BODY_SHIFT px left of the frame centre (weapon reach); re-centre it on the hurtbox
     s.setPosition(this.x + shake + f.facing * BODY_SHIFT * f.data.sprite.pixelScale * f.sizeMul, this.y + 1);
     s.setFlipX(f.facing < 0);
+    const av = this.attackView(f);
     // launched victims tumble around their centre, rolls spin the tucked sprite; everything else stands upright on its feet
     const tumbling = f.state === 'hitstun' && !f.grounded && Math.hypot(f.vx, f.vy) > 5;
     const rolling = f.state === 'roll' || (f.state === 'tech' && Math.abs(f.vx) > 1);
@@ -109,7 +118,7 @@ export class FighterView {
       s.setOrigin(0.5, 0.62).setPosition(s.x, this.y - f.h * 0.5 * f.sizeMul).setRotation(this.spin);
     } else {
       this.spin = 0;
-      s.setOrigin(0.5, 1).setRotation(0);
+      s.setOrigin(0.5, 1).setRotation(av.rot);
     }
     this.shadow.setPosition(this.x, f.groundPlat ? f.groundPlat.top + 1 : this.y + 1);
 
@@ -134,6 +143,9 @@ export class FighterView {
       default:
         break;
     }
+    sx *= av.sx;
+    sy *= av.sy;
+    this.updateSmear(f, av);
     const tr = f.data.transform;
     const big = f.sizeMul; // set by the simulation (e.g. Mech mode) so the hurtbox matches what you see
     const ps = f.data.sprite.pixelScale * big;
@@ -164,6 +176,59 @@ export class FighterView {
     if (shielding) {
       const d = (f.shieldRadius * 2) / 64;
       bubble.setPosition(this.x, this.y - f.h / 2).setScale(d).setAlpha(f.state === 'shieldstun' ? 1 : 0.8);
+    }
+  }
+
+  /**
+   * Body squash / stretch / lean through an attack's phases (anticipation squashes and leans back, the strike stretches and leans
+   * into the hit, recovery settles). Tuned per move kind, overridable per move with `view`.
+   */
+  private attackView(f: Fighter): { sx: number; sy: number; rot: number } {
+    const m = f.move;
+    if (f.state !== 'attack' || !m) return { sx: 1, sy: 1, rot: 0 };
+    const k = m.kind;
+    const d = k === 'smash' ? [1.08, 0.94, 0.1] : k === 'tilt' || k === 'dashAttack' ? [1.05, 0.97, 0.06] : k === 'aerial' ? [1.03, 0.98, 0.05] : k === 'jab' ? [1.04, 0.98, 0.04] : [1, 1, 0];
+    const st = m.view?.stretch ?? d[0];
+    const sq = m.view?.squash ?? d[1];
+    const lean = (m.view?.lean ?? d[2]) * f.facing;
+    switch (f.attackPhase) {
+      case 0:
+      case 1:
+        return { sx: 1 + (1 - sq) * 0.7, sy: sq, rot: -lean * 0.6 };
+      case 2:
+        return { sx: 1 + (st - 1) * 0.4, sy: 1 - (st - 1) * 0.3, rot: lean * 0.3 };
+      case 3:
+        return { sx: st, sy: 1 - (st - 1) * 0.8, rot: lean };
+      case 4:
+        return { sx: 1 + (st - 1) * 0.4, sy: 1 - (st - 1) * 0.3, rot: lean * 0.5 };
+      default:
+        return { sx: 1, sy: 1, rot: 0 };
+    }
+  }
+
+  /** Motion-blur smear: the two previous pose frames drawn additively behind the strike. */
+  private updateSmear(f: Fighter, av: { sx: number; sy: number }): void {
+    const m = f.move;
+    const strength = m?.view?.smear ?? 1;
+    const phase = f.attackPhase;
+    const on = f.state === 'attack' && !!m && strength > 0 && phase >= 2 && phase <= 4 && (f.data.sprite.animations[m.anim]?.frames ?? 0) >= 6;
+    const s = this.sprite;
+    for (let i = 0; i < 2; i++) {
+      const g = this.smear[i];
+      if (!on) {
+        g.setVisible(false);
+        continue;
+      }
+      const frame = animFrameIndex(f.data, m!.anim, Math.max(0, phase - 1 - i));
+      const ps = f.data.sprite.pixelScale * f.sizeMul;
+      g.setFrame(frame)
+        .setPosition(s.x, s.y)
+        .setFlipX(s.flipX)
+        .setScale(av.sx * ps, av.sy * ps)
+        .setRotation(s.rotation)
+        .setTint(fighterTrailColor(f, 0))
+        .setAlpha((i === 0 ? 0.34 : 0.18) * Math.min(1.5, strength) * (phase === 3 ? 1 : 0.7))
+        .setVisible(true);
     }
   }
 
@@ -199,7 +264,7 @@ export class FighterView {
       else g.setAlpha(0.5 * (this.ghostLife[i] / 7));
     }
     const speed = Math.hypot(f.vx, f.vy);
-    const fast = f.state === 'dash' || (f.state === 'attack' && speed > 3.2) || (f.state === 'hitstun' && speed > 9);
+    const fast = f.state === 'dash' || (f.state === 'attack' && (speed > 3.2 || (!!f.move?.view?.ghosts && f.attackPhase >= 3 && f.attackPhase <= 4))) || (f.state === 'hitstun' && speed > 9);
     if (fast && tick - this.lastGhostTick >= 2 && f.hitlag === 0) {
       this.lastGhostTick = tick;
       const hex = parseInt(f.data.sprite.placeholder.accent.slice(1), 16);
@@ -257,6 +322,7 @@ export class FighterView {
   destroy(): void {
     this.sprite.destroy();
     this.shadow.destroy();
+    for (const g of this.smear) g.destroy();
     this.bubble.destroy();
     this.counter?.destroy();
     this.comboText.destroy();

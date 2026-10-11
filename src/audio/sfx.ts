@@ -1,4 +1,5 @@
 import { settings } from '../settings';
+import type { SoundStyle } from '../engine/fxTypes';
 import type { SoundName } from './soundMap';
 
 const MAX_VOICES = 24;
@@ -57,7 +58,7 @@ export class Sfx {
   }
 
   /** pan: -1 (left) .. 1 (right). */
-  play(name: SoundName, intensity = 0.7, pan = 0): void {
+  play(name: SoundName, intensity = 0.7, pan = 0, style: SoundStyle = 'plain'): void {
     const ctx = this.ctx;
     if (!ctx || !this.master || ctx.state !== 'running') return;
     const vol = settings.masterVolume * settings.sfxVolume;
@@ -72,7 +73,65 @@ export class Sfx {
       out.pan.value = Math.max(-1, Math.min(1, pan));
       out.connect(this.master);
     }
-    this.recipe(name, Math.max(0.05, Math.min(1, intensity)), out ?? this.master);
+    this.recipe(name, Math.max(0.05, Math.min(1, intensity)), out ?? this.master, style);
+  }
+
+  /** Swing whoosh, flavoured per fighter style. */
+  private swing(d: AudioNode, k: number, style: SoundStyle): void {
+    switch (style) {
+      case 'heavy':
+        this.noiseBurst(d, 'lowpass', 700, 140, 0.14, 0.2 * k);
+        this.tone(d, 'sine', 90, 55, 0.1, 0.18 * k);
+        break;
+      case 'blade':
+        this.noiseBurst(d, 'bandpass', 3600, 1400, 0.06, 0.16 * k);
+        this.tone(d, 'sawtooth', 2400, 3400, 0.05, 0.05 * k);
+        break;
+      case 'arcane':
+        this.tone(d, 'sine', 700, 1200, 0.12, 0.1 * k);
+        this.noiseBurst(d, 'bandpass', 1800, 900, 0.08, 0.06 * k);
+        break;
+      case 'mech':
+        this.tone(d, 'square', 320, 180, 0.06, 0.1 * k);
+        this.noiseBurst(d, 'bandpass', 1400, 500, 0.07, 0.12 * k);
+        break;
+      case 'fire':
+        this.noiseBurst(d, 'highpass', 2600, 1200, 0.1, 0.12 * k);
+        this.noiseBurst(d, 'lowpass', 900, 300, 0.12, 0.14 * k);
+        break;
+      default:
+        this.noiseBurst(d, 'bandpass', 900, 300, 0.07, 0.12 * k);
+    }
+  }
+
+  /** Extra layer on a hit sound so each fighter's blows sound like their style (thump, metal ping, arcane sparkle, clank, crackle). */
+  private hitLayer(d: AudioNode, k: number, style: SoundStyle, heavy: boolean): void {
+    const h = heavy ? 1.4 : 1;
+    switch (style) {
+      case 'heavy':
+        this.tone(d, 'sine', 80, 38, 0.22 * h, 0.55 * k);
+        this.noiseBurst(d, 'lowpass', 1200, 150, 0.12 * h, 0.3 * k);
+        break;
+      case 'blade':
+        this.tone(d, 'triangle', 2100, 1500, 0.12 * h, 0.22 * k);
+        this.noiseBurst(d, 'highpass', 6500, 3500, 0.05, 0.28 * k);
+        break;
+      case 'arcane':
+        this.tone(d, 'sine', 1320, 1760, 0.2 * h, 0.2 * k);
+        this.tone(d, 'sine', 1980, 2640, 0.15 * h, 0.12 * k, 0.03);
+        break;
+      case 'mech':
+        this.tone(d, 'triangle', 640, 610, 0.18 * h, 0.3 * k);
+        this.tone(d, 'square', 980, 940, 0.1, 0.12 * k);
+        this.noiseBurst(d, 'bandpass', 3200, 2200, 0.04, 0.25 * k);
+        break;
+      case 'fire':
+        this.noiseBurst(d, 'highpass', 3000, 1800, 0.2 * h, 0.25 * k);
+        this.tone(d, 'sawtooth', 160, 70, 0.16 * h, 0.2 * k);
+        break;
+      default:
+        break;
+    }
   }
 
   // ---- synthesis helpers ------------------------------------------------------------------------
@@ -120,19 +179,21 @@ export class Sfx {
     this.track(src, dur + delay);
   }
 
-  private recipe(name: SoundName, k: number, d: AudioNode): void {
+  private recipe(name: SoundName, k: number, d: AudioNode, style: SoundStyle = 'plain'): void {
     switch (name) {
       case 'swing':
-        this.noiseBurst(d, 'bandpass', 900, 300, 0.07, 0.12 * k);
+        this.swing(d, k, style);
         break;
       case 'hit':
         this.noiseBurst(d, 'bandpass', 2200, 700, 0.07, 0.5 * k);
         this.tone(d, 'square', 190 + 80 * (1 - k), 60, 0.1, 0.35 * k);
+        this.hitLayer(d, k, style, false);
         break;
       case 'hitHeavy':
         this.noiseBurst(d, 'lowpass', 3500, 200, 0.22, 0.7 * k);
         this.tone(d, 'sawtooth', 220, 45, 0.2, 0.4 * k);
         this.tone(d, 'sine', 110, 32, 0.32, 0.8 * k);
+        this.hitLayer(d, k, style, true);
         break;
       case 'clang':
         this.tone(d, 'sine', 920, 880, 0.3, 0.3 * k);

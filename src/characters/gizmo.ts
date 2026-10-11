@@ -1,6 +1,7 @@
 import type { CharacterBehavior } from '../engine/behavior';
 import { parseMoves, validateReferences, type CharacterJson } from '../engine/moves';
 import type { CharacterData } from '../engine/types';
+import { applyMovePoses } from '../engine/movePoses';
 import { standardAnimations } from './common';
 import movesJson from './gizmo.moves.json';
 import fxJson from './gizmo.fx.json';
@@ -144,3 +145,5 @@ export const gizmo: CharacterData = {
   transform: { resource: 'mech', scale: MECH_SCALE, tint: 0xbfe0ff },
   behavior,
 };
+
+applyMovePoses(gizmo);

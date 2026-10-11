@@ -4,9 +4,12 @@ import type { World } from './world';
 
 /** Damage difference below which two simultaneous hits both land (a trade). */
 export const TRADE_THRESHOLD = 9;
-const HITLAG_BASE = 4;
+const HITLAG_BASE = 2;
 const HITLAG_PER_DAMAGE = 0.4;
-const HITLAG_MAX = 24;
+/** Extra freeze per damage above HEAVY_FREEZE_FROM: light hits stay snappy, heavy hits crunch. */
+const HEAVY_FREEZE_FROM = 8;
+const HEAVY_FREEZE_PER_DAMAGE = 0.35;
+const HITLAG_MAX = 28;
 const MAX_CANDIDATES = 16;
 
 interface Candidate {
@@ -200,7 +203,7 @@ export function deliverHit(world: World, d: HitDelivery): void {
   const midY = def.y - def.h / 2;
   const away: 1 | -1 = def.x === d.originX ? d.facing : def.x > d.originX ? 1 : -1;
   const direction: 1 | -1 = hb.dir === 'away' ? away : d.facing;
-  const hl = Math.round(Math.min(HITLAG_MAX, Math.floor(d.damage * HITLAG_PER_DAMAGE + HITLAG_BASE) * (hb.hitlag ?? 1)));
+  const hl = Math.round(Math.min(HITLAG_MAX, (d.damage * HITLAG_PER_DAMAGE + HITLAG_BASE + Math.max(0, d.damage - HEAVY_FREEZE_FROM) * HEAVY_FREEZE_PER_DAMAGE) * (hb.hitlag ?? 1)));
   const owner = d.freezeOwner === false ? null : atk;
 
   // --- perfect shield: a shield raised in the last few frames deflects the hit for free ---

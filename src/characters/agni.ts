@@ -1,6 +1,7 @@
 import type { CharacterBehavior } from '../engine/behavior';
 import { parseMoves, validateReferences, validateVariants, type CharacterJson } from '../engine/moves';
 import type { CharacterData } from '../engine/types';
+import { applyMovePoses } from '../engine/movePoses';
 import { DEALT_RATE, DECAY_DELAY, DECAY_RATE, FLAME_MAX, LEVEL_AT, TAKEN_RATE, levelDamageMult } from './agniFlame';
 import { standardAnimations } from './common';
 import movesJson from './agni.moves.json';
@@ -84,3 +85,5 @@ export const agni: CharacterData = {
   hud: { resource: 'flame', max: 100, color: 0xff7a2a, hotAt: 85, marks: [25, 55, 85] },
   behavior,
 };
+
+applyMovePoses(agni);

@@ -1,5 +1,6 @@
 import Phaser from 'phaser';
 import type { CharacterData, PlaceholderLook } from '../engine/types';
+import { buildKeys, type Key } from './poseTemplates';
 
 /**
  * Placeholder pixel-art generator (64x64 frames). Draws every animation frame with canvas rects and
@@ -22,6 +23,9 @@ interface Pose {
 }
 
 const REST: Pose = { bob: 0, crouch: 0, lean: 0, frontFoot: [4, 0], backFoot: [-4, 0], frontHand: [2, 0], backHand: [-2, 0] };
+
+/** Key poses of the move-specific animations (`mv_<id>`) of the character whose sheet is being drawn. */
+let moveKeys: Record<string, [Key, Key, Key]> = {};
 
 function poseFor(anim: string, f: number, frames: number): Pose {
   const p: Pose = { ...REST };
@@ -319,7 +323,7 @@ function attackPose(anim: string, f: number, p: Pose, frames = 3): void {
     shield: [[-2, 3, [10, -8], [4, -6], [5, 0], [-5, 0]]],
     dodge: [[-4, 8, [0, -2], [-2, 0], [6, 0], [-6, 0]]],
   };
-  const row = T[anim];
+  const row = moveKeys[anim] ?? T[anim];
   if (!row) return;
   if (frames >= 6 && row.length === 3) {
     // six frames from three key poses: wind-up, an exaggerated anticipation (pulls back past the wind-up), the fast
@@ -852,6 +856,8 @@ export function buildPlaceholderSheet(scene: Phaser.Scene, data: CharacterData):
   tmp.width = tmp.height = size;
   const tctx = tmp.getContext('2d', { willReadFrequently: true })!;
 
+  moveKeys = {};
+  for (const m of Object.values(data.moves)) if (m.pose) moveKeys[`mv_${m.id}`] = buildKeys(m.pose);
   names.forEach((name, row) => {
     const def = sprite.animations[name];
     for (let f = 0; f < def.frames; f++) {
