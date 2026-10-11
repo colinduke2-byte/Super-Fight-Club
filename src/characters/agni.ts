@@ -1,7 +1,7 @@
 import type { CharacterBehavior } from '../engine/behavior';
-import { parseMoves, validateReferences, type CharacterJson } from '../engine/moves';
+import { parseMoves, validateReferences, validateVariants, type CharacterJson } from '../engine/moves';
 import type { CharacterData } from '../engine/types';
-import { addFlame, decayFlame, flameFromDealt, flameFromTaken, flameLevel, levelDamageMult } from './agniFlame';
+import { DEALT_RATE, DECAY_DELAY, DECAY_RATE, FLAME_MAX, LEVEL_AT, TAKEN_RATE, levelDamageMult } from './agniFlame';
 import { standardAnimations } from './common';
 import movesJson from './agni.moves.json';
 import fxJson from './agni.fx.json';
@@ -14,33 +14,17 @@ const json = movesJson as unknown as CharacterJson;
 const moves = parseMoves(json as never, 'agni');
 validateReferences(moves, json.projectiles, json.deployables, 'agni');
 
-/** Specials whose behaviour depends on the current Flame level (variants are named `<slot>_<level>`). */
-const LEVELLED = new Set(['neutralB', 'sideB', 'upB', 'downB']);
+/** Specials (and the ultimate) whose version depends on the current Flame level: `<slot>_0..3`, picked by `res.level`. */
+const variants = Object.fromEntries(['neutralB', 'sideB', 'upB', 'downB', 'ultimate'].map((slot) => [slot, { key: 'level', ids: [0, 1, 2, 3].map((l) => `${slot}_${l}`) }]));
+validateVariants(variants, moves, 'agni');
 
 const behavior: CharacterBehavior = {
   onTick(f) {
-    f.res.quiet++;
-    f.res.flame = decayFlame(f.res.flame, f.res.quiet);
-    f.res.level = flameLevel(f.res.flame);
-    f.damageMult = levelDamageMult(f.res.level);
-  },
-  chooseMove(f, id) {
-    return LEVELLED.has(id) ? `${id}_${flameLevel(f.res.flame)}` : id;
-  },
-  remapMove(f, id) {
-    return id === 'ultimate' ? `ultimate_${flameLevel(f.res.flame)}` : id;
+    f.damageMult = levelDamageMult(f.res.level); // level is derived from the flame by the resource rule below
   },
   onMoveStart(f, m) {
     // the burst and the beam commit all the stored flame
     if (m.id.startsWith('downB_') || m.id.startsWith('ultimate_')) f.res.flame = 0;
-  },
-  onHitDealt(f, _victim, _hb, damage) {
-    f.res.flame = addFlame(f.res.flame, flameFromDealt(damage));
-    f.res.quiet = 0;
-  },
-  onHitTaken(f, _attacker, damage) {
-    f.res.flame = addFlame(f.res.flame, flameFromTaken(damage));
-    f.res.quiet = 0;
   },
 };
 
@@ -51,6 +35,8 @@ const behavior: CharacterBehavior = {
 export const agni: CharacterData = {
   id: 'agni',
   fx,
+  variants,
+  resourceRules: [{ key: 'flame', max: FLAME_MAX, gainDealt: DEALT_RATE, gainTaken: TAKEN_RATE, decayAfter: DECAY_DELAY, decayRate: DECAY_RATE, levels: { key: 'level', at: [...LEVEL_AT] } }],
   name: 'Agni',
   tagline: 'Fire-god brawler. Build the flame, spend it big.',
   persona: {

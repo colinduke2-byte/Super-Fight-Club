@@ -152,6 +152,7 @@ function applyHit(world: World, c: Candidate): void {
     def.y = atk.y;
     def.facing = (-atk.facing) as 1 | -1;
     world.emit('grab', def, def.x, midY, 0, 0);
+    atk.data.behavior?.onGrab?.(atk, def, world);
     if (hb.thenMove) atk.startMove(hb.thenMove, null, world); // command grab: slam straight away
     return;
   }
@@ -167,8 +168,10 @@ function applyHit(world: World, c: Candidate): void {
     def.receiveHit({ damage: c.damage, base: hb.base, scaling: hb.scaling, angle: hb.angle, direction, moveWeight: hb.weight, hitlag: 0, attackerId: atk.id, kbMult }, world);
     atk.grabTarget = -1;
     atk.gainMeter(c.damage, world);
+    atk.gainResourcesDealt(c.damage);
     atk.data.behavior?.onHitDealt?.(atk, def, hb, c.damage, world);
     world.emit('throw', def, def.x, midY, 0, c.damage);
+    atk.data.behavior?.onThrow?.(atk, def, world);
     return;
   }
 
@@ -210,6 +213,7 @@ export function deliverHit(world: World, d: HitDelivery): void {
       if (owner.grounded) owner.vx = -away * 2.2;
     }
     world.emit('parry', def, def.x, midY, def.shieldRadius, d.damage);
+    def.data.behavior?.onParry?.(def, atk, world);
     return;
   }
 
@@ -222,6 +226,7 @@ export function deliverHit(world: World, d: HitDelivery): void {
       if (owner.grounded) owner.vx = -away * 1.2;
     }
     world.emit('shieldHit', def, def.x, midY, def.shieldRadius, d.damage);
+    def.data.behavior?.onShieldHit?.(def, atk, d.damage, world);
     return;
   }
 
@@ -233,6 +238,7 @@ export function deliverHit(world: World, d: HitDelivery): void {
     if (owner) owner.hitlag = hl;
     def.lastHitBy = d.ownerId;
     def.gainMeterTaken(d.damage);
+    def.gainResourcesTaken(d.damage);
     def.data.behavior?.onHitTaken?.(def, atk, d.damage, world);
     world.emit('armorHit', def, def.x, midY, d.damage, d.damage);
     atk?.gainMeter(d.damage, world);
@@ -249,6 +255,7 @@ export function deliverHit(world: World, d: HitDelivery): void {
   if (owner) owner.hitlag = hl;
   if (atk) {
     atk.gainMeter(d.damage, world);
+    atk.gainResourcesDealt(d.damage);
     atk.data.behavior?.onHitDealt?.(atk, def, hb, d.damage, world);
   }
 }

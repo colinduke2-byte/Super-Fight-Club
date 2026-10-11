@@ -14,6 +14,7 @@ export function standardAnimations(extra: string[] = []): Record<string, AnimDef
     hurt: still(),
     down: still(),
     ko: still(),
+    walk: { frames: 6, fps: 7, loop: true },
     dash: { frames: 2, fps: 14, loop: true },
     skid: still(),
     roll: still(),

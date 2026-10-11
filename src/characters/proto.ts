@@ -69,6 +69,9 @@ export function makeProtoBase(): CharacterData {
   validateReferences(moves, protoJson.projectiles, protoJson.deployables, 'proto');
   return {
     ...brick,
+    resourceRules: undefined,
+    fx: undefined,
+    variants: undefined,
     id: 'proto',
     name: 'Proto',
     moves,

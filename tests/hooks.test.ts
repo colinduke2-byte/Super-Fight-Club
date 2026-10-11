@@ -1,4 +1,5 @@
 import { beforeEach, describe, expect, it } from 'vitest';
+import { brick } from '../src/characters/brick';
 import { Button, makeInput, type FighterInput } from '../src/engine/buttons';
 import { Fighter } from '../src/engine/fighter';
 import { parseMoves, validateReferences } from '../src/engine/moves';
@@ -488,6 +489,54 @@ describe('behavior hooks and resources', () => {
     expect(hookLog.hitTaken).toBe(1);
     expect(r.a.res.heat).toBe(5);
     expect(r.b.res.heat).toBe(0);
+  });
+
+  it('new lifecycle hooks fire: spawn, land, grab, throw, parry, shield hit, ledge grab, kill', () => {
+    const r = rig(26, true);
+    expect(hookLog.spawn).toBeGreaterThanOrEqual(2); // both fighters were spawned
+    // land: drop a fighter from the air
+    const before = hookLog.land;
+    r.a.y = -120;
+    r.a.grounded = false;
+    r.a.groundPlat = null;
+    r.a.setState('air');
+    r.run(60);
+    expect(hookLog.land).toBeGreaterThan(before);
+    // ledge grab
+    r.a.grabLedge(r.world.ledges[0], r.world);
+    expect(hookLog.ledge).toBe(1);
+    // kill credit: the victim leaves the blast zone with a last hitter
+    r.b.lastHitBy = 0;
+    r.b.x = r.world.blast.right + 100;
+    r.run(2);
+    expect(hookLog.kill).toBe(1);
+  });
+
+  it('grab, throw and shield hooks fire in combat', () => {
+    const data = { ...brick, resourceRules: undefined, behavior: { onGrab: () => void hookLog.grab++, onThrow: () => void hookLog.throw++, onShieldHit: () => void hookLog.shieldHit++, onParry: () => void hookLog.parry++ } };
+    const mk = (): { world: World; a: Fighter; b: Fighter } => {
+      const world = new World(sandboxStage);
+      const a = new Fighter(0, data);
+      const b = new Fighter(1, data);
+      world.addFighter(a);
+      world.addFighter(b);
+      a.spawn(-16, -1, 1);
+      b.spawn(16, -1, -1);
+      for (let i = 0; i < 125; i++) world.step([inp(), inp()]);
+      return { world, a, b };
+    };
+    const g = mk();
+    g.a.startMove('grab', null, g.world);
+    for (let i = 0; i < 16; i++) g.world.step([inp(), inp()]);
+    expect(hookLog.grab).toBe(1);
+    g.a.startMove('fthrow', null, g.world);
+    for (let i = 0; i < 30; i++) g.world.step([inp(), inp()]);
+    expect(hookLog.throw).toBeGreaterThanOrEqual(1);
+    const s = mk();
+    for (let i = 0; i < 12; i++) s.world.step([inp(), inp({ held: Button.Shield })]);
+    s.a.startMove('fsmash', null, s.world);
+    for (let i = 0; i < 40; i++) s.world.step([inp(), inp({ held: Button.Shield })]);
+    expect(hookLog.shieldHit + hookLog.parry).toBeGreaterThan(0);
   });
 
   it('custom move events call the behavior', () => {

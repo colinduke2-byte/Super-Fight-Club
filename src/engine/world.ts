@@ -41,6 +41,7 @@ export type WorldEventType =
   | 'meterFull'
   | 'fx'
   | 'parry'
+  | 'burst'
   | 'sdi'
   | 'trump'
   | 'hazardWarn'

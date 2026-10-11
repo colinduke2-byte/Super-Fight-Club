@@ -78,6 +78,18 @@ function poseFor(anim: string, f: number, frames: number): Pose {
       p.frontHand = [10, -8];
       p.backHand = [-10, -2];
       break;
+    case 'walk': {
+      // gentle stride: shorter steps than the run, upright, arms swinging lightly
+      const ph = (f / frames) * Math.PI * 2;
+      const sn = Math.sin(ph);
+      const cs = Math.cos(ph);
+      p.frontFoot = [Math.round(sn * 6), Math.max(0, Math.round(-cs * 3))];
+      p.backFoot = [-Math.round(sn * 6), Math.max(0, Math.round(cs * 3))];
+      p.bob = Math.abs(sn) > 0.7 ? 1 : 0;
+      p.frontHand = [-Math.round(sn * 3), -1];
+      p.backHand = [Math.round(sn * 3), -1];
+      break;
+    }
     case 'hurtL': // light flinch: a small recoil, still on both feet
       p.lean = -3;
       p.crouch = 1;

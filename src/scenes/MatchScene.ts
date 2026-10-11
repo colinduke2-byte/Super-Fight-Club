@@ -718,6 +718,13 @@ export class MatchScene extends Phaser.Scene {
         this.shake = Math.max(this.shake, 2);
         this.rumble(f, 0.3, 0.6, 70);
         break;
+      case 'burst':
+        e.ring(x, y, mag, 0xffe14a, 0.4);
+        e.flash(x, y, 2.5, 0xffffff);
+        e.burst(x, y, 20, 150, 0xffe14a, 0.4, 3);
+        this.shake = Math.max(this.shake, 6);
+        this.rumble(f, 0.6, 0.5, 120);
+        break;
       case 'sdi':
         e.burst(x, y, 3, 30, 0xffffff, 0.15, 2);
         break;

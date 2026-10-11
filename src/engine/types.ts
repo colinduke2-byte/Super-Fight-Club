@@ -157,6 +157,21 @@ export interface PlaceholderLook {
   extras?: ('scarf' | 'bracer' | 'cloak' | 'toolbox' | 'grapple' | 'sash')[];
 }
 
+/** A resource that fills from fighting and drains when idle, declared as data instead of hook code (Brick's Heat, Agni's Flame). */
+export interface ResourceRule {
+  key: string;
+  max: number;
+  /** Gain per point of damage dealt (hits under `minDealt` give nothing) / taken. */
+  gainDealt?: number;
+  minDealt?: number;
+  gainTaken?: number;
+  /** After `decayAfter` quiet frames (no hit dealt or taken) lose `decayRate` per frame. */
+  decayAfter?: number;
+  decayRate?: number;
+  /** Writes how many of the `at` thresholds the resource has reached into `res[key]`. */
+  levels?: { key: string; at: number[] };
+}
+
 /** Story-mode text for a character (intro card, line spoken as an opponent, ending). */
 export interface CharacterPersona {
   intro: string;
@@ -169,6 +184,13 @@ export interface CharacterData {
   /** Visual effects (recipes, auras, trails), see `fxTypes.ts`. Presentation only. */
   fx?: CharacterFx;
   persona?: CharacterPersona;
+  /**
+   * Move slots that resolve to a variant by a resource: `neutralB: { key: 'element', ids: ['neutralB_fire', ...] }` starts `ids[res.element]`
+   * (clamped). Any move id can be a key (specials, ultimate...). Replaces hand-written `chooseMove` hooks for the common case.
+   */
+  variants?: Record<string, { key: string; ids: string[] }>;
+  /** Declarative resource gain / decay / levels; run by the engine before behaviour hooks. */
+  resourceRules?: ResourceRule[];
   name: string;
   tagline: string;
   stats: CharacterStats;

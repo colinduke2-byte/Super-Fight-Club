@@ -264,3 +264,11 @@ export function validateReferences(moves: Record<string, MoveDef>, projectiles: 
     if (d.turret && !projectiles[d.turret.projectile]) throw new Error(`${owner}.${id}: turret uses unknown projectile '${d.turret.projectile}'`);
   }
 }
+
+/** Variant tables must point at real moves. */
+export function validateVariants(variants: Record<string, { key: string; ids: string[] }> | undefined, moves: Record<string, MoveDef>, owner = 'character'): void {
+  for (const [slot, v] of Object.entries(variants ?? {})) {
+    if (!v.key || v.ids.length === 0) throw new Error(`${owner}.variants.${slot}: needs a resource key and at least one move`);
+    for (const id of v.ids) if (!moves[id]) throw new Error(`${owner}.variants.${slot}: unknown move '${id}'`);
+  }
+}

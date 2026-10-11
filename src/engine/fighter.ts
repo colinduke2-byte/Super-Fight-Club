@@ -76,6 +76,18 @@ export const SDI_DIST = 5;
 export const SDI_MAX = 3;
 /** Repeated dodges (spot / roll / air) lose invincibility: stale count decays one step per DODGE_DECAY frames. */
 export const DODGE_DECAY = 90;
+/** Analog walk: stick tilts under this fraction walk at WALK_SPEED_FRAC of the run speed (scaled by tilt). */
+export const WALK_TILT = 0.55;
+export const WALK_SPEED_FRAC = 0.45;
+/** Wall cling (wall-jump characters): holding toward a wall slows the fall for up to this many frames. */
+export const WALL_CLING_FRAMES = 50;
+export const WALL_SLIDE_SPEED = 0.9;
+/** Burst (combo breaker): spend this much meter to escape a combo of at least BURST_MIN_HITS hits. */
+export const BURST_COST = 50;
+export const BURST_MIN_HITS = 4;
+export const BURST_RADIUS = 70;
+/** Damage percent at which ledge get-ups become slow (longer, less invincibility). */
+export const SLOW_GETUP_DAMAGE = 100;
 /** Knockback multiplier when hit while crouching on the ground. */
 export const CROUCH_CANCEL = 0.8;
 /** Gravity multiplier while launched (floaty launches: upward hits can actually reach the top blast zone). */
@@ -271,6 +283,9 @@ export class Fighter implements Body {
   /** One air dodge per airtime; wall jumps are limited too. */
   airDodgeUsed = false;
   wallJumps = 0;
+  private clingFrames = 0;
+  private climbDur = LEDGE_CLIMB_FRAMES;
+  private climbRoll = false;
   private wallSide = 0;
   private wallGrace = 0;
   private airDodgeDx = 0;
@@ -348,6 +363,7 @@ export class Fighter implements Body {
     this.startBottom = y;
     this.vx = this.vy = 0;
     this.facing = facing;
+    this.data.behavior?.onSpawn?.(this);
     this.staleQueue.fill(0);
     this.staleIdx = 0;
     this.comboHits = 0;
@@ -391,6 +407,7 @@ export class Fighter implements Body {
     this.boostFrames = 0;
     this.airDodgeUsed = false;
     this.wallJumps = 0;
+    this.clingFrames = 0;
     this.climbAttack = false;
     this.releaseLedge();
     this.invuln = 120;
@@ -406,7 +423,7 @@ export class Fighter implements Body {
         // braking after a run / dash: skid with the feet planted
         return Math.abs(this.vx) > 1.6 && this.grounded ? pick('skid', 'idle') : 'idle';
       case 'run':
-        return 'run';
+        return Math.abs(this.vx) < this.stats.runSpeed * 0.62 ? pick('walk', 'run') : 'run';
       case 'crouch':
       case 'jumpsquat':
       case 'landing':
@@ -479,6 +496,48 @@ export class Fighter implements Body {
     if (this.state === 'crouch' || this.state === 'jumpsquat') return this.h * 0.72 * this.sizeMul;
     if (this.state === 'downed' || this.state === 'shieldbreak') return this.h * 0.4 * this.sizeMul;
     return this.h * this.sizeMul;
+  }
+
+  /** Target ground speed for a stick tilt: gentle tilts walk, a firm push runs. */
+  private groundTarget(stickX: number): number {
+    const tilt = Math.abs(stickX);
+    const run = this.stats.runSpeed * this.speedMul;
+    if (tilt >= WALK_TILT) return Math.sign(stickX) * run;
+    return Math.sign(stickX) * (tilt / WALK_TILT) * run * WALK_SPEED_FRAC;
+  }
+
+  /** Declarative resources: quiet-time decay, clamping and level thresholds (every tick). */
+  private tickResources(): void {
+    const rules = this.data.resourceRules;
+    if (!rules) return;
+    const quiet = (this.res.quiet = (this.res.quiet ?? 0) + 1);
+    for (const r of rules) {
+      let v = this.res[r.key] ?? 0;
+      if (r.decayAfter !== undefined && quiet > r.decayAfter) v -= r.decayRate ?? 0;
+      v = Math.max(0, Math.min(r.max, v));
+      this.res[r.key] = v;
+      if (r.levels) {
+        let n = 0;
+        for (const t of r.levels.at) if (v >= t) n++;
+        this.res[r.levels.key] = n;
+      }
+    }
+  }
+
+  /** Called when this fighter deals `damage`: resources with a `gainDealt` fill. */
+  gainResourcesDealt(damage: number): void {
+    const rules = this.data.resourceRules;
+    if (!rules) return;
+    this.res.quiet = 0;
+    for (const r of rules) if (r.gainDealt && damage >= (r.minDealt ?? 0)) this.res[r.key] = Math.min(r.max, (this.res[r.key] ?? 0) + damage * r.gainDealt);
+  }
+
+  /** Called when this fighter takes `damage`: resources with a `gainTaken` fill. */
+  gainResourcesTaken(damage: number): void {
+    const rules = this.data.resourceRules;
+    if (!rules) return;
+    this.res.quiet = 0;
+    for (const r of rules) if (r.gainTaken) this.res[r.key] = Math.min(r.max, (this.res[r.key] ?? 0) + Math.max(0, damage) * r.gainTaken);
   }
 
   /** Braking strength on the surface under the feet (ice slides, sticky grips). */
@@ -686,6 +745,7 @@ export class Fighter implements Body {
     else this.hurtKind = 'hurt';
     this.hitlag = hit.hitlag ?? 0;
     this.gainMeterTaken(dealt, world);
+    this.gainResourcesTaken(dealt);
     world.emit('hit', this, this.x, this.y - this.h / 2, kb, dealt);
     this.data.behavior?.onHitTaken?.(this, hit.attackerId !== undefined ? (world.fighters[hit.attackerId] ?? null) : null, dealt, world);
   }
@@ -786,6 +846,7 @@ export class Fighter implements Body {
     }
     if (this.state !== 'shield' && this.state !== 'shieldstun' && this.shieldHP < SHIELD_MAX) this.shieldHP = Math.min(SHIELD_MAX, this.shieldHP + SHIELD_REGEN);
     this.trackSticks(inp);
+    this.tickResources();
     this.data.behavior?.onTick?.(this, world);
 
     switch (this.state) {
@@ -877,6 +938,7 @@ export class Fighter implements Body {
     this.ledgeGrabs = 0;
     this.airDodgeUsed = false;
     this.wallJumps = 0;
+    this.clingFrames = 0;
 
     let target = 0;
     if (this.state === 'landing' && this.stateFrame >= (this.lagFrames || LANDING_FRAMES)) {
@@ -913,7 +975,7 @@ export class Fighter implements Body {
         if (this.state !== 'crouch') this.setState('crouch');
         target = 0;
       } else {
-        target = inp.stickX * s.runSpeed * this.speedMul;
+        target = this.groundTarget(inp.stickX);
         if (Math.abs(inp.stickX) > TURN_THRESHOLD) this.facing = inp.stickX > 0 ? 1 : -1;
         const next = Math.abs(this.vx) > 0.3 || Math.abs(target) > 0.3 ? 'run' : 'idle';
         if (this.state !== next) this.setState(next);
@@ -971,7 +1033,7 @@ export class Fighter implements Body {
       }
       id = chosen;
     }
-    if (!this.data.moves[id]) return false;
+    if (!this.data.moves[this.resolveVariant(id)]) return false;
     this.buffer.consume(Button.Special);
     this.chargeButton = Button.Special; // chargeable specials hold on the Special button
     return this.startMove(id, inp, world);
@@ -1116,7 +1178,16 @@ export class Fighter implements Body {
   }
 
   // ---- moves ----------------------------------------------------------------------------------
+  /** Resolve a move slot to its resource-selected variant (see `CharacterData.variants`). */
+  resolveVariant(id: string): string {
+    const v = this.data.variants?.[id];
+    if (!v || v.ids.length === 0) return id;
+    const i = Math.max(0, Math.min(v.ids.length - 1, Math.floor(this.res[v.key] ?? 0)));
+    return v.ids[i];
+  }
+
   startMove(id: string, inp: FighterInput | null, world: World): boolean {
+    id = this.resolveVariant(id);
     let m = this.data.moves[id] ?? GENERIC_MOVES[id];
     if (!m && !this.data.behavior?.remapMove) return false;
     if (this.data.behavior?.remapMove) {
@@ -1335,6 +1406,7 @@ export class Fighter implements Body {
     this.lagFrames = auto ? 0 : (m.landingLag ?? 8);
     this.setState('landing');
     world.emit('land', this, this.x, this.y, this.impactVy, 0);
+    this.data.behavior?.onLand?.(this, this.impactVy, world);
   }
 
   // ---- shield / dodge / stun ------------------------------------------------------------------
@@ -1572,6 +1644,12 @@ export class Fighter implements Body {
     else this.vy += s.gravity;
     const maxFall = this.fastFalling ? s.fastFallSpeed : s.fallSpeed;
     if (this.vy > maxFall) this.vy = maxFall;
+    // wall cling: wall-jumpers holding toward a wall slide down slowly for a moment
+    if (this.data.wallJump && !this.helpless && this.wall !== 0 && inp.stickX * this.wall > 0.3 && this.vy > WALL_SLIDE_SPEED && this.clingFrames < WALL_CLING_FRAMES) {
+      this.clingFrames++;
+      this.vy = WALL_SLIDE_SPEED;
+      this.fastFalling = false;
+    }
 
     // air drift
     const target = inp.stickX * s.airSpeed * this.speedMul * (this.helpless ? HELPLESS_DRIFT : 1);
@@ -1600,6 +1678,10 @@ export class Fighter implements Body {
     if (!this.diDone && this.hitlag === 0) {
       this.diDone = true;
       this.applyDirectionalInfluence(inp);
+    }
+    if ((inp.pressed & Button.Ultimate) !== 0 && this.comboHits >= BURST_MIN_HITS && this.meter >= BURST_COST) {
+      this.burst(world);
+      return;
     }
     this.hitstun--;
     if (this.grounded) {
@@ -1655,6 +1737,24 @@ export class Fighter implements Body {
     const vy = this.vx * sn + this.vy * c;
     this.vx = vx;
     this.vy = vy;
+  }
+
+  /** Combo breaker: spend meter to shrug off a long combo, shove nearby enemies away and gain a moment of invincibility. */
+  private burst(world: World): void {
+    this.meter -= BURST_COST;
+    this.comboHits = 0;
+    this.comboIdle = COMBO_GAP;
+    this.hitstun = 0;
+    this.vx = this.vy = 0;
+    this.invuln = Math.max(this.invuln, 22);
+    this.setState(this.grounded ? 'idle' : 'air');
+    for (const o of world.fighters) {
+      if (o === this || o.state === 'ko' || world.allied(this.id, o.id)) continue;
+      if (Math.hypot(o.x - this.x, o.y - o.h / 2 - (this.y - this.h / 2)) > BURST_RADIUS || o.invuln > 0) continue;
+      const dir: 1 | -1 = o.x >= this.x ? 1 : -1;
+      o.receiveHit({ damage: 0, base: 40, scaling: 0, angle: 40, direction: dir, hitlag: 6, attackerId: this.id }, world);
+    }
+    world.emit('burst', this, this.x, this.y - this.h / 2, BURST_RADIUS, 0);
   }
 
   private resolveImpacts(inp: FighterInput, world: World): void {
@@ -1714,6 +1814,7 @@ export class Fighter implements Body {
       this.setState('air');
     }
     world.emit('tech', this, this.x, this.y - this.h / 2, 0, 0);
+    this.data.behavior?.onTech?.(this, world);
   }
 
   // ---- ledge ----------------------------------------------------------------------------------
@@ -1747,6 +1848,7 @@ export class Fighter implements Body {
     this.climbAttack = false;
     this.airDodgeUsed = false;
     this.wallJumps = 0;
+    this.clingFrames = 0;
     l.occupant = this.id;
     this.ledgeGrabs++;
     this.ledgeFrames = 0;
@@ -1760,6 +1862,7 @@ export class Fighter implements Body {
     this.invuln = Math.max(0, LEDGE_BASE_INVULN - LEDGE_INVULN_LOSS_PER_GRAB * (this.ledgeGrabs - 1));
     this.setState('ledge');
     world.emit('ledgeGrab', this, this.x, this.y, 0, 0);
+    this.data.behavior?.onLedgeGrab?.(this, world);
   }
 
   private releaseLedge(): void {
@@ -1783,25 +1886,42 @@ export class Fighter implements Body {
 
     if (this.buffer.consume(Button.Attack)) {
       this.climbAttack = true;
-      this.climbFromX = this.x;
-      this.climbFromY = this.y;
-      this.invuln = Math.max(this.invuln, LEDGE_CLIMB_FRAMES + 2);
-      this.setState('ledgeClimb');
+      this.startClimb(false);
+    } else if (this.buffer.consume(Button.Shield)) {
+      this.startClimb(true); // ledge roll: a longer, fully invincible get-up
+    } else if (this.buffer.has(Button.Jump) && toward > 0.4) {
+      // ledge hop: a hop up and over onto the stage
+      this.buffer.consume(Button.Jump);
+      this.releaseLedge();
+      this.grabCooldown = LEDGE_REGRAB_COOLDOWN;
+      this.vy = -Math.sqrt(2 * this.stats.gravity * this.stats.jumpHeight * 0.8);
+      this.vx = -l.side * this.stats.airSpeed * 1.1;
+      this.facing = (-l.side) as 1 | -1;
+      this.setState('air');
+      world.emit('jump', this, this.x, this.y, 0, 0);
     } else if (this.buffer.consume(Button.Jump)) {
       this.releaseLedge();
       this.grabCooldown = LEDGE_REGRAB_COOLDOWN;
       this.vy = -Math.sqrt(2 * this.stats.gravity * this.stats.jumpHeight * 0.9);
-      this.vx = -l.side * this.stats.airSpeed * 0.6;
+      this.vx = -l.side * this.stats.airSpeed * 0.2; // a neutral ledge jump goes almost straight up; hold toward the stage to hop over
       this.setState('air');
       world.emit('jump', this, this.x, this.y, 0, 0);
     } else if (inp.stickY < STICK_UP || toward > 0.6) {
-      this.climbFromX = this.x;
-      this.climbFromY = this.y;
-      this.invuln = Math.max(this.invuln, LEDGE_CLIMB_FRAMES + 2);
-      this.setState('ledgeClimb');
+      this.startClimb(false);
     } else if (inp.stickY > STICK_DOWN || toward < -0.6) {
       this.dropFromLedge();
     }
+  }
+
+  /** Begin the get-up. Damaged fighters (>= SLOW_GETUP_DAMAGE) climb slowly with less invincibility; a roll is longer but safer. */
+  private startClimb(roll: boolean): void {
+    const slow = this.damage >= SLOW_GETUP_DAMAGE;
+    this.climbRoll = roll;
+    this.climbDur = LEDGE_CLIMB_FRAMES + (slow ? 10 : 0) + (roll ? 6 : 0);
+    this.climbFromX = this.x;
+    this.climbFromY = this.y;
+    this.invuln = Math.max(this.invuln, this.climbDur + 2 - (slow ? 8 : 0));
+    this.setState('ledgeClimb');
   }
 
   /** Knocked off the ledge by another fighter grabbing it: fall away from the stage and lose the regrab for a moment. */
@@ -1825,8 +1945,8 @@ export class Fighter implements Body {
 
   private climbLogic(world: World): void {
     const l = this.ledge!;
-    const t = Math.min(1, this.stateFrame / LEDGE_CLIMB_FRAMES);
-    const tx = l.x - l.side * (this.hw + 2);
+    const t = Math.min(1, this.stateFrame / this.climbDur);
+    const tx = l.x - l.side * (this.hw + 2 + (this.climbRoll ? 26 : 0));
     const ty = l.y;
     if (t < 0.5) {
       this.x = this.climbFromX;
@@ -1865,6 +1985,7 @@ export class Fighter implements Body {
         this.fastFalling = false;
         this.ledgeGrabs = 0;
         world.emit('land', this, this.x, this.y, this.impactVy, 0);
+        this.data.behavior?.onLand?.(this, this.impactVy, world);
       } else if (this.state === 'attack') {
         this.jumpsLeft = this.stats.doubleJumps;
         this.fastFalling = false;
@@ -1897,6 +2018,7 @@ export class Fighter implements Body {
       this.state = 'ko';
       this.stateFrame = 0;
       world.emit('ko', this, this.x, this.y, Math.hypot(this.vx, this.vy), this.lastHitBy);
+      if (this.lastHitBy >= 0 && this.lastHitBy !== this.id) world.fighters[this.lastHitBy]?.data.behavior?.onKill?.(world.fighters[this.lastHitBy], this, world);
     }
   }
 }

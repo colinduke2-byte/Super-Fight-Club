@@ -1,5 +1,5 @@
 import type { CharacterBehavior } from '../engine/behavior';
-import { parseMoves, validateReferences, type CharacterJson } from '../engine/moves';
+import { parseMoves, validateReferences, validateVariants, type CharacterJson } from '../engine/moves';
 import type { CharacterData } from '../engine/types';
 import { standardAnimations } from './common';
 import movesJson from './nova.moves.json';
@@ -31,11 +31,6 @@ const behavior: CharacterBehavior = {
     const m = f.move;
     f.damageMult = m && ELEMENTAL_MOVES.has(m.id) ? ELEMENT_DAMAGE[f.res.element] : 1;
   },
-  /** Neutral and side special change behaviour with the element. */
-  chooseMove(f, id) {
-    if (id === 'neutralB' || id === 'sideB') return `${id}_${ELEMENTS[f.res.element]}`;
-    return id;
-  },
   onMoveEvent(f, name) {
     if (name === 'cycle') f.res.element = nextElement(f.res.element);
   },
@@ -57,6 +52,11 @@ const behavior: CharacterBehavior = {
 
 const moves = parseMoves(json as never, 'nova');
 validateReferences(moves, json.projectiles, json.deployables, 'nova');
+const variants = {
+  neutralB: { key: 'element', ids: ELEMENTS.map((e) => `neutralB_${e}`) },
+  sideB: { key: 'element', ids: ELEMENTS.map((e) => `sideB_${e}`) },
+};
+validateVariants(variants, moves, 'nova');
 
 /**
  * Nova: spell-slinging zoner. Controls space with elemental projectiles and traps; weak up close.
@@ -65,6 +65,7 @@ validateReferences(moves, json.projectiles, json.deployables, 'nova');
 export const nova: CharacterData = {
   id: 'nova',
   fx,
+  variants,
   name: 'Nova',
   tagline: 'Spell-slinging zoner. Fire, ice, lightning.',
   persona: {

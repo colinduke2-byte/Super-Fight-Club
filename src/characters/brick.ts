@@ -4,7 +4,7 @@ import type { CharacterData } from '../engine/types';
 import movesJson from './brick.moves.json';
 import fxJson from './brick.fx.json';
 import { validateFx, type CharacterFx } from '../engine/fxTypes';
-import { addHeat, decayHeat, HEAT_DAMAGE_BONUS, heatFromDealt, heatFromTaken, isHot, ventPower } from './brickHeat';
+import { DEALT_RATE, DECAY_DELAY, DECAY_RATE, HEAT_DAMAGE_BONUS, HEAT_MAX, HEAVY_HIT, isHot, TAKEN_RATE, ventPower } from './brickHeat';
 
 const fx = fxJson as unknown as CharacterFx;
 validateFx('brick', fx);
@@ -54,6 +54,7 @@ export const brick: CharacterData = {
       hurt: { frames: 1, fps: 1, loop: false },
       down: { frames: 1, fps: 1, loop: false },
       ko: { frames: 1, fps: 1, loop: false },
+      walk: { frames: 6, fps: 7, loop: true },
       dash: { frames: 2, fps: 14, loop: true },
       skid: { frames: 1, fps: 1, loop: false },
       roll: { frames: 1, fps: 1, loop: false },
@@ -98,6 +99,7 @@ export const brick: CharacterData = {
   },
   moves: parseMoves(movesJson as never, 'brick'),
   resources: { heat: 0, quiet: 0, ventDmg: 1, ventKb: 1 },
+  resourceRules: [{ key: 'heat', max: HEAT_MAX, gainDealt: DEALT_RATE, minDealt: HEAVY_HIT, gainTaken: TAKEN_RATE, decayAfter: DECAY_DELAY, decayRate: DECAY_RATE }],
   ultimate: { cost: 100, gainDealt: 0.2, gainTaken: 0.35 },
   hud: { resource: 'heat', max: 100, color: 0xff7a2a, hotAt: 50 },
   behavior: undefined as unknown as CharacterBehavior,
@@ -107,8 +109,6 @@ validateReferences(brick.moves, undefined, undefined, 'brick');
 /** Heat: see brickHeat.ts for the numbers. State lives in `fighter.res` so it is deterministic and hashed. */
 const heatBehavior: CharacterBehavior = {
   onTick(f) {
-    f.res.quiet++;
-    f.res.heat = decayHeat(f.res.heat, f.res.quiet);
     const m = f.move;
     const smash = m?.kind === 'smash';
     const hot = isHot(f.res.heat);
@@ -126,15 +126,6 @@ const heatBehavior: CharacterBehavior = {
       f.res.ventKb = p.kbMult;
       f.res.heat = 0;
     }
-  },
-  onHitDealt(f, _victim, _hb, damage) {
-    const g = heatFromDealt(damage);
-    if (g > 0) f.res.heat = addHeat(f.res.heat, g);
-    f.res.quiet = 0;
-  },
-  onHitTaken(f, _attacker, damage) {
-    f.res.heat = addHeat(f.res.heat, heatFromTaken(damage));
-    f.res.quiet = 0;
   },
 };
 brick.behavior = heatBehavior;

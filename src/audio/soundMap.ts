@@ -84,6 +84,8 @@ export function soundFor(type: WorldEventType, mag: number, extra: number): Soun
       return { name: 'ding', intensity: 0.6 };
     case 'parry':
       return { name: 'parry', intensity: 0.9 };
+    case 'burst':
+      return { name: 'boom', intensity: 0.8 };
     case 'trump':
       return { name: 'ledge', intensity: 0.8 };
     case 'sdi':

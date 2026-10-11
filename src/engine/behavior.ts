@@ -18,6 +18,21 @@ export interface CharacterBehavior {
   onHitDealt?(f: Fighter, victim: Fighter, hb: HitboxDef, damage: number, world: World): void;
   /** `f` took a hit (attacker is null for projectiles whose owner is gone). */
   onHitTaken?(f: Fighter, attacker: Fighter | null, damage: number, world: World): void;
+  /** `f` knocked `victim` out (the last fighter to hit them). */
+  onKill?(f: Fighter, victim: Fighter, world: World): void;
+  /** `f` landed on the ground from the air (`speed` = impact speed). */
+  onLand?(f: Fighter, speed: number, world: World): void;
+  onLedgeGrab?(f: Fighter, world: World): void;
+  onTech?(f: Fighter, world: World): void;
+  /** `f` perfect-shielded a hit from `attacker`. */
+  onParry?(f: Fighter, attacker: Fighter | null, world: World): void;
+  /** `f` blocked a hit with its shield. */
+  onShieldHit?(f: Fighter, attacker: Fighter | null, damage: number, world: World): void;
+  /** `f` grabbed / threw `victim`. */
+  onGrab?(f: Fighter, victim: Fighter, world: World): void;
+  onThrow?(f: Fighter, victim: Fighter, world: World): void;
+  /** `f` was placed on the stage (match start or respawn). */
+  onSpawn?(f: Fighter): void;
   /** One of f's deployables was destroyed by an enemy attack. */
   onDeployableDestroyed?(f: Fighter, id: string, world: World): void;
   /**
