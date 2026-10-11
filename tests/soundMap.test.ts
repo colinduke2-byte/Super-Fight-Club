@@ -1,8 +1,8 @@
 import { describe, expect, it } from 'vitest';
-import { soundFor } from '../src/audio/soundMap';
+import { hitLayer, soundFor } from '../src/audio/soundMap';
 import type { WorldEventType } from '../src/engine/world';
 
-const ALL: WorldEventType[] = ['jump', 'doubleJump', 'land', 'landBounce', 'hit', 'armorHit', 'shieldHit', 'shieldBreak', 'bounce', 'tech', 'ledgeGrab', 'dodge', 'grab', 'pummel', 'throw', 'moveStart', 'trade', 'projectile', 'projectileHit', 'reflect', 'deploy', 'deployableTrigger', 'deployableDestroyed', 'status', 'teleport', 'tether', 'cinematicStart', 'cinematicHit', 'cinematicEnd', 'meterFull', 'ko'];
+const ALL: WorldEventType[] = ['jump', 'doubleJump', 'land', 'landBounce', 'hit', 'armorHit', 'shieldHit', 'shieldBreak', 'bounce', 'tech', 'ledgeGrab', 'dodge', 'grab', 'pummel', 'throw', 'moveStart', 'trade', 'projectile', 'projectileHit', 'reflect', 'deploy', 'deployableTrigger', 'deployableDestroyed', 'status', 'teleport', 'tether', 'cinematicStart', 'cinematicHit', 'cinematicEnd', 'meterFull', 'ko', 'parry', 'trump', 'sdi'];
 
 describe('sound mapping', () => {
   it('every gameplay event maps to a cue with intensity in range (or is intentionally silent)', () => {
@@ -22,6 +22,16 @@ describe('sound mapping', () => {
     expect(heavy.intensity).toBeGreaterThan(light.intensity);
     expect(light.name).toBe('hit');
     expect(heavy.name).toBe('hitHeavy');
+  });
+
+  it('hit layers differ by element and only heavy moves get a thud', () => {
+    expect(hitLayer('fire', 50, 8)!.name).toBe('burn');
+    expect(hitLayer('zap', 50, 8)!.name).toBe('zap');
+    expect(hitLayer('ice', 50, 8)!.name).toBe('freeze');
+    expect(hitLayer('meteor', 50, 12)!.name).toBe('boom');
+    expect(hitLayer('meteor', 50, 3)).toBeNull();
+    expect(hitLayer('punch', 50, 8)).toBeNull();
+    expect(soundFor('parry', 0, 0)!.name).toBe('parry');
   });
 
   it('soft landings are silent, hard landings are not', () => {

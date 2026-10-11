@@ -54,7 +54,7 @@ describe('Scrap economy (pure)', () => {
 
 describe('Gizmo identity', () => {
   it('is mid-weight with a single double jump and a small low-profile hurtbox', () => {
-    expect(gizmo.stats.weight).toBe(84);
+    expect(gizmo.stats.weight).toBe(88);
     expect(gizmo.stats.doubleJumps).toBe(1);
     expect(gizmo.body.height).toBeLessThan(brick.body.height);
     expect(gizmo.body.height).toBeLessThan(24);

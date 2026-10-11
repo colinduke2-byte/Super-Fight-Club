@@ -1,4 +1,4 @@
-import { MAX_GROUPS, GRAB_DISTANCE, type Fighter } from './fighter';
+import { MAX_GROUPS, GRAB_DISTANCE, PARRY_HITLAG, type Fighter } from './fighter';
 import { hitboxEnd, hitboxStart, type HitboxDef, type MoveDef } from './moves';
 import type { World } from './world';
 
@@ -95,7 +95,7 @@ export function resolveCombat(world: World): void {
           c.def = def;
           c.hb = hb;
           c.move = m;
-          c.damage = hb.damage * atk.outMul * damageCharge(atk, m);
+          c.damage = hb.damage * atk.outMul * atk.moveStale * damageCharge(atk, m);
           c.alive = true;
         }
         break; // first overlapping hitbox in the list has priority
@@ -133,6 +133,7 @@ function applyHit(world: World, c: Candidate): void {
   const g = hb.group ?? 0;
   atk.hitMask[def.id] |= 1 << g;
   if (hb.rehit) atk.rehit[def.id * MAX_GROUPS + g] = hb.rehit;
+  if (!atk.moveHit) atk.pushStale(move.id); // stale-move negation: the move connected
   atk.moveHit = true;
   const midY = def.y - def.h / 2;
 
@@ -156,7 +157,7 @@ function applyHit(world: World, c: Candidate): void {
   }
 
   const away: 1 | -1 = def.x === atk.x ? atk.facing : def.x > atk.x ? 1 : -1;
-  const kbMult = (move.charge ? 1 + ((move.charge.kbMult ?? 1) - 1) * atk.chargeFrac : 1) * atk.kbMult;
+  const kbMult = (move.charge ? 1 + ((move.charge.kbMult ?? 1) - 1) * atk.chargeFrac : 1) * atk.kbMult * atk.rage;
 
   // --- throws: victim is already held; release and launch ---
   if (hb.throw) {
@@ -198,6 +199,19 @@ export function deliverHit(world: World, d: HitDelivery): void {
   const direction: 1 | -1 = hb.dir === 'away' ? away : d.facing;
   const hl = Math.round(Math.min(HITLAG_MAX, Math.floor(d.damage * HITLAG_PER_DAMAGE + HITLAG_BASE) * (hb.hitlag ?? 1)));
   const owner = d.freezeOwner === false ? null : atk;
+
+  // --- perfect shield: a shield raised in the last few frames deflects the hit for free ---
+  if (def.state === 'shield' && def.parryFrames > 0 && !hb.unblockable) {
+    def.parryCount++;
+    def.hitlag = 2;
+    def.vx = 0;
+    if (owner) {
+      owner.hitlag = hl + PARRY_HITLAG;
+      if (owner.grounded) owner.vx = -away * 2.2;
+    }
+    world.emit('parry', def, def.x, midY, def.shieldRadius, d.damage);
+    return;
+  }
 
   // --- shield ---
   if ((def.state === 'shield' || def.state === 'shieldstun') && !hb.unblockable) {

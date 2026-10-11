@@ -357,6 +357,28 @@ Each special has a variant per level (`neutralB_0..3`, ...), picked when you pre
   (fire orange, lightning yellow, ice blue, blast, shock).
 - Other movement poses: `dash` (two-stride loop), `skid` (braking), `roll`, `held` (dangling in a grab).
 
+## Phase 16-17: content foundations and deeper mechanics
+
+**Data-driven effects.** Every character's visuals beyond the sprite live in `src/characters/<id>.fx.json` (named recipes for move events,
+per-tick rules for auras / trails / charge effects, trail colour, cinematic hit effects), interpreted by `src/fx/runner.ts` with a shared
+library in `src/fx/library.ts`. Story text lives in the character's `persona`. A guard test fails if shared code branches on a character id.
+`validateFx` / `validateStage`, the conformance suite (`tests/content.test.ts`), the all-lineups soak test and the kill-percent test
+(`docs/kill-percents.md`) check new content automatically. See `docs/CONTENT-GUIDE.md`.
+
+**New mechanics** (all deterministic, all tested in `tests/mechanics17.test.ts`):
+- **Perfect shield:** a shield raised in the last 4 frames before a hit deflects it for free and freezes the attacker 10 extra frames
+  (Hard CPUs time their shields for it). Dropping the shield locks it out for 6 frames (no shield mashing).
+- **Out of shield:** Attack + up = up smash, Smash = smash by stick direction, any special, or jump-cancelled grab.
+- **Dodge staleness:** repeated spot dodges / rolls / air dodges lose invincibility frames; it recovers after 1.5 s of not dodging.
+- **Stale-move negation:** each of the last 9 connecting moves that repeats costs 4.5% damage. **Rage:** up to +10% knockback for attackers
+  at high percent. **Combo scaling:** each further hit of a combo deals 3% less damage (floor 65%) and shortens hitstun; a "N HITS"
+  counter shows on the victim from 3 hits.
+- **Hitlag SDI:** stick flicks during hit-stop nudge the victim 5 px (up to 3 times per hit).
+- **Ledge trump:** grabbing an occupied ledge knocks the hanging fighter off. **Moving platforms** pass their motion on when you jump.
+- **Stage surfaces:** `surface: 'ice' | 'sticky' | 'conveyor' | 'bouncy'` on a platform (+ `conveyor` speed) changes friction, carries
+  fighters, or makes launched fighters rebound harder.
+- **Audio:** hit sounds are layered by the hit's element (fire / lightning / ice / heavy thud), plus a parry ping and ledge-trump cue.
+
 ## Add a character
 
 1. Create `src/characters/<id>.ts` exporting a `CharacterData` (copy `brick.ts`): stats, body size,
@@ -391,8 +413,8 @@ did find real bugs (simultaneous cinematic grabs and a KO'd grabber could leave 
 were clearly too strong: ultimate meter gain was roughly halved (about one ultimate per fighter per match), Brick's up / down smashes
 and forward smash are slower. The Phase 15 pass (five fighters) compressed the weights (Brick 106, Vex 104, Nova 100, Agni 96, Gizmo 88
 instead of 125 / 80 / 90 / n/a / 95: weight was by far the strongest lever and made Brick unbeatable and Vex unwinnable), raised Vex's
-damage by 25% and Nova's fire / ice bolts by 25%, and slowed Gizmo's turrets and Mech punches. Hard CPUs now sit at roughly 39-58%
-(Brick 50, Vex 39, Nova 47, Gizmo 58, Agni 56). Real balance needs your hands-on feedback.
+damage by 25% and Nova's fire / ice bolts by 25%, and slowed Gizmo's turrets and Mech punches. Hard CPUs now sit at roughly 45-55%
+(Brick 48, Vex 45, Nova 55, Gizmo 48, Agni 54 after the Phase 17 retune; weights are now Brick 114, Vex 106, Nova 100, Agni 92, Gizmo 88). Real balance needs your hands-on feedback.
 
 ## Roadmap
 

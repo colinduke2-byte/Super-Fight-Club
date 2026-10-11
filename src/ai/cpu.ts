@@ -65,6 +65,8 @@ export class CpuController implements Controller {
   private thinkLeft = 0;
   private threatFrames = 0;
   private shieldHold = 0;
+  /** Consecutive ticks spent waiting to time a perfect shield (capped so a lingering threat cannot freeze the CPU). */
+  private parryWait = 0;
   private episode: RecoveryEpisode | null = null;
   private readonly rec: RecoveryOut = { sx: 0, sy: 0, jump: false, special: false, steering: false };
   private cooldown: Record<string, number> = {};
@@ -470,6 +472,12 @@ export class CpuController implements Controller {
       this.sx = -away;
       return true;
     }
+    // sharp CPUs time the shield so it comes up just before the hit (a perfect shield) instead of raising it early
+    if (this.params.smart && this.params.defend >= 0.9 && !th.proj && th.eta > 4 && th.eta <= 12 && self.shieldCooldown === 0 && this.parryWait < 6 && this.rnd() < 0.8) {
+      this.parryWait++;
+      return true;
+    }
+    this.parryWait = 0;
     this.held |= Button.Shield;
     this.shieldHold = 8;
     return true;

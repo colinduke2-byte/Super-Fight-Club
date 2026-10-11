@@ -7,49 +7,49 @@ The CPU plays some characters better than others, so read this as a smoke test f
 
 | pairing | wins |
 |---|---|
-| brick vs vex | 4 - 20 |
-| brick vs nova | 14 - 10 |
-| brick vs gizmo | 12 - 12 |
-| brick vs agni | 18 - 6 |
-| vex vs nova | 0 - 24 |
-| vex vs gizmo | 7 - 17 |
-| vex vs agni | 10 - 14 |
-| nova vs gizmo | 5 - 19 |
-| nova vs agni | 6 - 18 |
+| brick vs vex | 7 - 17 |
+| brick vs nova | 13 - 11 |
+| brick vs gizmo | 16 - 8 |
+| brick vs agni | 10 - 14 |
+| vex vs nova | 3 - 21 |
+| vex vs gizmo | 8 - 14 |
+| vex vs agni | 14 - 10 |
+| nova vs gizmo | 8 - 15 |
+| nova vs agni | 12 - 12 |
 | gizmo vs agni | 8 - 16 |
 
 | fighter | win rate | ultimates used per match |
 |---|---|---|
-| brick | 50% | 1.24 |
-| vex | 39% | 1.28 |
-| nova | 47% | 1.57 |
-| gizmo | 58% | 1.69 |
-| agni | 56% | 1.59 |
+| brick | 48% | 1.36 |
+| vex | 45% | 1.78 |
+| nova | 55% | 1.98 |
+| gizmo | 48% | 2.05 |
+| agni | 54% | 1.90 |
 
-Mean match length: 94 s
+Mean match length: 133 s
 
 ## Level 2
 
 | pairing | wins |
 |---|---|
-| brick vs vex | 14 - 10 |
-| brick vs nova | 16 - 8 |
-| brick vs gizmo | 21 - 3 |
-| brick vs agni | 19 - 5 |
-| vex vs nova | 3 - 21 |
-| vex vs gizmo | 9 - 15 |
-| vex vs agni | 8 - 16 |
-| nova vs gizmo | 11 - 13 |
-| nova vs agni | 8 - 16 |
-| gizmo vs agni | 10 - 14 |
+| brick vs vex | 9 - 8 |
+| brick vs nova | 10 - 14 |
+| brick vs gizmo | 18 - 6 |
+| brick vs agni | 17 - 7 |
+| vex vs nova | 8 - 15 |
+| vex vs gizmo | 9 - 10 |
+| vex vs agni | 14 - 7 |
+| nova vs gizmo | 13 - 10 |
+| nova vs agni | 10 - 14 |
+| gizmo vs agni | 5 - 19 |
 
 | fighter | win rate | ultimates used per match |
 |---|---|---|
-| brick | 73% | 1.28 |
-| vex | 31% | 1.74 |
-| nova | 50% | 1.54 |
-| gizmo | 43% | 1.57 |
-| agni | 53% | 1.69 |
+| brick | 61% | 1.61 |
+| vex | 49% | 2.40 |
+| nova | 55% | 1.99 |
+| gizmo | 34% | 2.09 |
+| agni | 51% | 2.09 |
 
-Mean match length: 103 s
+Mean match length: 148 s
 

@@ -3,7 +3,7 @@ import type { WorldEventType } from '../engine/world';
 export type SoundName =
   | 'swing' | 'hit' | 'hitHeavy' | 'clang' | 'shield' | 'shieldBreak' | 'jump' | 'doubleJump' | 'land' | 'landBounce'
   | 'bounce' | 'tech' | 'ledge' | 'dodge' | 'grab' | 'throw' | 'pummel' | 'ko' | 'shoot' | 'zap' | 'reflect' | 'place'
-  | 'boom' | 'break' | 'burn' | 'freeze' | 'slow' | 'stun' | 'blink' | 'hook' | 'charge' | 'ding' | 'menuMove' | 'menuOk' | 'menuBack';
+  | 'parry' | 'boom' | 'break' | 'burn' | 'freeze' | 'slow' | 'stun' | 'blink' | 'hook' | 'charge' | 'ding' | 'menuMove' | 'menuOk' | 'menuBack';
 
 export interface SoundCue {
   name: SoundName;
@@ -82,6 +82,36 @@ export function soundFor(type: WorldEventType, mag: number, extra: number): Soun
       return { name: 'hitHeavy', intensity: mag > 0 ? 1 : 0.7 };
     case 'meterFull':
       return { name: 'ding', intensity: 0.6 };
+    case 'parry':
+      return { name: 'parry', intensity: 0.9 };
+    case 'trump':
+      return { name: 'ledge', intensity: 0.8 };
+    case 'sdi':
+      return null;
+    default:
+      return null;
+  }
+}
+
+/**
+ * Extra sound layered on top of a hit's base cue, chosen by the hit's `fx` tag (the element / flavour of the move),
+ * so fire, lightning, ice and spikes sound different without every move needing its own sample.
+ */
+export function hitLayer(fx: string, mag: number, damage: number): SoundCue | null {
+  const intensity = clamp(0.35 + damage / 30 + mag / 600, 0.3, 0.9);
+  switch (fx) {
+    case 'fire':
+      return { name: 'burn', intensity };
+    case 'zap':
+      return { name: 'zap', intensity };
+    case 'ice':
+      return { name: 'freeze', intensity: intensity * 0.8 };
+    case 'meteor':
+    case 'blast':
+    case 'heavy':
+      return damage >= 9 ? { name: 'boom', intensity: intensity * 0.7 } : null;
+    case 'shock':
+      return { name: 'bounce', intensity };
     default:
       return null;
   }

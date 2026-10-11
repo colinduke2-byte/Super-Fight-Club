@@ -20,6 +20,8 @@ export function validateStage(s: StageData): void {
     const y0 = p.y - (p.move?.axis === 'y' ? amp : 0);
     const y1 = p.y + p.h + (p.move?.axis === 'y' ? amp : 0);
     if (x0 <= b.left || x1 >= b.right || y0 <= b.top || y1 >= b.bottom) fail(`platform ${i} reaches outside the blast zones`);
+    if (p.surface === 'conveyor' && !p.conveyor) fail(`platform ${i}: conveyor surfaces need a conveyor speed`);
+    if (p.conveyor && p.surface !== 'conveyor') fail(`platform ${i}: conveyor speed without a conveyor surface`);
     if (p.move && (p.move.period <= 0 || amp <= 0)) fail(`platform ${i}: bad motion`);
   });
   if (s.spawns.length < 4) fail('needs 4 spawn points');

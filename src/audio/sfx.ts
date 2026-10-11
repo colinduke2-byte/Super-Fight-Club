@@ -139,6 +139,11 @@ export class Sfx {
         this.tone(d, 'sine', 1380, 1330, 0.22, 0.22 * k);
         this.noiseBurst(d, 'highpass', 5000, 3000, 0.05, 0.25 * k);
         break;
+      case 'parry':
+        this.tone(d, 'sine', 1500, 1100, 0.16, 0.35 * k);
+        this.tone(d, 'sine', 2250, 1700, 0.12, 0.22 * k, 0.02);
+        this.noiseBurst(d, 'highpass', 6000, 4000, 0.04, 0.3 * k);
+        break;
       case 'shield':
         this.tone(d, 'triangle', 520, 300, 0.14, 0.35 * k);
         this.noiseBurst(d, 'bandpass', 3000, 1500, 0.06, 0.2 * k);

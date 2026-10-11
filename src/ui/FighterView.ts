@@ -17,6 +17,8 @@ export class FighterView {
   private readonly shadow: Phaser.GameObjects.Image;
   private readonly bubble: Phaser.GameObjects.Image;
   private counter: Phaser.GameObjects.BitmapText | null = null;
+  private readonly comboText: Phaser.GameObjects.BitmapText;
+  private lastCombo = -1;
   private lastCount = -1;
   private orb: Phaser.GameObjects.Image | null = null;
   private orbGlow: Phaser.GameObjects.Image | null = null;
@@ -42,6 +44,8 @@ export class FighterView {
     layer.add(this.shadow);
     layer.add(this.sprite);
     layer.add(this.bubble);
+    this.comboText = scene.add.bitmapText(0, 0, PIXEL_FONT, '').setOrigin(0.5, 1).setScale(0.5).setTint(0xffe14a).setVisible(false);
+    layer.add(this.comboText);
     if (fighter.data.counter) {
       this.counter = scene.add.bitmapText(0, 0, PIXEL_FONT, '').setOrigin(0.5, 1).setScale(0.55).setTint(0xffd46a);
       layer.add(this.counter);
@@ -150,6 +154,7 @@ export class FighterView {
     else if (this.baseTint !== undefined) s.setTint(this.baseTint);
     else s.clearTint();
 
+    this.updateCombo(f);
     this.updateOrb(f, tick);
     this.updateCounter(f);
     this.updateGhosts(f, tick);
@@ -202,6 +207,22 @@ export class FighterView {
     }
   }
 
+  /** "N HITS" above a victim while a combo of 3 or more is on. */
+  private updateCombo(f: Fighter): void {
+    const c = f.comboHits;
+    const show = c >= 3 && f.state !== 'ko';
+    this.comboText.setVisible(show);
+    if (!show) {
+      this.lastCombo = -1;
+      return;
+    }
+    if (c !== this.lastCombo) {
+      this.lastCombo = c;
+      this.comboText.setText(`${c} HITS`);
+    }
+    this.comboText.setPosition(this.x, this.y - f.h * f.sizeMul - 14);
+  }
+
   /** Number floating above the fighter (Scrap). */
   private updateCounter(f: Fighter): void {
     const c = this.counter;
@@ -238,6 +259,7 @@ export class FighterView {
     this.shadow.destroy();
     this.bubble.destroy();
     this.counter?.destroy();
+    this.comboText.destroy();
     this.orb?.destroy();
     this.orbGlow?.destroy();
     for (const g of this.ghosts) g.destroy();

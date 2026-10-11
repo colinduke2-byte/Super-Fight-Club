@@ -32,6 +32,9 @@ export interface PlatformDef {
   /** Solid only: corners can be grabbed. */
   ledges?: boolean;
   move?: PlatformMotion;
+  /** Ground feel: 'ice' = slippery, 'sticky' = high friction, 'conveyor' = carries fighters (`conveyor` px/frame), 'bouncy' = launched fighters rebound harder. */
+  surface?: 'normal' | 'ice' | 'sticky' | 'conveyor' | 'bouncy';
+  conveyor?: number;
 }
 
 export interface BlastZones {

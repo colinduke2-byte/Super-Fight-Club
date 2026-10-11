@@ -2,7 +2,7 @@ import Phaser from 'phaser';
 import { characterById, CHARACTERS } from '../characters';
 import { music } from '../audio/music';
 import { sfx } from '../audio/sfx';
-import { soundFor } from '../audio/soundMap';
+import { hitLayer, soundFor } from '../audio/soundMap';
 import { TrainingRunner } from '../engine/training';
 import { EntityViews } from '../ui/EntityViews';
 import { Button, makeInput, type FighterInput } from '../engine/buttons';
@@ -604,7 +604,12 @@ export class MatchScene extends Phaser.Scene {
   private onWorldEvent(type: WorldEventType, f: Fighter, x: number, y: number, mag: number, extra: number, tag?: string): void {
     const e = this.effects;
     const cue = soundFor(type, mag, extra);
-    if (cue) sfx.play(cue.name, cue.intensity, Phaser.Math.Clamp((x - this.cam.cx) / (this.worldCam.width / Math.max(0.1, this.worldCam.zoom) / 2), -1, 1));
+    const pan = Phaser.Math.Clamp((x - this.cam.cx) / (this.worldCam.width / Math.max(0.1, this.worldCam.zoom) / 2), -1, 1);
+    if (cue) sfx.play(cue.name, cue.intensity, pan);
+    if (type === 'hit') {
+      const layer = hitLayer(f.lastHitFx, mag, extra);
+      if (layer) sfx.play(layer.name, layer.intensity, pan);
+    }
     switch (type) {
       case 'fx':
         this.moveFx(tag ?? '', f, x, y, mag);
@@ -706,6 +711,20 @@ export class MatchScene extends Phaser.Scene {
         if (dmg >= 10) this.punch = Math.max(this.punch, Math.min(0.06, dmg * 0.0035));
         break;
       }
+      case 'parry':
+        e.ring(x, y, mag + 10, 0xffffff, 0.3);
+        e.flash(x, y, 1.6, 0xbff4ff);
+        e.burst(x, y, 12, 90, 0x8fe6ff, 0.3, 2);
+        this.shake = Math.max(this.shake, 2);
+        this.rumble(f, 0.3, 0.6, 70);
+        break;
+      case 'sdi':
+        e.burst(x, y, 3, 30, 0xffffff, 0.15, 2);
+        break;
+      case 'trump':
+        e.burst(x, y, 10, 70, 0xffd46a, 0.3, 3);
+        e.ring(x, y, 16, 0xffffff, 0.25);
+        break;
       case 'armorHit':
         e.flash(x, y, 1, 0xc070ff);
         e.burst(x, y, 10, 60, 0xc070ff, 0.3, 3);

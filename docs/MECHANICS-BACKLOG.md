@@ -13,6 +13,17 @@ ledge/get-up attacks and auto-cancel windows exist; items, teams and one hazard 
 
 ---
 
+## Status update (Phase 16-17)
+
+**Done:** A1 data-driven FX / presentation (`fx.json`, `src/fx`), personas moved into character data, CPU `aimed` slots; schema validation of fx
+data, animation names and fx names (conformance suite); `validateStage` + surface types (ice / sticky / conveyor / bouncy); checked-in kill-percent
+test + table; all-lineups soak test; content guide; perfect shield + shield-drop lockout + out-of-shield options; dodge staleness; stale-move
+negation; rage; combo scaling + hit counter; hitlag SDI; ledge trump; moving-platform momentum; element-layered hit sounds, parry / trump cues.
+**Still open:** everything not mentioned above (declarative `variants` / `resources`, hook additions, hitbox model upgrades, new hazard kinds,
+data-driven backdrops, replays / snapshots, training-mode tools, more statuses / items / rules).
+
+---
+
 ## A. Character pipeline (what makes "add a character" cheap or expensive)
 
 ### A1. Hard-coded character names outside `src/characters/` [BLOCKER]

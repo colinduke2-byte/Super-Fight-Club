@@ -102,7 +102,7 @@ export const gizmo: CharacterData = {
     epilogue: 'Gizmo pulls the last cable. The arena sighs and goes quiet. "Okay," he says to nobody. "Version two will have a snooze button."',
   },
   stats: {
-    weight: 84,
+    weight: 88,
     runSpeed: 2.4,
     airSpeed: 1.8,
     groundAccel: 0.3,
