@@ -19,8 +19,11 @@ ledge/get-up attacks and auto-cancel windows exist; items, teams and one hazard 
 data, animation names and fx names (conformance suite); `validateStage` + surface types (ice / sticky / conveyor / bouncy); checked-in kill-percent
 test + table; all-lineups soak test; content guide; perfect shield + shield-drop lockout + out-of-shield options; dodge staleness; stale-move
 negation; rage; combo scaling + hit counter; hitlag SDI; ledge trump; moving-platform momentum; element-layered hit sounds, parry / trump cues.
-**Still open:** everything not mentioned above (declarative `variants` / `resources`, hook additions, hitbox model upgrades, new hazard kinds,
-data-driven backdrops, replays / snapshots, training-mode tools, more statuses / items / rules).
+**Also done (follow-up pass):** declarative `variants` and `resourceRules` (Nova, Agni, Brick converted), nine new lifecycle hooks, analog walk,
+wall cling, ledge roll / hop / slow get-up, burst (combo breaker, CPU uses it), status icons + seam marks on the HUD, training input display,
+`MatchScene` split (`WorldEventFx`). Throw DI, grab-escape mashing and dash grabs already existed (verified).
+**Still open:** hitbox model upgrades (clang, set knockback, bone-attached hitboxes), new hazard kinds, data-driven backdrops, slopes, replays /
+snapshots / rollback, training save-states, more statuses / items / rules, pivot grab, per-stage physics overrides.
 
 ---
 

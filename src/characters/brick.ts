@@ -101,7 +101,7 @@ export const brick: CharacterData = {
   resources: { heat: 0, quiet: 0, ventDmg: 1, ventKb: 1 },
   resourceRules: [{ key: 'heat', max: HEAT_MAX, gainDealt: DEALT_RATE, minDealt: HEAVY_HIT, gainTaken: TAKEN_RATE, decayAfter: DECAY_DELAY, decayRate: DECAY_RATE }],
   ultimate: { cost: 100, gainDealt: 0.2, gainTaken: 0.35 },
-  hud: { resource: 'heat', max: 100, color: 0xff7a2a, hotAt: 50 },
+  hud: { resource: 'heat', max: 100, color: 0xff7a2a, hotAt: 50, marks: [50] },
   behavior: undefined as unknown as CharacterBehavior,
 };
 validateReferences(brick.moves, undefined, undefined, 'brick');

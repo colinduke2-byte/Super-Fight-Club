@@ -528,6 +528,8 @@ export class CpuController implements Controller {
       this.sx = (dx / len) * 0.95;
       this.sy = (dy / len) * 0.95;
     }
+    // combo breaker: a sharp CPU caught in a long combo with enough meter bursts out
+    if (this.params.smart && self.comboHits >= 5 && self.meter >= 50 && this.rnd() < 0.06 * this.params.punish) this.held |= Button.Ultimate;
     // tech: press shield just before touching a surface
     if (!this.techTried && !self.grounded && self.vy > 1 && self.techLock === 0 && this.rnd() < this.params.tech) {
       for (const pl of world.platforms) {

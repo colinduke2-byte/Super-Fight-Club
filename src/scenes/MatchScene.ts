@@ -2,7 +2,6 @@ import Phaser from 'phaser';
 import { characterById, CHARACTERS } from '../characters';
 import { music } from '../audio/music';
 import { sfx } from '../audio/sfx';
-import { hitLayer, soundFor } from '../audio/soundMap';
 import { TrainingRunner } from '../engine/training';
 import { EntityViews } from '../ui/EntityViews';
 import { Button, makeInput, type FighterInput } from '../engine/buttons';
@@ -11,7 +10,7 @@ import { Fighter } from '../engine/fighter';
 import type { CharacterData } from '../engine/types';
 import { Match, type MatchConfig } from '../engine/match';
 import { FixedTimestep } from '../engine/fixedTimestep';
-import { World, type WorldEventType } from '../engine/world';
+import { World } from '../engine/world';
 import { MergedDevice } from '../input/device';
 import { inputManager } from '../input/inputManager';
 import { keyboardHub } from '../input/keyboard';
@@ -32,7 +31,8 @@ import { MenuList } from '../ui/menuKit';
 import { PIXEL_FONT, up } from '../art/pixelFont';
 import { StageView } from '../ui/StageView';
 import { SlashArcs } from '../ui/SlashArcs';
-import { playRecipe, runOps, updateFighterFx, type FxContext } from '../fx/runner';
+import { updateFighterFx } from '../fx/runner';
+import { WorldEventFx } from './WorldEventFx';
 import { HazardView } from '../ui/HazardView';
 import { DummyController, NullController, type Controller } from '../game/controllers';
 import { BossController } from '../ai/boss';
@@ -56,6 +56,8 @@ const HELP_MATCH = ['ESC / START: PAUSE   1 DEBUG   F FULLSCREEN   H HIDE THIS']
 function resolveCharacter(id: string): CharacterData {
   return characterById(id) ?? CHARACTERS.brick;
 }
+
+const INPUT_NAMES: [string, number][] = [['JUMP', Button.Jump], ['ATK', Button.Attack], ['SPC', Button.Special], ['SHD', Button.Shield], ['GRB', Button.Grab], ['SMS', Button.Smash], ['ULT', Button.Ultimate]];
 
 /**
  * The match itself: 2-4 fighters (humans on any device, CPUs, or the training dummy) on a chosen stage.
@@ -121,6 +123,9 @@ export class MatchScene extends Phaser.Scene {
   private shake = 0;
   /** Brief camera push-in on heavy hits (decays each tick). */
   private punch = 0;
+  private eventFx!: WorldEventFx;
+  private trainReport = '';
+  private lastInputLine = '';
   private frameCount = 0;
 
   private huds: FighterHud[] = [];
@@ -268,9 +273,19 @@ export class MatchScene extends Phaser.Scene {
     inputManager.onPadConnect = (d) => this.showToast(`Controller connected: ${d.label}`);
     inputManager.onPadDisconnect = (d) => this.showToast(`Controller disconnected: ${d.label}`);
 
+    this.eventFx = new WorldEventFx({
+      effects: this.effects,
+      world: this.world,
+      views: () => this.views,
+      pan: (x) => Phaser.Math.Clamp((x - this.cam.cx) / (this.worldCam.width / Math.max(0.1, this.worldCam.zoom) / 2), -1, 1),
+      shake: (n) => (this.shake = Math.max(this.shake, n)),
+      punch: (n) => (this.punch = Math.max(this.punch, n)),
+      rumble: (f, st, wk, ms) => this.rumble(f, st, wk, ms),
+      onKo: (f, by) => this.match.onKo(f, by),
+    });
     this.world.listener = (type, f, x, y, mag, extra, tag) => {
       this.training?.onEvent(type, f, x, y, mag, extra);
-      this.onWorldEvent(type, f, x, y, mag, extra, tag);
+      this.eventFx.handle(type, f, x, y, mag, extra, tag);
     };
 
     this.lastNow = performance.now();
@@ -582,7 +597,7 @@ export class MatchScene extends Phaser.Scene {
       const sc = this.match.scores[i];
       const f = this.fighters[i];
       this.huds[i].colorIndex = f.data.hud?.colorKey ? (f.res[f.data.hud.colorKey] ?? 0) : 0;
-      this.huds[i].update(f.damage, sc.stocks, this.match.training, sc.eliminated, f.meter / (f.data.ultimate?.cost ?? 100), this.world.tick, f.data.hud ? (f.res[f.data.hud.resource] ?? 0) : 0);
+      this.huds[i].update(f.damage, sc.stocks, this.match.training, sc.eliminated, f.meter / (f.data.ultimate?.cost ?? 100), this.world.tick, f.data.hud ? (f.res[f.data.hud.resource] ?? 0) : 0, f.status);
     }
     if (this.match.over && !this.banner.visible) {
       const w = this.match.winner;
@@ -591,7 +606,20 @@ export class MatchScene extends Phaser.Scene {
       this.banner.setText(up(`${head}\n${tail}`)).setVisible(true);
     }
 
-    if (this.training && this.frameCount % 6 === 0) this.trainText.setText(up(this.training.report().join('\n')) + (this.slowMo ? '\nSLOW-MO' : '') + (this.stepMode ? '\nSTEP MODE (B)' : ''));
+    if (this.training) {
+      if (this.frameCount % 6 === 0) this.trainReport = up(this.training.report().join('\n')) + (this.slowMo ? '\nSLOW-MO' : '') + (this.stepMode ? '\nSTEP MODE (B)' : '');
+      // live input display for player 1: stick direction + held buttons
+      const i0 = this.inputs[0];
+      const sx = i0.stickX > 0.3 ? 'R' : i0.stickX < -0.3 ? 'L' : '-';
+      const sy = i0.stickY > 0.3 ? 'D' : i0.stickY < -0.3 ? 'U' : '-';
+      let btn = '';
+      for (const [name, bit] of INPUT_NAMES) if ((i0.held & bit) !== 0) btn += `${name} `;
+      const line = `\nINPUT ${sy}${sx} ${btn}`;
+      if (line !== this.lastInputLine || this.frameCount % 6 === 0) {
+        this.lastInputLine = line;
+        this.trainText.setText(this.trainReport + line);
+      }
+    }
     this.perf.update(frameMs, `${this.scale.width}x${this.scale.height} @${this.dpr().toFixed(1)}x  z${zoom.toFixed(2)}  ${this.stepsLastFrame}/f  sim ${this.simMs.toFixed(2)}ms  frame-js ${this.updMs.toFixed(2)}ms  1%low ${this.perf.lowFps.toFixed(0)}`);
     if (this.toastUntil > 0) {
       const left = this.toastUntil - performance.now();
@@ -601,217 +629,10 @@ export class MatchScene extends Phaser.Scene {
   }
 
   // ---------------------------------------------------------------------------------------------
-  private onWorldEvent(type: WorldEventType, f: Fighter, x: number, y: number, mag: number, extra: number, tag?: string): void {
-    const e = this.effects;
-    const cue = soundFor(type, mag, extra);
-    const pan = Phaser.Math.Clamp((x - this.cam.cx) / (this.worldCam.width / Math.max(0.1, this.worldCam.zoom) / 2), -1, 1);
-    if (cue) sfx.play(cue.name, cue.intensity, pan);
-    if (type === 'hit') {
-      const layer = hitLayer(f.lastHitFx, mag, extra);
-      if (layer) sfx.play(layer.name, layer.intensity, pan);
-    }
-    switch (type) {
-      case 'fx':
-        this.moveFx(tag ?? '', f, x, y, mag);
-        break;
-      case 'projectile':
-        e.flash(x, y, 0.5, 0xfff3b0);
-        break;
-      case 'projectileHit':
-        if (mag > 0) {
-          e.flash(x, y, 0.9, 0xffffff);
-          e.burst(x, y, 6, 70, 0xffffff, 0.25, 2);
-        }
-        break;
-      case 'teleport':
-        this.views[f.id]?.afterimage(f.tpFromX, f.tpFromY, 0x7fe8ff, 12);
-        e.trail(f.tpFromX, f.tpFromY - f.h / 2, x, y - f.h / 2, 0x7fe8ff);
-        e.ring(f.tpFromX, f.tpFromY - f.h / 2, 14, 0x7fe8ff, 0.25);
-        e.ring(x, y - f.h / 2, 18, 0xffffff, 0.3);
-        e.burst(x, y - f.h / 2, 10, 70, 0x7fe8ff, 0.3, 2);
-        break;
-      case 'reflect':
-        e.ring(x, y, 20, 0xc080ff, 0.3);
-        e.flash(x, y, 1.4, 0xe0b0ff);
-        break;
-      case 'deploy':
-        e.dust(x, y, 5, 0);
-        break;
-      case 'deployableTrigger':
-        e.burst(x, y, 20, 120, 0xffa040, 0.4, 3);
-        e.ring(x, y, 28, 0xffd46a, 0.35);
-        e.flash(x, y, 2.4, 0xffe9a8);
-        this.shake = Math.max(this.shake, 5);
-        break;
-      case 'deployableDestroyed':
-        e.burst(x, y, 14, 100, 0xffd46a, 0.35, 3);
-        e.flash(x, y, 1.2, 0xffffff);
-        break;
-      case 'status': {
-        const colors = [0xff8a30, 0x8aa0ff, 0x9fe9ff, 0xffff60];
-        e.burst(x, y, 6, 40, colors[Math.max(0, Math.min(3, extra | 0))], 0.3, 2);
-        break;
-      }
-      case 'tether':
-        e.flash(x, y, 0.9, 0xffffff);
-        break;
-      case 'hazardWarn':
-        e.burst(x, y, 8, 40, 0xff8a30, 0.6, 2);
-        sfx.play('charge', 0.6, 0);
-        break;
-      case 'hazardFire':
-        e.burst(x, y - 20, 30, 160, 0xffa040, 0.6, 4);
-        e.ring(x, y - 4, 40, 0xffd46a, 0.4);
-        e.flash(x, y - 40, 3, 0xffe9a8);
-        this.shake = Math.max(this.shake, 6);
-        sfx.play('boom', 0.8, 0);
-        break;
-      case 'cinematicStart':
-        e.ring(x, y, 60, 0xffffff, 0.5);
-        e.flash(x, y, 4, 0xffffff);
-        this.shake = Math.max(this.shake, 6);
-        break;
-      case 'cinematicHit': {
-        const atk = this.world.cinematic?.attacker;
-        if (atk?.data.fx?.cinematicHit) runOps(atk.data.fx.cinematicHit, this.fxContext(atk, x, y, mag, extra));
-        // falls through to the generic impact below
-        e.flash(x, y, 2 + extra * 0.1, 0xffffff);
-        e.burst(x, y, 16, 120, 0xffe14a, 0.4, 3);
-        this.shake = Math.max(this.shake, mag > 0 ? 12 : 5);
-        break;
-      }
-      case 'cinematicEnd':
-        e.ring(x, y, 80, 0xffe14a, 0.6);
-        break;
-      case 'meterFull':
-        e.ring(x, y + f.h * 0.5, 24, 0xffd040, 0.5);
-        e.burst(x, y + f.h * 0.5, 10, 60, 0xffd040, 0.4, 2);
-        break;
-      case 'jump':
-        e.dust(x, y, 4, 0);
-        break;
-      case 'doubleJump':
-        e.burst(x, y - f.h / 2, 8, 40, 0x9af3ff, 0.3, 2);
-        break;
-      case 'land':
-        if (mag > 3) e.dust(x, y, 6, 0);
-        break;
-      case 'landBounce':
-        e.dust(x, y, 10, 0);
-        e.burst(x, y, 10, 90, 0xffb02e, 0.3, 3);
-        this.shake = Math.max(this.shake, 3);
-        break;
-      case 'hit': {
-        // bigger hits: more sparks, bigger shake (hitstop itself is the fighters' hitlag)
-        const dmg = extra;
-        this.rumble(f, 0.15 + dmg * 0.04, 0.3 + dmg * 0.03, 60 + dmg * 8);
-        e.flash(x, y, 0.8 + Math.min(2.2, dmg * 0.09), dmg > 12 ? 0xffffff : 0xfff3b0);
-        e.burst(x, y, 10 + Math.min(16, dmg), 80 + mag * 0.4, dmg > 12 ? 0xffffff : 0xffe14a, 0.3 + Math.min(0.3, dmg * 0.012), dmg > 12 ? 4 : 3);
-        this.shake = Math.max(this.shake, Math.min(9, 1 + dmg * 0.3 + mag * 0.01));
-        if (dmg >= 10) this.punch = Math.max(this.punch, Math.min(0.06, dmg * 0.0035));
-        break;
-      }
-      case 'parry':
-        e.ring(x, y, mag + 10, 0xffffff, 0.3);
-        e.flash(x, y, 1.6, 0xbff4ff);
-        e.burst(x, y, 12, 90, 0x8fe6ff, 0.3, 2);
-        this.shake = Math.max(this.shake, 2);
-        this.rumble(f, 0.3, 0.6, 70);
-        break;
-      case 'burst':
-        e.ring(x, y, mag, 0xffe14a, 0.4);
-        e.flash(x, y, 2.5, 0xffffff);
-        e.burst(x, y, 20, 150, 0xffe14a, 0.4, 3);
-        this.shake = Math.max(this.shake, 6);
-        this.rumble(f, 0.6, 0.5, 120);
-        break;
-      case 'sdi':
-        e.burst(x, y, 3, 30, 0xffffff, 0.15, 2);
-        break;
-      case 'trump':
-        e.burst(x, y, 10, 70, 0xffd46a, 0.3, 3);
-        e.ring(x, y, 16, 0xffffff, 0.25);
-        break;
-      case 'armorHit':
-        e.flash(x, y, 1, 0xc070ff);
-        e.burst(x, y, 10, 60, 0xc070ff, 0.3, 3);
-        this.shake = Math.max(this.shake, 2.5);
-        break;
-      case 'shieldHit':
-        e.flash(x, y, 0.8, 0x8fe6ff);
-        e.burst(x, y, 8, 60, 0x66d9ff, 0.25, 2);
-        break;
-      case 'shieldBreak':
-        e.burst(x, y, 30, 160, 0x66d9ff, 0.6, 4);
-        this.shake = Math.max(this.shake, 6);
-        break;
-      case 'bounce':
-        e.burst(x, y, 10, 70, 0xff9a4a, 0.3, 3);
-        this.shake = Math.max(this.shake, 2.5);
-        break;
-      case 'tech':
-        e.burst(x, y, 12, 80, 0x66d9ff, 0.35, 3);
-        break;
-      case 'ledgeGrab':
-        e.burst(x, y - f.h, 6, 40, 0xffffff, 0.25, 2);
-        break;
-      case 'grab':
-        e.burst(x, y, 8, 50, 0xffee55, 0.25, 2);
-        break;
-      case 'throw':
-        e.flash(x, y, 2, 0xffffff);
-        e.burst(x, y, 16, 100, 0xffffff, 0.35, 3);
-        this.shake = Math.max(this.shake, 4);
-        break;
-      case 'pummel':
-        e.burst(x, y, 4, 40, 0xffee55, 0.2, 2);
-        break;
-      case 'trade':
-        e.flash(x, y, 2, 0xff5a7a);
-        e.burst(x, y, 16, 100, 0xff5a7a, 0.3, 3);
-        break;
-      case 'dodge':
-        e.dust(x, y, 4, 0);
-        break;
-      case 'itemSpawn':
-        e.ring(x, y, 14, 0xffffff, 0.4);
-        e.burst(x, y, 8, 40, 0xffe14a, 0.4, 2);
-        break;
-      case 'itemPickup':
-        e.ring(x, y, 22, 0xffe14a, 0.4);
-        e.burst(x, y, 14, 90, [0x5fe08a, 0xffd04a, 0xff6a5a][mag | 0] ?? 0xffffff, 0.5, 3);
-        sfx.play('ding', 0.8, 0);
-        this.rumble(f, 0.2, 0.4, 80);
-        break;
-      case 'ko': {
-        const kx = Phaser.Math.Clamp(f.koX, this.world.blast.left, this.world.blast.right);
-        const ky = Phaser.Math.Clamp(f.koY, this.world.blast.top, this.world.blast.bottom);
-        e.flash(kx, ky, 5, 0xffffff);
-        e.burst(kx, ky, 40, 220, 0xffffff, 0.7, 4);
-        e.burst(kx, ky, 24, 140, 0xff5a7a, 0.9, 5);
-        this.shake = 10;
-        this.rumble(f, 1, 0.6, 300);
-        this.match.onKo(f, extra);
-        break;
-      }
-      default:
-        break;
-    }
-  }
-
   /** Vibrate the gamepad of the human slot that owns `f` (no-op for keyboards / CPUs). */
   private rumble(f: Fighter, strong: number, weak: number, ms: number): void {
     const d = this.slots[f.id]?.device;
     if (d && d.kind === 'gamepad') (d as GamepadDevice).rumble(strong, weak, ms);
-  }
-
-  /** Visuals for move events tagged `fx`: the fighter's own recipe, else the shared library (see src/fx). */
-  private fxContext(f: Fighter, x: number, y: number, mag: number, extra = 0): FxContext {
-    return { fx: this.effects, shake: (n) => (this.shake = Math.max(this.shake, n)), punch: (n) => (this.punch = Math.max(this.punch, n)), f, tick: this.world.tick, x, y, mag, extra };
-  }
-
-  private moveFx(tag: string, f: Fighter, x: number, y: number, dir: number): void {
-    playRecipe(tag, this.fxContext(f, x, y, dir));
   }
 
   private onKey(code: string): void {

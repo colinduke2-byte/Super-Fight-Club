@@ -1,0 +1,234 @@
+import Phaser from 'phaser';
+import { hitLayer, soundFor } from '../audio/soundMap';
+import { sfx } from '../audio/sfx';
+import type { Fighter } from '../engine/fighter';
+import type { World, WorldEventType } from '../engine/world';
+import { playRecipe, runOps, type FxContext } from '../fx/runner';
+import type { Effects } from '../ui/Effects';
+import type { FighterView } from '../ui/FighterView';
+
+/** What the presenter needs from the match scene (kept narrow so the scene stays small and this file is testable). */
+export interface WorldEventHost {
+  readonly effects: Effects;
+  readonly world: World;
+  views(): FighterView[];
+  /** Stereo pan (-1..1) for a world x. */
+  pan(x: number): number;
+  /** Camera shake / push-in requests (the scene keeps the max). */
+  shake(amount: number): void;
+  punch(amount: number): void;
+  rumble(f: Fighter, strong: number, weak: number, ms: number): void;
+  onKo(f: Fighter, lastHitBy: number): void;
+}
+
+/** Turns simulation events into particles, camera kicks, sounds and rumble. Presentation only. */
+export class WorldEventFx {
+  constructor(private readonly host: WorldEventHost) {}
+
+  handle(type: WorldEventType, f: Fighter, x: number, y: number, mag: number, extra: number, tag?: string): void {
+    const e = this.host.effects;
+    const cue = soundFor(type, mag, extra);
+    const pan = this.host.pan(x);
+    if (cue) sfx.play(cue.name, cue.intensity, pan);
+    if (type === 'hit') {
+      const layer = hitLayer(f.lastHitFx, mag, extra);
+      if (layer) sfx.play(layer.name, layer.intensity, pan);
+    }
+    switch (type) {
+      case 'fx':
+        this.moveFx(tag ?? '', f, x, y, mag);
+        break;
+      case 'projectile':
+        e.flash(x, y, 0.5, 0xfff3b0);
+        break;
+      case 'projectileHit':
+        if (mag > 0) {
+          e.flash(x, y, 0.9, 0xffffff);
+          e.burst(x, y, 6, 70, 0xffffff, 0.25, 2);
+        }
+        break;
+      case 'teleport':
+        this.host.views()[f.id]?.afterimage(f.tpFromX, f.tpFromY, 0x7fe8ff, 12);
+        e.trail(f.tpFromX, f.tpFromY - f.h / 2, x, y - f.h / 2, 0x7fe8ff);
+        e.ring(f.tpFromX, f.tpFromY - f.h / 2, 14, 0x7fe8ff, 0.25);
+        e.ring(x, y - f.h / 2, 18, 0xffffff, 0.3);
+        e.burst(x, y - f.h / 2, 10, 70, 0x7fe8ff, 0.3, 2);
+        break;
+      case 'reflect':
+        e.ring(x, y, 20, 0xc080ff, 0.3);
+        e.flash(x, y, 1.4, 0xe0b0ff);
+        break;
+      case 'deploy':
+        e.dust(x, y, 5, 0);
+        break;
+      case 'deployableTrigger':
+        e.burst(x, y, 20, 120, 0xffa040, 0.4, 3);
+        e.ring(x, y, 28, 0xffd46a, 0.35);
+        e.flash(x, y, 2.4, 0xffe9a8);
+        this.host.shake(5);
+        break;
+      case 'deployableDestroyed':
+        e.burst(x, y, 14, 100, 0xffd46a, 0.35, 3);
+        e.flash(x, y, 1.2, 0xffffff);
+        break;
+      case 'status': {
+        const colors = [0xff8a30, 0x8aa0ff, 0x9fe9ff, 0xffff60];
+        e.burst(x, y, 6, 40, colors[Math.max(0, Math.min(3, extra | 0))], 0.3, 2);
+        break;
+      }
+      case 'tether':
+        e.flash(x, y, 0.9, 0xffffff);
+        break;
+      case 'hazardWarn':
+        e.burst(x, y, 8, 40, 0xff8a30, 0.6, 2);
+        sfx.play('charge', 0.6, 0);
+        break;
+      case 'hazardFire':
+        e.burst(x, y - 20, 30, 160, 0xffa040, 0.6, 4);
+        e.ring(x, y - 4, 40, 0xffd46a, 0.4);
+        e.flash(x, y - 40, 3, 0xffe9a8);
+        this.host.shake(6);
+        sfx.play('boom', 0.8, 0);
+        break;
+      case 'cinematicStart':
+        e.ring(x, y, 60, 0xffffff, 0.5);
+        e.flash(x, y, 4, 0xffffff);
+        this.host.shake(6);
+        break;
+      case 'cinematicHit': {
+        const atk = this.host.world.cinematic?.attacker;
+        if (atk?.data.fx?.cinematicHit) runOps(atk.data.fx.cinematicHit, this.fxContext(atk, x, y, mag, extra));
+        // falls through to the generic impact below
+        e.flash(x, y, 2 + extra * 0.1, 0xffffff);
+        e.burst(x, y, 16, 120, 0xffe14a, 0.4, 3);
+        this.host.shake(mag > 0 ? 12 : 5);
+        break;
+      }
+      case 'cinematicEnd':
+        e.ring(x, y, 80, 0xffe14a, 0.6);
+        break;
+      case 'meterFull':
+        e.ring(x, y + f.h * 0.5, 24, 0xffd040, 0.5);
+        e.burst(x, y + f.h * 0.5, 10, 60, 0xffd040, 0.4, 2);
+        break;
+      case 'jump':
+        e.dust(x, y, 4, 0);
+        break;
+      case 'doubleJump':
+        e.burst(x, y - f.h / 2, 8, 40, 0x9af3ff, 0.3, 2);
+        break;
+      case 'land':
+        if (mag > 3) e.dust(x, y, 6, 0);
+        break;
+      case 'landBounce':
+        e.dust(x, y, 10, 0);
+        e.burst(x, y, 10, 90, 0xffb02e, 0.3, 3);
+        this.host.shake(3);
+        break;
+      case 'hit': {
+        // bigger hits: more sparks, bigger shake (hitstop itself is the fighters' hitlag)
+        const dmg = extra;
+        this.host.rumble(f, 0.15 + dmg * 0.04, 0.3 + dmg * 0.03, 60 + dmg * 8);
+        e.flash(x, y, 0.8 + Math.min(2.2, dmg * 0.09), dmg > 12 ? 0xffffff : 0xfff3b0);
+        e.burst(x, y, 10 + Math.min(16, dmg), 80 + mag * 0.4, dmg > 12 ? 0xffffff : 0xffe14a, 0.3 + Math.min(0.3, dmg * 0.012), dmg > 12 ? 4 : 3);
+        this.host.shake(Math.min(9, 1 + dmg * 0.3 + mag * 0.01));
+        if (dmg >= 10) this.host.punch(Math.min(0.06, dmg * 0.0035));
+        break;
+      }
+      case 'parry':
+        e.ring(x, y, mag + 10, 0xffffff, 0.3);
+        e.flash(x, y, 1.6, 0xbff4ff);
+        e.burst(x, y, 12, 90, 0x8fe6ff, 0.3, 2);
+        this.host.shake(2);
+        this.host.rumble(f, 0.3, 0.6, 70);
+        break;
+      case 'burst':
+        e.ring(x, y, mag, 0xffe14a, 0.4);
+        e.flash(x, y, 2.5, 0xffffff);
+        e.burst(x, y, 20, 150, 0xffe14a, 0.4, 3);
+        this.host.shake(6);
+        this.host.rumble(f, 0.6, 0.5, 120);
+        break;
+      case 'sdi':
+        e.burst(x, y, 3, 30, 0xffffff, 0.15, 2);
+        break;
+      case 'trump':
+        e.burst(x, y, 10, 70, 0xffd46a, 0.3, 3);
+        e.ring(x, y, 16, 0xffffff, 0.25);
+        break;
+      case 'armorHit':
+        e.flash(x, y, 1, 0xc070ff);
+        e.burst(x, y, 10, 60, 0xc070ff, 0.3, 3);
+        this.host.shake(2.5);
+        break;
+      case 'shieldHit':
+        e.flash(x, y, 0.8, 0x8fe6ff);
+        e.burst(x, y, 8, 60, 0x66d9ff, 0.25, 2);
+        break;
+      case 'shieldBreak':
+        e.burst(x, y, 30, 160, 0x66d9ff, 0.6, 4);
+        this.host.shake(6);
+        break;
+      case 'bounce':
+        e.burst(x, y, 10, 70, 0xff9a4a, 0.3, 3);
+        this.host.shake(2.5);
+        break;
+      case 'tech':
+        e.burst(x, y, 12, 80, 0x66d9ff, 0.35, 3);
+        break;
+      case 'ledgeGrab':
+        e.burst(x, y - f.h, 6, 40, 0xffffff, 0.25, 2);
+        break;
+      case 'grab':
+        e.burst(x, y, 8, 50, 0xffee55, 0.25, 2);
+        break;
+      case 'throw':
+        e.flash(x, y, 2, 0xffffff);
+        e.burst(x, y, 16, 100, 0xffffff, 0.35, 3);
+        this.host.shake(4);
+        break;
+      case 'pummel':
+        e.burst(x, y, 4, 40, 0xffee55, 0.2, 2);
+        break;
+      case 'trade':
+        e.flash(x, y, 2, 0xff5a7a);
+        e.burst(x, y, 16, 100, 0xff5a7a, 0.3, 3);
+        break;
+      case 'dodge':
+        e.dust(x, y, 4, 0);
+        break;
+      case 'itemSpawn':
+        e.ring(x, y, 14, 0xffffff, 0.4);
+        e.burst(x, y, 8, 40, 0xffe14a, 0.4, 2);
+        break;
+      case 'itemPickup':
+        e.ring(x, y, 22, 0xffe14a, 0.4);
+        e.burst(x, y, 14, 90, [0x5fe08a, 0xffd04a, 0xff6a5a][mag | 0] ?? 0xffffff, 0.5, 3);
+        sfx.play('ding', 0.8, 0);
+        this.host.rumble(f, 0.2, 0.4, 80);
+        break;
+      case 'ko': {
+        const kx = Phaser.Math.Clamp(f.koX, this.host.world.blast.left, this.host.world.blast.right);
+        const ky = Phaser.Math.Clamp(f.koY, this.host.world.blast.top, this.host.world.blast.bottom);
+        e.flash(kx, ky, 5, 0xffffff);
+        e.burst(kx, ky, 40, 220, 0xffffff, 0.7, 4);
+        e.burst(kx, ky, 24, 140, 0xff5a7a, 0.9, 5);
+        this.host.shake(10);
+        this.host.rumble(f, 1, 0.6, 300);
+        this.host.onKo(f, extra);
+        break;
+      }
+      default:
+        break;
+    }
+  }
+
+  /** Visuals for move events tagged `fx`: the fighter's own recipe, else the shared library (see src/fx). */
+  private fxContext(f: Fighter, x: number, y: number, mag: number, extra = 0): FxContext {
+    return { fx: this.host.effects, shake: (n) => this.host.shake(n), punch: (n) => this.host.punch(n), f, tick: this.host.world.tick, x, y, mag, extra };
+  }
+
+  private moveFx(tag: string, f: Fighter, x: number, y: number, dir: number): void {
+    playRecipe(tag, this.fxContext(f, x, y, dir));
+  }
+}

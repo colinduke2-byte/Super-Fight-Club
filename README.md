@@ -377,6 +377,9 @@ library in `src/fx/library.ts`. Story text lives in the character's `persona`. A
 - **Ledge trump:** grabbing an occupied ledge knocks the hanging fighter off. **Moving platforms** pass their motion on when you jump.
 - **Stage surfaces:** `surface: 'ice' | 'sticky' | 'conveyor' | 'bouncy'` on a platform (+ `conveyor` speed) changes friction, carries
   fighters, or makes launched fighters rebound harder.
+- **Also:** analog **walk** (gentle stick tilts), **wall cling** for wall-jumpers, **ledge roll / ledge hop / slow get-up** when damaged,
+  **burst** (spend 50 meter in a 4+ hit combo to break out and shove attackers away), status icons and level marks on the HUD, a live input
+  display in training.
 - **Audio:** hit sounds are layered by the hit's element (fire / lightning / ice / heavy thud), plus a parry ping and ledge-trump cue.
 
 ## Add a character

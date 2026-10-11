@@ -209,7 +209,7 @@ export interface CharacterData {
   wallJump?: boolean;
   dash?: { speed: number; frames: number; invuln: [number, number]; cooldown: number };
   /** HUD resource bar (Heat, Scrap...): drawn as a glowing seam on the player plate; sprite glows once `hotAt` is reached. */
-  hud?: { resource: string; max: number; color: number; hotAt: number; /** Per-element seam colours picked by `res[colorKey]`. */ colors?: number[]; colorKey?: string };
+  hud?: { resource: string; max: number; color: number; hotAt: number; /** Per-element seam colours picked by `res[colorKey]`. */ colors?: number[]; colorKey?: string; /** Tick marks on the seam (level thresholds). */ marks?: number[] };
   /** A floating companion orb whose colour follows `res[resource]` (Nova's Arcana orb). */
   companion?: { resource: string; colors: number[] };
   /** Shows a number above the fighter (Gizmo's Scrap). */

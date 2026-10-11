@@ -81,6 +81,6 @@ export const agni: CharacterData = {
   projectiles: json.projectiles,
   resources: { flame: 0, quiet: 0, level: 0 },
   ultimate: { cost: 100, gainDealt: 0.28, gainTaken: 0.4 },
-  hud: { resource: 'flame', max: 100, color: 0xff7a2a, hotAt: 85 },
+  hud: { resource: 'flame', max: 100, color: 0xff7a2a, hotAt: 85, marks: [25, 55, 85] },
   behavior,
 };

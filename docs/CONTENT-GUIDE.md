@@ -10,6 +10,11 @@
    - `cinematicHit`: effect at each hit of a cinematic ultimate.
    Ops: `burst`, `ring`, `flash`, `dust`, `emit`, `trail`, `converge`, `shake`, `punch` (see `src/engine/fxTypes.ts`). Typos are rejected at load by `validateFx`.
 3. `src/characters/<id>.ts`: stats, body, sprite look + animation list, `persona` (story text), `resources` / `hud` / `ultimate`, and an optional behaviour (hooks).
+   Declarative building blocks (prefer these to hand-written hooks):
+   - `variants`: `{ neutralB: { key: 'element', ids: ['neutralB_fire', 'neutralB_ice', ...] } }` starts `ids[res.element]` (clamped); any move id can be a key, including `ultimate`.
+   - `resourceRules`: `{ key, max, gainDealt, minDealt, gainTaken, decayAfter, decayRate, levels: { key, at: [...] } }` fills / drains a resource and writes its level thresholds.
+   - `hud.marks`: tick marks on the resource seam; `fx.json` for all visuals.
+   - Hooks (only for logic data cannot express): `onTick`, `onMoveStart / Frame / End`, `onHitDealt / Taken`, `onKill`, `onLand`, `onLedgeGrab`, `onTech`, `onParry`, `onShieldHit`, `onGrab`, `onThrow`, `onSpawn`, `onDeployableDestroyed`, `onMoveEvent`, `chooseMove`, `remapMove`.
 4. Register it in `src/characters/index.ts`.
 5. CPU knowledge: add an entry to `CHARACTER_AI` in `src/ai/profiles.ts` (ranged / closers / setups / finishers / recovery / spacing; `aimed` for stick-aimed closers).
 
