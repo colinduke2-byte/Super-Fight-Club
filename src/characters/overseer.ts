@@ -24,6 +24,11 @@ export const overseer: CharacterData = {
   id: 'overseer',
   name: 'The Overseer',
   tagline: 'The arena AI. It has been waiting for you.',
+  persona: {
+    intro: '',
+    taunt: 'Challenger. The arena has counted every blow you threw, and has decided that you are surplus.',
+    epilogue: '',
+  },
   stats: {
     weight: 300,
     runSpeed: 2.2,

@@ -3,6 +3,11 @@ import { moveTotal, parseMoves, validateReferences, type CharacterJson } from '.
 import type { CharacterData } from '../engine/types';
 import { standardAnimations } from './common';
 import movesJson from './vex.moves.json';
+import fxJson from './vex.fx.json';
+import { validateFx, type CharacterFx } from '../engine/fxTypes';
+
+const fx = fxJson as unknown as CharacterFx;
+validateFx('vex', fx);
 
 const json = movesJson as unknown as CharacterJson;
 const MARKER_LIFE = 180; // 3 seconds
@@ -44,8 +49,14 @@ validateReferences(moves, json.projectiles, json.deployables, 'vex');
 
 export const vex: CharacterData = {
   id: 'vex',
+  fx,
   name: 'Vex',
   tagline: 'Space-pirate rogue. Blink, bait, and vanish.',
+  persona: {
+    intro: 'Vex came for the vault beneath the arena. The only door is the Ladder, and the Ladder only opens for winners.',
+    taunt: 'Catch me if you can. You cannot.',
+    epilogue: 'The vault was empty, except for a single note: "Thanks for the distraction." Vex laughs all the way up the stairs.',
+  },
   stats: {
     weight: 100,
     runSpeed: 3.1,

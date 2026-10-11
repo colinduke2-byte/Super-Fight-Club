@@ -1,0 +1,236 @@
+{
+ "trail": {
+  "from": "res:element",
+  "colors": [
+   16742954,
+   9430783,
+   16773226
+  ]
+ },
+ "recipes": {
+  "cycle": [
+   {
+    "op": "ring",
+    "y": -8,
+    "yh": 1,
+    "radius": 14,
+    "color": {
+     "from": "res:element",
+     "colors": [
+      16742954,
+      9430783,
+      16772693
+     ]
+    },
+    "life": 0.35
+   },
+   {
+    "op": "burst",
+    "y": -8,
+    "yh": 1,
+    "count": 10,
+    "speed": 60,
+    "color": {
+     "from": "res:element",
+     "colors": [
+      16742954,
+      9430783,
+      16772693
+     ]
+    },
+    "life": 0.35,
+    "size": 2
+   }
+  ],
+  "cast": [
+   {
+    "op": "flash",
+    "x": 20,
+    "y": -18,
+    "power": 0.9,
+    "color": {
+     "from": "res:element",
+     "colors": [
+      16751178,
+      12579583,
+      16774816
+     ]
+    }
+   }
+  ],
+  "barrier": [
+   {
+    "op": "ring",
+    "x": 20,
+    "y": -16,
+    "radius": 26,
+    "color": 11563263,
+    "life": 0.4
+   }
+  ],
+  "aether": [
+   {
+    "op": "ring",
+    "y": -14,
+    "radius": 18,
+    "color": 12624127,
+    "life": 0.35
+   },
+   {
+    "op": "burst",
+    "y": -14,
+    "count": 12,
+    "speed": 70,
+    "color": 12624127,
+    "life": 0.4,
+    "size": 2
+   }
+  ],
+  "converge": [
+   {
+    "op": "ring",
+    "y": -14,
+    "radius": 50,
+    "color": 16777215,
+    "life": 0.8
+   },
+   {
+    "op": "burst",
+    "y": -14,
+    "count": 30,
+    "speed": 90,
+    "color": 16742954,
+    "life": 0.7,
+    "size": 3
+   },
+   {
+    "op": "burst",
+    "y": -14,
+    "count": 30,
+    "speed": 90,
+    "color": 9430783,
+    "life": 0.7,
+    "size": 3
+   },
+   {
+    "op": "burst",
+    "y": -14,
+    "count": 30,
+    "speed": 90,
+    "color": 16772693,
+    "life": 0.7,
+    "size": 3
+   }
+  ]
+ },
+ "rules": [
+  {
+   "when": {
+    "kinds": [
+     "special",
+     "ultimate"
+    ]
+   },
+   "ops": [
+    {
+     "op": "emit",
+     "x": {
+      "from": "cos",
+      "freq": 0.22,
+      "mul": 18
+     },
+     "y": {
+      "from": "sin",
+      "freq": 0.22,
+      "mul": 4,
+      "add": -1
+     },
+     "vy": -4,
+     "life": 0.22,
+     "color": "@trail",
+     "size": 2
+    },
+    {
+     "op": "emit",
+     "x": {
+      "from": "cos",
+      "freq": 0.22,
+      "phase": 2.094,
+      "mul": 18
+     },
+     "y": {
+      "from": "sin",
+      "freq": 0.22,
+      "phase": 2.094,
+      "mul": 4,
+      "add": -1
+     },
+     "vy": -4,
+     "life": 0.22,
+     "color": "@trail",
+     "size": 2
+    },
+    {
+     "op": "emit",
+     "x": {
+      "from": "cos",
+      "freq": 0.22,
+      "phase": 4.189,
+      "mul": 18
+     },
+     "y": {
+      "from": "sin",
+      "freq": 0.22,
+      "phase": 4.189,
+      "mul": 4,
+      "add": -1
+     },
+     "vy": -4,
+     "life": 0.22,
+     "color": "@trail",
+     "size": 2
+    }
+   ]
+  },
+  {
+   "when": {
+    "charging": true
+   },
+   "every": {
+    "from": "charge",
+    "mul": -1,
+    "add": 3,
+    "min": 2
+   },
+   "ops": [
+    {
+     "op": "converge",
+     "radius": [
+      20,
+      30
+     ],
+     "pull": 3,
+     "swirl": 40,
+     "life": 0.3,
+     "color": "@trail"
+    }
+   ]
+  },
+  {
+   "when": {
+    "charging": true,
+    "chargeMin": 1
+   },
+   "every": 6,
+   "ops": [
+    {
+     "op": "ring",
+     "yh": 0.5,
+     "radius": 16,
+     "color": "@trail",
+     "life": 0.25
+    }
+   ]
+  }
+ ]
+}

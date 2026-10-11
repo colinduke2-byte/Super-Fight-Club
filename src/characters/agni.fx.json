@@ -1,0 +1,128 @@
+{
+ "recipes": {
+  "cast": [
+   {
+    "op": "flash",
+    "x": 20,
+    "y": -18,
+    "power": 0.9,
+    "color": 16752704
+   }
+  ],
+  "converge": [
+   {
+    "op": "ring",
+    "y": -14,
+    "radius": 50,
+    "color": 16777215,
+    "life": 0.8
+   },
+   {
+    "op": "burst",
+    "y": -14,
+    "count": 30,
+    "speed": 90,
+    "color": 16742954,
+    "life": 0.7,
+    "size": 3
+   },
+   {
+    "op": "burst",
+    "y": -14,
+    "count": 30,
+    "speed": 90,
+    "color": 16766058,
+    "life": 0.7,
+    "size": 3
+   }
+  ]
+ },
+ "rules": [
+  {
+   "when": {
+    "res": {
+     "key": "level",
+     "min": 1
+    }
+   },
+   "every": {
+    "from": "res:level",
+    "mul": -1.5,
+    "add": 6
+   },
+   "ops": [
+    {
+     "op": "emit",
+     "x": 12,
+     "jx": 8,
+     "yh": 0.55,
+     "jy": 11,
+     "vy": {
+      "from": "res:level",
+      "mul": -10,
+      "add": -28
+     },
+     "jvx": 14,
+     "life": 0.4,
+     "color": {
+      "from": "res:level",
+      "colors": [
+       16747050,
+       16747050,
+       16747050,
+       16773280
+      ]
+     },
+     "size": 2
+    }
+   ]
+  },
+  {
+   "when": {
+    "charging": true
+   },
+   "every": {
+    "from": "charge",
+    "mul": -1,
+    "add": 3,
+    "min": 2
+   },
+   "ops": [
+    {
+     "op": "converge",
+     "radius": [
+      20,
+      30
+     ],
+     "pull": 3,
+     "life": 0.28,
+     "color": {
+      "from": "res:level",
+      "colors": [
+       16747050,
+       16752704,
+       16760928,
+       16773280
+      ]
+     }
+    }
+   ]
+  },
+  {
+   "when": {
+    "charging": true,
+    "chargeMin": 1
+   },
+   "every": 6,
+   "ops": [
+    {
+     "op": "ring",
+     "yh": 0.5,
+     "radius": 16,
+     "color": "@trail",
+     "life": 0.25
+    }
+   ]
+  }
+ ]
+}

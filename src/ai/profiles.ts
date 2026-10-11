@@ -45,6 +45,8 @@ export interface CharacterAi {
   ranged: string[];
   /** Gap-closing specials used when far from the target. */
   closers: string[];
+  /** Closer slots that are aimed with the stick at the target (blink / dash strikes). */
+  aimed?: string[];
   /** Setup specials (mines, turrets, runes) placed when the target is not on top of us. */
   setups: string[];
   /** Normals that kill: preferred at high percent. */
@@ -90,6 +92,7 @@ export const CHARACTER_AI: Record<string, CharacterAi> = {
   vex: {
     ...GENERIC,
     closers: ['neutralB'],
+    aimed: ['neutralB'],
     setups: ['downB'],
     finishers: ['usmash', 'fsmash', 'fair', 'uair'],
     recovery: { slot: 'upB', up: 110, out: 110, aim: 'stick8' },

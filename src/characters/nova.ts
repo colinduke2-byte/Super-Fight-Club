@@ -3,6 +3,11 @@ import { parseMoves, validateReferences, type CharacterJson } from '../engine/mo
 import type { CharacterData } from '../engine/types';
 import { standardAnimations } from './common';
 import movesJson from './nova.moves.json';
+import fxJson from './nova.fx.json';
+import { validateFx, type CharacterFx } from '../engine/fxTypes';
+
+const fx = fxJson as unknown as CharacterFx;
+validateFx('nova', fx);
 
 const json = movesJson as unknown as CharacterJson;
 
@@ -59,8 +64,14 @@ validateReferences(moves, json.projectiles, json.deployables, 'nova');
  */
 export const nova: CharacterData = {
   id: 'nova',
+  fx,
   name: 'Nova',
   tagline: 'Spell-slinging zoner. Fire, ice, lightning.',
+  persona: {
+    intro: 'Nova felt her stolen Aether humming from the arena core, loud as a second heartbeat. She follows the sound.',
+    taunt: 'The stars said you would come. They laughed.',
+    epilogue: 'The Aether returns to her staff like a lost bird. The Hollow glows blue for one long minute, and every lamp in the city remembers the sky.',
+  },
   stats: {
     weight: 100,
     runSpeed: 2.3,
@@ -82,7 +93,7 @@ export const nova: CharacterData = {
   sprite: {
     frameSize: 64,
     pixelScale: 0.5,
-    animations: standardAnimations(['castF', 'castU', 'castD', 'raid']),
+    animations: standardAnimations(['castF', 'castU', 'castD', 'dashS', 'raid']),
     placeholder: {
       skin: '#e6bc98',
       armor: '#6a3fb8',

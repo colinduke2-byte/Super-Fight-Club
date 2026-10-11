@@ -1,0 +1,214 @@
+{
+ "recipes": {
+  "rocket": [
+   {
+    "op": "burst",
+    "x": 18,
+    "y": -12,
+    "count": 8,
+    "speed": 70,
+    "color": 16756782,
+    "life": 0.25,
+    "size": 2
+   }
+  ],
+  "recall": [
+   {
+    "op": "ring",
+    "y": -12,
+    "radius": 30,
+    "color": 10135229,
+    "life": 0.4
+   },
+   {
+    "op": "burst",
+    "y": -12,
+    "count": 10,
+    "speed": 60,
+    "color": 16766058,
+    "life": 0.35,
+    "size": 2
+   }
+  ],
+  "overclock": [
+   {
+    "op": "ring",
+    "y": -12,
+    "radius": 30,
+    "color": 16766058,
+    "life": 0.4
+   },
+   {
+    "op": "burst",
+    "y": -12,
+    "count": 10,
+    "speed": 60,
+    "color": 16766058,
+    "life": 0.35,
+    "size": 2
+   }
+  ],
+  "mechStart": [
+   {
+    "op": "ring",
+    "y": -14,
+    "radius": 60,
+    "color": 12574975,
+    "life": 0.7
+   },
+   {
+    "op": "flash",
+    "y": -14,
+    "power": 3,
+    "color": 12574975
+   },
+   {
+    "op": "shake",
+    "amount": 5
+   }
+  ],
+  "mechEnd": [
+   {
+    "op": "burst",
+    "y": -20,
+    "count": 24,
+    "speed": 100,
+    "color": 12574975,
+    "life": 0.5,
+    "size": 3
+   }
+  ]
+ },
+ "rules": [
+  {
+   "when": {
+    "kinds": [
+     "tilt",
+     "jab"
+    ],
+    "phase": "active"
+   },
+   "every": 2,
+   "ops": [
+    {
+     "op": "emit",
+     "x": 30,
+     "jx": 12,
+     "yh": 0.55,
+     "jy": 10,
+     "vx": 50,
+     "jvx": 40,
+     "vy": -40,
+     "jvy": 40,
+     "life": 0.3,
+     "color": 16769354,
+     "size": 2,
+     "gravity": 120
+    }
+   ]
+  },
+  {
+   "when": {
+    "res": {
+     "key": "mech",
+     "min": 1
+    }
+   },
+   "every": 3,
+   "ops": [
+    {
+     "op": "emit",
+     "x": {
+      "from": "cos",
+      "freq": 0.35,
+      "mul": 26
+     },
+     "yh": 0.5,
+     "y": {
+      "from": "sin",
+      "freq": 0.35,
+      "mul": 18
+     },
+     "vx": {
+      "from": "sin",
+      "freq": 0.35,
+      "mul": -30
+     },
+     "vy": {
+      "from": "cos",
+      "freq": 0.35,
+      "mul": 30
+     },
+     "life": 0.25,
+     "color": 12574975,
+     "size": 3
+    }
+   ]
+  },
+  {
+   "when": {
+    "res": {
+     "key": "mech",
+     "min": 1
+    }
+   },
+   "every": 9,
+   "ops": [
+    {
+     "op": "emit",
+     "x": -14,
+     "yh": 0.5,
+     "y": -6,
+     "vx": -8,
+     "vy": -26,
+     "life": 0.5,
+     "color": 15263988,
+     "size": 3,
+     "additive": false
+    }
+   ]
+  },
+  {
+   "when": {
+    "charging": true
+   },
+   "every": {
+    "from": "charge",
+    "mul": -1,
+    "add": 3,
+    "min": 2
+   },
+   "ops": [
+    {
+     "op": "emit",
+     "x": 8,
+     "yh": 0.5,
+     "vx": 15,
+     "jvx": 50,
+     "vy": -40,
+     "jvy": 40,
+     "life": 0.25,
+     "color": 16773280,
+     "size": 2,
+     "gravity": 60
+    }
+   ]
+  },
+  {
+   "when": {
+    "charging": true,
+    "chargeMin": 1
+   },
+   "every": 6,
+   "ops": [
+    {
+     "op": "ring",
+     "yh": 0.5,
+     "radius": 16,
+     "color": "@trail",
+     "life": 0.25
+    }
+   ]
+  }
+ ]
+}

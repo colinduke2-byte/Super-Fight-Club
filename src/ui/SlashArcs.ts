@@ -2,7 +2,7 @@ import type Phaser from 'phaser';
 import { hitboxEnd, hitboxStart } from '../engine/moves';
 import { hitboxActive, hitboxRect } from '../engine/combat';
 import type { World } from '../engine/world';
-import { trailColor } from './moveTrails';
+import { fighterTrailColor } from '../fx/runner';
 
 const r4 = [0, 0, 0, 0];
 const N = 14;
@@ -25,7 +25,7 @@ export class SlashArcs {
     for (const f of world.fighters) {
       const m = f.move;
       if (f.state !== 'attack' || !m) continue;
-      const col = trailColor(f);
+      const col = fighterTrailColor(f, world.tick);
       const chestX = f.x;
       const chestY = f.y - f.h * 0.55;
       let drawn = 0;

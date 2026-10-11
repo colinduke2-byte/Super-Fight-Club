@@ -3,7 +3,12 @@ import { parseMoves, validateReferences, type CharacterJson } from '../engine/mo
 import type { CharacterData } from '../engine/types';
 import { standardAnimations } from './common';
 import movesJson from './gizmo.moves.json';
+import fxJson from './gizmo.fx.json';
+import { validateFx, type CharacterFx } from '../engine/fxTypes';
 import { canAfford, clampScrap, MECH_FRAMES, OVERCLOCK_COST, OVERCLOCK_FRAMES, OVERCLOCK_RANGE, RECALL_REFUND, SCRAP_MAX, scrapFromDamage, UPGRADE_EFFECT, upgradeFromStick } from './gizmoScrap';
+
+const fx = fxJson as unknown as CharacterFx;
+validateFx('gizmo', fx);
 
 const json = movesJson as unknown as CharacterJson;
 const MECH_SCALE = 1.7;
@@ -88,8 +93,14 @@ validateReferences(moves, json.projectiles, json.deployables, 'gizmo');
  */
 export const gizmo: CharacterData = {
   id: 'gizmo',
+  fx,
   name: 'Gizmo',
   tagline: 'Tinkerer mech. Set the trap, spend the scrap.',
+  persona: {
+    intro: 'Gizmo wired the arena\'s first brain on a rainy Tuesday. Now the brain will not let anyone leave, and Gizmo feels responsible.',
+    taunt: 'One turret. Two turrets. You are outnumbered.',
+    epilogue: 'Gizmo pulls the last cable. The arena sighs and goes quiet. "Okay," he says to nobody. "Version two will have a snooze button."',
+  },
   stats: {
     weight: 84,
     runSpeed: 2.4,

@@ -2,7 +2,12 @@ import type { CharacterBehavior } from '../engine/behavior';
 import { parseMoves, validateReferences } from '../engine/moves';
 import type { CharacterData } from '../engine/types';
 import movesJson from './brick.moves.json';
+import fxJson from './brick.fx.json';
+import { validateFx, type CharacterFx } from '../engine/fxTypes';
 import { addHeat, decayHeat, HEAT_DAMAGE_BONUS, heatFromDealt, heatFromTaken, isHot, ventPower } from './brickHeat';
+
+const fx = fxJson as unknown as CharacterFx;
+validateFx('brick', fx);
 
 /**
  * Brick: heavy cyber-knight bruiser. Slow and floaty-heavy to move, hard to launch.
@@ -10,8 +15,14 @@ import { addHeat, decayHeat, HEAT_DAMAGE_BONUS, heatFromDealt, heatFromTaken, is
  */
 export const brick: CharacterData = {
   id: 'brick',
+  fx,
   name: 'Brick',
   tagline: 'Heavy cyber-knight. Slow, armored, brutal.',
+  persona: {
+    intro: 'Brick was built to guard a gate that fell long ago. Tonight he chooses to break the line instead of holding it.',
+    taunt: 'Not many get past me. Fewer get up.',
+    epilogue: 'Brick sets his shield down on the cracked floor. For the first time in years there is nothing left to guard, and he does not mind.',
+  },
   stats: {
     weight: 120,
     runSpeed: 1.9,

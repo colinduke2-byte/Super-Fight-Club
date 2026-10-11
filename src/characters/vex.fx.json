@@ -1,0 +1,111 @@
+{
+ "recipes": {
+  "blink": [
+   {
+    "op": "flash",
+    "yh": 0.5,
+    "power": 1,
+    "color": 8382719
+   }
+  ],
+  "raidStart": [
+   {
+    "op": "ring",
+    "y": -14,
+    "radius": 36,
+    "color": 16732072,
+    "life": 0.5
+   },
+   {
+    "op": "burst",
+    "y": -14,
+    "count": 18,
+    "speed": 100,
+    "color": 16732072,
+    "life": 0.5,
+    "size": 3
+   }
+  ]
+ },
+ "cinematicHit": [
+  {
+   "op": "trail",
+   "x": -26,
+   "to": {
+    "x": 26
+   },
+   "color": 16777215,
+   "random": true
+  },
+  {
+   "op": "trail",
+   "x": -22,
+   "to": {
+    "x": 22
+   },
+   "color": 16732072,
+   "random": true
+  }
+ ],
+ "rules": [
+  {
+   "when": {
+    "states": [
+     "attack"
+    ],
+    "minSpeed": 3
+   },
+   "every": 2,
+   "ops": [
+    {
+     "op": "emit",
+     "x": -6,
+     "yh": 0.55,
+     "vx": -10,
+     "life": 0.2,
+     "color": "@trail",
+     "size": 3
+    }
+   ]
+  },
+  {
+   "when": {
+    "charging": true
+   },
+   "every": {
+    "from": "charge",
+    "mul": -1,
+    "add": 3,
+    "min": 2
+   },
+   "ops": [
+    {
+     "op": "converge",
+     "radius": [
+      20,
+      30
+     ],
+     "pull": 4,
+     "life": 0.25,
+     "color": "@trail"
+    }
+   ]
+  },
+  {
+   "when": {
+    "charging": true,
+    "chargeMin": 1
+   },
+   "every": 6,
+   "ops": [
+    {
+     "op": "ring",
+     "yh": 0.5,
+     "radius": 16,
+     "color": "@trail",
+     "life": 0.25
+    }
+   ]
+  }
+ ]
+}

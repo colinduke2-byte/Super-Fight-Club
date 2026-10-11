@@ -1,4 +1,5 @@
 import type { CharacterBehavior } from './behavior';
+import type { CharacterFx } from './fxTypes';
 import type { DeployableDef, MoveDef, ProjectileDef } from './moves';
 
 /** Shared data shapes for the simulation. Pure data, no Phaser imports. */
@@ -153,8 +154,18 @@ export interface PlaceholderLook {
   extras?: ('scarf' | 'bracer' | 'cloak' | 'toolbox' | 'grapple' | 'sash')[];
 }
 
+/** Story-mode text for a character (intro card, line spoken as an opponent, ending). */
+export interface CharacterPersona {
+  intro: string;
+  taunt: string;
+  epilogue: string;
+}
+
 export interface CharacterData {
   id: string;
+  /** Visual effects (recipes, auras, trails), see `fxTypes.ts`. Presentation only. */
+  fx?: CharacterFx;
+  persona?: CharacterPersona;
   name: string;
   tagline: string;
   stats: CharacterStats;

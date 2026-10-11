@@ -823,7 +823,7 @@ export class CpuController implements Controller {
       }
       for (const slot of ai.closers) {
         if (dist > 120 && dist < 320 && usable(slot) && p.smart && this.rnd() < 0.4 && !this.cooldownBusy(`c${slot}`, 90)) {
-          fire(slot, slot, slot === 'neutralB' && self.data.id === 'vex');
+          fire(slot, slot, !!ai.aimed?.includes(slot));
           return true;
         }
       }

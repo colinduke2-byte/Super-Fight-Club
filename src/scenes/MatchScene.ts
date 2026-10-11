@@ -32,7 +32,7 @@ import { MenuList } from '../ui/menuKit';
 import { PIXEL_FONT, up } from '../art/pixelFont';
 import { StageView } from '../ui/StageView';
 import { SlashArcs } from '../ui/SlashArcs';
-import { updateAuraFx, updateMoveTrails } from '../ui/moveTrails';
+import { playRecipe, runOps, updateFighterFx, type FxContext } from '../fx/runner';
 import { HazardView } from '../ui/HazardView';
 import { DummyController, NullController, type Controller } from '../game/controllers';
 import { BossController } from '../ai/boss';
@@ -336,7 +336,7 @@ export class MatchScene extends Phaser.Scene {
     const id = q.get('char') ?? 'brick';
     const n = Math.min(4, Math.max(1, Number(q.get('players') ?? 1)));
     const device = new MergedDevice('p1', 'Keyboard + Gamepad', () => [inputManager.keyboards[0], ...inputManager.padList]);
-    const ids = ['brick', 'vex', 'nova', 'gizmo', 'agni'];
+    const ids = Object.keys(CHARACTERS);
     session.mode = n > 1 ? 'versus' : 'training';
     session.rules.teams = q.has('teams');
     session.rules.items = Math.min(2, Math.max(0, Number(q.get('items') ?? 0))) as 0 | 1 | 2;
@@ -345,7 +345,7 @@ export class MatchScene extends Phaser.Scene {
     session.players = [{ index: 0, type: auto ? 'cpu' : 'human', device: auto ? null : device, character: id, cpuLevel: 3 }];
     const lvl = Math.min(3, Math.max(1, Number(q.get('cpu') ?? 1))) as 1 | 2 | 3;
     for (let i = 1; i < Math.max(2, n); i++) {
-      const pick = ids.filter((c) => c !== id)[(i - 1) % 4];
+      const pick = ids.filter((c) => c !== id)[(i - 1) % (ids.length - 1)];
       session.players.push({ index: i, type: 'cpu', device: null, character: pick, cpuLevel: lvl });
     }
   }
@@ -498,24 +498,15 @@ export class MatchScene extends Phaser.Scene {
   private ambientFx(): void {
     if (this.world.tick === this.lastFxTick) return;
     this.lastFxTick = this.world.tick;
-    updateMoveTrails(this.world, this.effects, this.world.tick);
-    updateAuraFx(this.world, this.effects, this.world.tick);
+    // data-driven per-character auras, trails and charge effects (see src/fx and <id>.fx.json)
+    updateFighterFx(this.world, this.effects, this.world.tick, (n) => (this.shake = Math.max(this.shake, n)));
     for (const f of this.fighters) {
-      const m = f.move;
-      if (m?.id === 'upB' && f.state === 'attack' && f.moveFrame >= 12 && f.moveFrame <= 34) {
-        this.effects.emit(f.x - 2 + Math.random() * 4, f.y + 2, (Math.random() - 0.5) * 20, 60 + Math.random() * 60, 0.3, Math.random() > 0.5 ? 0xffb02e : 0xff6a30, 3, 0, true);
-      }
       // footwork dust: dash bursts, run puffs, and skid clouds when a fast fighter brakes
       if (f.grounded && f.hitlag === 0) {
         const sp = Math.abs(f.vx);
         if (f.state === 'dash' && f.stateFrame % 3 === 0) this.effects.dust(f.x - f.facing * 6, f.y, 2, -f.facing);
         else if (f.state === 'run' && f.stateFrame % 9 === 4) this.effects.dust(f.x - f.facing * 4, f.y, 1, -f.facing);
         else if ((f.state === 'idle' || f.state === 'landing') && sp > 2.2 && this.world.tick % 2 === 0) this.effects.dust(f.x, f.y, 2, Math.sign(f.vx));
-      }
-      const hd = f.data.hud;
-      if (hd && (f.res[hd.resource] ?? 0) >= hd.hotAt && f.state !== 'ko' && this.world.tick % 6 === 0) {
-        // hot: steam leaks from the armour seams
-        this.effects.emit(f.x + (Math.random() - 0.5) * 10, f.y - f.h * (0.4 + Math.random() * 0.5), 0, -22, 0.5, 0xe8e8f4, 2, 0);
       }
     }
   }
@@ -677,15 +668,7 @@ export class MatchScene extends Phaser.Scene {
         break;
       case 'cinematicHit': {
         const atk = this.world.cinematic?.attacker;
-        if (atk?.data.id === 'vex') {
-          // blade storm: crossing slashes through the victim
-          const a = Math.random() * Math.PI;
-          e.trail(x - Math.cos(a) * 26, y - Math.sin(a) * 26, x + Math.cos(a) * 26, y + Math.sin(a) * 26, 0xffffff);
-          e.trail(x + Math.cos(a + 1.2) * 22, y + Math.sin(a + 1.2) * 22, x - Math.cos(a + 1.2) * 22, y - Math.sin(a + 1.2) * 22, 0xff4fa8);
-        } else if (atk?.data.id === 'brick') {
-          e.ring(x, y, 30 + extra * 2, 0xff8a30, 0.35);
-          e.burst(x, y, 12, 90, 0xffd46a, 0.4, 3);
-        }
+        if (atk?.data.fx?.cinematicHit) runOps(atk.data.fx.cinematicHit, this.fxContext(atk, x, y, mag, extra));
         // falls through to the generic impact below
         e.flash(x, y, 2 + extra * 0.1, 0xffffff);
         e.burst(x, y, 16, 120, 0xffe14a, 0.4, 3);
@@ -796,108 +779,13 @@ export class MatchScene extends Phaser.Scene {
     if (d && d.kind === 'gamepad') (d as GamepadDevice).rumble(strong, weak, ms);
   }
 
-  /** Visuals for move events tagged `fx` in the move data. `dir` = the fighter's facing. */
+  /** Visuals for move events tagged `fx`: the fighter's own recipe, else the shared library (see src/fx). */
+  private fxContext(f: Fighter, x: number, y: number, mag: number, extra = 0): FxContext {
+    return { fx: this.effects, shake: (n) => (this.shake = Math.max(this.shake, n)), punch: (n) => (this.punch = Math.max(this.punch, n)), f, tick: this.world.tick, x, y, mag, extra };
+  }
+
   private moveFx(tag: string, f: Fighter, x: number, y: number, dir: number): void {
-    const e = this.effects;
-    switch (tag) {
-      case 'ram':
-        e.dust(x - dir * 6, y, 8, -dir);
-        e.burst(x - dir * 8, y - 12, 8, 70, 0xffb02e, 0.3, 3);
-        break;
-      case 'jet':
-        e.ring(x, y, 20, 0xffb02e, 0.3);
-        e.burst(x, y + 2, 14, 90, 0xff7a2a, 0.35, 3);
-        this.shake = Math.max(this.shake, 2);
-        break;
-      case 'vent': {
-        const heat = f.res.ventDmg ?? 1; // 0.7..2.0
-        e.ring(x, y - 14, 30 + heat * 22, 0xffd46a, 0.45);
-        e.ring(x, y - 14, 20 + heat * 14, 0xffffff, 0.35);
-        e.flash(x, y - 14, 1.5 + heat, 0xffe9a8);
-        e.burst(x, y - 14, 26 + Math.round(heat * 14), 110 + heat * 50, 0xff8a30, 0.5, 4);
-        e.burst(x, y - 14, 20, 60, 0xe8e8f4, 0.8, 5);
-        this.shake = Math.max(this.shake, 4 + heat * 3);
-        break;
-      }
-      case 'slam':
-        e.trail(x + dir * 10, y - 1, x + dir * 80, y - 1, 0xffb02e);
-        e.trail(x + dir * 20, y - 1, x + dir * 60, y + 1, 0xffffff);
-        e.dust(x + dir * 18, y, 12, 0);
-        e.ring(x + dir * 18, y - 2, 30, 0xffffff, 0.3);
-        e.flash(x + dir * 18, y - 8, 2, 0xffffff);
-        this.shake = Math.max(this.shake, 8);
-        break;
-      case 'cycle': {
-        const col = [0xff7a2a, 0x8fe6ff, 0xffee55][f.res.element ?? 0];
-        e.ring(x, y - f.h - 8, 14, col, 0.35);
-        e.burst(x, y - f.h - 8, 10, 60, col, 0.35, 2);
-        break;
-      }
-      case 'cast':
-        e.flash(x + dir * 20, y - 18, 0.9, [0xff9a4a, 0xbff2ff, 0xfff6a0][f.res.element ?? 0]);
-        break;
-      case 'barrier':
-        e.ring(x + dir * 20, y - 16, 26, 0xb070ff, 0.4);
-        break;
-      case 'aether':
-        e.ring(x, y - 14, 18, 0xc0a0ff, 0.35);
-        e.burst(x, y - 14, 12, 70, 0xc0a0ff, 0.4, 2);
-        break;
-      case 'converge':
-        e.ring(x, y - 14, 50, 0xffffff, 0.8);
-        e.burst(x, y - 14, 30, 90, 0xff7a2a, 0.7, 3);
-        e.burst(x, y - 14, 30, 90, 0x8fe6ff, 0.7, 3);
-        e.burst(x, y - 14, 30, 90, 0xffee55, 0.7, 3);
-        break;
-      case 'beam':
-        this.shake = Math.max(this.shake, 6);
-        break;
-      case 'rocket':
-        e.burst(x + dir * 18, y - 12, 8, 70, 0xffb02e, 0.25, 2);
-        break;
-      case 'recall':
-      case 'overclock':
-        e.ring(x, y - 12, 30, tag === 'overclock' ? 0xffd46a : 0x9aa6bd, 0.4);
-        e.burst(x, y - 12, 10, 60, 0xffd46a, 0.35, 2);
-        break;
-      case 'fizzle':
-        e.burst(x, y - 22, 4, 30, 0x888888, 0.25, 2);
-        break;
-      case 'place':
-        e.dust(x + dir * 22, y, 5, 0);
-        break;
-      case 'mechStart':
-        e.ring(x, y - 14, 60, 0xbfe0ff, 0.7);
-        e.flash(x, y - 14, 3, 0xbfe0ff);
-        this.shake = Math.max(this.shake, 5);
-        break;
-      case 'mechEnd':
-        e.burst(x, y - 20, 24, 100, 0xbfe0ff, 0.5, 3);
-        break;
-      case 'stomp':
-        e.dust(x - 30, y, 8, -1);
-        e.dust(x + 30, y, 8, 1);
-        e.ring(x, y - 2, 46, 0xffffff, 0.35);
-        this.shake = Math.max(this.shake, 8);
-        break;
-      case 'taunt':
-        e.ring(x, y - f.h - 6, 12, 0xffe14a, 0.4);
-        e.burst(x, y - f.h - 6, 8, 50, 0xffe14a, 0.4, 2);
-        break;
-      case 'blink':
-        e.flash(x, y - f.h / 2, 1, 0x7fe8ff);
-        break;
-      case 'raidStart':
-        e.ring(x, y - 14, 36, 0xff4fa8, 0.5);
-        e.burst(x, y - 14, 18, 100, 0xff4fa8, 0.5, 3);
-        break;
-      case 'overload':
-        e.ring(x, y - 14, 40, 0xff6a30, 0.6);
-        e.burst(x, y - 14, 24, 80, 0xffd46a, 0.6, 3);
-        break;
-      default:
-        break;
-    }
+    playRecipe(tag, this.fxContext(f, x, y, dir));
   }
 
   private onKey(code: string): void {

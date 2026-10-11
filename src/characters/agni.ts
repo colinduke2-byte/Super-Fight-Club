@@ -4,6 +4,11 @@ import type { CharacterData } from '../engine/types';
 import { addFlame, decayFlame, flameFromDealt, flameFromTaken, flameLevel, levelDamageMult } from './agniFlame';
 import { standardAnimations } from './common';
 import movesJson from './agni.moves.json';
+import fxJson from './agni.fx.json';
+import { validateFx, type CharacterFx } from '../engine/fxTypes';
+
+const fx = fxJson as unknown as CharacterFx;
+validateFx('agni', fx);
 
 const json = movesJson as unknown as CharacterJson;
 const moves = parseMoves(json as never, 'agni');
@@ -45,8 +50,14 @@ const behavior: CharacterBehavior = {
  */
 export const agni: CharacterData = {
   id: 'agni',
+  fx,
   name: 'Agni',
   tagline: 'Fire-god brawler. Build the flame, spend it big.',
+  persona: {
+    intro: 'Agni was a festival bonfire once, lit for a forgotten god. The arena asked who would dare to burn, and the flame stood up.',
+    taunt: 'I do not need to win quickly. I only need to burn longer than you.',
+    epilogue: 'The last light in the Hollow is no longer the arena\'s. Agni cups it in both hands and walks out into the night.',
+  },
   stats: {
     weight: 92,
     runSpeed: 1.95,
