@@ -112,7 +112,7 @@ export const HOW_TO_PLAY: HowToPage[] = [
       ['AGNI', 'All-rounder. FLAME levels up every special as it builds.'],
       ['HALCYON', 'Lancer. Three air flaps, a glide, spear tip sweetspots.'],
       ['RIPTIDE', 'Grappler. Water SOAKS rivals; throws wring it out.'],
-      ['ULTIMATE', 'Every fighter: full meter + Ultimate for a finisher.'],
+      ['OBELISK', 'Builder. Raises crystal pillars, then shatters them.'],
     ],
     demo: ['riptide', ['idle', 'mv_taunt', 'mv_fsmash', 'idle']],
   },

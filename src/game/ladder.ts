@@ -50,15 +50,17 @@ export function buildLadder(player: string, rand: () => number = Math.random): L
   // the brawl brings in whoever is left; a small roster reuses the first two
   const d = others[3] ?? a;
   const e = others[4] ?? b;
-  // a big enough roster sends a third rival into the brawl, so every run still meets everyone
+  // a big enough roster sends a third rival into the brawl and a seventh into the cave, so every run still meets everyone
   const f = others[5];
+  const g = others[6] ?? c;
   const fights: LadderFight[] = [
     { index: 0, title: 'OPENING BOUT', stage: 'classic', kind: 'duel', opponents: [{ character: a, level: 1, stocks: 2 }], playerStocks: 3 },
     { index: 1, title: 'LOW TIDE', stage: 'wreck', kind: 'duel', opponents: [{ character: b, level: 1, stocks: 2 }], playerStocks: 3 },
     { index: 2, title: 'THE CIRCUIT', stage: 'temple', kind: 'duel', opponents: [{ character: c, level: 2, stocks: 3 }], playerStocks: 3 },
     { index: 3, title: 'SHADOW MATCH', stage: 'storm', kind: 'duel', opponents: [{ character: player, level: 2, stocks: 3 }], playerStocks: 3 },
+    { index: 4, title: 'DEEP DARK', stage: 'hollow', kind: 'duel', opponents: [{ character: g, level: 2, stocks: 3 }], playerStocks: 3 },
     {
-      index: 4,
+      index: 5,
       title: f ? 'FOUR-WAY BRAWL' : 'TRIPLE THREAT',
       stage: 'skyhold',
       kind: 'brawl',
@@ -69,7 +71,7 @@ export function buildLadder(player: string, rand: () => number = Math.random): L
       ],
       playerStocks: 3,
     },
-    { index: 5, title: 'THE OVERSEER', stage: 'reactor', kind: 'boss', opponents: [{ character: 'overseer', level: 3, stocks: 2, boss: true }], playerStocks: 3 },
+    { index: 6, title: 'THE OVERSEER', stage: 'reactor', kind: 'boss', opponents: [{ character: 'overseer', level: 3, stocks: 2, boss: true }], playerStocks: 3 },
   ];
   return { player, fights, index: 0, continuesLeft: LADDER_CONTINUES, continuesUsed: 0, kos: 0, seconds: 0, introduced: false };
 }

@@ -72,14 +72,14 @@ export class BootScene extends Phaser.Scene {
     const q = new URLSearchParams(location.search);
     const arcade = q.get('arcade');
     if (arcade) {
-      // ?arcade=<char>[&fight=<0-5>] starts the ladder directly (keyboard player 1)
+      // ?arcade=<char>[&fight=<0-6>] starts the ladder directly (keyboard player 1)
       inputManager.init();
       const human = { index: 0, type: 'human' as const, device: inputManager.keyboards[0], character: arcade, cpuLevel: 1 as const };
       session.mode = 'arcade';
       session.arcadeHuman = human;
       session.players = [human];
       session.ladder = buildLadder(arcade);
-      session.ladder.index = Math.min(5, Math.max(0, Number(q.get('fight') ?? 0)));
+      session.ladder.index = Math.min(session.ladder.fights.length - 1, Math.max(0, Number(q.get('fight') ?? 0)));
       this.scene.start('LadderMap');
       return;
     }

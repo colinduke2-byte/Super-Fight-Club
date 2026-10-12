@@ -9,43 +9,43 @@ const result = (winner: number, kos = 2): MatchResult => ({ winner, winnerTeam: 
 
 describe('arcade ladder', () => {
   for (const c of CHARACTER_LIST) {
-    it(`${c.id}: five fights then the boss, escalating`, () => {
+    it(`${c.id}: six fights then the boss, escalating`, () => {
       const l = buildLadder(c.id);
-      expect(l.fights).toHaveLength(6);
-      expect(l.fights[5].kind).toBe('boss');
-      expect(l.fights[5].opponents[0].character in BOSSES).toBe(true);
+      expect(l.fights).toHaveLength(7);
+      expect(l.fights[6].kind).toBe('boss');
+      expect(l.fights[6].opponents[0].character in BOSSES).toBe(true);
       expect(l.fights[3].opponents[0].character).toBe(c.id); // mirror match
-      const levels = l.fights.slice(0, 5).map((f) => Math.max(...f.opponents.map((o) => o.level)));
+      const levels = l.fights.slice(0, 6).map((f) => Math.max(...f.opponents.map((o) => o.level)));
       for (let i = 1; i < levels.length; i++) expect(levels[i]).toBeGreaterThanOrEqual(levels[i - 1]);
       // the first three opponents are the three other roster fighters, once each
       const firsts = [0, 1, 2].map((i) => l.fights[i].opponents[0].character);
       expect(new Set(firsts).size).toBe(3);
       expect(firsts).not.toContain(c.id);
       // with the brawl, a run meets every other roster fighter
-      const met = new Set([0, 1, 2, 4].flatMap((i) => l.fights[i].opponents.map((o) => o.character)));
-      expect(met.size).toBe(Math.min(6, CHARACTER_LIST.length - 1));
+      const met = new Set([0, 1, 2, 4, 5].flatMap((i) => l.fights[i].opponents.map((o) => o.character)));
+      expect(met.size).toBe(Math.min(7, CHARACTER_LIST.length - 1));
       expect(met.has(c.id)).toBe(false);
     });
   }
 
   it('slots: the human first with handicap stocks, then CPUs / the boss', () => {
     const l = buildLadder('vex');
-    l.index = 5;
+    l.index = 6;
     const s = slotsForFight(l, human);
     expect(s).toHaveLength(2);
     expect(s[0]).toMatchObject({ index: 0, type: 'human', stocks: 3 });
     expect(s[1]).toMatchObject({ index: 1, type: 'cpu', boss: true, character: 'overseer', stocks: 2 });
-    l.index = 4;
+    l.index = 5;
     expect(slotsForFight(l, human)).toHaveLength(4);
   });
 
   it('wins advance; the boss win makes a champion', () => {
     const l = buildLadder('vex');
-    for (let i = 0; i < 5; i++) expect(applyLadderResult(l, result(0))).toBe('next');
+    for (let i = 0; i < 6; i++) expect(applyLadderResult(l, result(0))).toBe('next');
     expect(currentFight(l).kind).toBe('boss');
     expect(applyLadderResult(l, result(0))).toBe('champion');
-    expect(l.kos).toBe(12);
-    expect(l.seconds).toBe(450);
+    expect(l.kos).toBe(14);
+    expect(l.seconds).toBe(525);
   });
 
   it('losses spend continues, retry the same fight, then game over', () => {
@@ -79,7 +79,7 @@ describe('story cards', () => {
         expect(card.lines.length).toBeLessThanOrEqual(4);
         for (const line of card.lines) expect(line.length).toBeLessThanOrEqual(LINE_WIDTH);
       }
-      expect(fightCard(l, l.fights[5]).art).toBe('boss');
+      expect(fightCard(l, l.fights[6]).art).toBe('boss');
       expect(endingCards(l).length).toBe(3);
     }
   });

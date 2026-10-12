@@ -3,7 +3,7 @@
 A sci-fi/fantasy platform fighter built with **Phaser 3 + TypeScript (Vite)**. All characters, art and
 audio are original and generated in code. The game runs in the browser.
 
-> **Status: all twelve roadmap phases are built** (see `ROADMAP.md`), plus polish passes: seven fighters (Brick, Vex, Nova, Gizmo, Agni, Halcyon, Riptide), seven stages, ten challenges,
+> **Status: all twelve roadmap phases are built** (see `ROADMAP.md`), plus polish passes: seven fighters (Brick, Vex, Nova, Gizmo, Agni, Halcyon, Riptide, Obelisk), eight stages, eleven challenges,
 > Versus for 2-4 (humans on any device + CPUs), Arcade Ladder with story cards and a scripted boss, training mode with frame-data
 > scenarios, rebindable keyboard / gamepad controls, synthesized SFX and chiptune music, CPU AI with three difficulties.
 > What still needs **you**: hands-on play (balance feel), real Xbox / PlayStation / Switch pads, Safari, 120/144 Hz displays and GPU
@@ -44,8 +44,8 @@ player named; re-plugging (or plugging another pad) re-attaches it.
 
 ## Arcade Ladder and the boss
 
-Pick Arcade Ladder, choose a fighter, and climb six fights: three rivals from the roster (Easy, Easy, Normal), a **mirror match** (on
-Stormspire, in another colourway), a **four-way brawl** against the three rivals not met yet (Hard, Normal, Normal; on Skyhold Expanse), so a
+Pick Arcade Ladder, choose a fighter, and climb seven fights: three rivals from the roster (Easy, Easy, Normal), a **mirror match** (on
+Stormspire, in another colourway), a duel in the dark of Amethyst Hollow, a **four-way brawl** against the three rivals not met yet (Hard, Normal, Normal; on Skyhold Expanse), so a
 run faces the whole roster in a shuffled order, then **The Overseer** (`src/characters/overseer.*`), the arena AI's warden body.
 Story cards (pixel-art scenes drawn in code, `src/art/storyArt.ts`, text in `src/game/story.ts`) play before each fight and in
 the ending, with lines specific to your fighter. You get **3 continues**: losing a fight retries it (stocks reset) until they run out
@@ -82,6 +82,7 @@ stand / shield / jump / jab / CPU 1-3.
 | Stormspire | a narrow tower top in a thunderstorm: drifting cloud platforms, a high perch, and **lightning** that strikes the tower top (left, then right; 1.3 s telegraph, 11% and a launch). Rain, distant bolts, slate-and-cloud art |
 | Sunken Temple | a jungle ziggurat: a wide main floor with a **raised centre tier** (a low wall to fight around, jump over or wall-jump off), two side bridges and a bobbing stone altar on top; misty ziggurats, canopy, god rays and fireflies. No hazards: the terrain is the twist |
 | Wreck Cove | the deck of a wrecked galleon in a moonlit cove: a **raised quarterdeck** at the stern, rigging spars, a crow's nest and a raft bobbing off the bow. Two blowholes take turns throwing up **water spouts** (1.5 s telegraph, 9% and a launch) that also **soak** whoever they hit, so fire goes out and every hit after sends them a little further. Sea stacks, a sweeping lighthouse beam, shipwrecks and rolling surf; a sea-shanty loop |
+| Amethyst Hollow | a geode cavern under the arena (Obelisk's home): a wide crystal-crusted floor with a **low tier**, two rock shelves and a high crystal ledge. Three **stalactites** take turns cracking loose from the roof (1.25 s warning: cracks, grit and a glow on the floor); the spike hurts and drives you down as it falls, then shatters into a **crystal stump** that stands for four seconds. Stalagmites, crystal clusters, a dripping roof and violet mist; a slow minor-key loop and cave ambience |
 | Skyhold Expanse | the **large** stage (blast zones +-900 x 620): a 520-wide bridge deck, two floating islands across gaps, tiers of platforms and a drifting cloud; a golden-hour sky with a sun, god rays, birds and floating islands |
 
 Stages are data (`src/stages/*.ts`: platforms, blast zones, spawns, hazards, `background.theme`, `music`); register a new
@@ -401,6 +402,27 @@ fair) and a shark's jaws. His water moves **SOAK** whoever they hit (`src/charac
 | Waterspout (up, recovery) | rising multi-hit water spiral, soaks on the last hit |
 | Whirlpool (down) | a trap on the ground (one at a time, 6 s): soaks and pops up whoever steps in |
 | Maelstrom (ultimate) | a cinematic grab: dragged under for nine hits, then flung out |
+
+### Obelisk: crystal golem, the terrain builder
+
+Weight 104, middleweight, one double jump. A grumpy golem of granite with an amethyst spine and a glowing geode heart; the
+arena was built over its cave (`src/characters/obelisk.*`, `obeliskPillars.ts`). Its **crystal pillars** are real terrain
+(`src/engine/pillars.ts`): solid platforms that grow out of the ground at run time.
+
+- **Pillars** (two at a time, a third replaces the oldest; 8 s each): they rise out of the ground in 9 frames, lifting anyone
+  standing there and hitting rivals they rise into; while up they block fighters and projectiles, can be stood on and
+  wall-jumped off; rival shots and attacks chip them down; they sink back when their time runs out.
+- **Shatter:** Obelisk's own shots break its pillars into a fan of five crystal shards, and Bedrock Stomp shatters every
+  pillar in range at once. Rock Bottom (back throw) into a pillar slams the rival through it for +35% damage and launch.
+- The CPU raises walls as setups, zones with Shard Volley and stomps a pillar when you stand next to it.
+
+| Special | |
+|---|---|
+| Crystal Spire (neutral) | raises a crystal pillar in front |
+| Shard Volley (side) | three crystal shards; fired into its own pillar, it bursts into a bigger spray |
+| Upheaval (up, recovery) | rides a rising pillar up (leaving it behind when there is ground below) |
+| Bedrock Stomp (down) | a shockwave both ways along the floor that shatters every pillar in range |
+| Mountain's Wrath (ultimate) | a cinematic grab: sealed in a growing amethyst crystal, then a monolith falls on it |
 
 ## Knockback and hit reactions
 
