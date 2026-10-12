@@ -219,6 +219,17 @@ export class WorldEventFx {
         e.flash(x, y, 2, 0xff5a7a);
         e.burst(x, y, 16, 100, 0xff5a7a, 0.3, 3);
         break;
+      case 'target': {
+        // a target shatters: white flash, red and white shards, a bright ding (higher pitch as the course empties)
+        e.flash(x, y, 2.6, 0xffffff);
+        e.ring(x, y, 20, 0xff4a5a, 0.3);
+        e.burst(x, y, 16, 140, 0xff3a4a, 0.5, 3);
+        e.burst(x, y, 10, 110, 0xffffff, 0.4, 2);
+        this.host.shake(2);
+        sfx.play(mag === 0 ? 'boom' : 'ding', 0.9, this.host.pan(x));
+        sfx.play('break', 0.5, this.host.pan(x));
+        break;
+      }
       case 'clank':
         // blades meeting: a bright spark, a ring and a metallic ring-out
         e.flash(x, y, 2.4, 0xfff6c8);

@@ -5,6 +5,7 @@ import type { MoveDef } from './moves';
 import { GRAB_DISTANCE, type Fighter } from './fighter';
 import { stepHazards } from './hazards';
 import { Item, MAX_ITEMS, stepItems } from './items';
+import { stepTargets, type Target } from './targets';
 import { Ledge, Platform } from './platform';
 import type { BlastZones, StageData } from './types';
 
@@ -29,6 +30,7 @@ export type WorldEventType =
   | 'moveStart'
   | 'trade'
   | 'clank'
+  | 'target'
   | 'projectile'
   | 'projectileHit'
   | 'reflect'
@@ -86,6 +88,8 @@ export class World {
   readonly ledges: Ledge[] = [];
   readonly fighters: Fighter[] = [];
   readonly blast: BlastZones;
+  /** Target Smash targets (empty on normal stages). */
+  readonly targets: Target[] = [];
   readonly projectiles: Projectile[] = Array.from({ length: MAX_PROJECTILES }, (_, i) => new Projectile(i));
   readonly deployables: Deployable[] = Array.from({ length: MAX_DEPLOYABLES }, (_, i) => new Deployable(i));
   /** Active ultimate cutscene, or null. While set, only the cutscene advances. */
@@ -111,6 +115,7 @@ export class World {
         this.ledges.push(new Ledge(p, -1), new Ledge(p, 1));
       }
     }
+    for (const t of stage.targets ?? []) this.targets.push({ x: t.x, y: t.y, alive: true });
   }
 
   /** True when both fighters are on the same team (team battles): no friendly fire. */
@@ -165,6 +170,7 @@ export class World {
     resolveEntityCombat(this);
     stepHazards(this);
     stepItems(this);
+    stepTargets(this);
   }
 
   // ---- projectiles / deployables -------------------------------------------------------------

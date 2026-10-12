@@ -43,7 +43,7 @@ export class CharacterSelectScene extends MenuScene {
     this.roster = [];
     this.lobby = new Lobby(session.playerCount, CHARACTER_LIST.length);
     this.lobby.slots.forEach((s, i) => (s.character = i % CHARACTER_LIST.length));
-    const title = session.mode === 'versus' ? 'CHOOSE YOUR FIGHTERS' : session.mode === 'arcade' ? 'CHOOSE YOUR CHAMPION' : 'TRAINING: CHOOSE A FIGHTER';
+    const title = session.mode === 'versus' ? 'CHOOSE YOUR FIGHTERS' : session.mode === 'arcade' ? 'CHOOSE YOUR CHAMPION' : session.mode === 'targets' ? 'TARGET SMASH' : 'TRAINING: CHOOSE A FIGHTER';
     this.title = this.add.bitmapText(0, 0, PIXEL_FONT, title).setOrigin(0.5).setTint(COLORS.title);
     this.ui.add(this.title);
 
@@ -226,7 +226,11 @@ export class CharacterSelectScene extends MenuScene {
       session.ladder.introduced = true;
       this.go('Story', { cards: introCards(slots[0].character), next: 'LadderMap' });
     }
-    else {
+    else if (session.mode === 'targets') {
+      session.stage = 'targets';
+      session.players = [slots[0]];
+      this.go('Match');
+    } else {
       session.stage = 'sandbox';
       session.players = [slots[0], { index: 1, type: 'cpu', device: null, character: slots[0].character === 'brick' ? 'vex' : 'brick', cpuLevel: 1 }];
       this.go('Match');

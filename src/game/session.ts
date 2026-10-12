@@ -2,7 +2,18 @@ import type { InputDevice } from '../input/device';
 import type { LadderState } from './ladder';
 import type { CpuLevel } from './lobby';
 
-export type GameMode = 'versus' | 'arcade' | 'training';
+export type GameMode = 'versus' | 'arcade' | 'training' | 'targets';
+
+/** The last Target Smash run (for the results screen). */
+export interface TargetRun {
+  character: string;
+  ticks: number;
+  cleared: boolean;
+  broken: number;
+  total: number;
+  best: number | null;
+  record: boolean;
+}
 
 export interface PlayerSlot {
   index: number;
@@ -72,12 +83,13 @@ export interface Session {
   replay: Replay | null;
   /** Set by Results: the next Match scene plays `replay` back instead of a live game. */
   watchReplay: boolean;
+  targetRun: TargetRun | null;
 }
 
 export const DEFAULT_RULES: MatchRules = { mode: 'stock', stocks: 3, timeSec: 180, teams: false, items: 0, hazards: true, staminaHp: 150 };
 
 export function newSession(): Session {
-  return { mode: 'versus', players: [], stage: 'classic', rules: { ...DEFAULT_RULES }, playerCount: 2, lastResult: null, ladder: null, arcadeHuman: null, replay: null, watchReplay: false };
+  return { mode: 'versus', players: [], stage: 'classic', rules: { ...DEFAULT_RULES }, playerCount: 2, lastResult: null, ladder: null, arcadeHuman: null, replay: null, watchReplay: false, targetRun: null };
 }
 
 export const session: Session = newSession();

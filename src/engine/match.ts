@@ -112,7 +112,8 @@ export class Match {
       const alive = this.scores.map((s, i) => (s.eliminated ? -1 : i)).filter((i) => i >= 0);
       const team0 = alive.length ? w.fighters[alive[0]].team : -1;
       const oneTeam = team0 >= 0 && alive.every((i) => w.fighters[i].team === team0);
-      if (alive.length <= 1 || oneTeam) {
+      const solo = this.scores.length === 1; // a single fighter (Target Smash) only ends by falling
+      if (alive.length === 0 || (!solo && (alive.length <= 1 || oneTeam))) {
         this.winner = alive.length >= 1 ? alive[0] : -1;
         this.winnerTeam = alive.length >= 1 ? team0 : -1;
         this.over = true;

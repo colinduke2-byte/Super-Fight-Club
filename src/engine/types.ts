@@ -86,6 +86,8 @@ export interface StageData {
   music?: string;
   /** One or two sentences for the stage select card. */
   blurb?: string;
+  /** Target Smash course: positions of the targets to break. */
+  targets?: { x: number; y: number }[];
 }
 
 export interface CharacterStats {

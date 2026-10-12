@@ -82,6 +82,16 @@ export class BootScene extends Phaser.Scene {
       this.scene.start('LadderMap');
       return;
     }
+    const tgt = q.get('targets');
+    if (tgt) {
+      // ?targets=<char> starts a Target Smash run directly (keyboard player 1)
+      inputManager.init();
+      session.mode = 'targets';
+      session.stage = 'targets';
+      session.players = [{ index: 0, type: 'human', device: inputManager.keyboards[0], character: tgt, cpuLevel: 1 }];
+      this.scene.start('Match');
+      return;
+    }
     this.scene.start(q.get('scene') ?? ((q.has('char') || q.has('stage')) ? 'Match' : 'Title'));
   }
 }
