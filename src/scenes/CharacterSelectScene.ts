@@ -90,8 +90,10 @@ export class CharacterSelectScene extends MenuScene {
 
   private cardW = 100;
 
-  protected override layoutUi(w: number, h: number, u: number): void {
-    this.title.setScale(u * 3).setPosition(w / 2, h * 0.07);
+  protected override layoutUi(w: number, h: number, u0: number): void {
+    // cards + roster need about 205 art-pixel units of height: on short windows shrink the unit so everything stays on screen
+    const u = Math.max(1, Math.min(u0, Math.floor(((h * 0.86) / 205) * 2) / 2));
+    this.title.setScale(Math.min(u0 * 3, (w * 0.9) / Math.max(1, textPx(this.title)))).setPosition(w / 2, h * 0.07);
     const n = this.cards.length;
     const cw = Math.min(w / (n + 0.4), 112 * u * 1.1);
     this.cardW = cw;

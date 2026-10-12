@@ -76,7 +76,7 @@ export const halcyon: CharacterData = {
   sprite: {
     frameSize: 240,
     frameWidth: 288, // room for the spear and the wings
-    portrait: [73, 100, 96],
+    portrait: [73, 84, 96],
     pixelScale: 0.29,
     animations: halcyonAnimations(),
     placeholder: {
