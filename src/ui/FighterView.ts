@@ -35,6 +35,13 @@ export class FighterView {
   private readonly smear: Phaser.GameObjects.Sprite[] = [];
   /** Additive silhouette over the body: brightens towards a colour (charge, burn, stun) instead of a muddy multiply tint. */
   private readonly glow: Phaser.GameObjects.Sprite;
+  /** Player colour (tags, respawn halo). */
+  color = 0xffffff;
+  /** Respawn halo: a glowing disc under the feet and a beam of light while the fighter drops back in. */
+  private readonly halo: Phaser.GameObjects.Image;
+  private readonly beam: Phaser.GameObjects.Image;
+  private haloT = 0;
+  private wasKo = false;
   /** A carried Shock Bomb, held out in front. */
   private readonly held: Phaser.GameObjects.Image;
   private readonly layer: Phaser.GameObjects.Layer;
@@ -59,6 +66,10 @@ export class FighterView {
     this.glow = scene.add.sprite(0, 0, key, 0).setBlendMode(Phaser.BlendModes.ADD).setVisible(false);
     layer.add(this.glow);
     this.held = scene.add.image(0, 0, 'item-bomb').setScale(0.42).setVisible(false);
+    this.beam = scene.add.image(0, 0, 'px').setOrigin(0.5, 1).setBlendMode(Phaser.BlendModes.ADD).setVisible(false);
+    this.halo = scene.add.image(0, 0, 'ring').setBlendMode(Phaser.BlendModes.ADD).setVisible(false);
+    layer.addAt(this.beam, 0);
+    layer.add(this.halo);
     layer.add(this.held);
     layer.add(this.bubble);
     this.comboText = scene.add.bitmapText(0, 0, PIXEL_FONT, '').setOrigin(0.5, 1).setScale(0.5).setTint(0xffe14a).setVisible(false);
@@ -89,6 +100,18 @@ export class FighterView {
     s.setVisible(f.state !== 'ko');
     this.shadow.setVisible(f.state !== 'ko' && f.grounded);
     this.held.setVisible(f.heldBomb && f.state !== 'ko');
+    // came back from a KO: light the way down until they land (or the invincibility runs out)
+    if (this.wasKo && f.state !== 'ko') this.haloT = 1;
+    this.wasKo = f.state === 'ko';
+    if (this.haloT > 0 && (f.grounded || f.invuln <= 0 || f.state === 'ko')) this.haloT = Math.max(0, this.haloT - 0.08);
+    const ha = this.haloT;
+    this.halo.setVisible(ha > 0);
+    this.beam.setVisible(ha > 0);
+    if (ha > 0) {
+      const pulse = 0.85 + 0.15 * Math.sin(tick * 0.3);
+      this.halo.setPosition(this.x, this.y + 1).setScale(1.3 * pulse, 0.32 * pulse).setTint(this.color).setAlpha(0.9 * ha);
+      this.beam.setPosition(this.x, this.y).setScale(18 / 4, 400 / 4).setTint(this.color).setAlpha(0.18 * ha);
+    }
     if (f.heldBomb) this.held.setPosition(this.x + f.facing * 8 * f.sizeMul, this.y - f.h * 0.5 * f.sizeMul + Math.sin(tick * 0.2));
     if (f.state === 'ko') {
       this.bubble.setVisible(false);

@@ -272,6 +272,7 @@ export class MatchScene extends Phaser.Scene {
     this.uiLayer.add(this.dimOverlay);
     this.koBlast = new KoBlast(this, this.uiLayer);
     const tagColors = this.fighters.map((f) => (f.team >= 0 ? COLORS.p[f.team] : COLORS.p[f.id % 4]));
+    this.views.forEach((v, i) => (v.color = tagColors[i]));
     this.tags = new PlayerTags(this, this.uiLayer, this.fighters, this.views, this.slots.map((s, i) => (s.boss ? 'BOSS' : this.isTraining ? (i === 0 ? 'YOU' : 'DUMMY') : s.type === 'cpu' ? 'CPU' : `P${i + 1}`)), tagColors);
     this.bubbles = new OffscreenBubbles(this, this.uiLayer, this.fighters, this.views, tagColors);
     this.fighters.forEach((f, i) => {
