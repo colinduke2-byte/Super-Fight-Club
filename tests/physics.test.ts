@@ -76,6 +76,7 @@ describe('movement physics', () => {
   it('allows a coyote jump just after walking off the edge, but not long after', () => {
     for (const [delay, shouldJump] of [[3, true], [20, false]] as const) {
       const { world, f } = setup();
+      world.ledges.length = 0; // walking off a stage edge normally catches the ledge; this test is about the bare edge
       f.spawn(150, 0);
       run(world, 5);
       // walk right off the ledge

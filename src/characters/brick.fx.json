@@ -319,6 +319,292 @@
      "life": 0.25
     }
    ]
+  },
+  {
+   "_sp": 1,
+   "when": {
+    "moves": [
+     "neutralB"
+    ],
+    "phase": "startup"
+   },
+   "every": 3,
+   "ops": [
+    {
+     "op": "converge",
+     "radius": [
+      26,
+      44
+     ],
+     "pull": 1.3,
+     "life": 0.25,
+     "color": "@trail",
+     "size": 2
+    }
+   ]
+  },
+  {
+   "_sp": 1,
+   "when": {
+    "moves": [
+     "neutralB"
+    ],
+    "frames": [
+     20,
+     20
+    ]
+   },
+   "ops": [
+    {
+     "op": "flash",
+     "power": 0.8,
+     "color": "@trail",
+     "x": 14,
+     "yh": 0.55
+    },
+    {
+     "op": "burst",
+     "count": 8,
+     "speed": 90,
+     "color": "@trail",
+     "life": 0.3,
+     "size": 2,
+     "x": 14,
+     "yh": 0.55
+    }
+   ]
+  },
+  {
+   "_sp": 1,
+   "when": {
+    "moves": [
+     "sideB"
+    ],
+    "phase": "startup"
+   },
+   "every": 3,
+   "ops": [
+    {
+     "op": "converge",
+     "radius": [
+      26,
+      44
+     ],
+     "pull": 1.3,
+     "life": 0.25,
+     "color": "@trail",
+     "size": 2
+    }
+   ]
+  },
+  {
+   "_sp": 1,
+   "when": {
+    "moves": [
+     "sideB"
+    ],
+    "frames": [
+     13,
+     13
+    ]
+   },
+   "ops": [
+    {
+     "op": "flash",
+     "power": 0.8,
+     "color": "@trail",
+     "x": 14,
+     "yh": 0.55
+    },
+    {
+     "op": "burst",
+     "count": 8,
+     "speed": 90,
+     "color": "@trail",
+     "life": 0.3,
+     "size": 2,
+     "x": 14,
+     "yh": 0.55
+    }
+   ]
+  },
+  {
+   "_sp": 1,
+   "when": {
+    "moves": [
+     "upB"
+    ],
+    "phase": "startup"
+   },
+   "every": 3,
+   "ops": [
+    {
+     "op": "converge",
+     "radius": [
+      26,
+      44
+     ],
+     "pull": 1.3,
+     "life": 0.25,
+     "color": "@trail",
+     "size": 2
+    }
+   ]
+  },
+  {
+   "_sp": 1,
+   "when": {
+    "moves": [
+     "upB"
+    ],
+    "frames": [
+     12,
+     12
+    ]
+   },
+   "ops": [
+    {
+     "op": "ring",
+     "radius": 22,
+     "color": "@trail",
+     "life": 0.3,
+     "y": 0
+    },
+    {
+     "op": "burst",
+     "count": 12,
+     "speed": 80,
+     "color": "@trail",
+     "life": 0.4,
+     "size": 3,
+     "y": 0
+    },
+    {
+     "op": "dust",
+     "count": 6,
+     "dir": 0
+    }
+   ]
+  },
+  {
+   "_sp": 1,
+   "when": {
+    "moves": [
+     "downB"
+    ],
+    "phase": "startup"
+   },
+   "every": 3,
+   "ops": [
+    {
+     "op": "converge",
+     "radius": [
+      26,
+      44
+     ],
+     "pull": 1.3,
+     "life": 0.25,
+     "color": "@trail",
+     "size": 2
+    }
+   ]
+  },
+  {
+   "_sp": 1,
+   "when": {
+    "moves": [
+     "downB"
+    ],
+    "frames": [
+     14,
+     14
+    ]
+   },
+   "ops": [
+    {
+     "op": "ring",
+     "radius": 34,
+     "color": "@trail",
+     "life": 0.4,
+     "yh": 0.2
+    },
+    {
+     "op": "dust",
+     "count": 10,
+     "dir": 0
+    },
+    {
+     "op": "shake",
+     "amount": 2
+    }
+   ]
+  },
+  {
+   "_sp": 1,
+   "when": {
+    "moves": [
+     "ultimate"
+    ],
+    "phase": "startup"
+   },
+   "every": 2,
+   "ops": [
+    {
+     "op": "converge",
+     "radius": [
+      40,
+      70
+     ],
+     "pull": 1.3,
+     "life": 0.25,
+     "color": "@trail",
+     "size": 3
+    }
+   ]
+  },
+  {
+   "_sp": 1,
+   "when": {
+    "moves": [
+     "ultimate"
+    ],
+    "frames": [
+     9,
+     9
+    ]
+   },
+   "ops": [
+    {
+     "op": "flash",
+     "power": 2,
+     "color": "@trail",
+     "yh": 0.5
+    },
+    {
+     "op": "ring",
+     "radius": 60,
+     "color": "@trail",
+     "life": 0.5,
+     "yh": 0.5
+    },
+    {
+     "op": "burst",
+     "count": 24,
+     "speed": 130,
+     "color": "@trail",
+     "life": 0.5,
+     "size": 3,
+     "yh": 0.5
+    },
+    {
+     "op": "shake",
+     "amount": 4
+    },
+    {
+     "op": "punch",
+     "amount": 0.04
+    }
+   ]
   }
  ]
 }

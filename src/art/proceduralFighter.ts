@@ -857,7 +857,7 @@ export function buildPlaceholderSheet(scene: Phaser.Scene, data: CharacterData):
   const tctx = tmp.getContext('2d', { willReadFrequently: true })!;
 
   moveKeys = {};
-  for (const m of Object.values(data.moves)) if (m.pose) moveKeys[`mv_${m.id}`] = buildKeys(m.pose);
+  for (const m of Object.values(data.moves)) if (m.pose) moveKeys[m.anim] = buildKeys(m.pose);
   names.forEach((name, row) => {
     const def = sprite.animations[name];
     for (let f = 0; f < def.frames; f++) {

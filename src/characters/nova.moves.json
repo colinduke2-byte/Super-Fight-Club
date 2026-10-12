@@ -1212,7 +1212,26 @@
      "name": "cast"
     }
    ],
-   "hitboxes": []
+   "hitboxes": [],
+   "pose": {
+    "hand": "both",
+    "from": [
+     -6,
+     -36
+    ],
+    "to": [
+     22,
+     -8
+    ],
+    "lean": 5,
+    "step": 4,
+    "t": "slash"
+   },
+   "view": {
+    "stretch": 1.08,
+    "smear": 1.2,
+    "arc": "none"
+   }
   },
   "neutralB_ice": {
    "name": "Spell Bolt: Ice",
@@ -1243,7 +1262,23 @@
      "name": "cast"
     }
    ],
-   "hitboxes": []
+   "hitboxes": [],
+   "pose": {
+    "reach": 24,
+    "h": -10,
+    "lean": 3,
+    "crouch": 2,
+    "wind": [
+     -8,
+     -8
+    ],
+    "t": "thrust"
+   },
+   "view": {
+    "stretch": 1.08,
+    "smear": 1.2,
+    "arc": "none"
+   }
   },
   "neutralB_lightning": {
    "name": "Spell Bolt: Lightning",
@@ -1274,7 +1309,22 @@
      "name": "cast"
     }
    ],
-   "hitboxes": []
+   "hitboxes": [],
+   "pose": {
+    "hand": "front",
+    "reach": 21,
+    "h": -14,
+    "lean": -3,
+    "wind": [
+     -2,
+     -14
+    ],
+    "t": "punch"
+   },
+   "view": {
+    "stretch": 1.05,
+    "arc": "none"
+   }
   },
   "sideB_fire": {
    "name": "Rune Trap: Fire",
@@ -1292,7 +1342,22 @@
      "y": 0
     }
    ],
-   "hitboxes": []
+   "hitboxes": [],
+   "pose": {
+    "from": [
+     2,
+     -38
+    ],
+    "reach": 14,
+    "h": 4,
+    "lean": 3,
+    "crouch": 1,
+    "t": "slam"
+   },
+   "view": {
+    "squash": 0.94,
+    "arc": "none"
+   }
   },
   "sideB_ice": {
    "name": "Rune Trap: Ice",
@@ -1310,7 +1375,76 @@
      "y": 0
     }
    ],
-   "hitboxes": []
+   "hitboxes": [],
+   "pose": {
+    "keys": [
+     [
+      -2,
+      3,
+      [
+       4,
+       -8
+      ],
+      [
+       -2,
+       -6
+      ],
+      [
+       4,
+       0
+      ],
+      [
+       -4,
+       0
+      ]
+     ],
+     [
+      2,
+      8,
+      [
+       18,
+       4
+      ],
+      [
+       -2,
+       -6
+      ],
+      [
+       8,
+       0
+      ],
+      [
+       -8,
+       0
+      ]
+     ],
+     [
+      0,
+      4,
+      [
+       8,
+       0
+      ],
+      [
+       -2,
+       -4
+      ],
+      [
+       6,
+       0
+      ],
+      [
+       -6,
+       0
+      ]
+     ]
+    ],
+    "t": "custom"
+   },
+   "view": {
+    "squash": 0.94,
+    "arc": "none"
+   }
   },
   "sideB_lightning": {
    "name": "Rune Trap: Lightning",
@@ -1328,7 +1462,26 @@
      "y": 0
     }
    ],
-   "hitboxes": []
+   "hitboxes": [],
+   "pose": {
+    "hand": "front",
+    "from": [
+     -10,
+     -30
+    ],
+    "to": [
+     20,
+     -2
+    ],
+    "lean": 6,
+    "step": 5,
+    "t": "slash"
+   },
+   "view": {
+    "stretch": 1.1,
+    "smear": 1.2,
+    "arc": "none"
+   }
   },
   "upB": {
    "name": "Aether Step",
@@ -1364,7 +1517,77 @@
      "mode": "add"
     }
    ],
-   "hitboxes": []
+   "hitboxes": [],
+   "pose": {
+    "keys": [
+     [
+      -2,
+      4,
+      [
+       4,
+       2
+      ],
+      [
+       -4,
+       2
+      ],
+      [
+       6,
+       0
+      ],
+      [
+       -6,
+       0
+      ]
+     ],
+     [
+      -1,
+      0,
+      [
+       3,
+       -46
+      ],
+      [
+       -1,
+       -42
+      ],
+      [
+       3,
+       5
+      ],
+      [
+       -3,
+       5
+      ]
+     ],
+     [
+      0,
+      0,
+      [
+       3,
+       -34
+      ],
+      [
+       -1,
+       -30
+      ],
+      [
+       3,
+       2
+      ],
+      [
+       -3,
+       2
+      ]
+     ]
+    ],
+    "t": "custom"
+   },
+   "view": {
+    "stretch": 1.16,
+    "ghosts": true,
+    "arc": "none"
+   }
   },
   "downB": {
    "name": "Cycle",
@@ -1406,7 +1629,75 @@
      "name": "barrier"
     }
    ],
-   "hitboxes": []
+   "hitboxes": [],
+   "pose": {
+    "keys": [
+     [
+      0,
+      2,
+      [
+       4,
+       -6
+      ],
+      [
+       -4,
+       -6
+      ],
+      [
+       4,
+       0
+      ],
+      [
+       -4,
+       0
+      ]
+     ],
+     [
+      0,
+      3,
+      [
+       14,
+       -12
+      ],
+      [
+       -14,
+       -12
+      ],
+      [
+       7,
+       0
+      ],
+      [
+       -7,
+       0
+      ]
+     ],
+     [
+      0,
+      1,
+      [
+       8,
+       -8
+      ],
+      [
+       -8,
+       -8
+      ],
+      [
+       4,
+       0
+      ],
+      [
+       -4,
+       0
+      ]
+     ]
+    ],
+    "t": "custom"
+   },
+   "view": {
+    "squash": 0.94
+   }
   },
   "ultimate": {
    "name": "Elemental Convergence",
@@ -1458,7 +1749,76 @@
      "name": "beam"
     }
    ],
-   "hitboxes": []
+   "hitboxes": [],
+   "pose": {
+    "keys": [
+     [
+      -3,
+      1,
+      [
+       2,
+       -48
+      ],
+      [
+       0,
+       -44
+      ],
+      [
+       4,
+       0
+      ],
+      [
+       -4,
+       0
+      ]
+     ],
+     [
+      0,
+      0,
+      [
+       15,
+       -38
+      ],
+      [
+       -15,
+       -38
+      ],
+      [
+       5,
+       0
+      ],
+      [
+       -5,
+       0
+      ]
+     ],
+     [
+      0,
+      0,
+      [
+       6,
+       -22
+      ],
+      [
+       -6,
+       -22
+      ],
+      [
+       4,
+       0
+      ],
+      [
+       -4,
+       0
+      ]
+     ]
+    ],
+    "t": "custom"
+   },
+   "view": {
+    "stretch": 1.1,
+    "ghosts": true
+   }
   }
  }
 }

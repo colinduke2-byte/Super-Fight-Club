@@ -9,7 +9,7 @@ describe('move poses', () => {
       for (const m of Object.values(c.moves)) {
         if (!m.pose) continue;
         expect(POSE_TEMPLATES, `${id}.${m.id}`).toContain(m.pose.t);
-        expect(m.anim).toBe(`mv_${m.id}`);
+        expect(m.anim).toMatch(/^mv_/);
         expect(c.sprite.animations[m.anim]?.frames).toBe(6);
         const keys = buildKeys(m.pose);
         expect(keys).toHaveLength(3);

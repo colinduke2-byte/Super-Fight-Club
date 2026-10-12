@@ -996,7 +996,23 @@ export class Fighter implements Body {
     this.vx = approach(this.vx, target, rate);
     if (Math.abs(this.vx) < 0.01) this.vx = 0;
 
+    const wasGrounded = this.grounded;
+    const was = this.state;
     this.integrate(world);
+    // walking off a stage edge catches the ledge automatically
+    if (wasGrounded && !this.grounded && (was === 'idle' || was === 'run' || was === 'crouch') && this.state !== 'attack') this.autoLedgeGrab(world);
+  }
+
+  private autoLedgeGrab(world: World): void {
+    if (this.grabCooldown > 0 || this.vy < 0) return;
+    for (let i = 0; i < world.ledges.length; i++) {
+      const l = world.ledges[i];
+      if (l.occupant !== -1 && l.occupant !== this.id) continue;
+      const outside = (this.x - l.x) * l.side;
+      if (outside < -this.hw || outside > this.hw + 12 || Math.abs(this.y - l.y) > 10) continue;
+      this.grabLedge(l, world);
+      return;
+    }
   }
 
   /** Buffered attack / special / grab / shield inputs from a neutral grounded state. */
