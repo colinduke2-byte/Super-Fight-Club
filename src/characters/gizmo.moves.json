@@ -106,7 +106,7 @@
    "name": "Wrench Whack 1",
    "kind": "jab",
    "anim": "jab",
-   "startup": 5,
+   "startup": 4,
    "active": 2,
    "recovery": 10,
    "next": {
@@ -159,7 +159,7 @@
    "name": "Wrench Whack 2",
    "kind": "jab",
    "anim": "jabB",
-   "startup": 5,
+   "startup": 4,
    "active": 2,
    "recovery": 10,
    "next": {
@@ -268,7 +268,7 @@
    "name": "Wrench Poke",
    "kind": "tilt",
    "anim": "jab",
-   "startup": 7,
+   "startup": 6,
    "active": 3,
    "recovery": 15,
    "cancels": [
@@ -324,7 +324,7 @@
    "name": "Spark Pop",
    "kind": "tilt",
    "anim": "smashU",
-   "startup": 7,
+   "startup": 6,
    "active": 4,
    "recovery": 16,
    "cancels": [
@@ -773,7 +773,7 @@
    "name": "Rocket Kick",
    "kind": "aerial",
    "anim": "aerialB",
-   "startup": 10,
+   "startup": 8,
    "active": 3,
    "recovery": 16,
    "landingLag": 12,
@@ -860,7 +860,7 @@
    "name": "Hammer Drop",
    "kind": "aerial",
    "anim": "aerialD",
-   "startup": 14,
+   "startup": 12,
    "active": 4,
    "recovery": 20,
    "landingLag": 18,

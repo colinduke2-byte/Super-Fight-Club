@@ -8,60 +8,60 @@ The CPU plays some characters better than others, so read this as a smoke test f
 | pairing | wins |
 |---|---|
 | brick vs vex | 9 - 15 |
-| brick vs nova | 14 - 10 |
-| brick vs gizmo | 14 - 10 |
-| brick vs agni | 16 - 8 |
-| brick vs halcyon | 15 - 9 |
-| vex vs nova | 4 - 20 |
-| vex vs gizmo | 7 - 17 |
-| vex vs agni | 10 - 14 |
-| vex vs halcyon | 9 - 13 |
-| nova vs gizmo | 5 - 17 |
+| brick vs nova | 6 - 18 |
+| brick vs gizmo | 12 - 12 |
+| brick vs agni | 10 - 14 |
+| brick vs halcyon | 14 - 10 |
+| vex vs nova | 10 - 14 |
+| vex vs gizmo | 13 - 11 |
+| vex vs agni | 18 - 6 |
+| vex vs halcyon | 12 - 12 |
+| nova vs gizmo | 4 - 20 |
 | nova vs agni | 11 - 13 |
 | nova vs halcyon | 14 - 9 |
 | gizmo vs agni | 6 - 18 |
-| gizmo vs halcyon | 7 - 17 |
+| gizmo vs halcyon | 11 - 13 |
 | agni vs halcyon | 16 - 8 |
 
 | fighter | win rate | ultimates used per match |
 |---|---|---|
-| brick | 57% | 1.30 |
-| vex | 38% | 1.66 |
-| nova | 51% | 1.91 |
-| gizmo | 48% | 1.93 |
-| agni | 58% | 1.81 |
-| halcyon | 48% | 1.93 |
+| brick | 43% | 1.15 |
+| vex | 57% | 1.72 |
+| nova | 51% | 1.93 |
+| gizmo | 50% | 1.98 |
+| agni | 56% | 1.83 |
+| halcyon | 44% | 1.92 |
 
-Mean match length: 135 s
+Mean match length: 126 s
 
 ## Level 2
 
 | pairing | wins |
 |---|---|
-| brick vs vex | 7 - 14 |
-| brick vs nova | 13 - 11 |
-| brick vs gizmo | 16 - 8 |
-| brick vs agni | 15 - 9 |
-| brick vs halcyon | 13 - 11 |
-| vex vs nova | 8 - 12 |
-| vex vs gizmo | 11 - 8 |
-| vex vs agni | 19 - 4 |
-| vex vs halcyon | 16 - 7 |
-| nova vs gizmo | 11 - 13 |
+| brick vs vex | 9 - 15 |
+| brick vs nova | 11 - 13 |
+| brick vs gizmo | 14 - 10 |
+| brick vs agni | 16 - 8 |
+| brick vs halcyon | 15 - 9 |
+| vex vs nova | 15 - 9 |
+| vex vs gizmo | 21 - 3 |
+| vex vs agni | 19 - 5 |
+| vex vs halcyon | 11 - 13 |
+| nova vs gizmo | 10 - 14 |
 | nova vs agni | 8 - 16 |
 | nova vs halcyon | 8 - 16 |
-| gizmo vs agni | 5 - 19 |
-| gizmo vs halcyon | 4 - 20 |
+| gizmo vs agni | 6 - 18 |
+| gizmo vs halcyon | 3 - 21 |
 | agni vs halcyon | 12 - 12 |
 
 | fighter | win rate | ultimates used per match |
 |---|---|---|
-| brick | 55% | 1.49 |
-| vex | 64% | 2.19 |
-| nova | 43% | 2.03 |
-| gizmo | 33% | 1.88 |
-| agni | 50% | 1.87 |
-| halcyon | 55% | 2.01 |
+| brick | 54% | 1.48 |
+| vex | 68% | 1.91 |
+| nova | 40% | 1.93 |
+| gizmo | 30% | 1.87 |
+| agni | 49% | 1.90 |
+| halcyon | 59% | 1.99 |
 
-Mean match length: 147 s
+Mean match length: 136 s
 

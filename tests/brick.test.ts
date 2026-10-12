@@ -296,7 +296,7 @@ describe('Meltdown', () => {
 describe('Brick identity', () => {
   it('is heavy, slow, falls fast and has a short double jump', () => {
     const s = brick.stats;
-    expect(s.weight).toBe(114);
+    expect(s.weight).toBe(108);
     expect(s.runSpeed).toBeLessThan(2.1);
     expect(s.airSpeed).toBeLessThan(1.5);
     expect(s.fallSpeed).toBeGreaterThanOrEqual(8);

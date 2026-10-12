@@ -60,7 +60,7 @@ export const vex: CharacterData = {
   },
   stats: {
     weight: 106,
-    runSpeed: 3.1,
+    runSpeed: 3.0,
     airSpeed: 2.2,
     groundAccel: 0.42,
     groundFriction: 0.4,

@@ -25,7 +25,7 @@ export const brick: CharacterData = {
     epilogue: 'Brick sets his shield down on the cracked floor. For the first time in years there is nothing left to guard, and he does not mind.',
   },
   stats: {
-    weight: 114,
+    weight: 108,
     runSpeed: 1.9,
     airSpeed: 1.3,
     groundAccel: 0.22,
