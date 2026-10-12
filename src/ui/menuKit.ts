@@ -39,6 +39,11 @@ export interface MenuItem {
 }
 
 /** A vertical list of rows with a highlighted cursor; label on the left, value on the right. */
+/** Unscaled pixel width of a bitmap text (independent of its current scale). */
+export function textPx(t: Phaser.GameObjects.BitmapText): number {
+  return t.getTextBounds().local.width;
+}
+
 export class MenuList {
   index = 0;
   private readonly labels: Phaser.GameObjects.BitmapText[] = [];
@@ -138,7 +143,7 @@ export class MenuList {
       this.labels[i].setTint(!on ? 0x5a5680 : sel ? (pulse ? COLORS.hot : COLORS.title) : COLORS.text);
       const v = it.value ? up(`${sel && it.onLeft ? '< ' : ''}${it.value()}${sel && it.onRight ? ' >' : ''}`) : '';
       this.values[i].setText(v).setTint(!on ? 0x5a5680 : sel ? COLORS.hot : COLORS.accent);
-      if (it.value) worst = Math.max(worst, (label.length + 2 + v.length) * 7 + 10); // fixed-width pixel font, ~7 px per glyph with spacing
+      if (it.value) worst = Math.max(worst, textPx(this.labels[i]) + textPx(this.values[i]) + 12);
     });
     // one text size for the whole menu: shrunk only when the widest row (label + value) would overflow the menu width
     const k = Math.min(this.fontK, (this.width * this.u) / (worst * this.u));

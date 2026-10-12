@@ -2,7 +2,7 @@ import Phaser from 'phaser';
 import { PIXEL_FONT } from '../art/pixelFont';
 import type { MenuEvent } from '../input/menuInput';
 import { session } from '../game/session';
-import { COLORS, MenuList, MenuScene, text } from '../ui/menuKit';
+import { COLORS, MenuList, MenuScene, text, textPx } from '../ui/menuKit';
 
 const clamp = (v: number, lo: number, hi: number): number => Math.max(lo, Math.min(hi, v));
 
@@ -46,7 +46,7 @@ export class VersusSetupScene extends MenuScene {
   protected override layoutUi(w: number, h: number, u: number): void {
     this.title.setScale(u * 4).setPosition(w / 2, h * 0.14);
     this.list.layout(w / 2, h * 0.3, u, 190);
-    this.hint.setScale(u).setPosition(w / 2, h - 10 * u);
+    this.hint.setScale(Math.min(u, (w * 0.97) / Math.max(1, textPx(this.hint)))).setPosition(w / 2, h - 10 * u);
   }
 
   protected override tick(time: number): void {

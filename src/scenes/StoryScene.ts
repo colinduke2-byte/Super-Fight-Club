@@ -6,7 +6,7 @@ import { characterById } from '../characters';
 import { music } from '../audio/music';
 import type { StoryCard } from '../game/story';
 import type { MenuEvent } from '../input/menuInput';
-import { COLORS, MenuScene, text } from '../ui/menuKit';
+import { COLORS, MenuScene, text, textPx } from '../ui/menuKit';
 
 const CPS = 38; // typewriter characters per second
 
@@ -105,7 +105,7 @@ export class StoryScene extends MenuScene {
   protected override layoutUi(w: number, h: number, u: number): void {
     const s = Math.max(2, Math.floor(Math.min((w * 0.82) / CARD_W, (h * 0.58) / CARD_H)));
     this.box = { x: Math.round((w - CARD_W * s) / 2), y: Math.round(h * 0.14), s };
-    this.hint.setScale(u).setPosition(w / 2, h - 10 * u);
+    this.hint.setScale(Math.min(u, (w * 0.97) / Math.max(1, textPx(this.hint)))).setPosition(w / 2, h - 10 * u);
     if (this.cards.length) this.relayoutCard();
   }
 

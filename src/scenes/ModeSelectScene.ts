@@ -2,7 +2,7 @@ import Phaser from 'phaser';
 import { inputManager } from '../input/inputManager';
 import type { MenuEvent } from '../input/menuInput';
 import { session } from '../game/session';
-import { COLORS, MenuList, MenuScene, text } from '../ui/menuKit';
+import { COLORS, MenuList, MenuScene, text, textPx } from '../ui/menuKit';
 import { PIXEL_FONT } from '../art/pixelFont';
 
 /** Main menu: Versus / Arcade Ladder / Training / Settings. */
@@ -52,14 +52,16 @@ export class ModeSelectScene extends MenuScene {
     this.title.setScale(u * 4).setPosition(w / 2, h * 0.14);
     this.list.layout(w / 2, h * 0.3, u, 130);
     this.desc.setScale(u * 1.5).setPosition(w / 2, h * 0.78);
-    this.hint.setScale(u).setPosition(w / 2, h - 10 * u);
+    this.hint.setScale(Math.min(u, (w * 0.97) / Math.max(1, textPx(this.hint)))).setPosition(w / 2, h - 10 * u);
   }
 
   protected override tick(time: number): void {
     this.list.update(time);
     this.desc.setText(this.descriptions[this.list.index] ?? '');
+    this.desc.setScale(Math.min(this.u * 1.5, (this.scale.width * 0.94) / Math.max(1, textPx(this.desc))));
     const pads = inputManager.padList.length;
     this.hint.setText(`UP/DOWN: MOVE   J / ENTER: SELECT   K / ESC: BACK   ${pads} CONTROLLER${pads === 1 ? '' : 'S'}`);
+    this.hint.setScale(Math.min(this.u, (this.scale.width * 0.97) / Math.max(1, textPx(this.hint))));
   }
 
   protected onEvent(e: MenuEvent): void {

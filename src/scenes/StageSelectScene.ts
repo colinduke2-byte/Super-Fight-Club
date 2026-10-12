@@ -3,7 +3,7 @@ import { PIXEL_FONT } from '../art/pixelFont';
 import { session } from '../game/session';
 import type { MenuEvent } from '../input/menuInput';
 import { STAGE_LIST } from '../stages';
-import { COLORS, MenuList, MenuScene, text } from '../ui/menuKit';
+import { COLORS, MenuList, MenuScene, text, textPx } from '../ui/menuKit';
 
 /** Pick a stage from the list; a preview draws its platforms and blast zones. RANDOM is always last. */
 export class StageSelectScene extends MenuScene {
@@ -46,7 +46,7 @@ export class StageSelectScene extends MenuScene {
     this.blurb.setScale(u * 1.1).setPosition(w * 0.5, h * 0.22 + h * 0.42 + 6 * u);
     this.wrapChars = Math.max(10, Math.floor((w * 0.44) / (7.6 * u * 1.1)));
     this.tags.setScale(u).setPosition(w * 0.5, h - 22 * u);
-    this.hint.setScale(u).setPosition(w / 2, h - 10 * u);
+    this.hint.setScale(Math.min(u, (w * 0.97) / Math.max(1, textPx(this.hint)))).setPosition(w / 2, h - 10 * u);
   }
 
   protected override tick(time: number): void {

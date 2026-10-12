@@ -4,7 +4,7 @@ import { CHARACTER_LIST } from '../characters';
 import { inputManager } from '../input/inputManager';
 import type { MenuEvent } from '../input/menuInput';
 import { sfx } from '../audio/sfx';
-import { COLORS, MenuScene, text } from '../ui/menuKit';
+import { COLORS, MenuScene, text, textPx } from '../ui/menuKit';
 import { PIXEL_FONT } from '../art/pixelFont';
 
 /** Title screen: logo, the roster standing under spotlights with nameplates, "press any button". */
@@ -89,7 +89,7 @@ export class TitleScene extends MenuScene {
 
     // bottom stack: footer, prompt, nameplates (measured from the bottom up)
     this.footer.setText(this.footerMsg || 'X'.repeat(80));
-    this.footer.setScale(Math.min(u, (w * 0.94) / Math.max(1, this.footer.width)));
+    this.footer.setScale(Math.min(u, (w * 0.94) / Math.max(1, textPx(this.footer))));
     const footerY = h - margin - this.footer.displayHeight / 2;
     this.footer.setPosition(w / 2, footerY);
     this.prompt.setScale(u * 2);

@@ -5,7 +5,7 @@ import { bindings } from '../input/bindings';
 import { inputManager } from '../input/inputManager';
 import { keyboardHub } from '../input/keyboard';
 import type { MenuEvent } from '../input/menuInput';
-import { COLORS, MenuList, MenuScene, text, type MenuItem } from '../ui/menuKit';
+import { COLORS, MenuList, MenuScene, text, type MenuItem, textPx } from '../ui/menuKit';
 
 type Profile = 'kb1' | 'kb2' | 'standard' | 'nintendo';
 const PROFILES: Profile[] = ['kb1', 'kb2', 'standard', 'nintendo'];
@@ -151,7 +151,7 @@ export class ControlsScene extends MenuScene {
     this.title.setScale(u * 4).setPosition(w / 2, h * 0.1);
     // twelve rows + chrome must fit: shrink the row pitch is not supported, so use the smaller unit if needed
     this.list.layout(w / 2, h * 0.17, Math.min(u, h / 480), 250);
-    this.hint.setScale(u).setPosition(w / 2, h - 10 * u);
+    this.hint.setScale(Math.min(u, (w * 0.97) / Math.max(1, textPx(this.hint)))).setPosition(w / 2, h - 10 * u);
   }
 
   protected override tick(time: number): void {

@@ -3,7 +3,7 @@ import { PIXEL_FONT } from '../art/pixelFont';
 import { sfx } from '../audio/sfx';
 import type { MenuEvent } from '../input/menuInput';
 import { saveSettings, settings, type ParticleQuality, type SmashMode } from '../settings';
-import { COLORS, MenuList, MenuScene, text } from '../ui/menuKit';
+import { COLORS, MenuList, MenuScene, text, textPx } from '../ui/menuKit';
 
 const QUALITY: ParticleQuality[] = ['low', 'medium', 'high'];
 const SMASH: SmashMode[] = ['flick', 'button'];
@@ -81,7 +81,7 @@ export class SettingsScene extends MenuScene {
   protected override layoutUi(w: number, h: number, u: number): void {
     this.title.setScale(u * 4).setPosition(w / 2, h * 0.12);
     this.list.layout(w / 2, h * 0.2, u, 190, h - 16 * u);
-    this.hint.setScale(u).setPosition(w / 2, h - 10 * u);
+    this.hint.setScale(Math.min(u, (w * 0.97) / Math.max(1, textPx(this.hint)))).setPosition(w / 2, h - 10 * u);
   }
 
   protected override tick(time: number): void {

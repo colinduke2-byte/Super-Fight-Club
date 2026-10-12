@@ -8,7 +8,7 @@ import { introCards } from '../game/story';
 import { session, type PlayerSlot } from '../game/session';
 import { inputManager } from '../input/inputManager';
 import type { MenuEvent } from '../input/menuInput';
-import { COLORS, MenuScene, text } from '../ui/menuKit';
+import { COLORS, MenuScene, text, textPx } from '../ui/menuKit';
 
 interface Card {
   header: Phaser.GameObjects.BitmapText;
@@ -121,7 +121,7 @@ export class CharacterSelectScene extends MenuScene {
       r.pips.forEach((p, k) => p.setScale((3 * u) / 4).setPosition(cx - ((r.pips.length - 1) * 4 * u) / 2 + k * 4 * u, h * 0.82 + 21 * u));
     });
     this.warn.setScale(u * 1.2).setPosition(w / 2, h * 0.93);
-    this.hint.setScale(u).setPosition(w / 2, h - 8 * u);
+    this.hint.setScale(Math.min(u, (w * 0.97) / Math.max(1, textPx(this.hint)))).setPosition(w / 2, h - 8 * u);
   }
 
   private norm(v: number, lo: number, hi: number): number {
