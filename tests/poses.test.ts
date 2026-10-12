@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { CHARACTERS } from '../src/characters';
+import { sheetDims } from '../src/art/sheetLayout';
 import { buildKeys, POSE_TEMPLATES } from '../src/art/poseTemplates';
 import { SOUND_STYLES } from '../src/engine/fxTypes';
 
@@ -17,12 +18,9 @@ describe('move poses', () => {
       }
     });
     it(`${id}: sprite sheet stays within the 4096px texture limit`, () => {
-      // sheets wrap their rows into side-by-side blocks so neither dimension passes 4096px
-      const names = Object.keys(c.sprite.animations);
-      const cols = Math.max(...names.map((n) => c.sprite.animations[n].frames));
-      const rowsPer = Math.floor(4096 / c.sprite.frameSize);
-      const blocks = Math.ceil(names.length / rowsPer);
-      expect(cols * blocks * c.sprite.frameSize).toBeLessThanOrEqual(4096);
+      const d = sheetDims(c);
+      expect(d.width).toBeLessThanOrEqual(4096);
+      expect(d.height).toBeLessThanOrEqual(4096);
     });
   }
   it('every character declares a known sound style', () => {

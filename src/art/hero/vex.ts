@@ -2,76 +2,104 @@ import type { PlaceholderLook } from '../../engine/types';
 import { col, mix, mul, type Raster, type RGB, type V2 } from './raster';
 import type { Skel } from './skeleton';
 
-/** Vex: a lean teal assassin. Hood and mask with a glowing eye slit, trailing scarf, bandolier, wrapped legs and twin blades. */
+/**
+ * Vex: a lean teal shadow-blade. Peaked cowl with two burning eyes, trailing scarf and ragged cape, high-collared jacket with a
+ * strap harness, single armoured pauldron, wrapped legs and a pair of curved glowing daggers.
+ */
 export function drawVex(r: Raster, k: Skel, look: PlaceholderLook): void {
   const armor = col(look.armor);
   const dark = col(look.armorDark);
-  const deep = mul(dark, 0.55);
+  const deep = mul(dark, 0.5);
   const accent = col(look.accent);
   const glow = mix(accent, [255, 245, 250], 0.6);
   const skin = col(look.skin);
-  const steel: RGB = [196, 206, 226];
+  const steel: RGB = [200, 210, 230];
   const steelD: RGB = [112, 124, 152];
   const P = {
     armor: r.part(armor),
-    light: r.part(mix(armor, [200, 240, 255], 0.2)),
+    light: r.part(mix(armor, [200, 245, 255], 0.22)),
     dark: r.part(dark),
     deep: r.part(deep),
     skin: r.part(skin, { soft: true }),
-    cloth: r.part(mix(dark, [20, 20, 40], 0.3), { soft: true }),
+    cloth: r.part(mix(dark, [24, 26, 48], 0.35), { soft: true }),
+    clothL: r.part(mix(dark, [120, 200, 220], 0.18), { soft: true }),
+    cape: r.part(mix(dark, [10, 10, 30], 0.45), { soft: true }),
     scarf: r.part(accent, { soft: true }),
-    scarfD: r.part(mul(accent, 0.7), { soft: true }),
+    scarfD: r.part(mul(accent, 0.68), { soft: true }),
     accent: r.part(accent, { emissive: true }),
     glow: r.part(glow, { emissive: true }),
     steel: r.part(steel),
     steelD: r.part(steelD),
     edge: r.part([255, 255, 255], { flat: true }),
-    strap: r.part(mul(dark, 0.45), { soft: true }),
+    strap: r.part(mul(dark, 0.4), { soft: true }),
     mark: r.part(accent, { flat: true }),
     rivet: r.part(steel, { flat: true }),
+    seam: r.part(mul(deep, 0.8), { flat: true }),
   };
   const T = k.torso;
   const run = k.pose.lean > 2;
+  const air = k.pose.frontHand[1] < -8;
+  const sw = (i: number, a = 2): number => Math.sin(k.phase * 1.25 + i * 0.7) * a;
 
-  // ---- scarf, streaming behind the neck ----
+  // ---- ragged cape (behind everything) ----
   {
-    const nx = T.x + 6;
+    const top = T.y + 3;
+    const x0 = T.x + 6;
+    const len = run ? 56 : air ? 64 : 50;
+    const drift = run ? 30 : air ? 6 : 12; // how far the hem is blown back
+    const hemY = k.hipY + 14;
+    const pts: V2[] = [[x0 + 4, top], [x0 + 14, top + 2]];
+    for (let i = 0; i <= 5; i++) {
+      const t = i / 5;
+      pts.push([x0 + 10 - drift * t + sw(i) * t - 6 * t, top + (hemY - top) * t * (len / 56)]);
+    }
+    for (let i = 5; i >= 0; i--) {
+      const t = i / 5;
+      pts.push([x0 - 4 - drift * t * 1.5 + sw(i + 3) * t, top + (hemY - top) * t * (len / 56) + (i % 2 === 0 ? 5 : 0)]);
+    }
+    r.poly(P.cape, pts);
+    // jagged hem teeth and an accent edge line
+    const last = pts[pts.length - 1];
+    for (let i = 0; i < 4; i++) r.poly(P.cape, [[last[0] + i * 7, last[1]], [last[0] + i * 7 + 7, last[1]], [last[0] + i * 7 + 3, last[1] + 8]]);
+    r.inlay(P.cape, P.mark, (set) => {
+      for (let i = 0; i < 18; i++) set(x0 - drift * 0.9 - i * 1.6 + 6, top + 2 + i * 2.4);
+    });
+  }
+
+  // ---- scarf, streaming from the collar ----
+  {
+    const nx = T.x + 8;
     const ny = T.y + 2;
-    const flow = run ? 0 : k.pose.frontHand[1] < -8 ? -0.7 : 0.35;
+    const flow = run ? 0.05 : air ? -0.8 : 0.4;
     let px = nx;
     let py = ny;
-    for (let i = 0; i < 14; i++) {
-      const wave = Math.sin(k.phase * 1.2 + i * 0.6) * (1.5 + i * 0.25);
-      const x = nx - 4 - i * 4.2;
-      const y = ny + i * flow * 3 + wave;
-      const w = 11 - i * 0.55;
-      r.seg(i % 4 === 3 ? P.scarfD : P.scarf, px, py, x, y, w, Math.max(3, w - 0.6));
+    for (let i = 0; i < 13; i++) {
+      const x = nx - 4 - i * 4.4;
+      const y = ny + i * flow * 3 + sw(i, 1.8 + i * 0.22);
+      const w = 9 - i * 0.5;
+      r.seg(i % 4 === 3 ? P.scarfD : P.scarf, px, py, x, y, w, Math.max(2.5, w - 0.6));
       px = x;
       py = y;
     }
-    // forked tail
-    r.seg(P.scarfD, px, py, px - 9, py + 4, 4, 2);
-    r.seg(P.scarf, px, py, px - 8, py - 3, 4, 2);
+    r.seg(P.scarfD, px, py, px - 8, py + 4, 3.5, 2);
+    r.seg(P.scarf, px, py, px - 7, py - 3, 3.5, 2);
   }
 
-  // ---- back arm + blade ----
+  // ---- back arm + dagger ----
   {
     const el = k.elbowB;
-    r.seg(P.deep, k.shB[0], k.shB[1], el[0], el[1], 9, 8);
-    r.seg(P.dark, el[0], el[1], k.handB[0], k.handB[1], 8, 7);
+    r.seg(P.cloth, k.shB[0], k.shB[1], el[0], el[1], 9, 8);
+    r.seg(P.cloth, el[0], el[1], k.handB[0], k.handB[1], 8, 7);
     bracer(r, P, el, k.handB, true);
-    blade(r, P, el, k.handB, 30);
-    r.ellipse(P.cloth, k.handB[0], k.handB[1], 4, 4);
+    dagger(r, P, el, k.handB, 32);
+    r.ellipse(P.strap, k.handB[0], k.handB[1], 4, 4);
   }
 
   // ---- back leg ----
   leg(r, P, k.hipB, k.kneeB, k.ankleB, true);
 
-  // ---- coat tails (a thin split flap behind the hips) ----
-  {
-    const sw = Math.sin(k.phase * 1.1) * 2;
-    r.poly(P.deep, [[T.x + 2, T.y + T.h - 8], [T.x + 12, T.y + T.h - 8], [T.x + 6 + sw, T.y + T.h + 18], [T.x - 6 + sw, T.y + T.h + 22]]);
-  }
+  // ---- split tabard behind the hips ----
+  r.poly(P.cloth, [[T.x + 2, T.y + T.h - 8], [T.x + 14, T.y + T.h - 8], [T.x + 9 + sw(1), T.y + T.h + 22], [T.x - 3 + sw(2), T.y + T.h + 26]]);
 
   // ---- torso ----
   {
@@ -79,73 +107,83 @@ export function drawVex(r: Raster, k: Skel, look: PlaceholderLook): void {
     const top = T.y;
     const w = T.w;
     const h = T.h;
-    r.poly(P.armor, [[x0 + 2, top + 2], [x0 + w - 2, top + 2], [x0 + w + 2, top + 8], [x0 + w - 6, top + h], [x0 + 6, top + h], [x0 - 2, top + 8]]);
-    r.poly(P.dark, [[x0 - 2, top + 8], [x0 + 2, top + 2], [x0 + 8, top + 3], [x0 + 10, top + h - 2], [x0 + 6, top + h]]);
-    // chest plate and clasps
-    r.poly(P.light, [[x0 + 10, top + 4], [x0 + w - 6, top + 4], [x0 + w - 4, top + 12], [x0 + w - 10, top + 22], [x0 + 12, top + 22]]);
-    r.rect(P.mark, x0 + w / 2 - 1, top + 6, 2, 12);
-    // bandolier
-    r.seg(P.strap, x0 + 4, top + 2, x0 + w - 4, top + h - 4, 7, 7);
-    r.rect(P.rivet, x0 + w / 2 - 2, top + h / 2 - 2, 4, 4);
-    for (let i = 0; i < 3; i++) r.rect(P.steel, x0 + 8 + i * 6, top + 6 + i * 5, 2, 5); // throwing knives
-    // belt, gem and pouches
+    r.poly(P.cloth, [[x0 + 2, top + 2], [x0 + w - 2, top + 2], [x0 + w + 2, top + 9], [x0 + w - 6, top + h], [x0 + 6, top + h], [x0 - 2, top + 9]]);
+    r.poly(P.deep, [[x0 - 2, top + 9], [x0 + 2, top + 2], [x0 + 9, top + 3], [x0 + 11, top + h - 2], [x0 + 6, top + h]]);
+    // lighter chest panel with a centre seam
+    r.poly(P.clothL, [[x0 + 11, top + 4], [x0 + w - 6, top + 4], [x0 + w - 5, top + 14], [x0 + w - 10, top + 24], [x0 + 13, top + 24]]);
+    r.rect(P.seam, x0 + w / 2 + 2, top + 5, 1, 18);
+    // harness: two crossing straps with a buckle and throwing knives
+    r.seg(P.strap, x0 + 3, top + 3, x0 + w - 3, top + h - 5, 6, 6);
+    r.seg(P.strap, x0 + w - 4, top + 3, x0 + 6, top + h - 5, 5, 5);
+    r.rect(P.steel, x0 + w / 2 - 2, top + h / 2 - 2, 5, 5);
+    r.rect(P.accent, x0 + w / 2 - 0.5, top + h / 2 - 0.5, 2, 2);
+    for (let i = 0; i < 3; i++) r.rect(P.steel, x0 + 8 + i * 5, top + 14 - i, 2, 6);
+    // belt with a glowing gem and side pouches
     r.rect(P.deep, x0 + 2, top + h - 6, w - 4, 7);
     r.rect(P.steelD, x0 + w / 2 - 5, top + h - 6, 10, 7);
-    r.rect(P.accent, x0 + w / 2 - 2, top + h - 4, 4, 3);
-    r.rect(P.strap, x0 + 4, top + h, 9, 9);
-    r.rect(P.strap, x0 + w - 13, top + h, 9, 9);
-    r.rect(P.mark, x0 + 4, top + h + 6, 9, 1);
+    r.ellipse(P.accent, x0 + w / 2, top + h - 3, 2.6, 2.6);
+    r.rect(P.strap, x0 + 4, top + h, 8, 9);
+    r.rect(P.strap, x0 + w - 12, top + h, 8, 9);
+    r.rect(P.mark, x0 + 4, top + h + 6, 8, 1);
+    // tall collar
+    r.poly(P.dark, [[x0 + 8, top - 2], [x0 + w - 4, top - 2], [x0 + w - 2, top + 8], [x0 + 6, top + 8]]);
+    r.rect(P.mark, x0 + 9, top + 5, w - 14, 1);
   }
 
   // ---- front leg ----
   leg(r, P, k.hipF, k.kneeF, k.ankleF, false);
 
-  // ---- head: hood, mask, eye ----
+  // ---- head: peaked cowl, shadowed face, burning eyes, mask ----
   {
     const hx = k.head.x;
-    const hy = k.head.y;
+    const hy = k.head.y + 2;
     const hs = k.head.s;
-    r.rect(P.deep, hx + 6, T.y - 3, hs - 10, 8); // neck
-    const sw = Math.sin(k.phase * 1.3) * 2;
-    // hood tail trailing back
-    r.poly(P.dark, [[hx - 2, hy + 6], [hx - 12 - sw, hy + 12], [hx - 4, hy + hs - 4], [hx + 2, hy + hs - 8]]);
-    // hood shell
-    r.poly(P.dark, [[hx - 4, hy + 8], [hx + 2, hy + 1], [hx + hs - 4, hy - 4], [hx + hs + 2, hy + 4], [hx + hs + 4, hy + hs - 4], [hx + 6, hy + hs + 3], [hx - 4, hy + hs - 2]]);
-    r.poly(P.armor, [[hx + 2, hy + 3], [hx + hs - 4, hy - 2], [hx + hs - 2, hy + 4], [hx + 8, hy + 8]]);
-    // face opening: mask over the lower face, skin strip around the eye
-    r.poly(P.deep, [[hx + 10, hy + 6], [hx + hs + 2, hy + 6], [hx + hs + 2, hy + hs - 3], [hx + 8, hy + hs - 1]]);
-    r.rect(P.skin, hx + 12, hy + 8, hs - 8, 8);
-    r.rect(P.deep, hx + 12, hy + 8, hs - 8, 2); // brow
-    r.rect(P.glow, hx + hs - 10, hy + 11, 9, 3);
-    r.rect(P.accent, hx + hs - 16, hy + 12, 6, 1);
-    r.rect(P.mark, hx + 12, hy + hs - 10, hs - 8, 1); // mask seam
+    r.rect(P.deep, hx + 6, T.y - 5, hs - 10, 8); // neck
+    const tip = sw(2, 3);
+    // cowl: smooth shell with a tail that trails behind
+    r.poly(P.cloth, [[hx + hs + 4, hy + 6], [hx + hs + 1, hy - 2], [hx + hs / 2 + 2, hy - 9], [hx - 4, hy - 4], [hx - 18 - tip, hy + 8 + tip * 0.5], [hx - 4, hy + hs - 6], [hx + 4, hy + hs + 4], [hx + hs - 2, hy + hs + 2], [hx + hs + 4, hy + hs - 8]]);
+    r.poly(P.clothL, [[hx + hs / 2 + 2, hy - 9], [hx + hs + 1, hy - 2], [hx + hs - 4, hy + 2], [hx + hs / 2 - 2, hy - 5]]);
+    r.rect(P.seam, hx - 2, hy + 6, 14, 1);
+    // face void
+    r.ellipse(P.deep, hx + hs / 2 + 6, hy + hs / 2 + 1, hs / 2 - 1, hs / 2 - 3);
+    // eyes: near eye burns bright, far eye dimmer
+    r.rect(P.glow, hx + hs - 7, hy + 10, 7, 3);
+    r.rect(P.accent, hx + hs - 12, hy + 10, 4, 2);
+    r.rect(P.accent, hx + hs - 16, hy + 11, 6, 1);
+    // mask over the lower face
+    r.poly(P.cloth, [[hx + 8, hy + 15], [hx + hs + 3, hy + 15], [hx + hs, hy + hs - 3], [hx + 10, hy + hs]]);
+    r.rect(P.mark, hx + 10, hy + 15, hs - 4, 1);
+    r.rect(P.seam, hx + 12, hy + 21, hs - 9, 1);
   }
 
-  // ---- front arm + blade ----
+  // ---- front arm: pauldron, sleeve, dagger ----
   {
     const [sx, sy] = k.shF;
     const el = k.elbowF;
-    r.seg(P.armor, sx, sy, el[0], el[1], 10, 8);
-    r.seg(P.armor, el[0], el[1], k.handF[0], k.handF[1], 8, 7);
+    r.seg(P.cloth, sx, sy, el[0], el[1], 10, 8);
+    r.seg(P.cloth, el[0], el[1], k.handF[0], k.handF[1], 8, 7);
     bracer(r, P, el, k.handF, false);
-    r.ellipse(P.light, sx, sy - 2, 7, 5); // shoulder guard
-    r.rect(P.mark, sx - 7, sy + 2, 14, 1);
-    blade(r, P, el, k.handF, 32);
-    r.ellipse(P.cloth, k.handF[0], k.handF[1], 4, 4);
+    // armoured shoulder
+    r.ellipse(P.armor, sx, sy - 3, 9, 7);
+    r.poly(P.light, [[sx - 7, sy - 8], [sx + 6, sy - 9], [sx + 8, sy - 4], [sx - 6, sy - 3]]);
+    r.rect(P.mark, sx - 8, sy + 1, 17, 1);
+    r.rect(P.rivet, sx - 2, sy - 6, 2, 2);
+    dagger(r, P, el, k.handF, 34);
+    r.ellipse(P.strap, k.handF[0], k.handF[1], 4, 4);
   }
 }
 
-type Parts = Record<'armor' | 'light' | 'dark' | 'deep' | 'skin' | 'cloth' | 'scarf' | 'scarfD' | 'accent' | 'glow' | 'steel' | 'steelD' | 'edge' | 'strap' | 'mark' | 'rivet', number>;
+type Parts = Record<'armor' | 'light' | 'dark' | 'deep' | 'skin' | 'cloth' | 'clothL' | 'cape' | 'scarf' | 'scarfD' | 'accent' | 'glow' | 'steel' | 'steelD' | 'edge' | 'strap' | 'mark' | 'rivet' | 'seam', number>;
 
 function bracer(r: Raster, P: Parts, el: V2, hand: V2, back: boolean): void {
-  const mx = el[0] + (hand[0] - el[0]) * 0.6;
-  const my = el[1] + (hand[1] - el[1]) * 0.6;
-  r.seg(back ? P.dark : P.light, el[0] + (hand[0] - el[0]) * 0.25, el[1] + (hand[1] - el[1]) * 0.25, mx, my, 10, 10);
-  r.ellipse(P.accent, mx, my, 3, 3);
+  const mx = el[0] + (hand[0] - el[0]) * 0.62;
+  const my = el[1] + (hand[1] - el[1]) * 0.62;
+  r.seg(back ? P.dark : P.armor, el[0] + (hand[0] - el[0]) * 0.3, el[1] + (hand[1] - el[1]) * 0.3, mx, my, 10, 9);
+  r.ellipse(P.accent, mx, my, 2.4, 2.4);
 }
 
-/** Dagger from the hand, pointing along the forearm. */
-function blade(r: Raster, P: Parts, el: V2, hand: V2, len: number): void {
+/** Curved dagger from the hand along the forearm, glowing edge and tip. */
+function dagger(r: Raster, P: Parts, el: V2, hand: V2, len: number): void {
   let dx = hand[0] - el[0];
   let dy = hand[1] - el[1];
   const l = Math.hypot(dx, dy) || 1;
@@ -155,22 +193,26 @@ function blade(r: Raster, P: Parts, el: V2, hand: V2, len: number): void {
     dx = 0.45;
     dy = 0.89; // a hanging arm tilts the blade forward instead of straight down
   }
-  const tx = hand[0] + dx * len;
-  const ty = hand[1] + dy * len;
   const nx = -dy;
   const ny = dx;
+  const tx = hand[0] + dx * len + nx * 3;
+  const ty = hand[1] + dy * len + ny * 3;
+  const mx = hand[0] + dx * len * 0.55 + nx * 4.5;
+  const my = hand[1] + dy * len * 0.55 + ny * 4.5;
   r.rect(P.steelD, hand[0] - 3, hand[1] - 3, 6, 6); // guard
-  r.poly(P.steel, [[hand[0] + nx * 3.5, hand[1] + ny * 3.5], [tx, ty], [hand[0] - nx * 3.5, hand[1] - ny * 3.5]]);
-  r.seg(P.edge, hand[0], hand[1], tx - dx * 2, ty - dy * 2, 1.4, 1);
+  r.poly(P.steel, [[hand[0] + nx * 4, hand[1] + ny * 4], [mx + nx * 2, my + ny * 2], [tx, ty], [mx - nx * 2.5, my - ny * 2.5], [hand[0] - nx * 3, hand[1] - ny * 3]]);
+  r.seg(P.edge, hand[0] + nx, hand[1] + ny, tx - dx * 2, ty - dy * 2, 1.4, 1);
+  r.seg(P.accent, mx + nx * 2.5, my + ny * 2.5, tx, ty, 1.6, 1.2);
   r.ellipse(P.glow, tx, ty, 1.6, 1.6);
 }
 
 function leg(r: Raster, P: Parts, hip: V2, kn: V2, ankle: V2, back: boolean): void {
-  const pant = back ? P.deep : P.dark;
+  const pant = back ? P.deep : P.cloth;
   r.seg(pant, hip[0], hip[1], kn[0], kn[1], 14, 11);
   r.seg(pant, kn[0], kn[1], ankle[0], ankle[1], 11, 8);
   if (!back) {
     r.ellipse(P.armor, kn[0] + 3, kn[1], 5, 5); // knee guard
+    r.rect(P.mark, kn[0] + 1, kn[1] - 1, 6, 1);
     for (let i = 0; i < 3; i++) {
       const t = 0.3 + i * 0.22;
       r.rect(P.mark, kn[0] + (ankle[0] - kn[0]) * t - 5, kn[1] + (ankle[1] - kn[1]) * t, 10, 1); // shin wraps
@@ -178,7 +220,8 @@ function leg(r: Raster, P: Parts, hip: V2, kn: V2, ankle: V2, back: boolean): vo
   }
   const bx = ankle[0];
   const by = ankle[1];
-  r.poly(back ? P.deep : P.strap, [[bx - 7, by - 6], [bx + 7, by - 6], [bx + 16, by + 4], [bx + 16, by + 8], [bx - 8, by + 8]]);
-  r.rect(back ? P.deep : P.dark, bx - 8, by - 8, 15, 5);
+  r.poly(back ? P.deep : P.strap, [[bx - 7, by - 8], [bx + 7, by - 8], [bx + 7, by - 2], [bx + 16, by + 4], [bx + 16, by + 8], [bx - 8, by + 8]]);
+  r.rect(back ? P.deep : P.dark, bx - 8, by - 10, 15, 5);
+  r.rect(P.steelD, bx + 10, by + 3, 7, 5); // metal toe cap
   r.rect(P.deep, bx - 8, by + 7, 25, 2);
 }
