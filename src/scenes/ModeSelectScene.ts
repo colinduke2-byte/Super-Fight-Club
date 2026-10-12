@@ -4,6 +4,8 @@ import type { MenuEvent } from '../input/menuInput';
 import { session } from '../game/session';
 import { COLORS, MenuList, MenuScene, text, textPx } from '../ui/menuKit';
 import { PIXEL_FONT } from '../art/pixelFont';
+import { fighterAnimKey, fighterTextureKey, uiTexK } from '../art/proceduralFighter';
+import { CHARACTER_LIST } from '../characters';
 
 /** Main menu: Versus / Arcade Ladder / Training / Settings. */
 export class ModeSelectScene extends MenuScene {
@@ -11,6 +13,11 @@ export class ModeSelectScene extends MenuScene {
   private title!: Phaser.GameObjects.BitmapText;
   private hint!: Phaser.GameObjects.BitmapText;
   private desc!: Phaser.GameObjects.BitmapText;
+  /** Two fighters flanking the menu, cycling through the roster. */
+  private showcase: { sprite: Phaser.GameObjects.Sprite; name: Phaser.GameObjects.BitmapText; idx: number }[] = [];
+  private glow!: Phaser.GameObjects.Graphics;
+  private showScale = 1;
+  private floorY = 0;
   private readonly descriptions = [
     'FREE-FOR-ALL FOR 2-4 FIGHTERS. HUMANS AND CPUS.',
     'FIGHT 5 ESCALATING OPPONENTS THEN A BOSS.',
@@ -37,6 +44,17 @@ export class ModeSelectScene extends MenuScene {
         onConfirm: () => (this.scale.isFullscreen ? this.scale.stopFullscreen() : this.scale.startFullscreen()),
       },
     ]);
+    this.glow = this.add.graphics().setBlendMode(Phaser.BlendModes.ADD);
+    this.ui.add(this.glow);
+    const n = CHARACTER_LIST.length;
+    this.showcase = [0, Math.floor(n / 2)].map((idx, side) => {
+      const c = CHARACTER_LIST[idx];
+      const sprite = this.add.sprite(0, 0, fighterTextureKey(c.id), 0).setOrigin(0.5, 1).setFlipX(side === 1);
+      sprite.play(fighterAnimKey(c.id, 'idle'));
+      const name = text(this, this.ui, c.name, parseInt(c.sprite.placeholder.accent.slice(1), 16)).setOrigin(0.5, 0);
+      this.ui.add(sprite);
+      return { sprite, name, idx };
+    });
     this.desc = text(this, this.ui, '', COLORS.accent).setOrigin(0.5);
     this.hint = text(this, this.ui, '', COLORS.dim).setOrigin(0.5);
   }
@@ -52,11 +70,44 @@ export class ModeSelectScene extends MenuScene {
     this.title.setScale(u * 4).setPosition(w / 2, h * 0.14);
     this.list.layout(w / 2, h * 0.3, u, 130);
     this.desc.setScale(u * 1.5).setPosition(w / 2, h * 0.78);
+    // flanking fighters only when there is room beside the menu
+    const room = w > h * 1.25;
+    this.showScale = Math.max(0.6, Math.min(u * 2.4, (h * 0.42) / 64));
+    this.floorY = h * 0.7;
+    this.showcase.forEach((s, side) => {
+      const x = side === 0 ? w * 0.17 : w * 0.83;
+      s.sprite.setVisible(room).setPosition(x, this.floorY).setScale(this.showScale * uiTexK(CHARACTER_LIST[s.idx]));
+      s.name.setVisible(room).setScale(u * 1.2).setPosition(x, this.floorY + 4 * u);
+    });
     this.hint.setScale(Math.min(u, (w * 0.97) / Math.max(1, textPx(this.hint)))).setPosition(w / 2, h - 10 * u);
   }
 
   protected override tick(time: number): void {
     this.list.update(time);
+    // every few seconds the pair swaps to the next fighters, fading through
+    const n = CHARACTER_LIST.length;
+    const period = 4;
+    const step = Math.floor(time / period);
+    const phase = time / period - step;
+    const fade = phase < 0.08 ? phase / 0.08 : phase > 0.92 ? (1 - phase) / 0.08 : 1;
+    this.glow.clear();
+    this.showcase.forEach((s, side) => {
+      const idx = (step + side * Math.floor(n / 2)) % n;
+      const c = CHARACTER_LIST[idx];
+      if (s.idx !== idx) {
+        s.idx = idx;
+        s.sprite.setTexture(fighterTextureKey(c.id), 0).play(fighterAnimKey(c.id, 'idle'));
+        s.sprite.setScale(this.showScale * uiTexK(c));
+        s.name.setText(c.name.toUpperCase()).setTint(parseInt(c.sprite.placeholder.accent.slice(1), 16));
+      }
+      s.sprite.setAlpha(fade);
+      s.name.setAlpha(fade);
+      if (s.sprite.visible) {
+        const col = parseInt(c.sprite.placeholder.accent.slice(1), 16);
+        this.glow.fillStyle(col, 0.22 * fade).fillEllipse(s.sprite.x, this.floorY, 46 * this.showScale, 9 * this.showScale);
+        this.glow.fillStyle(col, 0.06 * fade).fillEllipse(s.sprite.x, this.floorY - 30 * this.showScale, 60 * this.showScale, 80 * this.showScale);
+      }
+    });
     this.desc.setText(this.descriptions[this.list.index] ?? '');
     this.desc.setScale(Math.min(this.u * 1.5, (this.scale.width * 0.94) / Math.max(1, textPx(this.desc))));
     const pads = inputManager.padList.length;
