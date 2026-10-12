@@ -113,8 +113,12 @@ export class World {
     this.hazardHit = (stage.hazards ?? []).map(() => []);
     this.platforms = stage.platforms.map((d, i) => new Platform(i, d));
     for (const p of this.platforms) {
-      if (p.ledges) {
-        this.ledges.push(new Ledge(p, -1), new Ledge(p, 1));
+      if (!p.ledges) continue;
+      // no ledge where another solid block sits on the corner (a tier flush with the edge): climbing up would land inside it
+      for (const side of [-1, 1] as const) {
+        const cx = side === -1 ? p.x : p.right;
+        const covered = this.platforms.some((q) => q !== p && q.kind === 'solid' && Math.abs(q.bottom - p.top) < 1 && cx >= q.x - 12 && cx <= q.right + 12);
+        if (!covered) this.ledges.push(new Ledge(p, side));
       }
     }
     for (const t of stage.targets ?? []) this.targets.push({ x: t.x, y: t.y, alive: true });

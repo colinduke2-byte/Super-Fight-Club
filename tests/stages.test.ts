@@ -144,3 +144,11 @@ describe('Wreck Cove water spouts', () => {
     expect(f.vy).toBeLessThan(0);
   });
 });
+
+describe('ledges', () => {
+  it('a corner covered by a seated tier has no ledge to climb into', () => {
+    const world = new World({ ...wreckStage, platforms: [wreckStage.platforms[0], { x: 120, y: -22, w: 70, h: 22, kind: 'solid' }] });
+    expect(world.ledges.map((l) => l.side)).toEqual([-1]);
+    expect(new World(wreckStage).ledges).toHaveLength(2);
+  });
+});
