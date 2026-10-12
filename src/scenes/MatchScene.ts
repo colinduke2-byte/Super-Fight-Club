@@ -32,6 +32,7 @@ import { COLORS, MenuList } from '../ui/menuKit';
 import { KoBlast } from '../ui/KoBlast';
 import { OffscreenBubbles } from '../ui/OffscreenBubbles';
 import { PlayerTags } from '../ui/PlayerTags';
+import { UltCutIn } from '../ui/UltCutIn';
 import { PIXEL_FONT, up } from '../art/pixelFont';
 import { StageView } from '../ui/StageView';
 import { SlashArcs } from '../ui/SlashArcs';
@@ -98,6 +99,8 @@ export class MatchScene extends Phaser.Scene {
   private koBlast!: KoBlast;
   private bubbles!: OffscreenBubbles;
   private tags!: PlayerTags;
+  private cutIn!: UltCutIn;
+  private ultOn: boolean[] = [];
   private uiCam!: Phaser.Cameras.Scene2D.Camera;
 
   private slots: PlayerSlot[] = [];
@@ -274,6 +277,8 @@ export class MatchScene extends Phaser.Scene {
     const tagColors = this.fighters.map((f) => (f.team >= 0 ? COLORS.p[f.team] : COLORS.p[f.id % 4]));
     this.views.forEach((v, i) => (v.color = tagColors[i]));
     this.tags = new PlayerTags(this, this.uiLayer, this.fighters, this.views, this.slots.map((s, i) => (s.boss ? 'BOSS' : this.isTraining ? (i === 0 ? 'YOU' : 'DUMMY') : s.type === 'cpu' ? 'CPU' : `P${i + 1}`)), tagColors);
+    this.cutIn = new UltCutIn(this, this.uiLayer);
+    this.ultOn = this.fighters.map(() => false);
     this.bubbles = new OffscreenBubbles(this, this.uiLayer, this.fighters, this.views, tagColors);
     this.fighters.forEach((f, i) => {
       const s = this.slots[i];
@@ -693,6 +698,13 @@ export class MatchScene extends Phaser.Scene {
     this.koBlast.update(Math.min(frameMs, 50) / 1000, this.scale.width, this.scale.height);
     const hu = this.hudUnit(this.scale.height);
     this.tags.update(this.worldCam.worldView, this.scale.width, this.scale.height, hu);
+    // an ultimate starting: cut-in banner (once per activation)
+    this.fighters.forEach((f, i) => {
+      const ult = f.state === 'attack' && f.move?.kind === 'ultimate';
+      if (ult && !this.ultOn[i] && f.move) this.cutIn.play(f.data, f.move.name ?? 'ULTIMATE', f.facing);
+      this.ultOn[i] = ult;
+    });
+    this.cutIn.update(this.paused ? 0 : Math.min(frameMs, 50) / 1000, this.scale.width, this.scale.height, hu);
     this.bubbles.update(this.worldCam.worldView, this.scale.width, this.scale.height, hu, this.scale.height - Math.round(8 * this.dpr()) - 40 * hu);
     if (this.bannerPop > 0) this.bannerPop = Math.max(0, this.bannerPop - frameMs / 16.7);
     this.banner.setScale(this.bannerBase * (1 + 0.06 * this.bannerPop));
