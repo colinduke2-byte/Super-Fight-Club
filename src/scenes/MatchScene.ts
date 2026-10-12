@@ -1,3 +1,4 @@
+import { announcer } from '../audio/announcer';
 import { ensurePalette } from '../art/proceduralFighter';
 import { assignPalettes } from '../art/palettes';
 import Phaser from 'phaser';
@@ -130,6 +131,8 @@ export class MatchScene extends Phaser.Scene {
   private pauseReason: '' | 'user' | 'disconnect' = '';
   private pauseMenu!: MenuList;
   private bannerWasOn = false;
+  /** Tag / HUD name per fighter ("P1", "CPU", "CPU3", "BOSS"...). */
+  private labels: string[] = [];
   /** Texture id per fighter (its palette). */
   private skins: string[] = [];
   /** Pause > MOVE LIST: the paused player's moves with inputs, damage and first active frame. */
@@ -235,6 +238,7 @@ export class MatchScene extends Phaser.Scene {
     this.match.onRespawn = (f) => this.respawn(f.id, true);
     this.match.onSuddenDeath = () => {
       this.banner.setText('SUDDEN DEATH!').setVisible(true).setTint(0xff4a5a);
+      announcer.say('Sudden death!');
       this.introTicks = 110;
       sfx.play('boom', 0.8, 0);
       this.cam.snap();
@@ -304,7 +308,7 @@ export class MatchScene extends Phaser.Scene {
     this.views.forEach((v, i) => (v.color = tagColors[i]));
     // with several CPUs each gets its port number so stacked tags and HUDs can be told apart
     const cpus = this.slots.filter((s) => s.type === 'cpu' && !s.boss).length;
-    const labels = this.slots.map((s, i) => (s.boss ? 'BOSS' : this.isTraining ? (i === 0 ? 'YOU' : 'DUMMY') : s.type === 'cpu' ? (cpus > 1 ? `CPU${i + 1}` : 'CPU') : `P${i + 1}`));
+    const labels = (this.labels = this.slots.map((s, i) => (s.boss ? 'BOSS' : this.isTraining ? (i === 0 ? 'YOU' : 'DUMMY') : s.type === 'cpu' ? (cpus > 1 ? `CPU${i + 1}` : 'CPU') : `P${i + 1}`)));
     this.tags = new PlayerTags(this, this.uiLayer, this.fighters, this.views, labels, tagColors);
     this.cutIn = new UltCutIn(this, this.uiLayer);
     this.ultOn = this.fighters.map(() => false);
@@ -804,10 +808,12 @@ export class MatchScene extends Phaser.Scene {
       if (this.isTargets) {
         const done = this.targetTicks >= 0;
         this.banner.setText(done ? `COMPLETE!\n${formatTicks(this.targetTicks)}` : 'FAILED').setVisible(true).setTint(done ? 0x7affa0 : 0xff5a4a);
+        announcer.say(done ? 'Complete!' : 'Failure.');
       } else {
         const head = this.match.cfg.mode === 'time' && !this.match.suddenDeath ? 'TIME!' : 'GAME!';
-        const tail = w < 0 ? 'DRAW' : this.match.winnerTeam >= 0 ? `TEAM ${this.match.winnerTeam === 0 ? 'BLUE' : 'RED'} WINS` : session.mode === 'arcade' ? (w === 0 ? 'VICTORY' : 'DEFEATED') : `P${w + 1} WINS`;
+        const tail = w < 0 ? 'DRAW' : this.match.winnerTeam >= 0 ? `TEAM ${this.match.winnerTeam === 0 ? 'BLUE' : 'RED'} WINS` : session.mode === 'arcade' ? (w === 0 ? 'VICTORY' : 'DEFEATED') : `${this.labels[w] ?? `P${w + 1}`} WINS`;
         this.banner.setText(up(`${head}\n${tail}`)).setVisible(true).setTint(0xffe14a);
+        announcer.say(head === 'TIME!' ? 'Time!' : 'Game!', { pitch: 0.55, rate: 0.95 });
       }
     }
 
@@ -996,6 +1002,7 @@ export class MatchScene extends Phaser.Scene {
     const c = --this.countdown;
     if (c === 0) {
       this.banner.setText('GO!').setVisible(true).setTint(0x7affa0);
+      announcer.say('Go!', { pitch: 0.7, rate: 1.2 });
       // the controls reminder steps aside once the fight is under way (H brings it back)
       this.time.delayedCall(5000, () => {
         if (this.isTraining || !this.helpOn) return;
@@ -1013,6 +1020,7 @@ export class MatchScene extends Phaser.Scene {
     if (n > 0 && this.banner.text !== label) {
       this.banner.setText(label).setVisible(true).setTint(0xffe14a);
       this.bannerPop = 10;
+      announcer.say(['one', 'two', 'three'][n - 1] ?? label, { rate: 1.2 });
       sfx.play('ding', 0.6, 0);
     }
   }

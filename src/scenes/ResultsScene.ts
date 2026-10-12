@@ -1,3 +1,4 @@
+import { announcer } from '../audio/announcer';
 import Phaser from 'phaser';
 import { PIXEL_FONT } from '../art/pixelFont';
 import { music } from '../audio/music';
@@ -39,7 +40,11 @@ export class ResultsScene extends MenuScene {
     const r = session.lastResult;
     const arcade = session.mode === 'arcade' && !!session.ladder;
     const winner = r ? r.winner : -1;
-    let label = !r ? 'MATCH OVER' : winner < 0 ? 'DRAW' : r.winnerTeam >= 0 ? `TEAM ${r.winnerTeam === 0 ? 'BLUE' : 'RED'} WINS` : `${r.players.find((p) => p.index === winner)?.type === 'cpu' ? 'CPU' : 'P'}${winner + 1} WINS`;
+    // same names as the in-match tags: P1, CPU (numbered by port when there are several)
+    const cpus = r ? r.players.filter((p) => p.type === 'cpu').length : 0;
+    const nameOf = (p: { type: string; index: number }): string => (p.type === 'cpu' ? (cpus > 1 ? `CPU${p.index + 1}` : 'CPU') : `P${p.index + 1}`);
+    const wp0 = r && winner >= 0 ? r.players.find((p) => p.index === winner) : undefined;
+    let label = !r ? 'MATCH OVER' : winner < 0 ? 'DRAW' : r.winnerTeam >= 0 ? `TEAM ${r.winnerTeam === 0 ? 'BLUE' : 'RED'} WINS` : `${wp0 ? nameOf(wp0) : `P${winner + 1}`} WINS`;
     // arcade: record the fight and decide what comes next
     let outcome: LadderOutcome | null = null;
     if (arcade) {
@@ -81,7 +86,7 @@ export class ResultsScene extends MenuScene {
       const sorted = [...r.players].sort((a, b) => a.placement - b.placement);
       for (const p of sorted) {
         const name = (characterById(p.character)?.name ?? p.character).replace('The ', '');
-        const who = `${p.placement}. ${p.type === 'cpu' ? 'CPU' : 'P'}${p.index + 1}`;
+        const who = `${p.placement}. ${nameOf(p)}`;
         const line = `${who.padEnd(9)} ${name.slice(0, 10).padEnd(10)} ${String(p.kos).padStart(3)}  ${String(p.falls).padStart(5)}  ${String(Math.round(p.damageDealt)).padStart(6)}  ${String(p.bestCombo ?? 0).padStart(5)}  ${String(timed ? p.kos - p.falls : p.stocks).padStart(6)}`;
         this.rows.push(text(this, this.ui, line, p.index === winner ? COLORS.hot : COLORS.p[p.index % 4]));
       }
@@ -107,6 +112,13 @@ export class ResultsScene extends MenuScene {
     // a human loss in the arcade gets the sad version; everything else celebrates
     const humanLost = (arcade && winner !== 0) || (!!tr && !tr.cleared);
     music.jingle(humanLost || winner < 0 ? 'lose' : 'win');
+    if (!tr) {
+      const champName = wc?.name.replace('The ', '');
+      announcer.say(
+        !r || winner < 0 ? 'No contest.' : arcade ? (outcome === 'gameover' ? 'Game over.' : winner === 0 ? `${champName} wins!` : 'Defeated.') : r.winnerTeam >= 0 ? `Team ${r.winnerTeam === 0 ? 'blue' : 'red'} wins!` : `The winner is ${champName}!`,
+        { pitch: 0.55, rate: 0.98 },
+      );
+    }
   }
 
   protected override layoutUi(w: number, h: number, u: number): void {

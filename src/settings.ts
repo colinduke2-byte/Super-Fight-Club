@@ -20,6 +20,8 @@ export interface Settings {
   reduceFlashes: boolean;
   /** Slow-motion on heavy hits and KOs. */
   killCam: boolean;
+  /** Spoken countdown, "GAME!" and the winner's name (browser speech synthesis). */
+  announcer: boolean;
   /** 0..1 master and sound-effect volume. */
   masterVolume: number;
   sfxVolume: number;
@@ -37,6 +39,7 @@ export const DEFAULT_SETTINGS: Settings = {
   screenShake: 1,
   reduceFlashes: false,
   killCam: true,
+  announcer: true,
   masterVolume: 0.7,
   sfxVolume: 1,
   musicVolume: 0.6,

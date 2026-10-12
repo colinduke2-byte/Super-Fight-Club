@@ -38,7 +38,7 @@ export class SettingsScene extends MenuScene {
       saveSettings();
       if (key !== 'deadzone') sfx.play('ding', 0.4, 0);
     };
-    const toggle = (key: 'tapJump' | 'showPerf' | 'autoQuality' | 'rumble' | 'reduceFlashes' | 'killCam') => () => {
+    const toggle = (key: 'tapJump' | 'showPerf' | 'autoQuality' | 'rumble' | 'reduceFlashes' | 'killCam' | 'announcer') => () => {
       settings[key] = !settings[key];
       saveSettings();
     };
@@ -47,6 +47,7 @@ export class SettingsScene extends MenuScene {
       { label: 'MASTER VOLUME', hint: 'Overall loudness.', value: () => pct(settings.masterVolume), onLeft: step('masterVolume', -0.05, 0, 1), onRight: step('masterVolume', 0.05, 0, 1) },
       { label: 'SFX VOLUME', hint: 'Hits, whooshes, KOs and menu blips.', value: () => pct(settings.sfxVolume), onLeft: step('sfxVolume', -0.05, 0, 1), onRight: step('sfxVolume', 0.05, 0, 1) },
       { label: 'MUSIC VOLUME', hint: 'Stage and menu music.', value: () => pct(settings.musicVolume), onLeft: step('musicVolume', -0.05, 0, 1), onRight: step('musicVolume', 0.05, 0, 1) },
+      { label: 'ANNOUNCER', hint: 'A voice calls the countdown, the end of the match and the winner.', value: () => (settings.announcer ? 'ON' : 'OFF'), onLeft: toggle('announcer'), onRight: toggle('announcer'), onConfirm: toggle('announcer') },
       {
         label: 'PARTICLES', hint: 'Sparks, dust and debris. Lower it on slow machines.',
         value: () => settings.particleQuality.toUpperCase(),
