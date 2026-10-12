@@ -185,6 +185,8 @@ export class MatchScene extends Phaser.Scene {
 
   private huds: FighterHud[] = [];
   private helpText!: Phaser.GameObjects.BitmapText;
+  /** Dark plate behind the help and training readouts so they read over any backdrop. */
+  private textPlate!: Phaser.GameObjects.Graphics;
   private toast!: Phaser.GameObjects.BitmapText;
   private toastUntil = 0;
   private pauseOverlay!: Phaser.GameObjects.Rectangle;
@@ -353,6 +355,9 @@ export class MatchScene extends Phaser.Scene {
     this.clock = this.add.bitmapText(0, 0, PIXEL_FONT, '').setOrigin(0.5, 0).setCenterAlign().setVisible(false);
     this.lastClockSec = -1;
     this.uiLayer.add([this.helpText, this.toast, this.banner, this.clock, this.pauseOverlay, this.pauseText]);
+    this.textPlate = this.add.graphics();
+    this.uiLayer.add(this.textPlate);
+    this.uiLayer.sendToBack(this.textPlate);
     if (!this.isTraining) {
       const lad = session.mode === 'arcade' ? session.ladder : null;
       const fight = lad ? currentFight(lad) : null;
@@ -801,6 +806,7 @@ export class MatchScene extends Phaser.Scene {
 
   // ---------------------------------------------------------------------------------------------
   private render(frameMs: number): void {
+    this.drawTextPlate();
     const alpha = this.paused ? 1 : this.ts.alpha;
     const c = this.cam;
     let cx = c.prevCx + (c.cx - c.prevCx) * alpha;
@@ -1055,6 +1061,19 @@ export class MatchScene extends Phaser.Scene {
     this.uiCam.setSize(size.width, size.height);
     this.cameras.main.setSize(size.width, size.height);
     this.layout(size.width, size.height);
+  }
+
+  private drawTextPlate(): void {
+    const g = this.textPlate.clear();
+    const pad = Math.round(4 * this.dpr());
+    let x1 = 0;
+    let y1 = 0;
+    for (const t of [this.helpText, this.trainText]) {
+      if (!t.visible || !t.text) continue;
+      x1 = Math.max(x1, t.x + t.displayWidth);
+      y1 = Math.max(y1, t.y + t.displayHeight);
+    }
+    if (x1 > 0) g.fillStyle(0x07061a, 0.55).fillRect(0, 0, x1 + pad * 2, y1 + pad);
   }
 
   /** Training readout sits under the help block (or at the top when help is hidden). */
