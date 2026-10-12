@@ -256,6 +256,7 @@ export class MatchScene extends Phaser.Scene {
     bgCam.ignore([this.worldLayer, this.uiLayer]);
     this.worldCam.ignore([this.bgLayer, this.uiLayer]);
     this.uiCam.ignore([this.bgLayer, this.worldLayer]);
+    for (const cam of [bgCam, this.worldCam, this.uiCam]) cam.fadeIn(220, 7, 6, 15);
 
     this.bg = new BackgroundView(this, this.bgLayer);
     this.bg.setTheme(stage.background.theme);
@@ -272,7 +273,16 @@ export class MatchScene extends Phaser.Scene {
     this.slashes = new SlashArcs(this, this.worldLayer);
     if (this.isTraining) this.training = new TrainingRunner(this.world, this.fighters[0], this.fighters[1]);
     sfx.arm();
-    music.play(this.slots.some((s) => s.boss) ? 'boss' : (stage.music ?? 'classic'));
+    const track = this.slots.some((s) => s.boss) ? 'boss' : (stage.music ?? 'classic');
+    music.play(track);
+    // back from the Controls overlay: the stage music and a clean frame clock
+    const onResume = (): void => {
+      music.play(track);
+      menuInput.reset();
+      this.lastNow = performance.now();
+    };
+    this.events.on('resume', onResume);
+    this.events.once('shutdown', () => this.events.off('resume', onResume));
 
     const bz = stage.blast;
     this.cam.cfg = { ...DEFAULT_CAMERA, bounds: { x: bz.left, y: bz.top, w: bz.right - bz.left, h: bz.bottom - bz.top } };
@@ -326,8 +336,16 @@ export class MatchScene extends Phaser.Scene {
       { label: 'RESUME', enabled: () => this.pauseReason !== 'disconnect', onConfirm: () => this.setPaused(false) },
       ...(session.mode !== 'arcade' ? [{ label: 'RESTART', onConfirm: () => this.scene.restart() }] : []),
       ...(!this.replay ? [{ label: 'MOVE LIST', onConfirm: () => this.showMoveList(true) }] : []),
-      { label: 'CONTROLS', onConfirm: () => this.scene.start('Controls', { back: 'Match' }) },
-      { label: 'QUIT', onConfirm: () => this.scene.start(this.isTraining ? 'ModeSelect' : 'ModeSelect') },
+      {
+        label: 'CONTROLS',
+        onConfirm: () => {
+          // rebinding happens over the paused match, which carries on where it was
+          this.scene.launch('Controls', { back: 'Match', overlay: true });
+          this.scene.bringToTop('Controls');
+          this.scene.pause();
+        },
+      },
+      { label: 'QUIT', onConfirm: () => this.scene.start('ModeSelect') },
     ]);
     this.pauseMenu.setVisible(false);
     this.moveListBox = this.add.bitmapText(0, 0, PIXEL_FONT, '').setOrigin(0.5).setLeftAlign().setVisible(false);

@@ -106,7 +106,7 @@ export class MenuInput {
     // universal keyboard keys are attributed to whichever keyboard scheme was used last
     const keys: [string, MenuAction][] = [['Enter', 'confirm'], ['Space', 'confirm'], ['Escape', 'back'], ['Backspace', 'back'], ['Tab', 'alt']];
     for (const [code, action] of keys) {
-      const down = this.hub.isHeld(code);
+      const down = this.hub.isActive(code); // held, or tapped since the last frame (a quick tap on a slow frame still counts)
       if (down && !this.keyPrev.has(code)) ev.push({ action, device: this.lastKeyboard });
       if (down) this.keyPrev.add(code);
       else this.keyPrev.delete(code);

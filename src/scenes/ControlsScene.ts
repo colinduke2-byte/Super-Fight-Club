@@ -31,6 +31,8 @@ export class ControlsScene extends MenuScene {
   private hint!: Phaser.GameObjects.BitmapText;
   private back = 'Settings';
   private backData: object | undefined;
+  /** Opened over a paused match: leaving resumes that scene instead of restarting it. */
+  private overlay = false;
   private profile: Profile = 'kb1';
   private capturing: Action | null = null;
   private armedAt = 0;
@@ -41,9 +43,10 @@ export class ControlsScene extends MenuScene {
     super('Controls');
   }
 
-  init(data: { back?: string; backData?: object }): void {
+  init(data: { back?: string; backData?: object; overlay?: boolean }): void {
     this.back = data?.back ?? 'Settings';
     this.backData = data?.backData;
+    this.overlay = !!data?.overlay;
     this.capturing = null;
   }
 
@@ -81,7 +84,7 @@ export class ControlsScene extends MenuScene {
         this.notice = 'DEFAULTS RESTORED';
       },
     });
-    rows.push({ label: 'BACK', onConfirm: () => this.go(this.back, this.backData) });
+    rows.push({ label: 'BACK', onConfirm: () => this.leave() });
     return rows;
   }
 
@@ -166,6 +169,15 @@ export class ControlsScene extends MenuScene {
   protected onEvent(e: MenuEvent): void {
     if (this.capturing || performance.now() < this.ignoreUntil) return;
     if (this.list.handle(e)) return;
-    if (e.action === 'back') this.go(this.back, this.backData);
+    if (e.action === 'back') this.leave();
+  }
+
+  private leave(): void {
+    if (!this.overlay) {
+      this.go(this.back, this.backData);
+      return;
+    }
+    this.scene.resume(this.back);
+    this.scene.stop();
   }
 }

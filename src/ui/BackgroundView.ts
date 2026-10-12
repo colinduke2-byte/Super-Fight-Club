@@ -194,10 +194,13 @@ export class BackgroundView {
       }
     }
     g.putImageData(img, 0, 0);
-    if (this.scene.textures.exists('bg-grad-dyn')) this.scene.textures.remove('bg-grad-dyn');
-    this.scene.textures.addCanvas('bg-grad-dyn', c);
+    // one gradient texture per scene: a scene running over another (Controls over a paused match) must not replace the one it draws
+    const key = `bg-grad-dyn:${this.scene.sys.settings.key}`;
     this.grad?.destroy();
-    this.grad = this.scene.add.image(0, 0, 'bg-grad-dyn').setOrigin(0, 0).setScale(ps);
+    this.grad = null;
+    if (this.scene.textures.exists(key)) this.scene.textures.remove(key);
+    this.scene.textures.addCanvas(key, c);
+    this.grad = this.scene.add.image(0, 0, key).setOrigin(0, 0).setScale(ps);
     this.layer.add(this.grad);
     this.layer.sendToBack(this.grad);
 

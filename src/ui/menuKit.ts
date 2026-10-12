@@ -212,6 +212,8 @@ export abstract class MenuScene extends Phaser.Scene {
   protected bg!: BackgroundView;
   protected time0 = 0;
   private uiCam!: Phaser.Cameras.Scene2D.Camera;
+  /** Set once a scene change has started (the fade-out is running): input is ignored and further changes dropped. */
+  private leaving = false;
 
   protected abstract build(): void;
   protected abstract onEvent(e: MenuEvent): void;
@@ -238,12 +240,15 @@ export abstract class MenuScene extends Phaser.Scene {
     this.relayout(w, h);
     menuInput.reset();
     this.time0 = performance.now();
+    this.leaving = false;
+    for (const cam of [main, this.uiCam]) cam.fadeIn(160, 7, 6, 15);
   }
 
   override update(_t: number, _d: number): void {
     const time = (performance.now() - this.time0) / 1000;
     this.bg.update(time * 6, Math.sin(time * 0.2) * 10, 3, time);
     for (const e of menuInput.poll()) {
+      if (this.leaving) continue;
       // tiny UI blips; scenes that consume the event (rebinding etc.) still get it
       if (e.action === 'confirm') sfx.play('menuOk', 0.7, 0);
       else if (e.action === 'back') sfx.play('menuBack', 0.7, 0);
@@ -267,6 +272,10 @@ export abstract class MenuScene extends Phaser.Scene {
 
   /** Go to another scene (stops this one). */
   protected go(key: string, data?: object): void {
-    this.scene.start(key, data);
+    if (this.leaving) return;
+    this.leaving = true;
+    const cams = [this.cameras.main, this.uiCam];
+    for (const cam of cams) cam.fadeOut(110, 7, 6, 15);
+    this.uiCam.once(Phaser.Cameras.Scene2D.Events.FADE_OUT_COMPLETE, () => this.scene.start(key, data));
   }
 }
