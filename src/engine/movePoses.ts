@@ -14,5 +14,17 @@ export function applyMovePoses(data: CharacterData): CharacterData {
     m.anim = name;
     data.sprite.animations[name] = { frames: 6, fps: 1, loop: false };
   }
+  pruneUnusedRows(data);
   return data;
+}
+
+/** Animation rows the fighter state machine can ask for outside of attacks (see `Fighter.anim`). */
+const STATE_ANIMS = new Set(['idle', 'run', 'walk', 'dash', 'skid', 'crouch', 'jump', 'fall', 'glide', 'ledge', 'hurt', 'hurtL', 'hurtU', 'hurtD', 'held', 'down', 'ko', 'shield', 'roll', 'dodge', 'grab']);
+
+/** Drops generated rows no move or state uses (the shared attack templates every move replaced with its own pose), which keeps sheets small. */
+function pruneUnusedRows(data: CharacterData): void {
+  if (data.sprite.sheetUrl) return; // authored sheets keep their layout
+  const used = new Set<string>(STATE_ANIMS);
+  for (const m of Object.values(data.moves)) used.add(m.anim);
+  for (const name of Object.keys(data.sprite.animations)) if (!used.has(name)) delete data.sprite.animations[name];
 }

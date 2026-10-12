@@ -12,26 +12,29 @@ export class StageView {
   private readonly views: PlatView[] = [];
 
   constructor(scene: Phaser.Scene, layer: Phaser.GameObjects.Layer, private readonly world: World) {
-    const tint = (BACKDROPS[world.stage.background.theme ?? 'skyline'] ?? BACKDROPS.skyline).tiles;
+    const theme = world.stage.background.theme;
+    const tint = (BACKDROPS[theme ?? 'skyline'] ?? BACKDROPS.skyline).tiles;
+    const sfx = theme === 'storm' || theme === 'dawn' ? `-${theme}` : ''; // themed tile sets exist for these stages
+    const tex = (key: string): string => `${key}${sfx}`;
     world.platforms.forEach((p, index) => {
       const parts: PlatView['parts'] = [];
       const add = (key: string, w: number, h: number, dy: number): void => {
         const t = scene.add.tileSprite(p.x, p.y + dy, w, h, key).setOrigin(0, 0).setTileScale(0.5, 0.5);
-        t.setTint(tint);
+        t.setTint(sfx ? 0xffffff : tint);
         layer.add(t);
         parts.push({ obj: t, dy });
       };
       if (p.kind === 'solid') {
         if (p.ledges) {
           // rocky underside hanging below the main platform
-          const under = scene.add.image(p.x + p.w / 2, p.y + p.h - 3, 'stage-under').setOrigin(0.5, 0);
-          under.setScale((p.w / 320) * 0.5).setTint(tint);
+          const under = scene.add.image(p.x + p.w / 2, p.y + p.h - 3, tex('stage-under')).setOrigin(0.5, 0);
+          under.setScale((p.w / 320) * 0.5).setTint(sfx ? 0xffffff : tint);
           layer.add(under);
         }
-        add('tile-stone', p.w, p.h - 6, 6);
-        add('tile-cap', p.w, 6, 0);
+        add(tex('tile-stone'), p.w, p.h - 6, 6);
+        add(tex('tile-cap'), p.w, 6, 0);
       } else {
-        add(p.moving ? 'tile-move' : 'tile-pass', p.w, p.h, 0);
+        add(tex(p.moving ? 'tile-move' : 'tile-pass'), p.w, p.h, 0);
       }
       this.views.push({ index, parts });
     });

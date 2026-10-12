@@ -35,8 +35,8 @@ const px = (g: Ctx, color: string, x: number, y: number, w = 1, h = 1): void => 
 };
 
 /** Stone ramp, dark -> light. */
-const STONE = ['#221d38', '#2e2848', '#3b3459', '#4b4470', '#605890', '#7b72b0'];
-const CYAN = ['#12414a', '#1c7f8c', '#34d6d0', '#8ff6ee', '#e6ffff'];
+const STONE_DEFAULT = ['#221d38', '#2e2848', '#3b3459', '#4b4470', '#605890', '#7b72b0'];
+const CYAN_DEFAULT = ['#12414a', '#1c7f8c', '#34d6d0', '#8ff6ee', '#e6ffff'];
 const AMBER = ['#4a2a18', '#8a4f2c', '#d9822b', '#ffb02e', '#ffe08a'];
 
 /** Tileable value noise in [0,1]. */
@@ -63,9 +63,9 @@ function makeNoise(seed: number, period: number): (x: number, y: number) => numb
 // ---------------------------------------------------------------------------------------------
 
 /** 32x32 tileable masonry: 16x8 blocks in running bond, shaded edges, cracks, glowing rune seams. */
-function stoneTile(): HTMLCanvasElement {
+function stoneTile(STONE: string[] = STONE_DEFAULT, CYAN: string[] = CYAN_DEFAULT, seed = 11): HTMLCanvasElement {
   const [c, g] = canvas(32, 32);
-  const rnd = mulberry32(11);
+  const rnd = mulberry32(seed);
   for (let row = 0; row < 4; row++) {
     const off = row % 2 === 0 ? 0 : 8;
     for (let col = -1; col < 3; col++) {
@@ -105,27 +105,27 @@ function stoneTile(): HTMLCanvasElement {
 }
 
 /** 32x12 tileable trim cap: brushed metal, glowing conduit, panel seams with rivets. */
-function capTile(): HTMLCanvasElement {
+function capTile(M: string[] = ['#6f679f', '#8f86c8', '#b9b0f0', '#544c82', '#6a6298', '#3d3664', '#a89fe0', '#3a3360', '#2a2548', '#221d3e'], CYAN: string[] = CYAN_DEFAULT): HTMLCanvasElement {
   const [c, g] = canvas(32, 12);
-  px(g, '#6f679f', 0, 0, 32, 12);
-  px(g, '#8f86c8', 0, 0, 32, 2); // top light
-  px(g, '#b9b0f0', 0, 0, 32, 1);
+  px(g, M[0], 0, 0, 32, 12);
+  px(g, M[1], 0, 0, 32, 2); // top light
+  px(g, M[2], 0, 0, 32, 1);
   px(g, CYAN[0], 0, 2, 32, 3); // conduit trough
   px(g, CYAN[1], 0, 3, 32, 1);
   for (let x = 0; x < 32; x += 8) {
     px(g, CYAN[2], x + 1, 3, 5, 1);
     px(g, CYAN[3], x + 2, 3, 3, 1);
   }
-  px(g, '#544c82', 0, 5, 32, 4);
-  px(g, '#6a6298', 0, 5, 32, 1);
+  px(g, M[3], 0, 5, 32, 4);
+  px(g, M[4], 0, 5, 32, 1);
   for (const x of [0, 16]) {
-    px(g, '#3d3664', x, 5, 1, 7); // panel seam
-    px(g, '#a89fe0', x + 2, 6, 1, 1); // rivets
-    px(g, '#a89fe0', x + 13, 6, 1, 1);
+    px(g, M[5], x, 5, 1, 7); // panel seam
+    px(g, M[6], x + 2, 6, 1, 1); // rivets
+    px(g, M[6], x + 13, 6, 1, 1);
   }
-  px(g, '#3a3360', 0, 9, 32, 1);
-  px(g, '#2a2548', 0, 10, 32, 2); // shadow lip
-  for (let x = 2; x < 32; x += 6) px(g, '#221d3e', x, 10, 3, 1);
+  px(g, M[7], 0, 9, 32, 1);
+  px(g, M[8], 0, 10, 32, 2); // shadow lip
+  for (let x = 2; x < 32; x += 6) px(g, M[9], x, 10, 3, 1);
   return c;
 }
 
@@ -174,8 +174,46 @@ function moveTile(): HTMLCanvasElement {
   return c;
 }
 
+
+/** 32x12 one-way platform made of storm cloud: pale slab with puffy underside and crackling edge. */
+function cloudPass(top: string, mid: string, low: string, spark: string): HTMLCanvasElement {
+  const [c, g] = canvas(32, 12);
+  const rnd = mulberry32(17);
+  px(g, mid, 0, 1, 32, 8);
+  px(g, top, 0, 0, 32, 2);
+  for (let x = 0; x < 32; x += 2) if (rnd() > 0.4) px(g, top, x, 0, 2, 1);
+  px(g, low, 0, 6, 32, 3);
+  for (let x = 0; x < 32; x += 4) {
+    const r = 2 + Math.floor(rnd() * 3);
+    px(g, mid, x, 9, 4, r);
+    px(g, low, x, 9 + r - 1, 4, 1);
+  }
+  for (let x = 3; x < 32; x += 10) px(g, spark, x, 3 + (x % 3), 3, 1);
+  return c;
+}
+
+/** 32x12 one-way wooden bridge plank: planks, rope rail and little hanging lanterns. */
+function woodPass(): HTMLCanvasElement {
+  const [c, g] = canvas(32, 12);
+  px(g, '#8a5a2c', 0, 0, 32, 9);
+  px(g, '#d49a58', 0, 0, 32, 1);
+  px(g, '#b87a3c', 0, 1, 32, 2);
+  for (let x = 0; x < 32; x += 8) {
+    px(g, '#5a3a1c', x, 1, 1, 8);
+    px(g, '#a06a34', x + 2, 4, 5, 1);
+  }
+  px(g, '#e8d6a8', 0, 0, 32, 1);
+  px(g, '#3a2410', 0, 9, 32, 1);
+  px(g, '#6a4220', 0, 10, 32, 2);
+  for (let x = 4; x < 32; x += 16) {
+    px(g, '#ffe27a', x, 10, 3, 2);
+    px(g, '#fff6c0', x + 1, 10, 1, 1);
+  }
+  return c;
+}
+
 /** Floating-island underside: jagged rock, strata, hanging crystals. 640x200 px (= 320x100 world). */
-function stageUnder(): HTMLCanvasElement {
+function stageUnder(STONE: string[] = STONE_DEFAULT, crystals: string[][] = [CYAN_DEFAULT, ['#4a1a5a', '#8a2fa0', '#d65cf0', '#f5a6ff', '#ffe6ff']]): HTMLCanvasElement {
   const W = 640;
   const H = 200;
   const [c, g] = canvas(W, H);
@@ -221,7 +259,7 @@ function stageUnder(): HTMLCanvasElement {
     const x = 40 + Math.floor(rnd() * (W - 80));
     const y = Math.round(prof[x]) - 1;
     const h = 8 + Math.floor(rnd() * 16);
-    const hue = rnd() > 0.5 ? CYAN : ['#4a1a5a', '#8a2fa0', '#d65cf0', '#f5a6ff', '#ffe6ff'];
+    const hue = rnd() > 0.5 ? crystals[0] : crystals[1];
     for (let k = 0; k < h; k++) {
       const w = Math.max(1, Math.round(3 * (1 - k / h)));
       px(g, hue[2], x - Math.floor(w / 2), y + k, w, 1);
@@ -726,6 +764,20 @@ export function buildStageTextures(scene: Phaser.Scene): void {
     scene.textures.addCanvas(key, c);
   };
   add('tile-stone', stoneTile());
+  const SLATE = ['#0e141c', '#18212d', '#243040', '#32425a', '#44587a', '#5a7298'];
+  const SLATE_SEAM = ['#103a5a', '#1c6a9c', '#46a8e8', '#9fd8ff', '#e6f6ff'];
+  const MARBLE = ['#a89088', '#c4aea4', '#dccbbc', '#ecdecb', '#f7ecdc', '#fff8ee'];
+  const MARBLE_SEAM = ['#6a4a1c', '#b08a30', '#e8c050', '#ffe08a', '#fff4c0'];
+  add('tile-stone-storm', stoneTile(SLATE, SLATE_SEAM, 31));
+  add('tile-cap-storm', capTile(['#3a4a62', '#566e90', '#8aa6cc', '#2c3a50', '#41546e', '#1c2636', '#9fbfe8', '#18202e', '#10161f', '#0a0f18'], SLATE_SEAM));
+  add('tile-pass-storm', cloudPass('#e8f2ff', '#b6c9e2', '#7e98bc', '#cfeaff'));
+  add('tile-move-storm', cloudPass('#cfdcf0', '#8a9fc0', '#56688a', '#ffffff'));
+  add('stage-under-storm', stageUnder(SLATE, [SLATE_SEAM, ['#103a5a', '#1c6a9c', '#46a8e8', '#9fd8ff', '#e6f6ff']]));
+  add('tile-stone-dawn', stoneTile(MARBLE, MARBLE_SEAM, 41));
+  add('tile-cap-dawn', capTile(['#d8c4a4', '#ecdcbc', '#fff4d8', '#bca480', '#d0b890', '#8a7250', '#fff0c0', '#6a5638', '#4a3a24', '#3a2c1a'], MARBLE_SEAM));
+  add('tile-pass-dawn', woodPass());
+  add('tile-move-dawn', cloudPass('#fff0e0', '#f4c8b8', '#c48aa0', '#ffffff'));
+  add('stage-under-dawn', stageUnder(MARBLE.map((c) => c).reverse().map((_, i) => ['#6a4a52', '#8a6a6c', '#a88884', '#c4a6a0', '#dcc4b8', '#f0dcd0'][i]), [['#6a4a1c', '#b08a30', '#e8c050', '#ffe08a', '#fff4c0'], ['#2a6a3a', '#4aa05a', '#7ad07a', '#b0f0a0', '#e8ffe0']]));
   add('tile-cap', capTile());
   add('tile-pass', passTile());
   add('tile-move', moveTile());
