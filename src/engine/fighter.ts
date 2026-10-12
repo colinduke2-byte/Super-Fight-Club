@@ -77,6 +77,8 @@ export const SOAK_MAX = 360;
 export const SOAK_LEVEL = 120;
 /** Extra knockback taken per soak level. */
 export const SOAK_KB_PER_LEVEL = 0.04;
+/** After a freeze ends or shatters, frames during which a new freeze only slows (no freeze-locks). */
+export const FREEZE_IMMUNE = 120;
 /**
  * Hit confirm: a jab / tilt / aerial / dash attack that lands on a fighter (not a shield) keeps only this fraction of
  * its recovery, so strings flow; whiffs and shielded hits keep the full recovery and stay punishable.
@@ -308,6 +310,8 @@ export class Fighter implements Body {
   meter = 0;
   /** Remaining frames per status effect. */
   readonly status = { burn: 0, slow: 0, freeze: 0, stun: 0, soak: 0 };
+  /** Frames left of freeze immunity (see FREEZE_IMMUNE). */
+  freezeImmune = 0;
   private slowMul = 1;
   private burnPerTick = 0.05;
   /** Active reflecting barrier (frames > 0), forward-relative box around the feet. */
@@ -450,6 +454,7 @@ export class Fighter implements Body {
     this.armorBonus = 0;
     this.res = { ...(this.data.resources ?? {}) };
     this.status.burn = this.status.slow = this.status.freeze = this.status.stun = this.status.soak = 0;
+    this.freezeImmune = 0;
     this.slowMul = 1;
     this.barrier.frames = 0;
     this.helpless = false;
@@ -710,6 +715,12 @@ export class Fighter implements Body {
         this.slowMul = s.value ?? 0.6;
         break;
       case 'freeze':
+        if (this.freezeImmune > 0) {
+          // just thawed: chilled instead of frozen again
+          this.status.slow = Math.max(this.status.slow, Math.min(60, s.frames));
+          this.slowMul = 0.7;
+          break;
+        }
         this.status.freeze = Math.max(this.status.freeze, s.frames);
         this.releaseLedge();
         this.endMoveState();
@@ -837,7 +848,10 @@ export class Fighter implements Body {
     this.ledgeGrabs = 0;
     this.helpless = false;
     this.barrier.frames = 0;
-    if (this.status.freeze > 0) this.status.freeze = 0; // being hit shatters ice
+    if (this.status.freeze > 0) {
+      this.status.freeze = 0; // being hit shatters ice
+      this.freezeImmune = FREEZE_IMMUNE;
+    }
     this.status.stun = 0;
     if (vy < 0) {
       this.grounded = false;
@@ -1273,7 +1287,8 @@ export class Fighter implements Body {
       if (st.burn % 12 === 0) world.emit('status', this, this.x, this.y - this.h / 2, st.burn, 0);
     }
     if (st.slow > 0 && --st.slow === 0) this.slowMul = 1;
-    if (st.freeze > 0) st.freeze--;
+    if (st.freeze > 0 && --st.freeze === 0) this.freezeImmune = FREEZE_IMMUNE;
+    else if (this.freezeImmune > 0) this.freezeImmune--;
     if (st.stun > 0) st.stun--;
     if (st.soak > 0) {
       st.soak--;

@@ -128,3 +128,19 @@ describe('Riptide: specials', () => {
     expect(t.b.status.soak).toBeGreaterThan(0);
   });
 });
+
+describe('status: no freeze-locks', () => {
+  it('a fighter that just thawed is only chilled by the next freeze', () => {
+    const t = rig(110);
+    t.b.applyStatus({ type: 'freeze', frames: 30 }, t.world);
+    expect(t.b.state).toBe('frozen');
+    t.run(40);
+    expect(t.b.state).not.toBe('frozen');
+    t.b.applyStatus({ type: 'freeze', frames: 30 }, t.world);
+    expect(t.b.state).not.toBe('frozen');
+    expect(t.b.status.slow).toBeGreaterThan(0);
+    t.run(200);
+    t.b.applyStatus({ type: 'freeze', frames: 30 }, t.world);
+    expect(t.b.state).toBe('frozen');
+  });
+});

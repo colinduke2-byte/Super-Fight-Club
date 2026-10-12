@@ -327,7 +327,7 @@ export class World {
       mix(f.meter);
       mix(f.state.length);
       for (const k of Object.keys(f.res)) mix(f.res[k]);
-      mix(f.status.burn + f.status.slow * 7 + f.status.freeze * 13 + f.status.stun * 17 + f.status.soak * 19);
+      mix(f.status.burn + f.status.slow * 7 + f.status.freeze * 13 + f.status.stun * 17 + f.status.soak * 19 + f.freezeImmune * 23);
     }
     for (const p of this.projectiles) {
       if (!p.active) continue;
