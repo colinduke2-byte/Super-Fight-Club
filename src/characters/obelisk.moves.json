@@ -19,9 +19,9 @@
     "fx": "crystal"
    },
    "look": {
-    "shape": "bolt",
+    "shape": "shard",
     "color": "#c898f6",
-    "size": 1.0
+    "size": 0.9
    }
   },
   "volley": {
@@ -43,9 +43,9 @@
     "fx": "crystal"
    },
    "look": {
-    "shape": "bolt",
+    "shape": "shard",
     "color": "#d8b0ff",
-    "size": 1.15
+    "size": 1.05
    }
   }
  },

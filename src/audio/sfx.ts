@@ -110,6 +110,12 @@ export class Sfx {
         this.noiseBurst(d, 'bandpass', 1600, 500, 0.12, 0.16 * k);
         this.tone(d, 'sine', 520, 260, 0.08, 0.07 * k);
         break;
+      case 'stone':
+        // a heavy grinding swing: a low rumble of rock with a faint glassy ring
+        this.noiseBurst(d, 'lowpass', 600, 120, 0.16, 0.22 * k);
+        this.tone(d, 'sine', 70, 45, 0.12, 0.2 * k);
+        this.tone(d, 'triangle', 1560, 1480, 0.06, 0.03 * k, 0.03);
+        break;
       default:
         this.noiseBurst(d, 'bandpass', 900, 300, 0.07, 0.12 * k);
     }
@@ -150,6 +156,14 @@ export class Sfx {
         this.tone(d, 'sine', 110, 50, 0.18 * h, 0.4 * k);
         this.noiseBurst(d, 'bandpass', 2400, 700, 0.18 * h, 0.3 * k);
         this.tone(d, 'sine', 900, 380, 0.07, 0.14 * k, 0.04);
+        break;
+      case 'stone':
+        // rock on bone: a deep crunch, a crack of grit, and a crystal chime ringing over it
+        this.tone(d, 'sine', 72, 32, 0.24 * h, 0.6 * k);
+        this.noiseBurst(d, 'lowpass', 1800, 180, 0.14 * h, 0.34 * k);
+        this.noiseBurst(d, 'bandpass', 4200, 2600, 0.04, 0.16 * k);
+        this.tone(d, 'sine', 1760, 1740, 0.32 * h, 0.07 * k, 0.02);
+        this.tone(d, 'sine', 2637, 2620, 0.24 * h, 0.04 * k, 0.03);
         break;
       default:
         break;

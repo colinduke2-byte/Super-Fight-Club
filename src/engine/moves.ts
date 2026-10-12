@@ -226,7 +226,7 @@ export interface ProjectileDef {
   boomerang?: { out: number; speed: number };
   /** Keeps this fraction of speed when bouncing off solid floors. 0 = vanishes on contact. */
   bounce?: number;
-  look: { shape: 'orb' | 'bolt' | 'bullet' | 'fist' | 'beam'; color: string; size?: number };
+  look: { shape: 'orb' | 'bolt' | 'bullet' | 'fist' | 'beam' | 'shard'; color: string; size?: number };
 }
 
 export interface DeployableDef {

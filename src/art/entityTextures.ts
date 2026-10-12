@@ -107,6 +107,21 @@ export function buildEntityTextures(scene: Phaser.Scene): void {
     }
     add('proj-bolt', c);
   }
+  // crystal shard 20x10: a faceted spike pointing forward (light top facet, darker underside, a white edge)
+  {
+    const [c, g] = mk(20, 10);
+    for (let x = 0; x < 20; x++) {
+      const half = x < 14 ? 4 - Math.abs(x - 7) * 0.12 : (19 - x) * 0.8; // a long prism ending in a point
+      for (let y = 0; y < 10; y++) {
+        const dy = y - 4.5;
+        if (Math.abs(dy) > half + 0.3) continue;
+        const shade = dy < -0.5 ? '#ffffff' : dy < 1 ? '#d8d8e8' : '#9a9ab8';
+        px(g, x > 16 ? '#ffffff' : shade, x, y);
+      }
+    }
+    px(g, '#ffffff', 2, 3, 12, 1);
+    add('proj-shard', c);
+  }
   // bullet 10x6
   {
     const [c, g] = mk(10, 6);

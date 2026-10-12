@@ -1,6 +1,6 @@
 {
- "sound": "heavy",
- "slash": "spark",
+ "sound": "stone",
+ "slash": "crystal",
  "trail": "#c898f6",
  "recipes": {
   "crown": [

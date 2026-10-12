@@ -4,6 +4,7 @@ import { assignPalettes } from '../art/palettes';
 import Phaser from 'phaser';
 import { characterById, CHARACTERS } from '../characters';
 import { ambience } from '../audio/ambience';
+import { CinematicArt } from '../ui/CinematicArt';
 import { music } from '../audio/music';
 import { sfx } from '../audio/sfx';
 import { TrainingRunner } from '../engine/training';
@@ -63,8 +64,8 @@ const COUNT_STEP = 36;
 const COUNTDOWN = COUNT_STEP * 3 + 40;
 
 /** How each fighter arrives during READY (visual only: the sim is frozen until GO). */
-type Entrance = 'slam' | 'jet' | 'blink' | 'rune' | 'flame' | 'glide' | 'splash' | 'fade';
-const ENTRANCES: Record<string, Entrance> = { brick: 'slam', gizmo: 'jet', vex: 'blink', nova: 'rune', agni: 'flame', halcyon: 'glide', riptide: 'splash' };
+type Entrance = 'slam' | 'jet' | 'blink' | 'rune' | 'flame' | 'glide' | 'splash' | 'erupt' | 'fade';
+const ENTRANCES: Record<string, Entrance> = { brick: 'slam', gizmo: 'jet', vex: 'blink', nova: 'rune', agni: 'flame', halcyon: 'glide', riptide: 'splash', obelisk: 'erupt' };
 const TRAINING: MatchConfig = { mode: 'training', stocks: 3, timeLimitSec: 0, respawnDelay: 70 };
 const END_DELAY = 150;
 const HELP_TRAINING = [
@@ -174,6 +175,7 @@ export class MatchScene extends Phaser.Scene {
   private introTicks = 0;
   /** Pre-match READY / 3 / 2 / 1 countdown in sim ticks (the world is frozen until GO). */
   private countdown = 0;
+  private cinArt!: CinematicArt;
   /** Per fighter: 1 = entrance start effects played, 2 = arrival effects played. */
   private entranceFx: number[] = [];
   private bannerBase = 1;
@@ -302,6 +304,7 @@ export class MatchScene extends Phaser.Scene {
     this.effects.cap = this.adaptive.cap; // a reduction earlier in the session carries over to rematches
     this.entityViews = new EntityViews(this, this.worldLayer, this.world);
     this.slashes = new SlashArcs(this, this.worldLayer);
+    this.cinArt = new CinematicArt(this, this.worldLayer);
     if (this.isTraining) this.training = new TrainingRunner(this.world, this.fighters[0], this.fighters[1]);
     sfx.arm();
     const track = this.slots.some((s) => s.boss) ? 'boss' : (stage.music ?? 'classic');
@@ -848,6 +851,7 @@ export class MatchScene extends Phaser.Scene {
 
     this.stageView.update(alpha);
     this.slashes.update(this.world);
+    this.cinArt.update(this.world, this.world.tick);
     this.hazardView?.update(this.world.tick);
     this.targetView?.update(performance.now() / 1000);
     this.launchView?.update(performance.now() / 1000);
@@ -1168,6 +1172,22 @@ export class MatchScene extends Phaser.Scene {
             sfx.play('splash', 0.6, 0);
           }
           if (arrive) e.burst(f.x, f.y - 2, 10, 70, 0xbff0ff, 0.35, 2);
+          break;
+        case 'erupt':
+          // bursts up out of the ground in a spray of rock and crystal, and lands with a thud
+          dy = -Math.sin(k * Math.PI) * 36;
+          a = Math.min(1, k * 5);
+          if (start) {
+            e.burst(f.x, f.y - 2, 18, 120, 0x8a7a70, 0.5, 3);
+            e.burst(f.x, f.y - 4, 10, 90, 0xc898f6, 0.4, 2);
+            e.dust(f.x, f.y, 10, 0);
+            this.shake = Math.max(this.shake, 4 * settings.screenShake);
+            sfx.play('break', 0.7, 0);
+          }
+          if (arrive) {
+            e.dust(f.x, f.y, 8, 0);
+            sfx.play('land', 0.8, 0);
+          }
           break;
         default:
           a = k;

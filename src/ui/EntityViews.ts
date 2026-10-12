@@ -4,7 +4,7 @@ import { MAX_ITEMS } from '../engine/items';
 import type { World } from '../engine/world';
 import { pillarCanvas } from '../art/entityTextures';
 
-const SHAPE_TEX: Record<string, string> = { orb: 'proj-orb', bolt: 'proj-bolt', bullet: 'proj-bullet', fist: 'proj-fist', beam: 'proj-beam' };
+const SHAPE_TEX: Record<string, string> = { orb: 'proj-orb', bolt: 'proj-bolt', bullet: 'proj-bullet', fist: 'proj-fist', beam: 'proj-beam', shard: 'proj-shard' };
 const DEP_TEX: Record<string, string> = { mine: 'dep-mine', turret: 'dep-turret', rune: 'dep-rune', marker: 'dep-marker', whirlpool: 'dep-whirlpool' };
 
 function color(hex: string): number {
@@ -83,7 +83,7 @@ export class EntityViews {
       s.setPosition(p.prevX + (p.x - p.prevX) * alpha, p.prevY + (p.y - p.prevY) * alpha);
       s.setFlipX(p.vx < 0);
       const base = 0.5 * (look.size ?? 1);
-      if (look.shape === 'bolt' || look.shape === 'bullet') s.setRotation(Math.atan2(p.vy, Math.abs(p.vx)) * (p.vx < 0 ? -1 : 1));
+      if (look.shape === 'bolt' || look.shape === 'bullet' || look.shape === 'shard') s.setRotation(Math.atan2(p.vy, Math.abs(p.vx)) * (p.vx < 0 ? -1 : 1));
       else s.setRotation(0);
       if (look.shape === 'beam') {
         // the hitbox is the head; draw it with a long glowing tail behind (additive, gently pulsing)
