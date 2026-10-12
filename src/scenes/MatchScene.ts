@@ -28,7 +28,8 @@ import { Effects } from '../ui/Effects';
 import { FighterView } from '../ui/FighterView';
 import { PerfCounter } from '../ui/PerfCounter';
 import { FighterHud } from '../ui/FighterHud';
-import { MenuList } from '../ui/menuKit';
+import { COLORS, MenuList } from '../ui/menuKit';
+import { KoBlast } from '../ui/KoBlast';
 import { PIXEL_FONT, up } from '../art/pixelFont';
 import { StageView } from '../ui/StageView';
 import { SlashArcs } from '../ui/SlashArcs';
@@ -92,6 +93,7 @@ export class MatchScene extends Phaser.Scene {
   private worldLayer!: Phaser.GameObjects.Layer;
   private uiLayer!: Phaser.GameObjects.Layer;
   private worldCam!: Phaser.Cameras.Scene2D.Camera;
+  private koBlast!: KoBlast;
   private uiCam!: Phaser.Cameras.Scene2D.Camera;
 
   private slots: PlayerSlot[] = [];
@@ -264,6 +266,7 @@ export class MatchScene extends Phaser.Scene {
 
     this.dimOverlay = this.add.rectangle(0, 0, 10, 10, 0x000010, 1).setOrigin(0, 0).setAlpha(0);
     this.uiLayer.add(this.dimOverlay);
+    this.koBlast = new KoBlast(this, this.uiLayer);
     this.fighters.forEach((f, i) => {
       const s = this.slots[i];
       const label = s.boss ? 'BOSS' : this.isTraining ? (i === 0 ? 'YOU' : 'DUMMY') : s.type === 'cpu' ? 'CPU' : `P${i + 1}`;
@@ -322,7 +325,14 @@ export class MatchScene extends Phaser.Scene {
         this.slowTicks = Math.max(this.slowTicks, ticks);
       },
       rumble: (f, st, wk, ms) => this.rumble(f, st, wk, ms),
-      onKo: (f, by) => this.match.onKo(f, by),
+      onKo: (f, by) => {
+        this.match.onKo(f, by);
+        const v = this.worldCam.worldView;
+        const sw = this.scale.width;
+        const sh = this.scale.height;
+        const col = f.team >= 0 ? COLORS.p[f.team] : COLORS.p[f.id % 4];
+        this.koBlast.add(((f.koX - v.x) / Math.max(1, v.width)) * sw, ((f.koY - f.h / 2 - v.y) / Math.max(1, v.height)) * sh, sw, sh, col);
+      },
     });
     this.world.listener = (type, f, x, y, mag, extra, tag) => {
       this.training?.onEvent(type, f, x, y, mag, extra);
@@ -672,6 +682,7 @@ export class MatchScene extends Phaser.Scene {
       this.huds[i].update(f.damage, sc.stocks, this.match.training, sc.eliminated, f.meter / (f.data.ultimate?.cost ?? 100), this.world.tick, f.data.hud ? (f.res[f.data.hud.resource] ?? 0) : 0, f.status);
     }
     this.updateClock();
+    this.koBlast.update(Math.min(frameMs, 50) / 1000, this.scale.width, this.scale.height);
     if (this.bannerPop > 0) this.bannerPop = Math.max(0, this.bannerPop - frameMs / 16.7);
     this.banner.setScale(this.bannerBase * (1 + 0.06 * this.bannerPop));
     if (this.match.over && !this.banner.visible) {
