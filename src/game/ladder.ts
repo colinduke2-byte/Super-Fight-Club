@@ -36,25 +36,33 @@ export interface LadderState {
 export const LADDER_CONTINUES = 3;
 
 /**
- * Five escalating fights then the boss. The three other roster fighters come first (in roster order), then a mirror
- * match, then a two-on-one brawl, then the Overseer.
+ * Five escalating fights then the boss: three duels against other roster fighters, a mirror match, a two-on-one
+ * brawl against the two rivals not met yet (so a run meets the whole roster), then the Overseer. The rival order is
+ * shuffled per run (`rand` for tests).
  */
-export function buildLadder(player: string): LadderState {
+export function buildLadder(player: string, rand: () => number = Math.random): LadderState {
   const others = CHARACTER_LIST.map((c) => c.id).filter((id) => id !== player);
+  for (let i = others.length - 1; i > 0; i--) {
+    const j = Math.floor(rand() * (i + 1));
+    [others[i], others[j]] = [others[j], others[i]];
+  }
   const [a, b, c] = others;
+  // the brawl brings in whoever is left; a small roster reuses the first two
+  const d = others[3] ?? a;
+  const e = others[4] ?? b;
   const fights: LadderFight[] = [
     { index: 0, title: 'OPENING BOUT', stage: 'classic', kind: 'duel', opponents: [{ character: a, level: 1, stocks: 2 }], playerStocks: 3 },
     { index: 1, title: 'BACK ALLEY', stage: 'ring', kind: 'duel', opponents: [{ character: b, level: 1, stocks: 2 }], playerStocks: 3 },
     { index: 2, title: 'THE CIRCUIT', stage: 'temple', kind: 'duel', opponents: [{ character: c, level: 2, stocks: 3 }], playerStocks: 3 },
-    { index: 3, title: 'SHADOW MATCH', stage: 'reactor', kind: 'duel', opponents: [{ character: player, level: 2, stocks: 3 }], playerStocks: 3 },
+    { index: 3, title: 'SHADOW MATCH', stage: 'storm', kind: 'duel', opponents: [{ character: player, level: 2, stocks: 3 }], playerStocks: 3 },
     {
       index: 4,
       title: 'TRIPLE THREAT',
-      stage: 'storm',
+      stage: 'skyhold',
       kind: 'brawl',
       opponents: [
-        { character: a, level: 3, stocks: 2 },
-        { character: b, level: 2, stocks: 2 },
+        { character: d, level: 3, stocks: 2 },
+        { character: e, level: 2, stocks: 2 },
       ],
       playerStocks: 3,
     },

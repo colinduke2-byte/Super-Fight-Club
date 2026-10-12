@@ -21,6 +21,10 @@ describe('arcade ladder', () => {
       const firsts = [0, 1, 2].map((i) => l.fights[i].opponents[0].character);
       expect(new Set(firsts).size).toBe(3);
       expect(firsts).not.toContain(c.id);
+      // with the brawl, a run meets every other roster fighter
+      const met = new Set([0, 1, 2, 4].flatMap((i) => l.fights[i].opponents.map((o) => o.character)));
+      expect(met.size).toBe(Math.min(5, CHARACTER_LIST.length - 1));
+      expect(met.has(c.id)).toBe(false);
     });
   }
 
