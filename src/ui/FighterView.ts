@@ -29,6 +29,7 @@ export class FighterView {
   private readonly ghostLife: number[] = [];
   private nextGhost = 0;
   private spin = 0;
+  private lastJumps = 0;
   private lastGhostTick = -9;
   /** Two additive copies of the previous pose frames behind the strike: a motion-blur smear. */
   private readonly smear: Phaser.GameObjects.Sprite[] = [];
@@ -104,8 +105,11 @@ export class FighterView {
       if (anim !== this.lastAnim) {
         s.anims.play(anim, true);
         this.lastAnim = anim;
+      } else if (f.anim === 'jump' && f.jumpsLeft < this.lastJumps) {
+        s.anims.restart(); // a double jump replays the take-off
       }
     }
+    this.lastJumps = f.jumpsLeft;
     // hitlag: victims shake
     const shake = f.hitlag > 0 && f.state === 'hitstun' ? ((tick & 1) === 0 ? 1.5 : -1.5) : 0;
     // the sprite body is drawn BODY_SHIFT px left of the frame centre (weapon reach); re-centre it on the hurtbox

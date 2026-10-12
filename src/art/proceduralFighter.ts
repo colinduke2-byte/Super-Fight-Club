@@ -39,10 +39,12 @@ function poseFor(anim: string, f: number, frames: number): Pose {
   const p: Pose = { ...REST };
   switch (anim) {
     case 'idle': {
-      const b = [0, 0, 1, 1][f % 4];
+      // slow breath: the chest rises and settles, hands drift with it
+      const ph = (f / Math.max(1, frames)) * Math.PI * 2;
+      const b = Math.round((1 - Math.cos(ph)) / 2);
       p.bob = b;
       p.frontHand = [2, b];
-      p.backHand = [-2, b];
+      p.backHand = [-2 + Math.round(Math.sin(ph) * 0.6), b];
       break;
     }
     case 'run': {
@@ -51,10 +53,10 @@ function poseFor(anim: string, f: number, frames: number): Pose {
       const c = Math.cos(ph);
       p.frontFoot = [Math.round(s * 11), Math.max(0, Math.round(-c * 7))];
       p.backFoot = [-Math.round(s * 11), Math.max(0, Math.round(c * 7))];
-      p.bob = Math.abs(s) > 0.7 ? 2 : 0;
-      p.lean = 3;
-      p.frontHand = [-Math.round(s * 7), -2];
-      p.backHand = [Math.round(s * 7), -2];
+      p.bob = Math.round(Math.abs(s) * 2); // lowest on contact, highest mid-stride
+      p.lean = 4;
+      p.frontHand = [-Math.round(s * 8), -2 - Math.round(Math.abs(s))];
+      p.backHand = [Math.round(s * 8), -2 - Math.round(Math.abs(s))];
       break;
     }
     case 'crouch':
@@ -64,17 +66,28 @@ function poseFor(anim: string, f: number, frames: number): Pose {
       p.frontHand = [5, -3];
       p.backHand = [-3, -3];
       break;
-    case 'jump':
-      p.frontFoot = [6, 7];
-      p.backFoot = [-3, 9];
-      p.frontHand = [6, -10];
-      p.backHand = [-5, -8];
+    case 'jump': {
+      // take-off stretch -> rising -> knees tucked at the top
+      const J: [number, number, V2, V2, V2, V2][] = [
+        [1, 0, [5, -14], [-6, -12], [4, 3], [-5, 1]],
+        [0, 0, [6, -10], [-5, -8], [6, 7], [-3, 9]],
+        [2, 3, [7, -6], [-3, -5], [7, 10], [-1, 11]],
+      ];
+      const [ln, cr, fh, bh, ff, bf] = J[Math.min(f, J.length - 1)];
+      p.lean = ln;
+      p.crouch = cr;
+      p.frontHand = fh;
+      p.backHand = bh;
+      p.frontFoot = ff;
+      p.backFoot = bf;
       break;
+    }
     case 'fall':
-      p.frontFoot = [9, 3];
-      p.backFoot = [-9, 0];
-      p.frontHand = [8, -15];
-      p.backHand = [-8, -15];
+      // arms up for balance, legs reaching for the ground; a slow flutter between two poses
+      p.frontFoot = f % 2 === 0 ? [9, 3] : [8, 4];
+      p.backFoot = f % 2 === 0 ? [-9, 0] : [-8, 1];
+      p.frontHand = f % 2 === 0 ? [8, -15] : [9, -13];
+      p.backHand = f % 2 === 0 ? [-8, -15] : [-9, -16];
       break;
     case 'ledge':
       p.frontFoot = [3, 0];

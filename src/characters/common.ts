@@ -5,11 +5,11 @@ const still = (frames = 1): AnimDef => ({ frames, fps: 1, loop: false });
 /** Animation rows every character has; characters append their special-move poses. */
 export function standardAnimations(extra: string[] = []): Record<string, AnimDef> {
   const anims: Record<string, AnimDef> = {
-    idle: { frames: 4, fps: 5, loop: true },
-    run: { frames: 6, fps: 11, loop: true },
+    idle: { frames: 6, fps: 7, loop: true },
+    run: { frames: 8, fps: 15, loop: true },
     crouch: still(),
-    jump: still(),
-    fall: still(),
+    jump: { frames: 3, fps: 12, loop: false },
+    fall: { frames: 2, fps: 5, loop: true },
     ledge: still(),
     hurt: still(),
     down: still(),
