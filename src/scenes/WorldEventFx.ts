@@ -219,6 +219,15 @@ export class WorldEventFx {
         e.flash(x, y, 2, 0xff5a7a);
         e.burst(x, y, 16, 100, 0xff5a7a, 0.3, 3);
         break;
+      case 'fastFall':
+        // the classic fast-fall glint
+        e.flash(x, y, 0.55, 0xffffff);
+        break;
+      case 'dash':
+        // initial dash: a kick of dust behind the feet and a soft scuff
+        e.dust(x - extra * 5, y, 3, -extra);
+        sfx.play('dodge', 0.22, this.host.pan(x));
+        break;
       case 'dodge':
         e.dust(x, y, 4, 0);
         break;

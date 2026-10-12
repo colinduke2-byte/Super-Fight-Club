@@ -78,6 +78,22 @@ export const SDI_MAX = 3;
 /** Repeated dodges (spot / roll / air) lose invincibility: stale count decays one step per DODGE_DECAY frames. */
 export const DODGE_DECAY = 90;
 /** Analog walk: stick tilts under this fraction walk at WALK_SPEED_FRAC of the run speed (scaled by tilt). */
+/**
+ * Initial dash: a flick of the stick on the ground bursts to DASH_SPEED_MULT x run speed for INITIAL_DASH_FRAMES. Flicking the other
+ * way inside it turns on the spot into a new dash (dash-dancing); holding on settles into the run; letting go brakes.
+ */
+export const INITIAL_DASH_FRAMES = 10;
+export const DASH_SPEED_MULT = 1.22;
+const DASH_ACCEL_MULT = 2.5;
+/**
+ * Hitstun canceling: out of a long launch (HITSTUN_CANCEL_MIN+ frames of hitstun) an air dodge is allowed after HITSTUN_CANCEL_DODGE
+ * frames and an aerial / special / jump after HITSTUN_CANCEL_ACT, so a big hit sends you flying without locking you out for seconds.
+ */
+export const HITSTUN_CANCEL_MIN = 32;
+export const HITSTUN_CANCEL_DODGE = 40;
+export const HITSTUN_CANCEL_ACT = 45;
+/** Turnaround window: a back flick in the first frames of a neutral / down special turns it around (B-reverse; reverses air drift). */
+const B_REVERSE_FRAMES = 3;
 export const WALK_TILT = 0.55;
 export const WALK_SPEED_FRAC = 0.45;
 /** Wall cling (wall-jump characters): holding toward a wall slows the fall for up to this many frames. */
@@ -104,6 +120,8 @@ const LEDGE_REGRAB_COOLDOWN = 30;
 const LEDGE_CLIMB_FRAMES = 24;
 const DROP_NUDGE = 3;
 const AIRDODGE_FRAMES = 28;
+const AIRDODGE_NEUTRAL_FRAMES = 22;
+const AIRDODGE_NEUTRAL_INVULN = 17;
 const AIRDODGE_SPEED = 4.6;
 const STICK_DOWN = 0.7;
 const STICK_CROUCH = 0.6;
@@ -211,6 +229,8 @@ export class Fighter implements Body {
   // Damage / hit reaction
   damage = 0;
   hitstun = 0;
+  /** Hitstun the last launch started with (for hitstun canceling). */
+  hitstunTotal = 0;
   hitlag = 0;
   techWindow = 0;
   techLock = 0;
@@ -238,6 +258,7 @@ export class Fighter implements Body {
   lastHitFx = '';
   /** Directional influence is applied once, on the first hitstun tick. */
   private diDone = false;
+  private bReversed = false;
 
   // Attacking
   move: MoveDef | null = null;
@@ -281,6 +302,12 @@ export class Fighter implements Body {
   /** After a recovery move: no actions until landing / ledge / hit. */
   helpless = false;
   dashCd = 0;
+  /** Frames left of an initial dash (0 = not dashing). */
+  dashTimer = 0;
+  private dashDir: 1 | -1 = 1;
+  /** Turning against a run: the feet slide, still facing the old way until the momentum is gone. */
+  skidding = false;
+
   /** Team index for team battles (-1 = free-for-all). Teammates cannot hurt each other. */
   team = -1;
   /** Frames of the Overdrive item left (outgoing damage x1.3). */
@@ -414,6 +441,8 @@ export class Fighter implements Body {
     this.barrier.frames = 0;
     this.helpless = false;
     this.dashCd = 0;
+    this.dashTimer = 0;
+    this.skidding = false;
     this.boostFrames = 0;
     this.airDodgeUsed = false;
     this.wallJumps = 0;
@@ -433,6 +462,8 @@ export class Fighter implements Body {
         // braking after a run / dash: skid with the feet planted
         return Math.abs(this.vx) > 1.6 && this.grounded ? pick('skid', 'idle') : 'idle';
       case 'run':
+        if (this.dashTimer > 0) return pick('dash', 'run');
+        if (this.skidding) return pick('skid', 'run');
         return Math.abs(this.vx) < this.stats.runSpeed * 0.62 ? pick('walk', 'run') : 'run';
       case 'crouch':
       case 'jumpsquat':
@@ -769,6 +800,7 @@ export class Fighter implements Body {
     this.state = 'hitstun';
     this.stateFrame = 0;
     this.hitstun = Math.max(1, hitstun);
+    this.hitstunTotal = this.hitstun;
     this.vx = vx;
     this.vy = vy;
     this.techWindow = 0;
@@ -859,6 +891,10 @@ export class Fighter implements Body {
     this.trackSticks(inp);
     this.tickResources();
     this.data.behavior?.onTick?.(this, world);
+    if (this.state !== 'run' && this.state !== 'idle') {
+      this.dashTimer = 0;
+      this.skidding = false;
+    }
 
     switch (this.state) {
       case 'idle':
@@ -959,14 +995,32 @@ export class Fighter implements Body {
       this.setState('idle');
     }
     if (this.state === 'downed' && this.stateFrame >= 6 && this.buffer.consume(Button.Attack) && this.startMove('getupAttack', inp, world)) return;
+    // getup options after a missed tech: roll left / right, or stand straight up (Jump / Shield / Up)
+    if (this.state === 'downed' && this.stateFrame >= 6) {
+      if (Math.abs(inp.stickX) > 0.6) {
+        this.rollDir = inp.stickX > 0 ? 1 : -1;
+        this.setState('roll');
+        this.invuln = Math.max(this.invuln, 22);
+        world.emit('dodge', this, this.x, this.y, 0, 0);
+        return;
+      }
+      if (this.buffer.consume(Button.Jump) || this.buffer.consume(Button.Shield) || inp.stickY < STICK_UP) {
+        this.setState('idle');
+        this.invuln = Math.max(this.invuln, 14);
+        return;
+      }
+    }
     if (this.state === 'downed' && this.stateFrame >= DOWNED_FRAMES) {
       this.setState('idle');
       this.invuln = Math.max(this.invuln, 10);
     }
     if (this.state === 'tech' && this.stateFrame >= TECH_GROUND_FRAMES) this.setState('idle');
 
+    let accelMul = 1;
     if (this.state === 'jumpsquat') {
-      target = inp.stickX * s.runSpeed * this.speedMul;
+      // jumpsquat keeps the ground momentum (a dash jump flies further); pushing the other way still brakes
+      const run = s.runSpeed * this.speedMul;
+      target = Math.abs(inp.stickX) > 0.3 ? Math.sign(inp.stickX) * Math.max(run * Math.abs(inp.stickX), Math.sign(inp.stickX) === Math.sign(this.vx) ? Math.abs(this.vx) : 0) : this.vx * 0.9;
       if (this.stateFrame >= s.jumpsquatFrames) {
         // full hop if the jump button is still down at the end of jumpsquat, otherwise short hop
         this.takeoff((inp.held & Button.Jump) !== 0 ? s.jumpHeight : s.shortHopHeight, world);
@@ -997,15 +1051,31 @@ export class Fighter implements Body {
         target = 0;
       } else {
         target = this.groundTarget(inp.stickX);
-        if (Math.abs(inp.stickX) > TURN_THRESHOLD) this.facing = inp.stickX > 0 ? 1 : -1;
-        const next = Math.abs(this.vx) > 0.3 || Math.abs(target) > 0.3 ? 'run' : 'idle';
+        // a flick starts an initial dash; flicking back inside one dash-dances (fighters with their own dash special use that instead)
+        // (the flick stays live for a few frames, so flick-then-Attack is still a smash attack out of the dash)
+        if (!this.data.dash && this.flickX === FLICK_FRAMES && Math.abs(inp.stickX) >= FLICK_HI && (this.dashTimer === 0 || this.flickXDir !== this.dashDir)) {
+          this.startDash(this.flickXDir > 0 ? 1 : -1, world);
+        }
+        if (this.dashTimer > 0) {
+          this.dashTimer--;
+          const holding = Math.abs(inp.stickX) > 0.3 && Math.sign(inp.stickX) === this.dashDir;
+          target = holding ? this.dashDir * s.runSpeed * DASH_SPEED_MULT * this.speedMul : 0;
+          accelMul = DASH_ACCEL_MULT;
+          this.facing = this.dashDir;
+          this.skidding = false;
+        } else {
+          // turning against a run skids first: the facing flips once the slide has stopped
+          this.skidding = Math.abs(this.vx) > 1 && target !== 0 && Math.sign(target) !== Math.sign(this.vx);
+          if (!this.skidding && Math.abs(inp.stickX) > TURN_THRESHOLD) this.facing = inp.stickX > 0 ? 1 : -1;
+        }
+        const next = Math.abs(this.vx) > 0.3 || Math.abs(target) > 0.3 || this.dashTimer > 0 ? 'run' : 'idle';
         if (this.state !== next) this.setState(next);
       }
     }
     void canAct;
 
     const braking = target === 0 || (this.vx !== 0 && Math.sign(target) !== Math.sign(this.vx)) || Math.abs(target) < Math.abs(this.vx);
-    const rate = braking ? s.groundFriction * this.surfaceFriction() * (this.state === 'crouch' ? 2 : 1) : s.groundAccel * this.surfaceTraction();
+    const rate = braking ? s.groundFriction * this.surfaceFriction() * (this.state === 'crouch' ? 2 : 1) * (this.skidding ? 1.25 : 1) : s.groundAccel * this.surfaceTraction() * accelMul;
     this.vx = approach(this.vx, target, rate);
     if (Math.abs(this.vx) < 0.01) this.vx = 0;
 
@@ -1073,6 +1143,8 @@ export class Fighter implements Body {
     if (!this.data.moves[this.resolveVariant(id)]) return false;
     this.buffer.consume(Button.Special);
     this.chargeButton = Button.Special; // chargeable specials hold on the Special button
+    // side specials go the way the stick points (up specials aim with the stick instead, so they keep the facing)
+    if (id.startsWith('sideB') && Math.abs(inp.stickX) > 0.6) this.facing = inp.stickX > 0 ? 1 : -1;
     return this.startMove(id, inp, world);
   }
 
@@ -1120,6 +1192,18 @@ export class Fighter implements Body {
       return this.startMove('ftilt', inp, world);
     }
     return this.startMove('jab1', inp, world);
+  }
+
+  /** Initial dash: an instant burst in `dir` (a reversal drops the old momentum: that is what makes dash-dancing snappy). */
+  private startDash(dir: 1 | -1, world: World): void {
+    const sp = this.stats.runSpeed * DASH_SPEED_MULT * this.speedMul;
+    this.dashDir = dir;
+    this.facing = dir;
+    this.dashTimer = INITIAL_DASH_FRAMES;
+    this.skidding = false;
+    this.vx = dir * Math.max(sp * 0.75, this.vx * dir);
+    if (this.state !== 'run') this.setState('run');
+    world.emit('dash', this, this.x, this.y, 0, dir);
   }
 
   private takeoff(height: number, world: World): void {
@@ -1243,6 +1327,7 @@ export class Fighter implements Body {
     this.chargeFrames = 0;
     this.queuedNext = false;
     this.moveHit = false;
+    this.bReversed = false;
     this.moveStale = this.staleMult(m.id);
     this.hitMask.fill(0);
     this.rehit.fill(0);
@@ -1333,10 +1418,18 @@ export class Fighter implements Body {
 
     if (m.cancels && this.tryCancel(m, inp, world)) return;
 
+    // B-reverse: flick back right after starting a neutral / down special to turn it around (and flip air drift)
+    if (m.kind === 'special' && this.moveFrame >= 1 && this.moveFrame <= B_REVERSE_FRAMES && !this.bReversed && this.flickX === FLICK_FRAMES && this.flickXDir === -this.facing && !/^(sideB|upB)/.test(m.id)) {
+      this.bReversed = true;
+      this.facing = this.facing === 1 ? -1 : 1;
+      if (!this.grounded) this.vx = -this.vx;
+      world.emit('dodge', this, this.x, this.y, 0, 0);
+    }
+
     // smash charge: hold on the charge frame while the button is down
     if (m.charge && this.moveFrame === m.charge.frame && this.chargeFrames < m.charge.max && (inp.held & this.chargeButton) !== 0) {
       this.chargeFrames++;
-      this.attackPhysics(m, inp);
+      this.attackPhysics(m, inp, world);
       this.integrateAttack(world);
       return;
     }
@@ -1378,7 +1471,7 @@ export class Fighter implements Body {
       }
     }
 
-    this.attackPhysics(m, inp);
+    this.attackPhysics(m, inp, world);
     this.integrateAttack(world);
     if (this.state !== 'attack') return;
     // recovery specials can catch the ledge mid-move
@@ -1388,14 +1481,21 @@ export class Fighter implements Body {
     if (this.moveFrame >= moveTotal(m)) this.finishMove(world);
   }
 
-  private attackPhysics(m: MoveDef, inp: FighterInput): void {
+  private attackPhysics(m: MoveDef, inp: FighterInput, world: World): void {
     const s = this.stats;
     if (this.grounded) {
       this.vx = approach(this.vx, 0, s.groundFriction * this.surfaceFriction() * 0.7);
     } else {
+      // aerials can be fast-fallen (a fresh down flick once falling), and a fast fall carries into the aerial
+      if (m.kind === 'aerial' && !this.fastFalling && this.vy >= 0 && inp.stickY > STICK_DOWN && this.lastStickY <= STICK_DOWN) {
+        this.fastFalling = true;
+        this.vy = s.fastFallSpeed;
+        world.emit('fastFall', this, this.x, this.y - this.h / 2, 0, 0);
+      }
       if (this.hover) this.vy = 0;
       else this.vy += s.gravity * (m.gravityScale ?? 1);
-      if (this.vy > s.fallSpeed) this.vy = s.fallSpeed;
+      const cap = this.fastFalling && m.kind === 'aerial' ? s.fastFallSpeed : s.fallSpeed;
+      if (this.vy > cap) this.vy = cap;
       const target = inp.stickX * s.airSpeed * 0.8;
       this.vx = Math.abs(inp.stickX) < 0.05 ? approach(this.vx, 0, s.airFriction) : approach(this.vx, target, s.airAccel * 0.7);
     }
@@ -1502,22 +1602,32 @@ export class Fighter implements Body {
     this.integrate(world);
   }
 
+  /**
+   * Air dodge. Neutral (no stick): a short in-place dodge that slows the fall. Directional: a dash of momentum that can be slid
+   * into the ground (wavelanding). Either way it is once per airtime, and the fighter can act again afterwards.
+   */
   private airDodgeLogic(_inp: FighterInput, world: World): void {
     const t = this.stateFrame;
-    if (t >= 3 && t <= 20 - this.dodgeCut(17)) this.invuln = Math.max(this.invuln, 1);
-    const k = t <= 16 ? 1 - t / 20 : 0;
-    this.vx = this.airDodgeDx * AIRDODGE_SPEED * k;
-    this.vy = this.airDodgeDy * AIRDODGE_SPEED * k;
+    const neutral = this.airDodgeDx === 0 && this.airDodgeDy === 0;
+    const total = neutral ? AIRDODGE_NEUTRAL_FRAMES : AIRDODGE_FRAMES;
+    const inv = neutral ? AIRDODGE_NEUTRAL_INVULN : 20;
+    if (t >= 3 && t <= inv - this.dodgeCut(inv - 3)) this.invuln = Math.max(this.invuln, 1);
+    if (neutral) {
+      this.vx *= 0.86;
+      if (t < 12) this.vy = approach(this.vy, 0, 0.6);
+      else this.vy = Math.min(this.stats.fallSpeed, this.vy + this.stats.gravity);
+    } else {
+      const k = t <= 16 ? 1 - t / 20 : 0;
+      this.vx = this.airDodgeDx * AIRDODGE_SPEED * k;
+      this.vy = t <= 16 ? this.airDodgeDy * AIRDODGE_SPEED * k : Math.min(this.stats.fallSpeed, this.vy + this.stats.gravity);
+    }
     this.integrate(world);
     if (this.grounded) {
-      this.lagFrames = 8;
+      this.lagFrames = neutral ? 6 : 8;
       this.setState('landing');
       return;
     }
-    if (t >= AIRDODGE_FRAMES) {
-      this.setState('air');
-      this.helpless = true; // like a special fall: no more actions until you land or grab a ledge
-    }
+    if (t >= total) this.setState('air');
   }
 
   private staleDodge(): void {
@@ -1678,6 +1788,7 @@ export class Fighter implements Body {
     if (!this.helpless && this.vy >= 0 && !this.fastFalling && inp.stickY > STICK_DOWN && this.lastStickY <= STICK_DOWN) {
       this.fastFalling = true;
       this.vy = s.fastFallSpeed;
+      world.emit('fastFall', this, this.x, this.y - this.h / 2, 0, 0);
     }
 
     // gravity
@@ -1732,6 +1843,19 @@ export class Fighter implements Body {
     if ((inp.pressed & Button.Ultimate) !== 0 && this.comboHits >= BURST_MIN_HITS && this.meter >= BURST_COST) {
       this.burst(world);
       return;
+    }
+    // hitstun canceling out of a big launch
+    if (!this.grounded && this.hitstunTotal >= HITSTUN_CANCEL_MIN && this.hitstun > 0) {
+      const t = this.stateFrame;
+      const dodge = t >= HITSTUN_CANCEL_DODGE && (inp.pressed & Button.Shield) !== 0 && !this.airDodgeUsed;
+      const act = t >= HITSTUN_CANCEL_ACT && (this.buffer.has(Button.Attack) || this.buffer.has(Button.Special) || this.buffer.has(Button.Jump) || this.buffer.has(Button.Smash));
+      if (dodge || act) {
+        this.hitstun = 0;
+        this.techWindow = 0;
+        this.setState('air');
+        this.airLogic(inp, world);
+        return;
+      }
     }
     this.hitstun--;
     if (this.grounded) {

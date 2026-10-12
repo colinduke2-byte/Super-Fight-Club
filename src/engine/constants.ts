@@ -7,6 +7,6 @@ export const BASE_WIDTH = 480;
 export const BASE_HEIGHT = 270;
 
 /** Input buffer window in sim frames. */
-export const INPUT_BUFFER_FRAMES = 6;
+export const INPUT_BUFFER_FRAMES = 8;
 /** Frames after walking off an edge in which a ground jump is still allowed. */
 export const COYOTE_FRAMES = 6;

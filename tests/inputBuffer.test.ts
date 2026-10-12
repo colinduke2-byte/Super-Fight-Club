@@ -9,15 +9,15 @@ function tick(b: InputBuffer, pressed = 0): void {
 }
 
 describe('InputBuffer', () => {
-  it('has a 6-frame default window: a press is usable on 6 ticks, then expires', () => {
+  it('has an 8-frame default window: a press is usable on 8 ticks, then expires', () => {
     const b = new InputBuffer();
     tick(b, Button.Jump); // tick 0: the press
     expect(b.has(Button.Jump)).toBe(true);
-    for (let i = 1; i < 6; i++) {
+    for (let i = 1; i < 8; i++) {
       tick(b);
-      expect(b.has(Button.Jump)).toBe(true); // ticks 1..5
+      expect(b.has(Button.Jump)).toBe(true); // ticks 1..7
     }
-    tick(b); // tick 6
+    tick(b); // tick 8
     expect(b.has(Button.Jump)).toBe(false);
   });
 

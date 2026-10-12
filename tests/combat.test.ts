@@ -278,8 +278,8 @@ describe('aerials', () => {
   it('dair bounces on landing instead of lagging', () => {
     const r = rig(200);
     r.a.spawn(-145, -90, 1);
-    r.tick(press(Button.Attack, { stickY: 1 }));
-    for (let i = 0; i < 60 && !r.events.includes('landBounce'); i++) r.tick(inp({ stickY: 1 }));
+    r.tick(press(Button.Attack, { stickY: 0.6 })); // a dair without a fast fall (0.6 is below the fast-fall threshold)
+    for (let i = 0; i < 60 && !r.events.includes('landBounce'); i++) r.tick(inp({ stickY: 0.6 }));
     expect(r.events).toContain('landBounce');
   });
 });

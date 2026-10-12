@@ -68,8 +68,9 @@ describe('air dodge', () => {
     expect(r.a.grounded).toBe(false);
     return r;
   }
-  it('Shield in the air dodges (invulnerable), once per airtime, then leaves you helpless', () => {
+  it('Shield in the air dodges (invulnerable), once per airtime, and you can act again afterwards', () => {
     const r = airborne();
+    r.a.y = r.a.prevY = -300; // above every platform, plenty of height so the dodge plays out in the air
     r.tick(press(Button.Shield, { stickX: 1 }));
     expect(r.a.state).toBe('airdodge');
     const x0 = r.a.x;
@@ -80,11 +81,27 @@ describe('air dodge', () => {
     }
     expect(invulnSeen).toBe(true);
     expect(r.a.x).toBeGreaterThan(x0 + 12);
-    r.run(20);
+    for (let i = 0; i < 40 && r.a.state === 'airdodge'; i++) r.tick(inp());
     expect(r.a.state).toBe('air');
-    expect(r.a.helpless).toBe(true);
+    expect(r.a.helpless).toBe(false);
     r.tick(press(Button.Shield));
-    expect(r.a.state).not.toBe('airdodge');
+    expect(r.a.state).not.toBe('airdodge'); // still once per airtime
+    r.tick(press(Button.Attack));
+    expect(r.a.state).toBe('attack'); // but an aerial is fine
+  });
+
+  it('a neutral air dodge (no stick) is shorter and slows the fall instead of travelling', () => {
+    const r = airborne();
+    const x0 = r.a.x;
+    r.tick(press(Button.Shield));
+    expect(r.a.state).toBe('airdodge');
+    let n = 1;
+    while (r.a.state === 'airdodge' && n < 60) {
+      r.tick(inp());
+      n++;
+    }
+    expect(n).toBeLessThan(28);
+    expect(Math.abs(r.a.x - x0)).toBeLessThan(4);
   });
   it('resets on landing', () => {
     const r = airborne();
