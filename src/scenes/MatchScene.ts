@@ -31,6 +31,7 @@ import { FighterHud } from '../ui/FighterHud';
 import { COLORS, MenuList } from '../ui/menuKit';
 import { KoBlast } from '../ui/KoBlast';
 import { OffscreenBubbles } from '../ui/OffscreenBubbles';
+import { PlayerTags } from '../ui/PlayerTags';
 import { PIXEL_FONT, up } from '../art/pixelFont';
 import { StageView } from '../ui/StageView';
 import { SlashArcs } from '../ui/SlashArcs';
@@ -96,6 +97,7 @@ export class MatchScene extends Phaser.Scene {
   private worldCam!: Phaser.Cameras.Scene2D.Camera;
   private koBlast!: KoBlast;
   private bubbles!: OffscreenBubbles;
+  private tags!: PlayerTags;
   private uiCam!: Phaser.Cameras.Scene2D.Camera;
 
   private slots: PlayerSlot[] = [];
@@ -269,7 +271,9 @@ export class MatchScene extends Phaser.Scene {
     this.dimOverlay = this.add.rectangle(0, 0, 10, 10, 0x000010, 1).setOrigin(0, 0).setAlpha(0);
     this.uiLayer.add(this.dimOverlay);
     this.koBlast = new KoBlast(this, this.uiLayer);
-    this.bubbles = new OffscreenBubbles(this, this.uiLayer, this.fighters, this.views, this.fighters.map((f) => (f.team >= 0 ? COLORS.p[f.team] : COLORS.p[f.id % 4])));
+    const tagColors = this.fighters.map((f) => (f.team >= 0 ? COLORS.p[f.team] : COLORS.p[f.id % 4]));
+    this.tags = new PlayerTags(this, this.uiLayer, this.fighters, this.views, this.slots.map((s, i) => (s.boss ? 'BOSS' : this.isTraining ? (i === 0 ? 'YOU' : 'DUMMY') : s.type === 'cpu' ? 'CPU' : `P${i + 1}`)), tagColors);
+    this.bubbles = new OffscreenBubbles(this, this.uiLayer, this.fighters, this.views, tagColors);
     this.fighters.forEach((f, i) => {
       const s = this.slots[i];
       const label = s.boss ? 'BOSS' : this.isTraining ? (i === 0 ? 'YOU' : 'DUMMY') : s.type === 'cpu' ? 'CPU' : `P${i + 1}`;
@@ -687,6 +691,7 @@ export class MatchScene extends Phaser.Scene {
     this.updateClock();
     this.koBlast.update(Math.min(frameMs, 50) / 1000, this.scale.width, this.scale.height);
     const hu = this.hudUnit(this.scale.height);
+    this.tags.update(this.worldCam.worldView, this.scale.width, this.scale.height, hu);
     this.bubbles.update(this.worldCam.worldView, this.scale.width, this.scale.height, hu, this.scale.height - Math.round(8 * this.dpr()) - 40 * hu);
     if (this.bannerPop > 0) this.bannerPop = Math.max(0, this.bannerPop - frameMs / 16.7);
     this.banner.setScale(this.bannerBase * (1 + 0.06 * this.bannerPop));
