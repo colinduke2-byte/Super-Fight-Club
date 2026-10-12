@@ -55,3 +55,14 @@ describe('content soak: every 4-fighter lineup', () => {
     }, 120_000);
   }
 });
+
+describe('new stages soak', () => {
+  for (const stage of ['storm', 'skyhold']) {
+    it(`${stage}: a brawl stays finite and replays identically`, () => {
+      const lineup = ['halcyon', 'brick', 'vex', 'nova'];
+      const a = brawl(lineup, stage, 2, 3000);
+      expect(a.maxHold).toBeLessThan(500);
+      expect(brawl(lineup, stage, 2, 3000).hash).toBe(a.hash);
+    }, 120_000);
+  }
+});

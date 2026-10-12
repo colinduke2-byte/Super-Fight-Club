@@ -14,4 +14,5 @@ export const ringStage: StageData = {
   ],
   background: { topColor: 0x061424, bottomColor: 0x2a6e8a, layers: ['stars'], theme: 'void' },
   music: 'ring',
+  blurb: 'One wide, flat platform and nothing to hide behind. Pure fundamentals.',
 };

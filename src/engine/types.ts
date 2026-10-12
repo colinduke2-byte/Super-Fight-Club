@@ -84,6 +84,8 @@ export interface StageData {
   hazards?: HazardDef[];
   /** Chiptune loop id (resolved by the audio layer). */
   music?: string;
+  /** One or two sentences for the stage select card. */
+  blurb?: string;
 }
 
 export interface CharacterStats {

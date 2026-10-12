@@ -24,4 +24,5 @@ export const reactorStage: StageData = {
   ],
   background: { topColor: 0x240808, bottomColor: 0xc0501a, layers: ['stars', 'ruins'], theme: 'reactor' },
   music: 'reactor',
+  blurb: 'A plasma geyser erupts through the middle every ten seconds, and two platforms ride the heat.',
 };
