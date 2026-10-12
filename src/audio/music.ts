@@ -36,6 +36,8 @@ export const FANFARES: Record<string, Fanfare> = {
   agni: { notes: [[62, 1], [62, 1], [69, 2], [67, 1], [69, 1], [74, 2], [72, 1], [74, 1], [78, 6]], step: 0.09, wave: 'sawtooth', harmony: 7, drums: true },
   // wide soaring leaps
   halcyon: { notes: [[67, 2], [74, 2], [79, 3], [78, 1], [79, 2], [86, 2], [91, 6]], step: 0.09, wave: 'triangle', harmony: 7 },
+  // a slow, booming march down in the bedrock, ending on a ringing crystal chord
+  obelisk: { notes: [[48, 3], [0, 1], [48, 2], [51, 2], [55, 3], [0, 1], [53, 2], [60, 6]], step: 0.1, wave: 'square', harmony: 7, drums: true },
   // a rolling sea-shanty phrase
   riptide: { notes: [[62, 1], [62, 1], [62, 1], [0, 1], [62, 1], [65, 1], [69, 2], [67, 1], [65, 1], [64, 1], [62, 5]], step: 0.09, wave: 'square', harmony: 4, drums: true },
 };

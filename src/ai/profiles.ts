@@ -154,6 +154,18 @@ CHARACTER_AI.riptide = {
   spacing: 36,
 };
 
+// Obelisk: the terrain builder. Raises a Crystal Spire between itself and the rival when there is room (a wall against
+// zoners and a launcher), fires Shard Volleys at range, stomps pillars into shards up close, recovers with Upheaval.
+CHARACTER_AI.obelisk = {
+  ...GENERIC,
+  ranged: ['sideB'],
+  setups: ['neutralB'],
+  finishers: ['fsmash', 'usmash', 'fair', 'bair'],
+  recovery: { slot: 'upB', up: 90, out: 34, aim: 'fixed' },
+  ultimateRange: 70,
+  spacing: 44,
+};
+
 export function aiFor(id: string): CharacterAi {
   return CHARACTER_AI[id] ?? GENERIC;
 }

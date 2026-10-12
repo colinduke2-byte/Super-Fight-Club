@@ -1,0 +1,1795 @@
+{
+ "projectiles": {
+  "shard": {
+   "w": 10,
+   "h": 8,
+   "gravity": 0.14,
+   "life": 44,
+   "health": 1,
+   "hit": {
+    "x": 0,
+    "y": 0,
+    "w": 1,
+    "h": 1,
+    "damage": 4.4,
+    "angle": 45,
+    "base": 26,
+    "scaling": 0.42,
+    "hitlag": 0.9,
+    "fx": "crystal"
+   },
+   "look": {
+    "shape": "bolt",
+    "color": "#c898f6",
+    "size": 1.0
+   }
+  },
+  "volley": {
+   "w": 12,
+   "h": 8,
+   "gravity": 0.04,
+   "life": 40,
+   "health": 2,
+   "hit": {
+    "x": 0,
+    "y": 0,
+    "w": 1,
+    "h": 1,
+    "damage": 4.8,
+    "angle": 38,
+    "base": 24,
+    "scaling": 0.4,
+    "hitlag": 0.9,
+    "fx": "crystal"
+   },
+   "look": {
+    "shape": "bolt",
+    "color": "#d8b0ff",
+    "size": 1.15
+   }
+  }
+ },
+ "deployables": {
+  "pillar": {
+   "w": 22,
+   "h": 46,
+   "health": 26,
+   "life": 480,
+   "limit": 2,
+   "replaceOldest": true,
+   "pillar": {
+    "riseFrames": 9,
+    "sinkFrames": 14,
+    "riseHit": {
+     "damage": 7,
+     "base": 46,
+     "scaling": 0.55,
+     "angle": 84
+    },
+    "shards": {
+     "projectile": "shard",
+     "count": 5,
+     "speed": 5.6
+    }
+   },
+   "look": {
+    "shape": "pillar",
+    "color": "#a868e0"
+   }
+  }
+ },
+ "moves": {
+  "jab1": {
+   "name": "Stone Jab",
+   "kind": "jab",
+   "anim": "jab",
+   "startup": 5,
+   "active": 2,
+   "recovery": 8,
+   "next": {
+    "id": "jab2",
+    "from": 6,
+    "to": 14,
+    "at": 12
+   },
+   "cancels": [
+    {
+     "button": "attack",
+     "into": "ftilt",
+     "from": 6,
+     "dir": "forward"
+    },
+    {
+     "button": "grab",
+     "into": "grab",
+     "from": 6
+    }
+   ],
+   "hitboxes": [
+    {
+     "x": 20,
+     "y": -17,
+     "w": 26,
+     "h": 16,
+     "damage": 3.0,
+     "angle": 361,
+     "base": 8,
+     "scaling": 0.15,
+     "minHitstun": 18,
+     "fx": "heavy"
+    }
+   ],
+   "pose": {
+    "t": "punch",
+    "hand": "front",
+    "reach": 15,
+    "h": -8,
+    "step": 2,
+    "wind": [
+     -6,
+     -4
+    ]
+   },
+   "view": {
+    "arc": "line"
+   }
+  },
+  "jab2": {
+   "name": "Boulder Cross",
+   "kind": "jab",
+   "anim": "jabB",
+   "startup": 6,
+   "active": 2,
+   "recovery": 9,
+   "next": {
+    "id": "jab3",
+    "from": 7,
+    "to": 15,
+    "at": 13
+   },
+   "cancels": [
+    {
+     "button": "grab",
+     "into": "grab",
+     "from": 7
+    }
+   ],
+   "hitboxes": [
+    {
+     "x": 21,
+     "y": -17,
+     "w": 28,
+     "h": 16,
+     "damage": 3.4,
+     "angle": 361,
+     "base": 8,
+     "scaling": 0.15,
+     "minHitstun": 18,
+     "fx": "heavy"
+    }
+   ],
+   "pose": {
+    "t": "punch",
+    "hand": "back",
+    "reach": 17,
+    "h": -7,
+    "step": 4,
+    "crouch": 1,
+    "wind": [
+     -8,
+     0
+    ]
+   },
+   "view": {
+    "arc": "line"
+   }
+  },
+  "jab3": {
+   "name": "Rockslide Palm",
+   "kind": "jab",
+   "anim": "smashF",
+   "startup": 8,
+   "active": 3,
+   "recovery": 16,
+   "hitboxes": [
+    {
+     "x": 26,
+     "y": -15,
+     "w": 32,
+     "h": 24,
+     "damage": 6.0,
+     "angle": 38,
+     "base": 50,
+     "scaling": 0.55,
+     "fx": "crystal"
+    }
+   ],
+   "pose": {
+    "t": "thrust",
+    "hand": "both",
+    "reach": 20,
+    "h": -12,
+    "lean": 8,
+    "step": 7,
+    "wind": [
+     -14,
+     -6
+    ]
+   },
+   "view": {
+    "stretch": 1.1,
+    "smear": 1.3
+   }
+  },
+  "ftilt": {
+   "name": "Slab Swing",
+   "kind": "tilt",
+   "anim": "smashF",
+   "startup": 9,
+   "active": 4,
+   "recovery": 14,
+   "cancels": [
+    {
+     "button": "grab",
+     "into": "grab",
+     "from": 14
+    }
+   ],
+   "hitboxes": [
+    {
+     "x": 30,
+     "y": -14,
+     "w": 40,
+     "h": 18,
+     "damage": 9.0,
+     "angle": 40,
+     "base": 32,
+     "scaling": 0.66,
+     "fx": "heavy"
+    }
+   ],
+   "pose": {
+    "t": "hook",
+    "hand": "front",
+    "reach": 22,
+    "h": -8,
+    "lean": 7,
+    "step": 6,
+    "wind": [
+     -14,
+     -4
+    ]
+   },
+   "view": {
+    "stretch": 1.1,
+    "smear": 1.25
+   }
+  },
+  "utilt": {
+   "name": "Crystal Crown",
+   "kind": "tilt",
+   "anim": "smashU",
+   "startup": 8,
+   "active": 6,
+   "recovery": 14,
+   "events": [
+    {
+     "frame": 8,
+     "action": "fx",
+     "name": "crown"
+    }
+   ],
+   "cancels": [
+    {
+     "button": "jump",
+     "into": "@jump",
+     "from": 13
+    },
+    {
+     "button": "attack",
+     "into": "utilt",
+     "from": 14,
+     "dir": "up"
+    }
+   ],
+   "hitboxes": [
+    {
+     "x": 0,
+     "y": -38,
+     "w": 40,
+     "h": 26,
+     "damage": 7.6,
+     "angle": 88,
+     "base": 36,
+     "scaling": 0.64,
+     "fx": "crystal"
+    }
+   ],
+   "pose": {
+    "t": "custom",
+    "keys": [
+     [
+      -2,
+      6,
+      [
+       -8,
+       -6
+      ],
+      [
+       8,
+       -6
+      ],
+      [
+       6,
+       0
+      ],
+      [
+       -6,
+       0
+      ]
+     ],
+     [
+      -4,
+      -2,
+      [
+       -12,
+       -30
+      ],
+      [
+       12,
+       -30
+      ],
+      [
+       6,
+       0
+      ],
+      [
+       -6,
+       0
+      ]
+     ],
+     [
+      0,
+      2,
+      [
+       -6,
+       -14
+      ],
+      [
+       6,
+       -14
+      ],
+      [
+       6,
+       0
+      ],
+      [
+       -6,
+       0
+      ]
+     ]
+    ]
+   },
+   "view": {
+    "smear": 1.2,
+    "arc": "curve"
+   }
+  },
+  "dtilt": {
+   "name": "Rubble Sweep",
+   "kind": "tilt",
+   "anim": "sweep",
+   "startup": 7,
+   "active": 3,
+   "recovery": 12,
+   "events": [
+    {
+     "frame": 7,
+     "action": "fx",
+     "name": "rubble"
+    }
+   ],
+   "cancels": [
+    {
+     "button": "grab",
+     "into": "grab",
+     "from": 11
+    },
+    {
+     "button": "special",
+     "into": "neutralB",
+     "from": 11
+    }
+   ],
+   "hitboxes": [
+    {
+     "x": 24,
+     "y": -4,
+     "w": 40,
+     "h": 10,
+     "damage": 6.0,
+     "angle": 70,
+     "base": 26,
+     "scaling": 0.48,
+     "fx": "heavy"
+    }
+   ],
+   "pose": {
+    "t": "sweep",
+    "reach": 24,
+    "crouch": 10
+   },
+   "view": {
+    "smear": 1.1
+   }
+  },
+  "dashAttack": {
+   "name": "Rockslide Charge",
+   "kind": "dashAttack",
+   "anim": "shoulder",
+   "startup": 8,
+   "active": 8,
+   "recovery": 20,
+   "motion": [
+    {
+     "frame": 5,
+     "vx": 3.4
+    }
+   ],
+   "events": [
+    {
+     "frame": 8,
+     "action": "fx",
+     "name": "rubble"
+    }
+   ],
+   "cancels": [
+    {
+     "button": "grab",
+     "into": "grab",
+     "from": 10
+    }
+   ],
+   "hitboxes": [
+    {
+     "x": 18,
+     "y": -15,
+     "w": 32,
+     "h": 28,
+     "damage": 9.4,
+     "angle": 46,
+     "base": 40,
+     "scaling": 0.68,
+     "fx": "heavy"
+    }
+   ],
+   "pose": {
+    "t": "custom",
+    "keys": [
+     [
+      -4,
+      5,
+      [
+       -4,
+       -6
+      ],
+      [
+       6,
+       -10
+      ],
+      [
+       6,
+       0
+      ],
+      [
+       -8,
+       0
+      ]
+     ],
+     [
+      12,
+      3,
+      [
+       10,
+       -10
+      ],
+      [
+       6,
+       -12
+      ],
+      [
+       10,
+       0
+      ],
+      [
+       -14,
+       2
+      ]
+     ],
+     [
+      2,
+      2,
+      [
+       2,
+       -6
+      ],
+      [
+       4,
+       -6
+      ],
+      [
+       6,
+       0
+      ],
+      [
+       -6,
+       0
+      ]
+     ]
+    ]
+   },
+   "view": {
+    "stretch": 1.16,
+    "smear": 1.4,
+    "ghosts": true,
+    "arc": "line"
+   }
+  },
+  "fsmash": {
+   "name": "Monolith Punch",
+   "kind": "smash",
+   "anim": "smashF",
+   "startup": 19,
+   "active": 4,
+   "recovery": 30,
+   "charge": {
+    "frame": 10,
+    "max": 60,
+    "damageMult": 1.4,
+    "kbMult": 1.2
+   },
+   "events": [
+    {
+     "frame": 19,
+     "action": "fx",
+     "name": "shardburst"
+    }
+   ],
+   "hitboxes": [
+    {
+     "x": 34,
+     "y": -14,
+     "w": 40,
+     "h": 30,
+     "damage": 16.0,
+     "angle": 40,
+     "base": 48,
+     "scaling": 0.96,
+     "hitlag": 1.25,
+     "fx": "crystal"
+    }
+   ],
+   "pose": {
+    "t": "punch",
+    "hand": "front",
+    "reach": 30,
+    "h": -8,
+    "lean": 12,
+    "step": 10,
+    "crouch": 2,
+    "wind": [
+     -22,
+     -10
+    ]
+   },
+   "view": {
+    "stretch": 1.2,
+    "squash": 0.9,
+    "smear": 1.6,
+    "ghosts": true
+   }
+  },
+  "usmash": {
+   "name": "Geode Burst",
+   "kind": "smash",
+   "anim": "smashU",
+   "startup": 14,
+   "active": 6,
+   "recovery": 30,
+   "charge": {
+    "frame": 8,
+    "max": 60,
+    "damageMult": 1.4,
+    "kbMult": 1.2
+   },
+   "events": [
+    {
+     "frame": 14,
+     "action": "fx",
+     "name": "spikes"
+    }
+   ],
+   "hitboxes": [
+    {
+     "x": 0,
+     "y": -42,
+     "w": 44,
+     "h": 40,
+     "damage": 14.5,
+     "angle": 90,
+     "base": 46,
+     "scaling": 0.88,
+     "fx": "crystal"
+    },
+    {
+     "x": 0,
+     "y": -14,
+     "w": 48,
+     "h": 20,
+     "damage": 9.0,
+     "angle": 80,
+     "base": 40,
+     "scaling": 0.7,
+     "fx": "crystal",
+     "window": [
+      1,
+      2
+     ]
+    }
+   ],
+   "pose": {
+    "t": "custom",
+    "keys": [
+     [
+      -6,
+      8,
+      [
+       -6,
+       -4
+      ],
+      [
+       6,
+       -4
+      ],
+      [
+       6,
+       0
+      ],
+      [
+       -6,
+       0
+      ]
+     ],
+     [
+      0,
+      -2,
+      [
+       -16,
+       -26
+      ],
+      [
+       16,
+       -26
+      ],
+      [
+       6,
+       0
+      ],
+      [
+       -6,
+       0
+      ]
+     ],
+     [
+      0,
+      2,
+      [
+       -8,
+       -12
+      ],
+      [
+       8,
+       -12
+      ],
+      [
+       6,
+       0
+      ],
+      [
+       -6,
+       0
+      ]
+     ]
+    ]
+   },
+   "view": {
+    "stretch": 1.14,
+    "smear": 1.4,
+    "arc": "none"
+   }
+  },
+  "dsmash": {
+   "name": "Fault Line",
+   "kind": "smash",
+   "anim": "sweep",
+   "startup": 13,
+   "active": 5,
+   "recovery": 28,
+   "charge": {
+    "frame": 8,
+    "max": 60,
+    "damageMult": 1.4,
+    "kbMult": 1.2
+   },
+   "events": [
+    {
+     "frame": 13,
+     "action": "fx",
+     "name": "quake"
+    }
+   ],
+   "hitboxes": [
+    {
+     "x": 30,
+     "y": -6,
+     "w": 46,
+     "h": 14,
+     "damage": 12.5,
+     "angle": 30,
+     "base": 40,
+     "scaling": 0.82,
+     "fx": "crystal"
+    },
+    {
+     "x": -30,
+     "y": -6,
+     "w": 46,
+     "h": 14,
+     "damage": 12.5,
+     "angle": 30,
+     "base": 40,
+     "scaling": 0.82,
+     "fx": "crystal",
+     "dir": "away"
+    }
+   ],
+   "pose": {
+    "t": "slam",
+    "from": [
+     0,
+     -34
+    ],
+    "reach": 6,
+    "h": 6,
+    "crouch": 8
+   },
+   "view": {
+    "squash": 0.86,
+    "smear": 1.2,
+    "arc": "none"
+   }
+  },
+  "nair": {
+   "name": "Boulder Spin",
+   "kind": "aerial",
+   "anim": "aerialN",
+   "startup": 7,
+   "active": 6,
+   "recovery": 12,
+   "landingLag": 9,
+   "autocancel": [
+    [
+     1,
+     4
+    ],
+    [
+     22,
+     26
+    ]
+   ],
+   "cancels": [
+    {
+     "button": "attack",
+     "into": "fair",
+     "from": 9,
+     "dir": "forward",
+     "air": true
+    }
+   ],
+   "hitboxes": [
+    {
+     "x": 0,
+     "y": -16,
+     "w": 46,
+     "h": 36,
+     "damage": 9.0,
+     "angle": 45,
+     "base": 34,
+     "scaling": 0.66,
+     "fx": "heavy",
+     "dir": "away"
+    }
+   ],
+   "pose": {
+    "t": "custom",
+    "keys": [
+     [
+      -2,
+      6,
+      [
+       -8,
+       -10
+      ],
+      [
+       8,
+       -10
+      ],
+      [
+       6,
+       6
+      ],
+      [
+       -6,
+       6
+      ]
+     ],
+     [
+      0,
+      10,
+      [
+       -18,
+       -8
+      ],
+      [
+       18,
+       -8
+      ],
+      [
+       10,
+       4
+      ],
+      [
+       -10,
+       4
+      ]
+     ],
+     [
+      0,
+      6,
+      [
+       -8,
+       -8
+      ],
+      [
+       8,
+       -8
+      ],
+      [
+       6,
+       4
+      ],
+      [
+       -6,
+       4
+      ]
+     ]
+    ]
+   },
+   "view": {
+    "arc": "ring",
+    "ghosts": true,
+    "smear": 1.2
+   }
+  },
+  "fair": {
+   "name": "Hammerfist",
+   "kind": "aerial",
+   "anim": "aerialF",
+   "startup": 12,
+   "active": 4,
+   "recovery": 18,
+   "landingLag": 12,
+   "autocancel": [
+    [
+     1,
+     3
+    ],
+    [
+     30,
+     34
+    ]
+   ],
+   "hitboxes": [
+    {
+     "x": 26,
+     "y": -8,
+     "w": 34,
+     "h": 30,
+     "damage": 11.5,
+     "angle": 45,
+     "base": 36,
+     "scaling": 0.76,
+     "fx": "heavy",
+     "hitlag": 1.15
+    }
+   ],
+   "pose": {
+    "t": "overhead",
+    "hand": "both",
+    "from": [
+     -4,
+     -32
+    ],
+    "reach": 22,
+    "h": 10,
+    "lean": 6
+   },
+   "view": {
+    "stretch": 1.1,
+    "smear": 1.4
+   }
+  },
+  "bair": {
+   "name": "Back Slab",
+   "kind": "aerial",
+   "anim": "aerialB",
+   "startup": 9,
+   "active": 3,
+   "recovery": 14,
+   "landingLag": 10,
+   "autocancel": [
+    [
+     1,
+     3
+    ],
+    [
+     24,
+     28
+    ]
+   ],
+   "hitboxes": [
+    {
+     "x": -24,
+     "y": -14,
+     "w": 32,
+     "h": 26,
+     "damage": 11.5,
+     "angle": 140,
+     "base": 38,
+     "scaling": 0.86,
+     "fx": "heavy"
+    }
+   ],
+   "pose": {
+    "t": "elbow",
+    "hand": "back",
+    "reach": 22,
+    "h": -12
+   },
+   "view": {
+    "smear": 1.3,
+    "arc": "line"
+   }
+  },
+  "uair": {
+   "name": "Crystal Horn",
+   "kind": "aerial",
+   "anim": "aerialU",
+   "startup": 8,
+   "active": 4,
+   "recovery": 13,
+   "landingLag": 9,
+   "autocancel": [
+    [
+     1,
+     3
+    ],
+    [
+     23,
+     28
+    ]
+   ],
+   "hitboxes": [
+    {
+     "x": 2,
+     "y": -40,
+     "w": 32,
+     "h": 26,
+     "damage": 8.6,
+     "angle": 85,
+     "base": 36,
+     "scaling": 0.68,
+     "fx": "crystal"
+    }
+   ],
+   "pose": {
+    "t": "uppercut",
+    "hand": "both",
+    "reach": 4,
+    "h": -42,
+    "crouch": 0,
+    "wind": [
+     -2,
+     4
+    ]
+   },
+   "view": {
+    "smear": 1.3
+   }
+  },
+  "dair": {
+   "name": "Meteor Stomp",
+   "kind": "aerial",
+   "anim": "aerialD",
+   "startup": 16,
+   "active": 5,
+   "recovery": 18,
+   "landingLag": 14,
+   "autocancel": [
+    [
+     1,
+     3
+    ],
+    [
+     32,
+     38
+    ]
+   ],
+   "events": [
+    {
+     "frame": 16,
+     "action": "fx",
+     "name": "rubble"
+    }
+   ],
+   "hitboxes": [
+    {
+     "x": 0,
+     "y": 4,
+     "w": 30,
+     "h": 24,
+     "damage": 12.0,
+     "angle": 280,
+     "base": 30,
+     "scaling": 0.56,
+     "fx": "heavy",
+     "hitlag": 1.2
+    }
+   ],
+   "pose": {
+    "t": "custom",
+    "keys": [
+     [
+      -2,
+      -2,
+      [
+       -8,
+       -14
+      ],
+      [
+       8,
+       -14
+      ],
+      [
+       4,
+       10
+      ],
+      [
+       -4,
+       10
+      ]
+     ],
+     [
+      0,
+      4,
+      [
+       -10,
+       -18
+      ],
+      [
+       10,
+       -18
+      ],
+      [
+       4,
+       -8
+      ],
+      [
+       -4,
+       -8
+      ]
+     ],
+     [
+      0,
+      2,
+      [
+       -6,
+       -10
+      ],
+      [
+       6,
+       -10
+      ],
+      [
+       4,
+       0
+      ],
+      [
+       -4,
+       0
+      ]
+     ]
+    ]
+   },
+   "view": {
+    "smear": 1.3,
+    "arc": "line"
+   }
+  },
+  "grab": {
+   "name": "Rock Grip",
+   "kind": "grab",
+   "anim": "grab",
+   "startup": 7,
+   "active": 3,
+   "recovery": 26,
+   "hitboxes": [
+    {
+     "x": 24,
+     "y": -16,
+     "w": 30,
+     "h": 22,
+     "damage": 0,
+     "angle": 0,
+     "base": 0,
+     "scaling": 0,
+     "grab": true,
+     "unblockable": true
+    }
+   ]
+  },
+  "fthrow": {
+   "name": "Shove Off",
+   "kind": "throw",
+   "anim": "throwF",
+   "startup": 9,
+   "active": 1,
+   "recovery": 17,
+   "throwDir": "forward",
+   "hitboxes": [
+    {
+     "x": 18,
+     "y": -16,
+     "w": 40,
+     "h": 34,
+     "damage": 8.4,
+     "angle": 42,
+     "base": 56,
+     "scaling": 0.74,
+     "throw": true,
+     "fx": "heavy"
+    }
+   ]
+  },
+  "bthrow": {
+   "name": "Rock Bottom",
+   "kind": "throw",
+   "anim": "throwB",
+   "startup": 12,
+   "active": 1,
+   "recovery": 19,
+   "throwDir": "back",
+   "events": [
+    {
+     "frame": 12,
+     "action": "fx",
+     "name": "quake"
+    }
+   ],
+   "hitboxes": [
+    {
+     "x": 18,
+     "y": -16,
+     "w": 40,
+     "h": 34,
+     "damage": 10.0,
+     "angle": 135,
+     "base": 56,
+     "scaling": 0.8,
+     "throw": true,
+     "fx": "heavy"
+    }
+   ]
+  },
+  "uthrow": {
+   "name": "Erupt",
+   "kind": "throw",
+   "anim": "throwU",
+   "startup": 9,
+   "active": 1,
+   "recovery": 16,
+   "throwDir": "up",
+   "events": [
+    {
+     "frame": 9,
+     "action": "fx",
+     "name": "spikes"
+    }
+   ],
+   "hitboxes": [
+    {
+     "x": 18,
+     "y": -16,
+     "w": 40,
+     "h": 34,
+     "damage": 7.0,
+     "angle": 90,
+     "base": 52,
+     "scaling": 0.66,
+     "throw": true,
+     "fx": "crystal"
+    }
+   ]
+  },
+  "dthrow": {
+   "name": "Bury",
+   "kind": "throw",
+   "anim": "throwD",
+   "startup": 10,
+   "active": 1,
+   "recovery": 17,
+   "throwDir": "down",
+   "events": [
+    {
+     "frame": 10,
+     "action": "fx",
+     "name": "rubble"
+    }
+   ],
+   "hitboxes": [
+    {
+     "x": 18,
+     "y": -16,
+     "w": 40,
+     "h": 34,
+     "damage": 6.6,
+     "angle": 80,
+     "base": 34,
+     "scaling": 0.42,
+     "throw": true,
+     "fx": "heavy"
+    }
+   ]
+  },
+  "neutralB": {
+   "name": "Crystal Spire",
+   "kind": "special",
+   "anim": "castD",
+   "startup": 14,
+   "active": 2,
+   "recovery": 22,
+   "events": [
+    {
+     "frame": 14,
+     "action": "deploy",
+     "id": "pillar",
+     "x": 38,
+     "y": 0
+    },
+    {
+     "frame": 14,
+     "action": "fx",
+     "name": "rubble"
+    }
+   ],
+   "hitboxes": [],
+   "pose": {
+    "t": "slam",
+    "from": [
+     2,
+     -34
+    ],
+    "reach": 12,
+    "h": 8,
+    "lean": 3,
+    "crouch": 4
+   },
+   "view": {
+    "squash": 0.88,
+    "smear": 1.1,
+    "arc": "none"
+   }
+  },
+  "sideB": {
+   "name": "Shard Volley",
+   "kind": "special",
+   "anim": "castF",
+   "startup": 15,
+   "active": 2,
+   "recovery": 24,
+   "events": [
+    {
+     "frame": 15,
+     "action": "projectile",
+     "id": "volley",
+     "x": 18,
+     "y": -20,
+     "vx": 5.4,
+     "vy": -1.1
+    },
+    {
+     "frame": 15,
+     "action": "projectile",
+     "id": "volley",
+     "x": 18,
+     "y": -16,
+     "vx": 5.8,
+     "vy": 0
+    },
+    {
+     "frame": 15,
+     "action": "projectile",
+     "id": "volley",
+     "x": 18,
+     "y": -12,
+     "vx": 5.4,
+     "vy": 1.0
+    },
+    {
+     "frame": 15,
+     "action": "fx",
+     "name": "shardburst"
+    }
+   ],
+   "hitboxes": [],
+   "pose": {
+    "t": "thrust",
+    "hand": "both",
+    "reach": 18,
+    "h": -14,
+    "lean": 6,
+    "wind": [
+     -10,
+     -6
+    ],
+    "crouch": 1
+   },
+   "view": {
+    "stretch": 1.06,
+    "arc": "none"
+   }
+  },
+  "upB": {
+   "name": "Upheaval",
+   "kind": "special",
+   "anim": "smashU",
+   "startup": 8,
+   "active": 14,
+   "recovery": 24,
+   "helpless": true,
+   "gravityScale": 0.3,
+   "motion": [
+    {
+     "frame": 8,
+     "vy": -6.6,
+     "vx": 0.5,
+     "mode": "set"
+    },
+    {
+     "frame": 15,
+     "vy": -3.8,
+     "mode": "set"
+    }
+   ],
+   "events": [
+    {
+     "frame": 7,
+     "action": "deploy",
+     "id": "pillar",
+     "x": 0,
+     "y": 0
+    },
+    {
+     "frame": 8,
+     "action": "fx",
+     "name": "upheaval"
+    },
+    {
+     "frame": 12,
+     "action": "ledgeSnap",
+     "range": 70
+    }
+   ],
+   "hitboxes": [
+    {
+     "x": 0,
+     "y": -20,
+     "w": 38,
+     "h": 44,
+     "damage": 2.0,
+     "angle": 361,
+     "base": 10,
+     "scaling": 0.12,
+     "window": [
+      1,
+      10
+     ],
+     "group": 0,
+     "rehit": 5,
+     "minHitstun": 10,
+     "hitlag": 0.7,
+     "fx": "crystal"
+    },
+    {
+     "x": 0,
+     "y": -26,
+     "w": 42,
+     "h": 44,
+     "damage": 6.0,
+     "angle": 84,
+     "base": 42,
+     "scaling": 0.72,
+     "window": [
+      11,
+      14
+     ],
+     "group": 1,
+     "fx": "crystal"
+    }
+   ],
+   "pose": {
+    "t": "custom",
+    "keys": [
+     [
+      -2,
+      8,
+      [
+       -6,
+       -6
+      ],
+      [
+       6,
+       -6
+      ],
+      [
+       6,
+       0
+      ],
+      [
+       -6,
+       0
+      ]
+     ],
+     [
+      0,
+      0,
+      [
+       6,
+       -34
+      ],
+      [
+       -6,
+       -32
+      ],
+      [
+       4,
+       8
+      ],
+      [
+       -4,
+       8
+      ]
+     ],
+     [
+      0,
+      0,
+      [
+       4,
+       -20
+      ],
+      [
+       -4,
+       -18
+      ],
+      [
+       4,
+       4
+      ],
+      [
+       -4,
+       4
+      ]
+     ]
+    ]
+   },
+   "view": {
+    "arc": "ring",
+    "smear": 1.3,
+    "ghosts": true
+   }
+  },
+  "downB": {
+   "name": "Bedrock Stomp",
+   "kind": "special",
+   "anim": "castD",
+   "startup": 12,
+   "active": 4,
+   "recovery": 24,
+   "events": [
+    {
+     "frame": 12,
+     "action": "custom",
+     "name": "shatter",
+     "args": [
+      130
+     ]
+    },
+    {
+     "frame": 12,
+     "action": "fx",
+     "name": "quake"
+    }
+   ],
+   "hitboxes": [
+    {
+     "x": 30,
+     "y": -5,
+     "w": 46,
+     "h": 12,
+     "damage": 8.0,
+     "angle": 75,
+     "base": 40,
+     "scaling": 0.62,
+     "fx": "heavy"
+    },
+    {
+     "x": -30,
+     "y": -5,
+     "w": 46,
+     "h": 12,
+     "damage": 8.0,
+     "angle": 75,
+     "base": 40,
+     "scaling": 0.62,
+     "fx": "heavy",
+     "dir": "away"
+    }
+   ],
+   "pose": {
+    "t": "stomp",
+    "foot": "front",
+    "reach": 4,
+    "lift": 14
+   },
+   "view": {
+    "squash": 0.86,
+    "smear": 1.1,
+    "arc": "none"
+   }
+  },
+  "ultimate": {
+   "name": "Mountain's Wrath",
+   "kind": "ultimate",
+   "anim": "smashF",
+   "startup": 9,
+   "active": 3,
+   "recovery": 40,
+   "invuln": [
+    1,
+    11
+   ],
+   "events": [
+    {
+     "frame": 2,
+     "action": "fx",
+     "name": "rumble"
+    }
+   ],
+   "cinematic": {
+    "frames": 120,
+    "zoom": 0.95,
+    "hits": [
+     {
+      "frame": 20,
+      "damage": 3
+     },
+     {
+      "frame": 38,
+      "damage": 3
+     },
+     {
+      "frame": 56,
+      "damage": 3
+     },
+     {
+      "frame": 74,
+      "damage": 4
+     },
+     {
+      "frame": 92,
+      "damage": 5
+     },
+     {
+      "frame": 120,
+      "damage": 15,
+      "launch": true,
+      "angle": 48,
+      "base": 128,
+      "scaling": 0.95
+     }
+    ]
+   },
+   "hitboxes": [
+    {
+     "x": 30,
+     "y": -16,
+     "w": 50,
+     "h": 38,
+     "damage": 0,
+     "angle": 0,
+     "base": 0,
+     "scaling": 0,
+     "grab": true,
+     "unblockable": true,
+     "cinematic": true
+    }
+   ],
+   "pose": {
+    "t": "custom",
+    "keys": [
+     [
+      -6,
+      6,
+      [
+       -8,
+       -12
+      ],
+      [
+       4,
+       -8
+      ],
+      [
+       8,
+       0
+      ],
+      [
+       -8,
+       0
+      ]
+     ],
+     [
+      10,
+      2,
+      [
+       24,
+       -10
+      ],
+      [
+       20,
+       -8
+      ],
+      [
+       12,
+       0
+      ],
+      [
+       -12,
+       0
+      ]
+     ],
+     [
+      0,
+      1,
+      [
+       8,
+       -4
+      ],
+      [
+       4,
+       -4
+      ],
+      [
+       6,
+       0
+      ],
+      [
+       -6,
+       0
+      ]
+     ]
+    ]
+   },
+   "view": {
+    "stretch": 1.25,
+    "smear": 1.6,
+    "ghosts": true
+   }
+  },
+  "taunt": {
+   "name": "Taunt",
+   "kind": "jab",
+   "anim": "idle",
+   "startup": 6,
+   "active": 1,
+   "recovery": 46,
+   "hidden": true,
+   "events": [
+    {
+     "frame": 7,
+     "action": "fx",
+     "name": "taunt"
+    }
+   ],
+   "hitboxes": [],
+   "pose": {
+    "t": "custom",
+    "keys": [
+     [
+      -2,
+      2,
+      [
+       10,
+       -30
+      ],
+      [
+       -10,
+       -30
+      ],
+      [
+       6,
+       0
+      ],
+      [
+       -6,
+       0
+      ]
+     ],
+     [
+      4,
+      8,
+      [
+       16,
+       -6
+      ],
+      [
+       -14,
+       -6
+      ],
+      [
+       12,
+       0
+      ],
+      [
+       -12,
+       0
+      ]
+     ],
+     [
+      0,
+      4,
+      [
+       10,
+       -14
+      ],
+      [
+       -10,
+       -14
+      ],
+      [
+       8,
+       0
+      ],
+      [
+       -8,
+       0
+      ]
+     ]
+    ]
+   },
+   "view": {
+    "arc": "none",
+    "smear": 0.4
+   }
+  }
+ }
+}

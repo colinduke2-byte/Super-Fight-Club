@@ -1,0 +1,375 @@
+{
+ "sound": "heavy",
+ "slash": "spark",
+ "trail": "#c898f6",
+ "recipes": {
+  "crown": [
+   {
+    "op": "burst",
+    "x": 0,
+    "y": -36,
+    "count": 12,
+    "speed": 90,
+    "color": 14201087,
+    "life": 0.35,
+    "size": 2
+   },
+   {
+    "op": "flash",
+    "x": 0,
+    "y": -36,
+    "power": 0.9,
+    "color": 15786751
+   }
+  ],
+  "rubble": [
+   {
+    "op": "burst",
+    "x": 18,
+    "y": -2,
+    "count": 8,
+    "speed": 70,
+    "color": 9075312,
+    "life": 0.45,
+    "size": 2
+   },
+   {
+    "op": "emit",
+    "x": 18,
+    "y": -2,
+    "jx": 14,
+    "vy": -90,
+    "jvx": 40,
+    "life": 0.5,
+    "color": 12101784,
+    "size": 2,
+    "additive": false,
+    "gravity": 260
+   }
+  ],
+  "shardburst": [
+   {
+    "op": "burst",
+    "x": 26,
+    "y": -14,
+    "count": 16,
+    "speed": 130,
+    "color": 11036896,
+    "life": 0.4,
+    "size": 3
+   },
+   {
+    "op": "burst",
+    "x": 26,
+    "y": -14,
+    "count": 8,
+    "speed": 90,
+    "color": 15786751,
+    "life": 0.3,
+    "size": 2
+   },
+   {
+    "op": "flash",
+    "x": 26,
+    "y": -14,
+    "power": 1.1,
+    "color": 15786751
+   }
+  ],
+  "spikes": [
+   {
+    "op": "emit",
+    "x": 0,
+    "y": -24,
+    "jx": 16,
+    "vy": -160,
+    "jvx": 50,
+    "life": 0.45,
+    "color": 11036896,
+    "size": 3,
+    "additive": false,
+    "gravity": 200
+   },
+   {
+    "op": "burst",
+    "x": 0,
+    "y": -30,
+    "count": 14,
+    "speed": 110,
+    "color": 14201087,
+    "life": 0.4,
+    "size": 2
+   },
+   {
+    "op": "shake",
+    "amount": 3
+   }
+  ],
+  "quake": [
+   {
+    "op": "burst",
+    "x": 30,
+    "y": -2,
+    "count": 10,
+    "speed": 90,
+    "color": 9075312,
+    "life": 0.5,
+    "size": 3
+   },
+   {
+    "op": "burst",
+    "x": -30,
+    "y": -2,
+    "count": 10,
+    "speed": 90,
+    "color": 9075312,
+    "life": 0.5,
+    "size": 3
+   },
+   {
+    "op": "emit",
+    "x": 0,
+    "y": -2,
+    "jx": 50,
+    "vy": -80,
+    "jvx": 30,
+    "life": 0.5,
+    "color": 12101784,
+    "size": 2,
+    "additive": false,
+    "gravity": 240
+   },
+   {
+    "op": "ring",
+    "y": -2,
+    "radius": 60,
+    "color": 14201087,
+    "life": 0.35
+   },
+   {
+    "op": "shake",
+    "amount": 5
+   }
+  ],
+  "upheaval": [
+   {
+    "op": "burst",
+    "x": 0,
+    "y": -2,
+    "count": 16,
+    "speed": 120,
+    "color": 9075312,
+    "life": 0.5,
+    "size": 3
+   },
+   {
+    "op": "burst",
+    "x": 0,
+    "y": -10,
+    "count": 12,
+    "speed": 100,
+    "color": 11036896,
+    "life": 0.45,
+    "size": 2
+   },
+   {
+    "op": "shake",
+    "amount": 3
+   }
+  ],
+  "rumble": [
+   {
+    "op": "ring",
+    "y": -16,
+    "radius": 62,
+    "color": 14201087,
+    "life": 0.8
+   },
+   {
+    "op": "burst",
+    "x": 0,
+    "y": -16,
+    "count": 24,
+    "speed": 110,
+    "color": 11036896,
+    "life": 0.8,
+    "size": 3
+   },
+   {
+    "op": "converge",
+    "y": -16,
+    "radius": [
+     30,
+     62
+    ],
+    "pull": 3,
+    "swirl": 1,
+    "life": 0.5,
+    "color": 15786751,
+    "size": 2
+   },
+   {
+    "op": "shake",
+    "amount": 4
+   }
+  ],
+  "taunt": [
+   {
+    "op": "emit",
+    "x": 0,
+    "y": -2,
+    "jx": 24,
+    "vy": -60,
+    "jvx": 30,
+    "life": 0.5,
+    "color": 12101784,
+    "size": 2,
+    "additive": false,
+    "gravity": 200
+   },
+   {
+    "op": "shake",
+    "amount": 2
+   }
+  ]
+ },
+ "rules": [
+  {
+   "when": {
+    "moves": [
+     "upB"
+    ],
+    "phase": "active"
+   },
+   "every": 2,
+   "ops": [
+    {
+     "op": "emit",
+     "jx": 20,
+     "yh": 0.2,
+     "jy": 10,
+     "vy": -50,
+     "jvx": 30,
+     "life": 0.4,
+     "color": 9075312,
+     "size": 3,
+     "additive": false,
+     "gravity": 200
+    },
+    {
+     "op": "emit",
+     "jx": 14,
+     "yh": 0.5,
+     "jy": 20,
+     "vy": -40,
+     "jvx": 20,
+     "life": 0.35,
+     "color": 11036896,
+     "size": 2
+    }
+   ]
+  },
+  {
+   "when": {
+    "states": [
+     "attack"
+    ],
+    "kinds": [
+     "smash",
+     "aerial",
+     "dashAttack"
+    ],
+    "phase": "active"
+   },
+   "every": 3,
+   "ops": [
+    {
+     "op": "emit",
+     "x": 16,
+     "yh": 0.5,
+     "jx": 20,
+     "jy": 16,
+     "vy": -30,
+     "jvx": 30,
+     "life": 0.35,
+     "color": 11036896,
+     "size": 2
+    }
+   ]
+  },
+  {
+   "when": {
+    "states": [
+     "run",
+     "dash"
+    ]
+   },
+   "every": 5,
+   "ops": [
+    {
+     "op": "emit",
+     "x": -6,
+     "y": -2,
+     "jx": 6,
+     "vy": -40,
+     "jvx": 18,
+     "life": 0.35,
+     "color": 12101784,
+     "size": 2,
+     "additive": false,
+     "gravity": 220
+    }
+   ]
+  },
+  {
+   "when": {
+    "states": [
+     "idle"
+    ]
+   },
+   "every": 30,
+   "ops": [
+    {
+     "op": "emit",
+     "x": 0,
+     "yh": 0.85,
+     "jx": 10,
+     "vy": -14,
+     "life": 0.6,
+     "color": 14201087,
+     "size": 2
+    }
+   ]
+  }
+ ],
+ "cinematicHit": [
+  {
+   "op": "burst",
+   "x": 0,
+   "count": 14,
+   "speed": 120,
+   "color": 11036896,
+   "life": 0.5,
+   "size": 3,
+   "yh": 0.5
+  },
+  {
+   "op": "flash",
+   "yh": 0.5,
+   "power": 1.4,
+   "color": 15786751
+  },
+  {
+   "op": "emit",
+   "yh": 0.5,
+   "jx": 20,
+   "vy": -80,
+   "jvx": 40,
+   "life": 0.5,
+   "color": 9075312,
+   "size": 2,
+   "additive": false,
+   "gravity": 220
+  }
+ ]
+}

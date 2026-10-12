@@ -124,6 +124,8 @@ export function hitLayer(fx: string, mag: number, damage: number): SoundCue | nu
       return { name: 'bounce', intensity };
     case 'water':
       return { name: 'splash', intensity };
+    case 'crystal':
+      return { name: 'ding', intensity: intensity * 0.6 };
     default:
       return null;
   }
