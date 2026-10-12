@@ -142,7 +142,7 @@ export class ResultsScene extends MenuScene {
     this.list = new MenuList(this, this.ui, items);
     // a human loss in the arcade gets the sad version; everything else celebrates
     const humanLost = (arcade && winner !== 0) || (!!tr && !tr.cleared) || (!!lr && lr.distance <= 0) || (!!chal && !chalClear);
-    music.jingle(humanLost || winner < 0 ? 'lose' : 'win');
+    music.jingle(humanLost || winner < 0 ? 'lose' : 'win', wc?.id);
     if (chal) announcer.say(chalClear ? 'Challenge complete!' : 'Try again.', { pitch: 0.55 });
     else if (!tr && !lr) {
       const champName = wc?.name.replace('The ', '');

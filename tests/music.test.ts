@@ -31,3 +31,18 @@ describe('chiptune tracks', () => {
     for (const s of Object.values(STAGES)) expect(TRACKS[s.music ?? '']).toBeDefined();
   });
 });
+
+describe('victory fanfares', () => {
+  it('every playable fighter has its own, in a sane range', async () => {
+    const { FANFARES } = await import('../src/audio/music');
+    const { CHARACTER_LIST } = await import('../src/characters');
+    for (const c of CHARACTER_LIST) {
+      const f = FANFARES[c.id];
+      expect(f, c.id).toBeDefined();
+      const total = f.notes.reduce((n, [, len]) => n + len, 0) * f.step;
+      expect(total).toBeGreaterThan(0.8);
+      expect(total).toBeLessThan(2.5);
+      for (const [m] of f.notes) if (m > 0) expect(midiToHz(m)).toBeLessThan(4000);
+    }
+  });
+});
