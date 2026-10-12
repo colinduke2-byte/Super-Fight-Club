@@ -37,7 +37,7 @@ export interface MenuItem {
   onRight?: () => void;
   enabled?: () => boolean;
   /** One-line explanation, for scenes that show the selected row's hint. */
-  hint?: string;
+  hint?: string | (() => string);
 }
 
 /** A vertical list of rows with a highlighted cursor; label on the left, value on the right. */
@@ -145,7 +145,8 @@ export class MenuList {
 
   /** The selected row's hint ('' if it has none). */
   get hint(): string {
-    return this.items[this.index]?.hint ?? '';
+    const h = this.items[this.index]?.hint ?? '';
+    return typeof h === 'function' ? h() : h;
   }
 
   /** Translucent plate behind the rows plus a bar under the cursor, so the menu reads over any backdrop. */
