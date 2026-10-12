@@ -27,18 +27,22 @@ browser's Gamepad API.
 
 ## Menus and flow
 
-Title -> Main Menu (Versus / Arcade Ladder / Training / Settings). Every menu works with both keyboard schemes and any
+Title -> Main Menu (Versus / Arcade Ladder / Target Smash / Launch Contest / Training / How to Play / Records / Settings). Every menu works with both keyboard schemes and any
 gamepad: confirm = Attack or Jump (J / I / Enter / Space / pad face buttons), back = Special or Shield (K / L / Esc),
 alt = Grab (U / Tab: add CPU in the lobby), Start = pad Start. In the character lobby each device presses confirm to
 join the next free slot; empty slots are filled with CPUs (a warning says so). Players 3-4 need controllers.
-Settings holds audio, particles, FPS counter, fullscreen, tap-jump, smash mode and deadzone; **Controls** rebinds both
-keyboard schemes and both gamepad profiles (saved to localStorage). Unplugging a pad mid-match pauses with the
+Settings holds audio, the announcer, particles, FPS counter, fullscreen, tap-jump, smash mode and deadzone, with a one-line
+explanation of the selected option; **Controls** rebinds both keyboard schemes and both gamepad profiles (saved to localStorage),
+and opened from the pause menu it runs over the paused match and returns to it. **How to Play** is a six-page guide (the goal,
+moving, attacking, defending, grabs, advanced tech) with an animated fighter on each page (`src/game/howToPlay.ts`). Menus fade
+between scenes and every list sits on a backing plate with a cursor bar. Unplugging a pad mid-match pauses with the
 player named; re-plugging (or plugging another pad) re-attaches it.
 
 ## Arcade Ladder and the boss
 
-Pick Arcade Ladder, choose a fighter, and climb six fights: three opponents from the roster (Easy, Easy, Normal), a **mirror match**, a
-**two-on-one brawl** (Hard + Normal, on Skyline Classic), then **The Overseer** (`src/characters/overseer.*`), the arena AI's warden body.
+Pick Arcade Ladder, choose a fighter, and climb six fights: three rivals from the roster (Easy, Easy, Normal), a **mirror match** (on
+Stormspire, in another colourway), a **two-on-one brawl** against the two rivals not met yet (Hard + Normal, on Skyhold Expanse), so a
+run faces the whole roster in a shuffled order, then **The Overseer** (`src/characters/overseer.*`), the arena AI's warden body.
 Story cards (pixel-art scenes drawn in code, `src/art/storyArt.ts`, text in `src/game/story.ts`) play before each fight and in
 the ending, with lines specific to your fighter. You get **3 continues**: losing a fight retries it (stocks reset) until they run out
 and then it is game over; opponents start with fewer stocks than you in the early fights (`src/game/ladder.ts`).
@@ -175,8 +179,12 @@ Key design points
 - **Items:** Versus Setup > Items (off / low / high): Heart (-25%), Energy Cell (+50 ultimate meter) and Overdrive (10 s of +30% damage) drop onto the stage, plus the Shock Bomb: touch it to pick it up, then Attack throws it (forward in an arc, Up straight up, Down drops it). It bursts on the first fighter it touches, on landing or when its fuse runs out; shields soak it. The CPU goes for items and lobs bombs. Drops use a seeded generator, so they are deterministic.
 - **Soft push:** grounded fighters standing inside each other drift apart (never off a ledge, never mid-attack), so bodies stay readable.
 - **Stamina mode:** Versus Setup > Rules > STAMINA: every fighter has 50-300 HP per stock (the HUD counts it down, green to red). Reaching 0 HP is a KO on the spot; the blast zones still KO too.
-- **Records** (main menu): matches played, wins, win rate, KOs and falls per fighter for human players (versus and arcade), plus Target Smash best times; RESET RECORDS asks to confirm. Stored in this browser only.
+- **Records** (main menu): matches played, wins, win rate, KOs and falls per fighter for human players (versus and arcade), plus Target Smash best times and Launch Contest best distances; RESET RECORDS asks to confirm. Stored in this browser only.
 - **Move list:** Pause > MOVE LIST shows the paused player's moves with their inputs, damage and first active frame.
+- **Launch Contest** (main menu): ten seconds behind a barrier to pile damage on a rival dummy that just stands there, then the barrier drops and you have four seconds to smash it down the Launch Pad runway. The camera rides the flight, posts mark every 25 m, a gold flag marks your best, and the run scores the furthest point reached (`src/game/launch.ts`, stage `src/stages/launch.ts`). Best distances are saved per fighter. Dev shortcut: `?launch=<fighter>`.
+- **Colour palettes:** every fighter has three alternate colourways, re-rendered from the art's palette rather than tinted (`src/art/palettes.ts`). Press Up / Down on character select to pick one; two players on the same fighter are always given different colours.
+- **Announcer:** a voice calls the countdown, GAME! / TIME!, sudden death and the winner, using the browser's speech synthesis (no audio files; Settings > Announcer).
+- **Results:** KOs, falls, damage dealt and each fighter's **best combo**; CPUs are named by port (CPU2, CPU3...) when there are several.
 - **Target Smash** (main menu): pick a fighter and break the ten targets on the Target Gauntlet course as fast as you can. Any hit or projectile breaks a target; falling off fails the run. Best times are saved per fighter in this browser (`src/game/records.ts`). Dev shortcut: `?targets=<fighter>`.
 - **Timed matches:** an on-screen clock counts down (red for the last ten seconds). A tie at the bell goes to SUDDEN DEATH: the tied fighters respawn at 300% with one stock each and the first to fall loses.
 - **Replays:** after a Versus match, Results > WATCH REPLAY re-runs it from the recorded inputs (the sim is deterministic). ESC/Enter exits. Versus Setup > STAGE HAZARDS turns stage hazards off.
