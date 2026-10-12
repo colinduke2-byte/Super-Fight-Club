@@ -38,3 +38,8 @@
 - `hitlag` on a hitbox scales hit-stop; base hit-stop grows with damage and heavy hits (14+) also trigger a brief slow-motion. KOs get a longer slow-mo.
 - `"sound"` in `<id>.fx.json` picks the synth flavour: plain, heavy, blade, arcane, mech or fire (swing whooshes and hit layers).
 - Speed lines for attacks, dashes and fast air travel are applied to every fighter automatically (`ALWAYS_RULES` in `src/fx/library.ts`).
+
+## Stage backdrops
+
+`BACKDROPS` in `src/ui/BackgroundView.ts` defines each theme: sky ramp, tints, optional `farTex`/`nearTex` skylines (generated in `src/art/stageTextures.ts`) and `extras`
+(`aurora`, `clouds`, `shooting`, `airships`, `lightning`, `glow`, `embers`, `beams`, `grid`, `motes`), all animated from time only. Tapping down on a pass-through platform drops through it.

@@ -962,6 +962,13 @@ export class Fighter implements Body {
       }
     } else if (this.state === 'idle' || this.state === 'run' || this.state === 'crouch') {
       if (this.tryStartAction(inp, world)) return;
+      // tap down on a pass-through platform to drop through it
+      if (this.flickDown > 0 && inp.stickY > STICK_CROUCH && this.groundPlat && this.groundPlat.kind === 'pass') {
+        this.flickDown = 0;
+        this.dropThrough();
+        this.airLogic(inp, world, true);
+        return;
+      }
       if (this.buffer.has(Button.Jump)) {
         this.buffer.consume(Button.Jump);
         if (inp.stickY > STICK_CROUCH && this.groundPlat && this.groundPlat.kind === 'pass') {

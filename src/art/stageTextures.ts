@@ -406,6 +406,143 @@ function ruins(seed: number, body: string, light: string, dark: string, windows:
   return c;
 }
 
+
+/**
+ * Horizontally-tileable industrial skyline for the reactor: hyperbolic cooling towers, banded smokestacks, pipe bridges,
+ * gantries, and glowing vents. `glow` is the molten light colour.
+ */
+function industry(seed: number, body: string, light: string, dark: string, glow: string, W = 512, H = 192): HTMLCanvasElement {
+  const [c, g] = canvas(W, H);
+  const rnd = mulberry32(seed);
+  const spans: [number, number, number][] = [];
+  let x = 4;
+  while (x < W - 40) {
+    const kind = rnd();
+    if (kind < 0.4) {
+      // cooling tower: waisted silhouette
+      const bw = 46 + Math.floor(rnd() * 22);
+      const h = 70 + Math.floor(rnd() * 60);
+      if (x + bw > W) break;
+      for (let k = 0; k < h; k++) {
+        const t = k / h;
+        const waist = 0.72 + 0.28 * Math.pow(Math.abs(t - 0.62) * 2.2, 2);
+        const ww = Math.round(bw * Math.min(1, waist));
+        const xx = x + Math.floor((bw - ww) / 2);
+        px(g, body, xx, H - h + k, ww, 1);
+        px(g, light, xx + ww - 2, H - h + k, 2, 1);
+        px(g, dark, xx, H - h + k, 2, 1);
+        if (k % 14 === 7) px(g, dark, xx, H - h + k, ww, 1);
+      }
+      // steam crown + glowing rim
+      px(g, glow, x + Math.floor(bw * 0.2), H - h, Math.floor(bw * 0.6), 2);
+      spans.push([x + bw / 2, H - h + 10, bw]);
+      x += bw + 8 + Math.floor(rnd() * 10);
+    } else if (kind < 0.75) {
+      // smokestack with warning bands
+      const sw = 12 + Math.floor(rnd() * 8);
+      const h = 90 + Math.floor(rnd() * 80);
+      px(g, body, x, H - h, sw, h);
+      px(g, light, x + sw - 2, H - h, 2, h);
+      px(g, dark, x, H - h, 2, h);
+      for (let k = 0; k < 4; k++) px(g, k % 2 ? dark : glow, x, H - h + 4 + k * 5, sw, 3);
+      px(g, body, x - 2, H - h - 3, sw + 4, 4);
+      px(g, glow, x - 2, H - h - 4, sw + 4, 1);
+      spans.push([x + sw / 2, H - h + 30, sw]);
+      x += sw + 10 + Math.floor(rnd() * 14);
+    } else {
+      // blocky reactor hall with vent slits
+      const bw = 40 + Math.floor(rnd() * 40);
+      const h = 36 + Math.floor(rnd() * 34);
+      if (x + bw > W) break;
+      px(g, body, x, H - h, bw, h);
+      px(g, light, x + bw - 2, H - h, 2, h);
+      px(g, dark, x, H - h, 2, h);
+      px(g, dark, x, H - h, bw, 3);
+      for (let vx = x + 6; vx < x + bw - 8; vx += 9) {
+        px(g, glow, vx, H - h + 10, 4, 2);
+        px(g, 'rgba(255,255,255,0.5)', vx, H - h + 10, 1, 1);
+        if (rnd() > 0.4) px(g, glow, vx, H - h + 18, 4, 2);
+      }
+      spans.push([x + bw / 2, H - h, bw]);
+      x += bw + 6 + Math.floor(rnd() * 10);
+    }
+  }
+  // pipe bridges between neighbours
+  for (let i = 0; i + 1 < spans.length; i++) {
+    const [ax, ay] = spans[i];
+    const [bx, by] = spans[i + 1];
+    if (bx - ax > 120) continue;
+    const y0 = Math.max(ay, by) + 6;
+    px(g, dark, ax, y0, bx - ax, 3);
+    px(g, light, ax, y0, bx - ax, 1);
+    for (let k = ax + 6; k < bx; k += 14) px(g, body, k, y0 - 2, 2, 7);
+  }
+  return c;
+}
+
+/** Sleek arena pylons for the training void: slim spires, glowing caps, floating rings and a gate arch. */
+function pylons(seed: number, body: string, light: string, dark: string, glow: string, W = 512, H = 192): HTMLCanvasElement {
+  const [c, g] = canvas(W, H);
+  const rnd = mulberry32(seed);
+  let x = 6;
+  while (x < W - 30) {
+    const sw = 6 + Math.floor(rnd() * 8);
+    const h = 40 + Math.floor(rnd() * 120);
+    for (let k = 0; k < h; k++) {
+      const ww = Math.max(2, Math.round(sw * (0.55 + 0.45 * (k / h))));
+      const xx = x + Math.floor((sw - ww) / 2);
+      px(g, body, xx, H - h + k, ww, 1);
+      px(g, light, xx + ww - 1, H - h + k, 1, 1);
+      px(g, dark, xx, H - h + k, 1, 1);
+    }
+    px(g, glow, x + Math.floor(sw / 2) - 1, H - h - 3, 3, 3);
+    px(g, 'rgba(255,255,255,0.8)', x + Math.floor(sw / 2), H - h - 3, 1, 1);
+    // light slits
+    for (let k = H - h + 10; k < H - 8; k += 12) px(g, glow, x + Math.floor(sw / 2) - 1, k, 2, 1);
+    if (rnd() > 0.55) {
+      // floating ring
+      const rr = 9 + Math.floor(rnd() * 8);
+      const cy = H - h - 14 - Math.floor(rnd() * 10);
+      for (let a = 0; a < Math.PI * 2; a += 0.05) {
+        px(g, rnd() > 0.85 ? glow : light, x + sw / 2 + Math.cos(a) * rr, cy + Math.sin(a) * rr * 0.35);
+      }
+    }
+    // low connecting arch
+    if (rnd() > 0.6 && x + sw + 50 < W) {
+      const aw = 40 + Math.floor(rnd() * 30);
+      for (let k = 0; k < aw; k++) {
+        const t = k / aw;
+        const ay = H - h * 0.5 - Math.sin(t * Math.PI) * 14;
+        px(g, dark, x + sw + k, ay, 1, 2);
+        px(g, light, x + sw + k, ay, 1, 1);
+      }
+    }
+    x += sw + 14 + Math.floor(rnd() * 34);
+  }
+  return c;
+}
+
+/** Soft drifting cloud strip (tileable), dithered, mostly transparent. */
+function cloudStrip(): HTMLCanvasElement {
+  const W = 256;
+  const H = 64;
+  const [c, g] = canvas(W, H);
+  const n1 = makeNoise(71, 8);
+  const n2 = makeNoise(73, 16);
+  const bayer = [0, 8, 2, 10, 12, 4, 14, 6, 3, 11, 1, 9, 15, 7, 13, 5];
+  const cols = ['rgba(150,110,210,0.14)', 'rgba(190,140,230,0.22)', 'rgba(240,190,240,0.30)'];
+  for (let y = 0; y < H; y++) {
+    const band = Math.exp(-Math.pow((y - H * 0.55) / (H * 0.28), 2));
+    for (let x = 0; x < W; x++) {
+      const v = (n1((x / W) * 8, (y / H) * 3) * 0.6 + n2((x / W) * 16, (y / H) * 6) * 0.4) * band;
+      const lv = (v - 0.3) * 5 + (bayer[(y & 3) * 4 + (x & 3)] / 16 - 0.5) * 0.8;
+      const i = Math.floor(lv);
+      if (i >= 0) px(g, cols[Math.min(2, i)], x, y);
+    }
+  }
+  return c;
+}
+
 /** Small glow sprite used as additive spark: 4-point star. */
 function sparkTex(): HTMLCanvasElement {
   const [c, g] = canvas(17, 17);
@@ -473,6 +610,11 @@ export function buildStageTextures(scene: Phaser.Scene): void {
   add('bg-stars-b', stars(19, 34, 5));
   add('bg-ruins-far', ruins(21, '#2e1f55', '#4a3585', '#241848', ['#ffcf6a', '#7fe8ff'], 0.18, 512, 192));
   add('bg-ruins-near', ruins(44, '#1a1033', '#32215e', '#120a26', ['#ffcf6a', '#ff8a5a', '#7fe8ff'], 0.3, 512, 192));
+  add('bg-industry-far', industry(52, '#4a1c14', '#8a3a1c', '#2a0c0a', '#ff8a30', 512, 192));
+  add('bg-industry-near', industry(77, '#2a0e0c', '#5a2414', '#160606', '#ffb040', 512, 192));
+  add('bg-pylons-far', pylons(31, '#1c4a64', '#4a9ac0', '#0e2a3c', '#7ff0ff', 512, 192));
+  add('bg-pylons-near', pylons(63, '#0e2c42', '#2a6a90', '#08182a', '#bffcff', 512, 192));
+  add('bg-clouds', cloudStrip());
   add('spark', sparkTex());
   add('ring', ringTex());
   add('bubble', bubbleTex());
