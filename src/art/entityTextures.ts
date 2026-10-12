@@ -174,4 +174,15 @@ export function buildEntityTextures(scene: Phaser.Scene): void {
     px(g, '#ffffff', 7, 7, 2, 2);
     add('dep-marker', c);
   }
+  // whirlpool 40x14: a flattened spiral of foam rings (tinted by the deployable colour)
+  {
+    const [c, g] = mk(40, 14);
+    for (let a = 0; a < Math.PI * 6; a += 0.03) {
+      const r = 3 + (a / (Math.PI * 6)) * 16.5;
+      const shade = a > Math.PI * 4 ? '#ffffff' : a > Math.PI * 2 ? '#c8d8f0' : '#8a9ac0';
+      px(g, shade, 20 + Math.cos(a) * r, 7 + Math.sin(a) * r * 0.32);
+    }
+    px(g, '#ffffff', 18, 6, 4, 2);
+    add('dep-whirlpool', c);
+  }
 }

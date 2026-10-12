@@ -156,14 +156,14 @@ export interface PlaceholderLook {
     legH: number;
     headSize: number;
     armLen: number;
-    helmet: 'visor' | 'hood' | 'pointed' | 'dome' | 'band' | 'winged' | 'monolith';
+    helmet: 'visor' | 'hood' | 'pointed' | 'dome' | 'band' | 'winged' | 'monolith' | 'fin';
     /** Soft, rounded construction (pot-belly torso, ball joints, domed head) instead of plated blocks. */
     round?: boolean;
   };
   /** 'hi' draws the character with the full-resolution renderer (src/art/hero) instead of the 64px block template. */
   art?: 'hi';
   /** What the front hand holds. Default 'piston' (Brick's piston fist). */
-  weapon?: 'piston' | 'blades' | 'staff' | 'wrench' | 'gauntlet' | 'spear';
+  weapon?: 'piston' | 'blades' | 'staff' | 'wrench' | 'gauntlet' | 'spear' | 'anchor';
   /** Silhouette accessories: scarf, bracer, cloak, toolbox, grapple. */
   extras?: ('scarf' | 'bracer' | 'cloak' | 'toolbox' | 'grapple' | 'sash')[];
 }

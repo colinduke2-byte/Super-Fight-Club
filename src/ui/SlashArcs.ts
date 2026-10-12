@@ -7,6 +7,7 @@ import { fighterTrailColor } from '../fx/runner';
 const r4 = [0, 0, 0, 0];
 /** [width multiplier, colour, alpha] from the outside in. */
 const FIRE_LAYERS = [[1.6, 0xff2a10, 0.38], [1.05, 0xff7a1a, 0.75], [0.5, 0xfff0a0, 0.95]] as const;
+const WATER_LAYERS = [[1.6, 0x1a4ad8, 0.36], [1.05, 0x2fb0ff, 0.72], [0.5, 0xe6fbff, 0.95]] as const;
 const N = 14;
 
 /**
@@ -28,9 +29,10 @@ export class SlashArcs {
       const m = f.move;
       if (f.state !== 'attack' || !m) continue;
       const fire = f.data.fx?.slash === 'fire';
+      const water = f.data.fx?.slash === 'water';
       const col = fire ? 0xff7a1a : fighterTrailColor(f, world.tick);
-      // fire: red rim, orange body, yellow-hot core; plain: the trail colour around a white core
-      const layers = fire ? FIRE_LAYERS : ([[1.5, col, 0.35], [1, col, 0.7], [0.45, 0xffffff, 0.95]] as const);
+      // fire: red rim, orange body, yellow-hot core; water: deep blue to white foam; plain: the trail colour around a white core
+      const layers = fire ? FIRE_LAYERS : water ? WATER_LAYERS : ([[1.5, col, 0.35], [1, col, 0.7], [0.45, 0xffffff, 0.95]] as const);
       const chestX = f.x;
       const chestY = f.y - f.h * 0.55;
       let drawn = 0;
@@ -72,6 +74,16 @@ export class SlashArcs {
             g.fillStyle(c, a * fadeLine);
             g.fillPoints([{ x: tx, y: ty }, { x: hx + px * w, y: hy + py * w }, { x: hx + ux * f.facing * 4, y: hy + uy * 4 }, { x: hx - px * w, y: hy - py * w }] as Phaser.Geom.Point[], true);
           }
+          if (water) {
+            // spray flung off the streak, dropping away
+            for (let i = 1; i <= 4; i++) {
+              const t = i / 5;
+              const dx0 = tx + (hx - tx) * t + Math.sin(world.tick * 1.3 + i * 2.7) * 3;
+              const dy0 = ty + (hy - ty) * t + (4 + i * 1.5) * (1 - fadeLine * 0.6);
+              g.fillStyle(i % 2 ? 0xbfefff : 0x4ac0ff, 0.8 * fadeLine);
+              g.fillCircle(dx0, dy0, 1.6 + (i % 2) * 0.8);
+            }
+          }
           if (fire) {
             // flames licking up off the streak
             for (let i = 1; i <= 4; i++) {
@@ -106,6 +118,19 @@ export class SlashArcs {
           const pts = [...outer, ...inner.reverse()].map(([x, y]) => ({ x, y }));
           g.fillStyle(c, a * fade);
           g.fillPoints(pts as Phaser.Geom.Point[], true);
+        }
+        if (water) {
+          // droplets thrown off the outer edge of the crescent, falling away behind the head
+          for (let i = 3; i <= N; i += 2) {
+            const t = i / N;
+            const ang = tail + (head - tail) * t;
+            const w = width * Math.pow(t, 1.1);
+            const rr = r + w / 2 + 3 + ((i * 7) % 5);
+            const ox = chestX + Math.cos(ang) * rr * f.facing;
+            const oy = chestY + Math.sin(ang) * rr + (1 - t) * 6 * (1 - fade * 0.5);
+            g.fillStyle(i % 4 === 1 ? 0xe6fbff : 0x3ab8ff, 0.8 * fade);
+            g.fillCircle(ox, oy, 1.4 + t * 1.2);
+          }
         }
         if (fire) {
           // flame tongues rising off the outer edge of the crescent, flickering per tick

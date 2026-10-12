@@ -141,6 +141,19 @@ CHARACTER_AI.halcyon = {
   spacing: 52,
 };
 
+// Riptide: the grappler. Soaks from range with the Tidal Shot, closes with the unblockable Shark Lunge (which also beats
+// shields), lays a Whirlpool when there is room, and wants to be close: throws are his finishers' best friend.
+CHARACTER_AI.riptide = {
+  ...GENERIC,
+  ranged: ['neutralB'],
+  closers: ['sideB'],
+  setups: ['downB'],
+  finishers: ['fsmash', 'usmash', 'bair', 'fair'],
+  recovery: { slot: 'upB', up: 95, out: 40, aim: 'fixed' },
+  ultimateRange: 70,
+  spacing: 36,
+};
+
 export function aiFor(id: string): CharacterAi {
   return CHARACTER_AI[id] ?? GENERIC;
 }

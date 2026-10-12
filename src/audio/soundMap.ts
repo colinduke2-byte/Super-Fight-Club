@@ -3,7 +3,7 @@ import type { WorldEventType } from '../engine/world';
 export type SoundName =
   | 'swing' | 'hit' | 'hitHeavy' | 'clang' | 'shield' | 'shieldBreak' | 'jump' | 'doubleJump' | 'land' | 'landBounce'
   | 'bounce' | 'tech' | 'ledge' | 'dodge' | 'grab' | 'throw' | 'pummel' | 'ko' | 'shoot' | 'zap' | 'reflect' | 'place'
-  | 'parry' | 'boom' | 'break' | 'burn' | 'freeze' | 'slow' | 'stun' | 'blink' | 'hook' | 'charge' | 'ding' | 'menuMove' | 'menuOk' | 'menuBack';
+  | 'parry' | 'boom' | 'break' | 'burn' | 'freeze' | 'slow' | 'stun' | 'splash' | 'blink' | 'hook' | 'charge' | 'ding' | 'menuMove' | 'menuOk' | 'menuBack';
 
 export interface SoundCue {
   name: SoundName;
@@ -69,6 +69,10 @@ export function soundFor(type: WorldEventType, mag: number, extra: number): Soun
     case 'deployableDestroyed':
       return { name: 'break', intensity: 0.7 };
     case 'status': {
+      // 0-3 burn / slow / freeze / stun, 4 soaked, 5 steam (fire on a soaked fighter), 6 silent drips while soaked
+      if (extra === 4) return { name: 'splash', intensity: 0.5 };
+      if (extra === 5) return { name: 'burn', intensity: 0.5 };
+      if (extra === 6) return null;
       const names: SoundName[] = ['burn', 'slow', 'freeze', 'stun'];
       return { name: names[clamp(extra, 0, 3) | 0], intensity: 0.4 };
     }
@@ -114,6 +118,8 @@ export function hitLayer(fx: string, mag: number, damage: number): SoundCue | nu
       return damage >= 9 ? { name: 'boom', intensity: intensity * 0.7 } : null;
     case 'shock':
       return { name: 'bounce', intensity };
+    case 'water':
+      return { name: 'splash', intensity };
     default:
       return null;
   }

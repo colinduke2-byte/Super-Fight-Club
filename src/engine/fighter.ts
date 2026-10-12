@@ -72,6 +72,11 @@ export const COMBO_STUN_STEP = 0.04;
 export const COMBO_STUN_MIN = 0.6;
 /** Frames of actionable state after which a combo is considered over. */
 export const COMBO_GAP = 24;
+/** Soak (water status): frames stack up to SOAK_MAX; every SOAK_LEVEL frames is one level (1-3). */
+export const SOAK_MAX = 360;
+export const SOAK_LEVEL = 120;
+/** Extra knockback taken per soak level. */
+export const SOAK_KB_PER_LEVEL = 0.04;
 /**
  * Hit confirm: a jab / tilt / aerial / dash attack that lands on a fighter (not a shield) keeps only this fraction of
  * its recovery, so strings flow; whiffs and shielded hits keep the full recovery and stay punishable.
@@ -302,7 +307,7 @@ export class Fighter implements Body {
   /** Ultimate meter 0..cost. */
   meter = 0;
   /** Remaining frames per status effect. */
-  readonly status = { burn: 0, slow: 0, freeze: 0, stun: 0 };
+  readonly status = { burn: 0, slow: 0, freeze: 0, stun: 0, soak: 0 };
   private slowMul = 1;
   private burnPerTick = 0.05;
   /** Active reflecting barrier (frames > 0), forward-relative box around the feet. */
@@ -444,7 +449,7 @@ export class Fighter implements Body {
     this.superArmor = false;
     this.armorBonus = 0;
     this.res = { ...(this.data.resources ?? {}) };
-    this.status.burn = this.status.slow = this.status.freeze = this.status.stun = 0;
+    this.status.burn = this.status.slow = this.status.freeze = this.status.stun = this.status.soak = 0;
     this.slowMul = 1;
     this.barrier.frames = 0;
     this.helpless = false;
@@ -687,8 +692,18 @@ export class Fighter implements Body {
     }
     switch (s.type) {
       case 'burn':
+        if (this.status.soak > 0) {
+          // fire on a soaked fighter just boils the water off
+          this.status.soak = Math.max(0, this.status.soak - s.frames * 2);
+          world.emit('status', this, this.x, this.y - this.h / 2, 0, 5);
+          return;
+        }
         this.status.burn = Math.max(this.status.burn, s.frames);
         this.burnPerTick = s.value ?? 0.05;
+        break;
+      case 'soak':
+        this.status.soak = Math.min(SOAK_MAX, this.status.soak + s.frames);
+        this.status.burn = 0; // water douses fire
         break;
       case 'slow':
         this.status.slow = Math.max(this.status.slow, s.frames);
@@ -709,7 +724,7 @@ export class Fighter implements Body {
         }
         break;
     }
-    world.emit('status', this, this.x, this.y - this.h / 2, s.frames, ['burn', 'slow', 'freeze', 'stun'].indexOf(s.type));
+    world.emit('status', this, this.x, this.y - this.h / 2, s.frames, ['burn', 'slow', 'freeze', 'stun', 'soak'].indexOf(s.type));
   }
 
   /** Put the fighter standing idle on a platform (training / scenario setup). */
@@ -782,7 +797,7 @@ export class Fighter implements Body {
         damagePercent: this.damage,
         moveWeight: hit.moveWeight,
         targetWeight: this.stats.weight,
-      }) * (hit.kbMult ?? 1);
+      }) * (hit.kbMult ?? 1) * (1 + SOAK_KB_PER_LEVEL * this.soakLevel);
 
     let angle = hit.angle;
     if (angle === 361) angle = this.grounded && kb < 32 ? 0 : 44; // "Sakurai angle"
@@ -1260,6 +1275,15 @@ export class Fighter implements Body {
     if (st.slow > 0 && --st.slow === 0) this.slowMul = 1;
     if (st.freeze > 0) st.freeze--;
     if (st.stun > 0) st.stun--;
+    if (st.soak > 0) {
+      st.soak--;
+      if (st.soak % 20 === 0 && st.soak > 0) world.emit('status', this, this.x, this.y - this.h / 2, st.soak, 6); // drips
+    }
+  }
+
+  /** Soak level 0-3 (each SOAK_LEVEL frames of soak is one level). */
+  get soakLevel(): number {
+    return Math.ceil(this.status.soak / SOAK_LEVEL);
   }
 
   private dashLogic(inp: FighterInput, world: World): void {

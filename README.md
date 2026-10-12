@@ -3,7 +3,7 @@
 A sci-fi/fantasy platform fighter built with **Phaser 3 + TypeScript (Vite)**. All characters, art and
 audio are original and generated in code. The game runs in the browser.
 
-> **Status: all twelve roadmap phases are built** (see `ROADMAP.md`), plus polish passes: six fighters (Brick, Vex, Nova, Gizmo, Agni, Halcyon), six stages,
+> **Status: all twelve roadmap phases are built** (see `ROADMAP.md`), plus polish passes: seven fighters (Brick, Vex, Nova, Gizmo, Agni, Halcyon, Riptide), six stages,
 > Versus for 2-4 (humans on any device + CPUs), Arcade Ladder with story cards and a scripted boss, training mode with frame-data
 > scenarios, rebindable keyboard / gamepad controls, synthesized SFX and chiptune music, CPU AI with three difficulties.
 > What still needs **you**: hands-on play (balance feel), real Xbox / PlayStation / Switch pads, Safari, 120/144 Hz displays and GPU
@@ -378,6 +378,24 @@ whose **tip is the sweet spot** (every spear move lists a stronger tip hitbox be
 **GALE** (HUD seam, gold sparkles off her wings): builds while airborne (+6/s) and from damage dealt (+0.8 per %), bleeds on the ground.
 Level 1 / 2 at 33 / 66: +3% / +6% speed, and the Javelin upgrades (`neutralB_0..2`): single, piercing, then a three-spear **Tempest Volley** that spends 40 gale.
 Sky Ascent (up special) is her recovery; Falcon Dive (down special) plunges spear-first and bounces on landing; Skewer Dash (side special) is a long lunge.
+
+### Riptide: cyber-shark grappler
+
+Weight 102, middleweight, one double jump. A shark-headed gladiator with an anchor on a chain (reach on his tilts, smashes and
+fair) and a shark's jaws. His water moves **SOAK** whoever they hit (`src/characters/riptide.*`, `riptideSoak.ts`).
+
+- **Soak** is a status any fighter can carry: it stacks up to three levels (2 s each, dripping away), a soaked fighter takes
+  +4% knockback per level from everyone, water puts out a burn, and fire on a soaked fighter just boils the water off.
+- **Wring it out:** Riptide's throws and the Shark Lunge bite spend the victim's soak for +12% damage and +6% launch per level.
+- Harpoon Grab has extra reach; jabs, dtilt and the dash attack cancel straight into it.
+
+| Special | |
+|---|---|
+| Tidal Shot (neutral) | a lobbed water orb that soaks heavily |
+| Shark Lunge (side) | lunging command grab: unblockable (goes through shields), then a big bite |
+| Waterspout (up, recovery) | rising multi-hit water spiral, soaks on the last hit |
+| Whirlpool (down) | a trap on the ground (one at a time, 6 s): soaks and pops up whoever steps in |
+| Maelstrom (ultimate) | a cinematic grab: dragged under for nine hits, then flung out |
 
 ## Knockback and hit reactions
 

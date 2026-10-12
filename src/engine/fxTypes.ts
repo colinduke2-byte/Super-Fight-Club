@@ -69,8 +69,8 @@ export interface FxRule {
 }
 
 /** Sonic flavour of a fighter's swings and hits. */
-export type SoundStyle = 'plain' | 'heavy' | 'blade' | 'arcane' | 'mech' | 'fire' | 'wind';
-export const SOUND_STYLES: SoundStyle[] = ['plain', 'heavy', 'blade', 'arcane', 'mech', 'fire', 'wind'];
+export type SoundStyle = 'plain' | 'heavy' | 'blade' | 'arcane' | 'mech' | 'fire' | 'wind' | 'water';
+export const SOUND_STYLES: SoundStyle[] = ['plain', 'heavy', 'blade', 'arcane', 'mech', 'fire', 'wind', 'water'];
 
 export interface CharacterFx {
   /** Swing / hit sound flavour (default 'plain'). */
@@ -78,7 +78,7 @@ export interface CharacterFx {
   /** Slash-arc / trail colour (default: the sprite accent). */
   trail?: FxColor;
   /** Slash-arc look: 'fire' burns (yellow-hot core, orange body, red rim, flame tongues licking off the edge). */
-  slash?: 'plain' | 'fire';
+  slash?: 'plain' | 'fire' | 'water';
   /** Named recipes played for `{action:'fx', name}` move events and behaviour events; the shared library fills the gaps. */
   recipes?: Record<string, FxOp[]>;
   /** Per-tick auras / flourishes / charge effects. */
@@ -123,7 +123,7 @@ export function validateOps(owner: string, ops: FxOp[]): void {
 export function validateFx(owner: string, fx: CharacterFx | undefined): void {
   if (!fx) return;
   checkColor(`${owner}.fx.trail`, fx.trail);
-  if (fx.slash !== undefined && fx.slash !== 'plain' && fx.slash !== 'fire') throw new Error(`${owner}.fx.slash: unknown style '${fx.slash}'`);
+  if (fx.slash !== undefined && fx.slash !== 'plain' && fx.slash !== 'fire' && fx.slash !== 'water') throw new Error(`${owner}.fx.slash: unknown style '${fx.slash}'`);
   if (fx.sound !== undefined && !SOUND_STYLES.includes(fx.sound)) throw new Error(`${owner}.fx.sound: unknown style '${fx.sound}'`);
   for (const [name, ops] of Object.entries(fx.recipes ?? {})) validateOps(`${owner}.fx.recipes.${name}`, ops);
   (fx.rules ?? []).forEach((r, i) => {

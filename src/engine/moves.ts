@@ -8,13 +8,13 @@
  * y = -16 is roughly chest height).
  */
 
-export type StatusType = 'burn' | 'slow' | 'freeze' | 'stun';
+export type StatusType = 'burn' | 'slow' | 'freeze' | 'stun' | 'soak';
 
 /** A status applied by a hit (or by a move to its own user). */
 export interface StatusApply {
   type: StatusType;
   frames: number;
-  /** slow: speed multiplier (0.6 = 40% slower). burn: damage per tick. */
+  /** slow: speed multiplier (0.6 = 40% slower). burn: damage per tick. soak: frames are added (stacking up to SOAK_MAX). */
   value?: number;
   /** Only applies if the victim's percent is at least this; otherwise `fallback` is used instead. */
   minPercent?: number;
@@ -248,7 +248,7 @@ export interface DeployableDef {
   turret?: { range: number; interval: number; projectile: string; muzzleX: number; muzzleY: number; speed: number };
   /** Granted to the owner when an enemy destroys it. */
   reward?: { key: string; add: number };
-  look: { shape: 'mine' | 'turret' | 'rune' | 'marker'; color: string };
+  look: { shape: 'mine' | 'turret' | 'rune' | 'marker' | 'whirlpool'; color: string };
 }
 
 export function moveTotal(m: MoveDef): number {

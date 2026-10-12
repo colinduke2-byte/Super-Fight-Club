@@ -33,6 +33,11 @@ export const ALT_LOOKS: Record<string, AltLook[]> = {
     { armor: '#2c8a3a', armorDark: '#10461a', accent: '#c8ff5a' },
     { armor: '#4a3434', armorDark: '#1a1010', accent: '#ffd35a' },
   ],
+  riptide: [
+    { armor: '#2f8a5a', armorDark: '#164a32', accent: '#ffd35a' },
+    { armor: '#a83a4a', armorDark: '#5a1824', accent: '#7fe8ff' },
+    { armor: '#3a3a4a', armorDark: '#16161e', accent: '#ff4fa8' },
+  ],
   halcyon: [
     { armor: '#4a4a62', armorDark: '#1c1c2a', accent: '#ff5a5a' },
     { armor: '#6fcf98', armorDark: '#24704e', accent: '#fff0a0' },

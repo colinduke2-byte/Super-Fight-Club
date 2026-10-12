@@ -105,6 +105,11 @@ export class Sfx {
         this.noiseBurst(d, 'highpass', 2600, 1200, 0.1, 0.12 * k);
         this.noiseBurst(d, 'lowpass', 900, 300, 0.12, 0.14 * k);
         break;
+      case 'water':
+        // a wet swish: a falling bandpass sweep with a bubbly blip
+        this.noiseBurst(d, 'bandpass', 1600, 500, 0.12, 0.16 * k);
+        this.tone(d, 'sine', 520, 260, 0.08, 0.07 * k);
+        break;
       default:
         this.noiseBurst(d, 'bandpass', 900, 300, 0.07, 0.12 * k);
     }
@@ -139,6 +144,12 @@ export class Sfx {
       case 'fire':
         this.noiseBurst(d, 'highpass', 3000, 1800, 0.2 * h, 0.25 * k);
         this.tone(d, 'sawtooth', 160, 70, 0.16 * h, 0.2 * k);
+        break;
+      case 'water':
+        // a heavy splash: low thump, a spray of hiss and a plop
+        this.tone(d, 'sine', 110, 50, 0.18 * h, 0.4 * k);
+        this.noiseBurst(d, 'bandpass', 2400, 700, 0.18 * h, 0.3 * k);
+        this.tone(d, 'sine', 900, 380, 0.07, 0.14 * k, 0.04);
         break;
       default:
         break;
@@ -305,6 +316,10 @@ export class Sfx {
         break;
       case 'slow':
         this.tone(d, 'triangle', 420, 160, 0.3, 0.25 * k);
+        break;
+      case 'splash':
+        this.noiseBurst(d, 'bandpass', 2200, 600, 0.2, 0.28 * k);
+        this.tone(d, 'sine', 700, 300, 0.1, 0.16 * k, 0.02);
         break;
       case 'stun':
         this.tone(d, 'sawtooth', 1100, 300, 0.2, 0.25 * k);

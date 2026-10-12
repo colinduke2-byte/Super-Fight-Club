@@ -12,25 +12,32 @@ The CPU plays some characters better than others, so read this as a smoke test f
 | brick vs gizmo | 21 - 15 |
 | brick vs agni | 21 - 15 |
 | brick vs halcyon | 25 - 11 |
+| brick vs riptide | 9 - 27 |
 | vex vs nova | 15 - 21 |
 | vex vs gizmo | 20 - 16 |
 | vex vs agni | 23 - 13 |
 | vex vs halcyon | 22 - 14 |
+| vex vs riptide | 27 - 9 |
 | nova vs gizmo | 8 - 27 |
 | nova vs agni | 13 - 23 |
 | nova vs halcyon | 19 - 17 |
+| nova vs riptide | 15 - 21 |
 | gizmo vs agni | 20 - 16 |
 | gizmo vs halcyon | 11 - 25 |
+| gizmo vs riptide | 15 - 21 |
 | agni vs halcyon | 16 - 20 |
+| agni vs riptide | 14 - 22 |
+| halcyon vs riptide | 20 - 16 |
 
 | fighter | win rate | ultimates used per match |
 |---|---|---|
-| brick | 56% | 1.33 |
-| vex | 56% | 1.91 |
-| nova | 44% | 1.82 |
-| gizmo | 50% | 2.06 |
-| agni | 46% | 1.91 |
-| halcyon | 48% | 2.09 |
+| brick | 51% | 1.32 |
+| vex | 59% | 1.91 |
+| nova | 43% | 1.84 |
+| gizmo | 48% | 2.07 |
+| agni | 45% | 1.90 |
+| halcyon | 50% | 2.10 |
+| riptide | 54% | 1.66 |
 
 Mean match length: 123 s
 

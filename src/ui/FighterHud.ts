@@ -5,7 +5,7 @@ import type { CharacterData } from '../engine/types';
 
 const MAX_PIPS = 5;
 /** Status icon colours in the order burn, slow, freeze, stun. */
-const STATUS_COLORS = [0xff8a30, 0x8aa0ff, 0x9fe9ff, 0xffff60];
+const STATUS_COLORS = [0xff8a30, 0x8aa0ff, 0x9fe9ff, 0xffff60, 0x3aa8ff];
 const PLAYER_COLORS = [0x4aa3ff, 0xff6a5a, 0x5fe08a, 0xffd04a];
 
 /** One fighter's plate: portrait, name, damage percent (colour + pop on hit), stock icons. */
@@ -97,7 +97,7 @@ export class FighterHud {
   /** Stamina mode: hit points per stock (the number shows HP left instead of percent). 0 = percent. */
   hpMax = 0;
 
-  update(damage: number, stocks: number, training: boolean, out: boolean, meterFrac = 0, tick = 0, resource = 0, status?: { burn: number; slow: number; freeze: number; stun: number }): void {
+  update(damage: number, stocks: number, training: boolean, out: boolean, meterFrac = 0, tick = 0, resource = 0, status?: { burn: number; slow: number; freeze: number; stun: number; soak?: number }): void {
     if (damage > this.lastDamage) {
       this.pop = 1;
       this.jolt = Math.min(1, (damage - this.lastDamage) / 14); // big hits shake the number
@@ -140,7 +140,7 @@ export class FighterHud {
       this.seamGlow.setVisible(hot || !!hd.colors).setScale(((68 * this.u) / 4) * frac, (4 * this.u) / 4).setTint(col).setAlpha(hd.colors ? 0.4 : bright ? 0.7 : 0.35);
     }
     if (status) {
-      const t = [status.burn, status.slow, status.freeze, status.stun];
+      const t = [status.burn, status.slow, status.freeze, status.stun, status.soak ?? 0];
       for (let i = 0; i < this.statusIcons.length; i++) this.statusIcons[i].setVisible(t[i] > 0 && (t[i] > 40 || ((tick >> 2) & 1) === 0));
     }
     const full = meterFrac >= 1;

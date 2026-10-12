@@ -8,7 +8,7 @@ import { fighterTrailColor } from '../fx/runner';
 const BODY_SHIFT = 5;
 
 /** Hit-stop flash colour by the hit's fx tag. */
-const HIT_FLASH: Record<string, number> = { fire: 0xffa860, zap: 0xffff90, ice: 0xa8f0ff, blast: 0xffc080, meteor: 0xffd0d0, shock: 0xe0c0ff };
+const HIT_FLASH: Record<string, number> = { fire: 0xffa860, zap: 0xffff90, ice: 0xa8f0ff, blast: 0xffc080, meteor: 0xffd0d0, shock: 0xe0c0ff, water: 0x8adcff };
 
 /** Renders one Fighter: interpolates between sim ticks so 120/144 Hz displays animate smoothly. */
 export class FighterView {
@@ -213,6 +213,10 @@ export class FighterView {
     } else if (st.burn > 0) {
       glowCol = 0xff6a20;
       glowA = 0.32 + 0.18 * Math.sin(tick * 0.9);
+    } else if (st.soak > 0) {
+      // soaked: a cool watery sheen that brightens with the soak level
+      glowCol = 0x4ab8ff;
+      glowA = (0.1 + 0.06 * Math.ceil(st.soak / 120)) * (0.75 + 0.25 * Math.sin(tick * 0.35));
     } else if (f.chargeFrames > 0 && f.state === 'attack') {
       glowCol = 0xffe9a0;
       glowA = 0.12 + 0.18 * (0.5 + 0.5 * Math.sin(tick * 0.7)) + Math.min(0.15, f.chargeFrames / 300);

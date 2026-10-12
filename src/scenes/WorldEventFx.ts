@@ -81,6 +81,22 @@ export class WorldEventFx {
         e.flash(x, y, 1.2, 0xffffff);
         break;
       case 'status': {
+        if (extra === 6) {
+          // soaked: a couple of drops falling off
+          e.burst(x, y + 4, 2, 22, 0x6ac8ff, 0.4, 2);
+          break;
+        }
+        if (extra === 4) {
+          // soaked: a splash of spray
+          e.burst(x, y, 14, 80, 0x6ac8ff, 0.4, 2);
+          e.burst(x, y, 6, 50, 0xe0f6ff, 0.3, 2);
+          break;
+        }
+        if (extra === 5) {
+          // fire meets water: a puff of steam
+          e.burst(x, y - 6, 12, 50, 0xe8eef6, 0.6, 3);
+          break;
+        }
         const colors = [0xff8a30, 0x8aa0ff, 0x9fe9ff, 0xffff60];
         e.burst(x, y, 6, 40, colors[Math.max(0, Math.min(3, extra | 0))], 0.3, 2);
         break;

@@ -4,6 +4,7 @@ import { brick } from './brick';
 import { gizmo } from './gizmo';
 import { halcyon } from './halcyon';
 import { nova } from './nova';
+import { riptide } from './riptide';
 import { vex } from './vex';
 import { overseer } from './overseer';
 import { makeProtoBase } from './proto';
@@ -16,6 +17,7 @@ export const CHARACTERS: Record<string, CharacterData> = {
   [gizmo.id]: gizmo,
   [agni.id]: agni,
   [halcyon.id]: halcyon,
+  [riptide.id]: riptide,
 };
 export const CHARACTER_LIST: CharacterData[] = Object.values(CHARACTERS);
 

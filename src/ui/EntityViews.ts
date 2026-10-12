@@ -4,7 +4,7 @@ import { MAX_ITEMS } from '../engine/items';
 import type { World } from '../engine/world';
 
 const SHAPE_TEX: Record<string, string> = { orb: 'proj-orb', bolt: 'proj-bolt', bullet: 'proj-bullet', fist: 'proj-fist', beam: 'proj-beam' };
-const DEP_TEX: Record<string, string> = { mine: 'dep-mine', turret: 'dep-turret', rune: 'dep-rune', marker: 'dep-marker' };
+const DEP_TEX: Record<string, string> = { mine: 'dep-mine', turret: 'dep-turret', rune: 'dep-rune', marker: 'dep-marker', whirlpool: 'dep-whirlpool' };
 
 function color(hex: string): number {
   return parseInt(hex.slice(1), 16);
@@ -111,6 +111,11 @@ export class EntityViews {
       const expiring = d.def.life ? d.def.life - d.age < 36 && (tick >> 2) % 2 === 0 : false;
       s.setAlpha(expiring ? 0.35 : look.shape === 'marker' ? 0.85 : 1);
       s.setScale(look.shape === 'rune' ? (d.def.w / 16) * 0.5 : 0.5);
+      if (look.shape === 'whirlpool') {
+        // spin: flip the spiral every few ticks and breathe its width
+        const k = (d.def.w / 40) * (0.92 + 0.08 * Math.sin(tick * 0.3));
+        s.setScale(k, k).setFlipX(((tick >> 2) & 1) === 0).setPosition(d.x, d.y - 2);
+      }
       // blinking status light (red-ish when armed)
       const lightOn = look.shape === 'mine' || look.shape === 'turret';
       l.setVisible(lightOn).setPosition(d.x + (look.shape === 'turret' ? d.facing * 1 : 0), d.y - (look.shape === 'turret' ? 7 : 5));
