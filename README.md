@@ -159,7 +159,14 @@ Key design points
 - **Drop through platforms:** tap Down while standing on a pass-through platform (or Down + Jump). Walking off a stage edge catches the ledge automatically.
 - **Tilts:** hold a direction (no flick) and press Attack for a forward / up / down tilt. A flick or the Smash button is still a smash.
 - **Dash attack:** press Attack while running at full stick.
-- **Air dodge:** Shield in the air (stick picks the direction), once per airtime, invulnerable mid-dodge, then helpless until you land.
+- **Initial dash and dash-dancing:** a flick of the stick bursts into a dash ~22% faster than the run for 10 frames; flick back inside it to turn on the spot (dash-dance), hold to settle into the run, let go to brake. A gentle tilt walks. Turning against a full run skids first (the facing flips once the slide stops). Jumping out of a dash keeps its momentum, and flick + Attack is still a smash out of the dash.
+- **Fast-fall aerials:** a fresh down flick while falling fast-falls, during an aerial too (a fast fall also carries into an aerial). A white glint marks it.
+- **Air dodge:** Shield in the air, once per airtime. With no stick it is a short in-place dodge that slows your fall; with a direction it is a burst of momentum you can slide into the ground (wavelanding). Either way you can act again afterwards (no helpless fall).
+- **Hitstun canceling:** after a big launch (32+ frames of hitstun) you may air dodge after 40 frames and attack, special or jump after 45, so a strong hit sends you flying without locking you out. Combo-length hitstun is unaffected.
+- **Clank:** two grounded attacks whose hitboxes meet cancel out with a spark and both recoil, unless one is 8+ damage stronger (then only the weaker one is stopped). Aerials never clank; they trade.
+- **Turnaround specials:** a side special goes the way the stick points; flick back within 3 frames of a neutral / down special to turn it around (B-reverse), which also flips your air drift.
+- **Get-up options:** after a missed tech, hold left / right to roll away, press Jump / Shield / Up to stand straight up, or Attack for a get-up attack (all with a little invincibility).
+- **Input buffer:** presses are remembered for 8 frames (jumps, attacks, specials, shields).
 - **Wall jump:** Vex only; kick off the side of a solid platform (twice per airtime) as an extra recovery.
 - **Ledge attack / get-up attack:** Attack on the ledge, or while lying down, for an invulnerable attack (generic moves in `src/engine/genericMoves.ts`; a character can override `ledgeAttack` / `getupAttack` in its move file).
 - **Taunt:** press Ultimate while the meter is not full.
@@ -197,7 +204,7 @@ hurtboxes (green / blue invulnerable / purple armored) and prints the move's s/a
 
 Rules implemented: knockback `(base + dmg% * scaling) * move_weight / target_weight` (see `knockback.ts`),
 hitlag `floor(dmg*0.4+4)` frames for both fighters, hitstun scales with knockback, simultaneous hits
-trade unless one move is 9+ damage stronger, armored frames absorb weak hits, grabs ignore shields.
+trade unless one move is 8+ damage stronger (grounded hitboxes that meet clank instead), armored frames absorb weak hits, grabs ignore shields.
 Stocks / KOs / respawn / time-mode scoring live in `engine/match.ts`.
 
 ## Engine hooks for characters (Phase 3)

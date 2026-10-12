@@ -616,7 +616,7 @@ export class MatchScene extends Phaser.Scene {
         const sp = Math.abs(f.vx);
         if (f.state === 'dash' && f.stateFrame % 3 === 0) this.effects.dust(f.x - f.facing * 6, f.y, 2, -f.facing);
         else if (f.state === 'run' && f.stateFrame % 9 === 4) this.effects.dust(f.x - f.facing * 4, f.y, 1, -f.facing);
-        else if ((f.state === 'idle' || f.state === 'landing') && sp > 2.2 && this.world.tick % 2 === 0) this.effects.dust(f.x, f.y, 2, Math.sign(f.vx));
+        else if (((f.state === 'idle' || f.state === 'landing') && sp > 2.2 || f.skidding) && this.world.tick % 2 === 0) this.effects.dust(f.x, f.y, 2, Math.sign(f.vx));
       }
     }
   }
