@@ -3,7 +3,7 @@
 A sci-fi/fantasy platform fighter built with **Phaser 3 + TypeScript (Vite)**. All characters, art and
 audio are original and generated in code. The game runs in the browser.
 
-> **Status: all twelve roadmap phases are built** (see `ROADMAP.md`), plus polish passes: six fighters (Brick, Vex, Nova, Gizmo, Agni, Halcyon), five stages,
+> **Status: all twelve roadmap phases are built** (see `ROADMAP.md`), plus polish passes: six fighters (Brick, Vex, Nova, Gizmo, Agni, Halcyon), six stages,
 > Versus for 2-4 (humans on any device + CPUs), Arcade Ladder with story cards and a scripted boss, training mode with frame-data
 > scenarios, rebindable keyboard / gamepad controls, synthesized SFX and chiptune music, CPU AI with three difficulties.
 > What still needs **you**: hands-on play (balance feel), real Xbox / PlayStation / Switch pads, Safari, 120/144 Hz displays and GPU
@@ -72,6 +72,7 @@ stand / shield / jump / jab / CPU 1-3.
 | Training Ring | one wide flat platform, nothing else; cold cyan void |
 | Reactor Core | short main stage, two moving platforms and a **plasma geyser** in the middle: 1.5 s telegraph, then an eruption every 10 s that hurts (12%) and launches upward. Damage-only: it never KOs by itself |
 | Stormspire | a narrow tower top in a thunderstorm: drifting cloud platforms, a high perch, and **lightning** that strikes the tower top (left, then right; 1.3 s telegraph, 11% and a launch). Rain, distant bolts, slate-and-cloud art |
+| Sunken Temple | a jungle ziggurat: a wide main floor with a **raised centre tier** (a low wall to fight around, jump over or wall-jump off), two side bridges and a bobbing stone altar on top; misty ziggurats, canopy, god rays and fireflies. No hazards: the terrain is the twist |
 | Skyhold Expanse | the **large** stage (blast zones +-900 x 620): a 520-wide bridge deck, two floating islands across gaps, tiers of platforms and a drifting cloud; a golden-hour sky with a sun, god rays, birds and floating islands |
 
 Stages are data (`src/stages/*.ts`: platforms, blast zones, spawns, hazards, `background.theme`, `music`); register a new

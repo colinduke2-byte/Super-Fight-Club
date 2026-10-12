@@ -1,5 +1,5 @@
 import Phaser from 'phaser';
-import { MASS_HEAD, MASS_OVER, PLAT_HEAD, platformArt, stageMass } from '../art/stageMass';
+import { isSeated, MASS_HEAD, MASS_OVER, PLAT_HEAD, platformArt, stageMass } from '../art/stageMass';
 import type { StageData } from '../engine/types';
 import { BACKDROPS } from './BackgroundView';
 
@@ -62,7 +62,7 @@ export function stageThumb(scene: Phaser.Scene, stage: StageData, W = 480, H = 2
   stage.platforms.forEach((p, index) => {
     if (p.kind === 'solid') {
       const mk = `mass:${stage.id}:${index}:${p.w}x${p.h}`;
-      if (!scene.textures.exists(mk)) scene.textures.addCanvas(mk, stageMass(theme, p.w, p.h, index + 1));
+      if (!scene.textures.exists(mk)) scene.textures.addCanvas(mk, stageMass(theme, p.w, p.h, index + 1, isSeated(p, stage.platforms)));
       const m = src(mk) as HTMLCanvasElement;
       g.drawImage(m, ox + (p.x - MASS_OVER / 2) * sc, oy + (p.y - MASS_HEAD / 2) * sc, m.width * 0.5 * sc, m.height * 0.5 * sc);
     } else {

@@ -13,13 +13,19 @@ type Ramp = RGB[];
 export const MASS_OVER = 4; // art px the cap overhangs each ledge
 export const MASS_HEAD = 8; // art px of headroom above the walking surface (grass tufts, lamps)
 
+/** True when solid platform `p` rests on top of another solid one (a tier): it is drawn without a keel. */
+export function isSeated(p: { x: number; y: number; w: number; h: number }, all: ReadonlyArray<{ x: number; y: number; w: number; h: number; kind: string }>): boolean {
+  const bottom = p.y + p.h;
+  return all.some((q) => q !== p && q.kind === 'solid' && bottom >= q.y && bottom <= q.y + q.h && p.x >= q.x && p.x + p.w <= q.x + q.w);
+}
+
 interface MassTheme {
   stone: string[]; // 6 shades, dark -> light
   accent: string[]; // 5 shades, dark -> bright (emissive)
   alt?: string[]; // second accent
   body: 'ashlar' | 'plate';
   cap: 'metal' | 'tech' | 'hazard' | 'slate' | 'grass';
-  panel: 'window' | 'holo' | 'vent' | 'rune' | 'alcove';
+  panel: 'window' | 'holo' | 'vent' | 'rune' | 'alcove' | 'glyph';
   under: 'crystal' | 'tech' | 'machine' | 'shard' | 'roots';
   fog: string;
 }
@@ -62,6 +68,16 @@ const THEMES: Record<string, MassTheme> = {
     panel: 'rune',
     under: 'shard',
     fog: '#141e30',
+  },
+  temple: {
+    stone: ['#1a2420', '#26342c', '#34463a', '#46604c', '#5e7c62', '#82a080'],
+    accent: ['#5a3a10', '#a06a1c', '#e8a83a', '#ffd870', '#fff4c0'],
+    alt: ['#1a4a22', '#2e7034', '#4a9e48', '#7ad06a', '#c8f4a0'],
+    body: 'ashlar',
+    cap: 'grass',
+    panel: 'glyph',
+    under: 'roots',
+    fog: '#163c3a',
   },
   dawn: {
     stone: ['#8a6a66', '#a88a82', '#c6aa9c', '#dcc6b2', '#eedcc8', '#fff4e4'],
@@ -160,7 +176,7 @@ class Buf {
 }
 
 /** Generates the art for one solid platform `w` x `h` world units. */
-export function stageMass(themeId: string | undefined, w: number, h: number, seed: number): HTMLCanvasElement {
+export function stageMass(themeId: string | undefined, w: number, h: number, seed: number, seated = false): HTMLCanvasElement {
   const T = THEMES[themeId ?? 'skyline'] ?? THEMES.skyline;
   const S: Ramp = T.stone.map(hex);
   const A: Ramp = T.accent.map(hex);
@@ -172,7 +188,7 @@ export function stageMass(themeId: string | undefined, w: number, h: number, see
 
   const BW = Math.round(w * 2); // body width
   const BH = Math.round(h * 2); // body height (collision box)
-  const UNDER = Math.round(Math.min(220, Math.max(70, BW * 0.36)));
+  const UNDER = seated ? 0 : Math.round(Math.min(220, Math.max(70, BW * 0.36))); // a tier resting on another block has no keel
   const W = BW + MASS_OVER * 2;
   const H = MASS_HEAD + BH + UNDER;
   const b = new Buf(W, H);
@@ -268,7 +284,7 @@ export function stageMass(themeId: string | undefined, w: number, h: number, see
   cap(b, T, S, A, A2, Y0, CAP, W, rnd);
 
   // ---- 5. underside keel -------------------------------------------------------------------------------------------
-  underside(b, T, S, A, A2, X0, bodyBot, BW, UNDER, rnd, n1);
+  if (!seated) underside(b, T, S, A, A2, X0, bodyBot, BW, UNDER, rnd, n1);
 
   // ---- 6. silhouette edges: rim light left, dark outline right / bottom -------------------------------------------
   for (let y = Y0 + CAP; y < H; y++) {
@@ -393,7 +409,7 @@ function pillar(b: Buf, S: Ramp, A: Ramp, T: MassTheme, x0: number, y0: number, 
   };
   block(y0 + 10, 6);
   block(panelBot, 6);
-  if (T.panel !== 'alcove') {
+  if (T.panel !== 'alcove' && T.panel !== 'glyph') {
     // a lamp / indicator on the shaft
     const cy = Math.round((y0 + 16 + panelBot) / 2);
     const cx = x0 + Math.floor(pw / 2) - 1;
@@ -546,6 +562,41 @@ function panel(b: Buf, T: MassTheme, S: Ramp, A: Ramp, A2: Ramp, x0: number, y0:
     for (let y = iy; y < iy + ih; y++) {
       b.set(x, y, A[3], true);
       if (rnd() > 0.6) x = clampI(x + (rnd() > 0.5 ? 1 : -1), ix, ix + iw - 1);
+    }
+  } else if (T.panel === 'glyph') {
+    // carved temple relief: a step-fret border and a sun disc whose rays glow gold, moss creeping over it
+    for (let x = ix; x < ix + iw; x++) {
+      const f = (x - ix) % 8;
+      const yy = f < 4 ? 0 : 3;
+      b.set(x, iy + yy, A[1]);
+      b.set(x, iy + ih - 1 - yy, A[1]);
+      if (f === 0 || f === 4) for (let k = 0; k < 4; k++) {
+        b.set(x, iy + k, A[1]);
+        b.set(x, iy + ih - 1 - k, A[1]);
+      }
+    }
+    const cx = ix + iw / 2;
+    const cy = iy + ih / 2;
+    const r = Math.max(6, Math.min(iw, ih) * 0.26);
+    for (let a = 0; a < 16; a++) {
+      const rad = (a / 16) * Math.PI * 2;
+      const r1 = r + 2;
+      const r2 = r + (a % 2 === 0 ? 9 : 5);
+      for (let t = r1; t < r2; t += 0.5) b.set(cx + Math.cos(rad) * t, cy + Math.sin(rad) * t, a % 2 === 0 ? A[3] : A[2], a % 2 === 0);
+    }
+    for (let y = -r; y <= r; y++) for (let x = -r; x <= r; x++) {
+      const d = Math.hypot(x, y);
+      if (d > r) continue;
+      b.set(cx + x, cy + y, d > r - 1.5 ? A[3] : d < r * 0.4 ? A[4] : A[1], d > r - 1.5 || d < r * 0.4);
+    }
+    // a face in the disc: two eyes and a mouth line
+    b.rect(cx - r * 0.45, cy - r * 0.2, 2, 2, S[0]);
+    b.rect(cx + r * 0.3, cy - r * 0.2, 2, 2, S[0]);
+    b.rect(cx - r * 0.35, cy + r * 0.35, r * 0.7, 1, S[0]);
+    for (let m = 0; m < iw / 6; m++) {
+      const mx = x0 + Math.floor(rnd() * pw);
+      const my = y0 + Math.floor(rnd() * 6);
+      for (let k = 0; k < 3 + Math.floor(rnd() * 6); k++) b.set(mx + (k % 2), my + k, A2[k % 3 === 0 ? 3 : 2]);
     }
   } else {
     // alcove: arched niche with a gold rim, a hanging lantern, and vines
@@ -806,8 +857,11 @@ export function platformArt(themeId: string | undefined, w: number, h: number, m
   const y0 = PLAT_HEAD;
   const amber: Ramp = ['#4a2a18', '#8a4f2c', '#d9822b', '#ffb02e', '#ffe08a'].map(hex);
   const G = moving && T.cap !== 'grass' && T.cap !== 'slate' ? amber : A;
+  // grass themes: wooden bridges; moving ones are clouds at dawn and carved stone altars in the temple
+  const stoneAltar = T.panel === 'glyph' && moving;
+  const woody = T.cap === 'grass' && !stoneAltar;
 
-  if (T.cap === 'slate' || (T.cap === 'grass' && moving)) {
+  if (T.cap === 'slate' || (woody && moving)) {
     // cloud slab: a flat top you can stand on, billowing underneath
     const top = T.cap === 'slate' ? hex('#e8f2ff') : hex('#fff0e0');
     const mid = T.cap === 'slate' ? hex('#b6c9e2') : hex('#f4c8b8');
@@ -834,7 +888,7 @@ export function platformArt(themeId: string | undefined, w: number, h: number, m
     for (let ly = 0; ly < PH; ly++) {
       const y = y0 + ly;
       let c: RGB;
-      if (T.cap === 'grass') {
+      if (woody) {
         // wooden planks with a pale top edge
         const plank = Math.floor(x / 14);
         const base = mix(hex('#8a5a2c'), hex('#a06a34'), (plank * 37) % 5 / 5);
@@ -847,13 +901,13 @@ export function platformArt(themeId: string | undefined, w: number, h: number, m
         if (T.cap === 'hazard' && ly >= 4 && ly < PH - 2) c = ((x + ly) >> 2) % 2 === 0 ? (moving ? G[2] : S[3]) : S[0];
         if (ly >= 4 && ly < PH - 1 && x % 20 === 0) c = S[1];
       }
-      const em = T.cap !== 'grass' && ly === 3 && (x >> 2) % 3 === 0;
+      const em = !woody && ly === 3 && (x >> 2) % 3 === 0;
       const end = x < 2 || x >= W - 2;
       b.set(x, y, end && ly > 0 ? mix(c, S[0], 0.45) : c, em);
     }
   }
   const bot = y0 + PH;
-  if (T.cap === 'grass') {
+  if (woody) {
     // rope rail posts above, lanterns and rope loops below
     for (const x of [3, W - 4]) for (let k = 1; k <= 5; k++) b.set(x, y0 - k, hex('#6a4220'));
     for (let x = 3; x < W - 3; x++) b.set(x, y0 - 5 + Math.round(Math.sin(((x - 3) / (W - 6)) * Math.PI) * 2), hex('#c8a070'));

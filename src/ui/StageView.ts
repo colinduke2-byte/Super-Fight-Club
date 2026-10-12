@@ -1,5 +1,5 @@
 import Phaser from 'phaser';
-import { MASS_HEAD, MASS_OVER, PLAT_HEAD, platformArt, stageMass } from '../art/stageMass';
+import { isSeated, MASS_HEAD, MASS_OVER, PLAT_HEAD, platformArt, stageMass } from '../art/stageMass';
 import type { World } from '../engine/world';
 
 interface PlatView {
@@ -18,7 +18,7 @@ export class StageView {
       if (p.kind === 'solid') {
         // one designed structure per solid platform (cap, facade, underside), generated once per stage
         const key = `mass:${world.stage.id}:${index}:${p.w}x${p.h}`;
-        if (!scene.textures.exists(key)) scene.textures.addCanvas(key, stageMass(theme, p.w, p.h, index + 1));
+        if (!scene.textures.exists(key)) scene.textures.addCanvas(key, stageMass(theme, p.w, p.h, index + 1, isSeated(p, world.stage.platforms)));
         const dx = -MASS_OVER / 2;
         const dy = -MASS_HEAD / 2;
         const img = scene.add.image(p.x + dx, p.y + dy, key).setOrigin(0, 0).setScale(0.5);

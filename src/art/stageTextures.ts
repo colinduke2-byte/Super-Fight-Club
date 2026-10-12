@@ -680,6 +680,79 @@ function islands(seed: number, rock: string, rockL: string, rockD: string, grass
   return c;
 }
 
+/** Misty jungle mountains with stepped ziggurats and a glowing shrine fire on top; tileable. */
+function ziggurats(seed: number, body: string, light: string, dark: string, glow: string, W = 512, H = 192): HTMLCanvasElement {
+  const [c, g] = canvas(W, H);
+  const rnd = mulberry32(seed);
+  const n1 = makeNoise(seed, 64);
+  // rolling hills
+  for (let x = 0; x < W; x++) {
+    const top = Math.round(H * 0.55 + (n1(x / 40, 0) - 0.5) * 50 + (n1(x / 13, 3) - 0.5) * 12);
+    px(g, body, x, top, 1, H - top);
+    px(g, light, x, top, 1, 1);
+  }
+  // stepped pyramids
+  for (let i = 0; i < 3; i++) {
+    const cx = Math.floor(((i + 0.2 + rnd() * 0.6) / 3) * W);
+    const tiers = 4 + Math.floor(rnd() * 3);
+    const baseW = 60 + Math.floor(rnd() * 40);
+    const baseY = Math.floor(H * 0.62 + rnd() * 10);
+    wrapX(W, cx, (bx) => {
+      for (let t = 0; t < tiers; t++) {
+        const tw = Math.round(baseW * (1 - t / (tiers + 0.6)));
+        const ty = baseY - (t + 1) * 9;
+        px(g, body, bx - Math.floor(tw / 2), ty, tw, 9);
+        px(g, light, bx - Math.floor(tw / 2), ty, tw, 1);
+        px(g, dark, bx + Math.floor(tw / 2) - 3, ty, 3, 9);
+      }
+      // central stair and shrine with its fire
+      const topY = baseY - tiers * 9;
+      px(g, dark, bx - 3, topY, 6, tiers * 9);
+      for (let k = 0; k < tiers * 9; k += 2) px(g, light, bx - 3, topY + k, 6, 1);
+      px(g, dark, bx - 6, topY - 10, 12, 10);
+      px(g, glow, bx - 2, topY - 7, 4, 5);
+      px(g, '#fff4c0', bx - 1, topY - 6, 2, 2);
+    });
+  }
+  return c;
+}
+
+/** Jungle canopy: dense round crowns on tall trunks, hanging vines; tileable, the lower half solid foliage. */
+function canopy(seed: number, leaf: string, leafL: string, leafD: string, trunk: string, W = 512, H = 192): HTMLCanvasElement {
+  const [c, g] = canvas(W, H);
+  const rnd = mulberry32(seed);
+  const bayer = [0, 8, 2, 10, 12, 4, 14, 6, 3, 11, 1, 9, 15, 7, 13, 5];
+  px(g, leafD, 0, H - 50, W, 50);
+  for (let i = 0; i < 14; i++) {
+    const tx = Math.floor(rnd() * W);
+    const th = 60 + Math.floor(rnd() * 70);
+    wrapX(W, tx, (bx) => px(g, trunk, bx, H - th, 4, th));
+  }
+  for (let i = 0; i < 34; i++) {
+    const r = 14 + Math.floor(rnd() * 18);
+    const cx = Math.floor(rnd() * W);
+    const cy = H - 50 - Math.floor(rnd() * 90);
+    wrapX(W, cx, (bx) => {
+      for (let y = -r; y <= r; y++) {
+        for (let x = -r; x <= r; x++) {
+          const d = Math.hypot(x, y * 1.1);
+          if (d > r) continue;
+          const lit = (-x * 0.4 - y * 0.9) / r;
+          const v = lit + (bayer[(((cy + y) & 3) * 4 + ((bx + x) & 3))] / 16 - 0.5) * 0.6;
+          px(g, v > 0.5 ? leafL : v > -0.2 ? leaf : leafD, bx + x, cy + y);
+        }
+      }
+      // vines hanging from the crown
+      for (let v = 0; v < 2; v++) {
+        const vx = bx - r + Math.floor(rnd() * r * 2);
+        const len = 10 + Math.floor(rnd() * 30);
+        for (let k = 0; k < len; k++) px(g, leaf, vx + (k % 6 < 3 ? 0 : 1), cy + r - 4 + k, 1, 1);
+      }
+    });
+  }
+  return c;
+}
+
 /** Puffy cloud tops (tileable): dithered-shaded round puffs with a light top-left rim, solid underneath. */
 function cloudBank(seed: number, base: string, light: string, shade: string, W = 512, H = 128): HTMLCanvasElement {
   const [c, g] = canvas(W, H);
@@ -797,6 +870,9 @@ export function buildStageTextures(scene: Phaser.Scene): void {
   add('bg-spires-near', spires(23, '#0f1c30', '#27456a', '#08101e', '#cfeeff', 512, 192));
   add('bg-islands-far', islands(5, '#8a6a7a', '#c89aa0', '#5a4256', '#7a9a5a', '#b8d27a', '255,235,215', 512, 192));
   add('bg-islands-near', islands(9, '#a07a78', '#e0aa98', '#6a4a5e', '#8aae60', '#c8e088', '255,240,225', 512, 192));
+  add('bg-jungle-far', ziggurats(14, '#2a4a46', '#4a7a6a', '#1a302e', '#ffb040', 512, 192));
+  add('bg-jungle-near', canopy(27, '#1e4a2a', '#3a7a3a', '#10301a', '#2a1e14', 512, 192));
+  add('bg-mist', cloudBank(12, '#7ab0a0', '#b8e0c8', '#4a8070', 512, 128));
   add('bg-cloudsea', cloudBank(3, '#f4c8b8', '#fff0e0', '#c48aa0', 512, 128));
   add('bg-stormbank', cloudBank(8, '#2e4560', '#5a7a9c', '#16243a', 512, 128));
   add('spark', sparkTex());

@@ -57,7 +57,7 @@ describe('content soak: every 4-fighter lineup', () => {
 });
 
 describe('new stages soak', () => {
-  for (const stage of ['storm', 'skyhold']) {
+  for (const stage of ['storm', 'skyhold', 'temple']) {
     it(`${stage}: a brawl stays finite and replays identically`, () => {
       const lineup = ['halcyon', 'brick', 'vex', 'nova'];
       const a = brawl(lineup, stage, 2, 3000);

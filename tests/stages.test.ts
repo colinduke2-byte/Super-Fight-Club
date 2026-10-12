@@ -9,8 +9,8 @@ import { STAGES, STAGE_LIST } from '../src/stages';
 import { reactorStage } from '../src/stages/reactor';
 
 describe('stage data', () => {
-  it('offers five stages in stage select', () => {
-    expect(STAGE_LIST.map((s) => s.id)).toEqual(['classic', 'ring', 'reactor', 'storm', 'skyhold']);
+  it('offers six stages in stage select', () => {
+    expect(STAGE_LIST.map((s) => s.id)).toEqual(['classic', 'ring', 'reactor', 'storm', 'temple', 'skyhold']);
   });
   for (const s of Object.values(STAGES)) {
     it(`${s.id}: four spawns stand on a solid platform inside the blast zones`, () => {

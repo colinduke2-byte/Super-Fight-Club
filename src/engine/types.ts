@@ -50,7 +50,7 @@ export interface StageBackground {
   /** Parallax layer ids understood by the stage renderer. */
   layers: string[];
   /** Look of the parallax backdrop and tiles (palette + tints); see `BACKDROPS` in the UI layer. */
-  theme?: 'skyline' | 'void' | 'reactor' | 'storm' | 'dawn';
+  theme?: 'skyline' | 'void' | 'reactor' | 'storm' | 'dawn' | 'temple';
 }
 
 /** A stage hazard. Phase is a pure function of the sim tick, so it is deterministic and needs no state. */
