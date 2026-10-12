@@ -167,6 +167,7 @@ Key design points
 - **Turnaround specials:** a side special goes the way the stick points; flick back within 3 frames of a neutral / down special to turn it around (B-reverse), which also flips your air drift.
 - **Get-up options:** after a missed tech, hold left / right to roll away, press Jump / Shield / Up to stand straight up, or Attack for a get-up attack (all with a little invincibility).
 - **Input buffer:** presses are remembered for 8 frames (jumps, attacks, specials, shields).
+- **Short-hop aerial shortcut:** Jump + Attack on the same frame always short hops into the aerial (even with Jump held).
 - **Wall jump:** Vex only; kick off the side of a solid platform (twice per airtime) as an extra recovery.
 - **Ledge attack / get-up attack:** Attack on the ledge, or while lying down, for an invulnerable attack (generic moves in `src/engine/genericMoves.ts`; a character can override `ledgeAttack` / `getupAttack` in its move file).
 - **Taunt:** press Ultimate while the meter is not full.

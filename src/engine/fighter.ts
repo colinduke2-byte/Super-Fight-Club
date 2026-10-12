@@ -1030,8 +1030,10 @@ export class Fighter implements Body {
       const run = s.runSpeed * this.speedMul;
       target = Math.abs(inp.stickX) > 0.3 ? Math.sign(inp.stickX) * Math.max(run * Math.abs(inp.stickX), Math.sign(inp.stickX) === Math.sign(this.vx) ? Math.abs(this.vx) : 0) : this.vx * 0.9;
       if (this.stateFrame >= s.jumpsquatFrames) {
-        // full hop if the jump button is still down at the end of jumpsquat, otherwise short hop
-        this.takeoff((inp.held & Button.Jump) !== 0 ? s.jumpHeight : s.shortHopHeight, world);
+        // full hop if the jump button is still down at the end of jumpsquat, otherwise short hop; an attack pressed during the
+        // jumpsquat (Jump + Attack together) always short hops, so the aerial comes out low and fast
+        const shAerial = this.buffer.has(Button.Attack) || this.buffer.has(Button.Smash);
+        this.takeoff((inp.held & Button.Jump) !== 0 && !shAerial ? s.jumpHeight : s.shortHopHeight, world);
         this.airLogic(inp, world, true);
         return;
       }
@@ -1164,6 +1166,8 @@ export class Fighter implements Body {
       this.buffer.consume(smashBtn ? Button.Smash : Button.Attack);
       return throwBomb(world, this.id, inp.stickX, inp.stickY);
     }
+    // Jump + Attack together on the ground: the jump goes first and the attack waits in the buffer (short-hop aerial)
+    if (grounded && this.state !== 'dash' && (inp.pressed & Button.Jump) !== 0) return false;
     const up = inp.stickY < -0.5;
     const down = inp.stickY > 0.5;
     const side = Math.abs(inp.stickX) > 0.5;

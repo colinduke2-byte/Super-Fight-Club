@@ -232,3 +232,19 @@ describe('clank', () => {
     expect(b.move).toBeNull();
   });
 });
+
+describe('short-hop aerial shortcut', () => {
+  it('Jump + Attack together (Jump still held) short hops straight into an aerial', () => {
+    const { world, f } = setup(agni);
+    step(world, inp({ pressed: Button.Jump | Button.Attack, held: Button.Jump | Button.Attack }), 1);
+    let minY = f.y;
+    let aerial = false;
+    for (let i = 0; i < 40; i++) {
+      step(world, inp({ held: Button.Jump }), 1);
+      minY = Math.min(minY, f.y);
+      if (f.move?.kind === 'aerial') aerial = true;
+    }
+    expect(aerial).toBe(true);
+    expect(-minY).toBeLessThan(f.stats.shortHopHeight * 1.2);
+  });
+});
