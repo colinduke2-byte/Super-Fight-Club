@@ -43,8 +43,8 @@ export const brick: CharacterData = {
   },
   body: { width: 20, height: 28, footHalfWidth: 7 },
   sprite: {
-    frameSize: 64,
-    pixelScale: 0.5,
+    frameSize: 128,
+    pixelScale: 0.29,
     animations: {
       idle: { frames: 4, fps: 5, loop: true },
       run: { frames: 6, fps: 11, loop: true },

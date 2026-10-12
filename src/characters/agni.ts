@@ -64,8 +64,8 @@ export const agni: CharacterData = {
   },
   body: { width: 18, height: 27, footHalfWidth: 6 },
   sprite: {
-    frameSize: 64,
-    pixelScale: 0.5,
+    frameSize: 128,
+    pixelScale: 0.29,
     animations: standardAnimations(['castF', 'castD', 'spinKick', 'beamF']),
     placeholder: {
       skin: '#d99a62',

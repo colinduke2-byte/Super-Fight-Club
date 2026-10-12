@@ -1,5 +1,5 @@
 import Phaser from 'phaser';
-import { animFrameIndex, fighterTextureKey } from '../art/proceduralFighter';
+import { animFrameIndex, fighterTextureKey, portraitCrop, uiTexK } from '../art/proceduralFighter';
 import { PIXEL_FONT, up } from '../art/pixelFont';
 import { characterById } from '../characters';
 import { currentFight, slotsForFight, type LadderState } from '../game/ladder';
@@ -40,7 +40,8 @@ export class LadderMapScene extends MenuScene {
     this.ui.add(this.path);
     this.ladder.fights.forEach((f) => {
       const opp = characterById(f.opponents[0].character)!;
-      const img = this.add.image(0, 0, fighterTextureKey(opp.id), animFrameIndex(opp, 'idle', 0)).setOrigin(0.5, 0.5).setCrop(6, 0, 40, 40);
+      const img = this.add.image(0, 0, fighterTextureKey(opp.id), animFrameIndex(opp, 'idle', 0)).setOrigin(0.5, 0.5).setCrop(...portraitCrop(opp));
+      img.setData('k', uiTexK(opp));
       const num = this.add.bitmapText(0, 0, PIXEL_FONT, String(f.index + 1)).setOrigin(0.5).setTint(0xffffff);
       this.ui.add([img, num]);
       this.nodes.push({ img, num, x: 0, y: 0, size: 0 });
@@ -106,7 +107,7 @@ export class LadderMapScene extends MenuScene {
       const col = done ? COLORS.good : isCur ? (((time * 4) | 0) % 2 === 0 ? COLORS.hot : COLORS.title) : boss ? 0xff4a5a : 0x4a4578;
       g.fillStyle(0x0b0a24, 1).fillRect(nd.x - nd.size / 2, nd.y - nd.size / 2, nd.size, nd.size);
       g.lineStyle(Math.max(2, u), col, 1).strokeRect(nd.x - nd.size / 2, nd.y - nd.size / 2, nd.size, nd.size);
-      nd.img.setPosition(nd.x, nd.y).setScale((nd.size * 0.9) / 40).setAlpha(done ? 0.45 : i > cur ? 0.7 : 1).setTint(i > cur && !boss ? 0x8f8ab8 : 0xffffff);
+      nd.img.setPosition(nd.x, nd.y).setScale(((nd.size * 0.9) / 40) * (nd.img.getData('k') as number)).setAlpha(done ? 0.45 : i > cur ? 0.7 : 1).setTint(i > cur && !boss ? 0x8f8ab8 : 0xffffff);
       nd.num.setScale(u * 1.4).setPosition(nd.x - nd.size / 2 + 6 * u, nd.y - nd.size / 2 + 6 * u).setTint(col);
     });
     const f = currentFight(l);

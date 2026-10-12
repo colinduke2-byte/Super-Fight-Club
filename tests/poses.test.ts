@@ -17,8 +17,12 @@ describe('move poses', () => {
       }
     });
     it(`${id}: sprite sheet stays within the 4096px texture limit`, () => {
-      const rows = Object.keys(c.sprite.animations).length;
-      expect(rows * c.sprite.frameSize).toBeLessThanOrEqual(4096);
+      // sheets wrap their rows into side-by-side blocks so neither dimension passes 4096px
+      const names = Object.keys(c.sprite.animations);
+      const cols = Math.max(...names.map((n) => c.sprite.animations[n].frames));
+      const rowsPer = Math.floor(4096 / c.sprite.frameSize);
+      const blocks = Math.ceil(names.length / rowsPer);
+      expect(cols * blocks * c.sprite.frameSize).toBeLessThanOrEqual(4096);
     });
   }
   it('every character declares a known sound style', () => {

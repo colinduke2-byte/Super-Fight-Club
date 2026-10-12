@@ -90,14 +90,14 @@ export class StoryScene extends MenuScene {
     // sprites: art px = s; a 64px frame covers 64*k art pixels
     const base = y + 80 * s;
     if (c.art === 'boss') {
-      this.left?.setScale(s * 0.8).setPosition(x + 34 * s, base + 4 * s);
-      this.right?.setScale(s * 1.3).setPosition(x + 96 * s, base + 4 * s).setFlipX(true);
+      this.left?.setScale(s * 0.8 * 0.5).setPosition(x + 34 * s, base + 4 * s);
+      this.right?.setScale(s * 1.3 * 0.5).setPosition(x + 96 * s, base + 4 * s).setFlipX(true);
       this.left?.setFlipX(false);
     } else if (c.art === 'duel') {
-      this.left?.setScale(s * 1.05).setPosition(x + 38 * s, base);
-      this.right?.setScale(s * 1.05).setPosition(x + 122 * s, base);
+      this.left?.setScale(s * 1.05 * 0.5).setPosition(x + 38 * s, base);
+      this.right?.setScale(s * 1.05 * 0.5).setPosition(x + 122 * s, base);
     } else {
-      this.left?.setScale(s * 1.1).setPosition(x + (c.art === 'victory' ? 80 : 58) * s, base - (c.art === 'arena' ? 2 : 0) * s);
+      this.left?.setScale(s * 1.1 * 0.5).setPosition(x + (c.art === 'victory' ? 80 : 58) * s, base - (c.art === 'arena' ? 2 : 0) * s);
     }
   }
 

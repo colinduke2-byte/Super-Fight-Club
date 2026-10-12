@@ -121,8 +121,8 @@ export const gizmo: CharacterData = {
   },
   body: { width: 16, height: 22, footHalfWidth: 6 },
   sprite: {
-    frameSize: 64,
-    pixelScale: 0.5,
+    frameSize: 128,
+    pixelScale: 0.29,
     animations: standardAnimations(['castF', 'castU', 'castD', 'raid']),
     placeholder: {
       skin: '#9fe9ff',

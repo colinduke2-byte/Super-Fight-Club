@@ -1,5 +1,5 @@
 import Phaser from 'phaser';
-import { fighterTextureKey, animFrameIndex } from '../art/proceduralFighter';
+import { fighterTextureKey, animFrameIndex, portraitCrop, uiTexK } from '../art/proceduralFighter';
 import { PIXEL_FONT, up } from '../art/pixelFont';
 import type { CharacterData } from '../engine/types';
 
@@ -28,6 +28,7 @@ export class FighterHud {
   colorIndex = 0;
   private pop = 0;
   private u = 3;
+  private texK = 1;
 
   constructor(
     scene: Phaser.Scene,
@@ -40,7 +41,8 @@ export class FighterHud {
     const frame = animFrameIndex(data, 'idle', 0);
     this.panel = scene.add.image(0, 0, 'hud-panel').setOrigin(0.5, 1);
     this.accent = scene.add.image(0, 0, 'px').setOrigin(0, 0).setTint(PLAYER_COLORS[index % 4]);
-    this.portrait = scene.add.image(0, 0, key, frame).setOrigin(0, 0).setCrop(6, 0, 40, 40);
+    this.portrait = scene.add.image(0, 0, key, frame).setOrigin(0, 0).setCrop(...portraitCrop(data));
+    this.texK = uiTexK(data);
     this.name = scene.add.bitmapText(0, 0, PIXEL_FONT, up(label)).setTint(PLAYER_COLORS[index % 4]);
     this.percent = scene.add.bitmapText(0, 0, PIXEL_FONT, '0%').setOrigin(0, 0);
     this.sub = scene.add.bitmapText(0, 0, PIXEL_FONT, '').setTint(0x9a96d8);
@@ -71,7 +73,7 @@ export class FighterHud {
     this.accent.setPosition(left + 4 * u, top + 2 * u).setScale((32 * u) / 4, (1 * u) / 4);
     // 40x40 crop of the idle frame shown at 0.8 => fills the 32x32 well; crop origin offsets the image
     const k = 0.8 * u;
-    this.portrait.setScale(k).setPosition(left + 4 * u - 6 * k, top + 4 * u);
+    this.portrait.setScale(k * this.texK).setPosition(left + 4 * u - 6 * k, top + 4 * u);
     this.name.setPosition(left + 41 * u, top + 8 * u).setScale(u);
     this.percent.setPosition(left + 41 * u, top + 16 * u).setScale(u * 2);
     this.sub.setPosition(left + 78 * u, top + 8 * u).setScale(u);

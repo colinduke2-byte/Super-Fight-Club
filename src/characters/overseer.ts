@@ -48,8 +48,8 @@ export const overseer: CharacterData = {
   },
   body: { width: 36, height: 54, footHalfWidth: 14 },
   sprite: {
-    frameSize: 64,
-    pixelScale: 0.95,
+    frameSize: 128,
+    pixelScale: 0.5,
     animations: standardAnimations(['castF', 'castU', 'castD', 'raid']),
     placeholder: {
       skin: '#ff6a7a',

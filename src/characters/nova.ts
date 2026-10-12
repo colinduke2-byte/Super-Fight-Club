@@ -93,8 +93,8 @@ export const nova: CharacterData = {
   },
   body: { width: 16, height: 28, footHalfWidth: 6 },
   sprite: {
-    frameSize: 64,
-    pixelScale: 0.5,
+    frameSize: 128,
+    pixelScale: 0.29,
     animations: standardAnimations(['castF', 'castU', 'castD', 'dashS', 'raid']),
     placeholder: {
       skin: '#e6bc98',

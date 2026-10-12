@@ -1,6 +1,7 @@
 import Phaser from 'phaser';
 import type { CharacterData, PlaceholderLook } from '../engine/types';
 import { buildKeys, type Key } from './poseTemplates';
+import { detailPass, type Anchors } from './spriteDetail';
 
 /**
  * Placeholder pixel-art generator (64x64 frames). Draws every animation frame with canvas rects and
@@ -394,7 +395,7 @@ function palette(look: PlaceholderLook): Pal {
   };
 }
 
-function drawFighterFrame(ctx: Ctx, size: number, look: PlaceholderLook, pose: Pose, phase = 0): void {
+function drawFighterFrame(ctx: Ctx, size: number, look: PlaceholderLook, pose: Pose, phase = 0): Anchors | null {
   const P = palette(look);
   const b = look.build;
   const cx = size / 2 - 5; // body sits left of centre: the piston fist reaches forward
@@ -402,7 +403,7 @@ function drawFighterFrame(ctx: Ctx, size: number, look: PlaceholderLook, pose: P
 
   if (pose.lying) {
     drawLying(ctx, cx, base, P, b.legH * 2, b.torsoH * 2, b.headSize * 2);
-    return;
+    return null;
   }
 
   const legH = b.legH * 2 - pose.crouch;
@@ -507,6 +508,7 @@ function drawFighterFrame(ctx: Ctx, size: number, look: PlaceholderLook, pose: P
   const sy = shoulderY + 2;
   const hand: V2 = [sx + 7 + pose.frontHand[0], sy + b.armLen * 2 + pose.frontHand[1] + 2];
   drawFrontArm(ctx, P, weapon, sx, sy, hand);
+  return { cx, base, torso: { x: x0, y: torsoTop, w: tw, h: torsoH }, head: { x: hx, y: headTop, s: hs }, hand, backHand: bh, foot: ff, backFoot: bf };
 }
 
 /** Filled ellipse in pixel rows (soft shapes for round builds). */
@@ -827,13 +829,40 @@ function finish(ctx: Ctx, size: number, outlineColor: string): void {
 export function fighterTextureKey(id: string): string {
   return `fighter:${id}`;
 }
-/** Sheet frame index for (animation, frame): one animation per row. */
-export function animFrameIndex(data: CharacterData, anim: string, frame: number): number {
+/** Textures are capped at 4096px: tall sheets wrap their animation rows into several side-by-side blocks. */
+const MAX_SHEET = 4096;
+interface SheetLayout {
+  cols: number;
+  rowsPer: number;
+  blocks: number;
+  names: string[];
+}
+function sheetLayout(data: CharacterData): SheetLayout {
   const names = Object.keys(data.sprite.animations);
   const cols = Math.max(...names.map((n) => data.sprite.animations[n].frames));
-  const row = Math.max(0, names.indexOf(anim));
+  const rowsPer = data.sprite.sheetUrl ? names.length : Math.max(1, Math.floor(MAX_SHEET / data.sprite.frameSize));
+  return { cols, rowsPer, blocks: Math.ceil(names.length / rowsPer), names };
+}
+/** Texture frame index of animation row `row`, column `c`. */
+function frameIdx(L: SheetLayout, row: number, c: number): number {
+  return (row % L.rowsPer) * L.cols * L.blocks + Math.floor(row / L.rowsPer) * L.cols + c;
+}
+/** Multiplier for UI that was laid out for 64px frames (portraits, menus). */
+export function uiTexK(data: CharacterData): number {
+  return 64 / data.sprite.frameSize;
+}
+/** Crop rectangle of a fighter portrait (the head and shoulders of a 64px frame, scaled to the real frame size). */
+export function portraitCrop(data: CharacterData): [number, number, number, number] {
+  const k = data.sprite.frameSize / 64;
+  return [6 * k, 0, 40 * k, 40 * k];
+}
+
+/** Sheet frame index for (animation, frame). */
+export function animFrameIndex(data: CharacterData, anim: string, frame: number): number {
+  const L = sheetLayout(data);
+  const row = Math.max(0, L.names.indexOf(anim));
   const def = data.sprite.animations[anim];
-  return row * cols + Math.min(frame, (def?.frames ?? 1) - 1);
+  return frameIdx(L, row, Math.min(frame, (def?.frames ?? 1) - 1));
 }
 
 export function fighterAnimKey(id: string, anim: string): string {
@@ -844,27 +873,40 @@ export function fighterAnimKey(id: string, anim: string): string {
 export function buildPlaceholderSheet(scene: Phaser.Scene, data: CharacterData): void {
   const { sprite } = data;
   const size = sprite.frameSize;
-  const names = Object.keys(sprite.animations);
-  const cols = Math.max(...names.map((n) => sprite.animations[n].frames));
+  const L = sheetLayout(data);
+  const base = 64; // the poses are authored on a 64px grid; bigger frames are upscaled and then detailed at full resolution
+  const ss = size / base;
   const sheet = document.createElement('canvas');
-  sheet.width = cols * size;
-  sheet.height = names.length * size;
+  sheet.width = L.cols * L.blocks * size;
+  sheet.height = Math.min(L.names.length, L.rowsPer) * size;
   const sctx = sheet.getContext('2d')!;
   sctx.imageSmoothingEnabled = false;
 
   const tmp = document.createElement('canvas');
-  tmp.width = tmp.height = size;
+  tmp.width = tmp.height = base;
   const tctx = tmp.getContext('2d', { willReadFrequently: true })!;
+  const hi = document.createElement('canvas');
+  hi.width = hi.height = size;
+  const hctx = hi.getContext('2d', { willReadFrequently: true })!;
+  hctx.imageSmoothingEnabled = false;
 
   moveKeys = {};
   for (const m of Object.values(data.moves)) if (m.pose) moveKeys[m.anim] = buildKeys(m.pose);
-  names.forEach((name, row) => {
+  L.names.forEach((name, row) => {
     const def = sprite.animations[name];
     for (let f = 0; f < def.frames; f++) {
-      tctx.clearRect(0, 0, size, size);
-      drawFighterFrame(tctx, size, sprite.placeholder, poseFor(name, f, def.frames), f);
-      finish(tctx, size, sprite.placeholder.outline);
-      sctx.drawImage(tmp, f * size, row * size);
+      tctx.clearRect(0, 0, base, base);
+      const anchors = drawFighterFrame(tctx, base, sprite.placeholder, poseFor(name, f, def.frames), f);
+      const col = f + Math.floor(row / L.rowsPer) * L.cols;
+      if (ss === 1) {
+        finish(tctx, base, sprite.placeholder.outline);
+        sctx.drawImage(tmp, col * size, (row % L.rowsPer) * size);
+      } else {
+        hctx.clearRect(0, 0, size, size);
+        hctx.drawImage(tmp, 0, 0, size, size);
+        detailPass(hctx, size, ss, sprite.placeholder, anchors, f);
+        sctx.drawImage(hi, col * size, (row % L.rowsPer) * size);
+      }
     }
   });
 
@@ -876,26 +918,24 @@ function registerSheet(scene: Phaser.Scene, data: CharacterData, sheet: HTMLCanv
   const size = data.sprite.frameSize;
   if (scene.textures.exists(key)) scene.textures.remove(key);
   const tex = scene.textures.addCanvas(key, sheet)!;
-  const names = Object.keys(data.sprite.animations);
-  const cols = Math.max(...names.map((n) => data.sprite.animations[n].frames));
-  names.forEach((_, row) => {
-    for (let c = 0; c < cols; c++) tex.add(row * cols + c, 0, c * size, row * size, size, size);
+  const L = sheetLayout(data);
+  L.names.forEach((_, row) => {
+    for (let c = 0; c < L.cols; c++) tex.add(frameIdx(L, row, c), 0, (c + Math.floor(row / L.rowsPer) * L.cols) * size, (row % L.rowsPer) * size, size, size);
   });
   registerAnimations(scene, data);
 }
 
-/** Works for both generated and loaded sheets: frame index = row * cols + col. */
+/** Works for both generated and loaded sheets. */
 export function registerAnimations(scene: Phaser.Scene, data: CharacterData): void {
   const key = fighterTextureKey(data.id);
-  const names = Object.keys(data.sprite.animations);
-  const cols = Math.max(...names.map((n) => data.sprite.animations[n].frames));
-  names.forEach((name, row) => {
+  const L = sheetLayout(data);
+  L.names.forEach((name, row) => {
     const def = data.sprite.animations[name];
     const animKey = fighterAnimKey(data.id, name);
     if (scene.anims.exists(animKey)) scene.anims.remove(animKey);
     scene.anims.create({
       key: animKey,
-      frames: Array.from({ length: def.frames }, (_, c) => ({ key, frame: row * cols + c })),
+      frames: Array.from({ length: def.frames }, (_, c) => ({ key, frame: frameIdx(L, row, c) })),
       frameRate: def.fps,
       repeat: def.loop ? -1 : 0,
     });

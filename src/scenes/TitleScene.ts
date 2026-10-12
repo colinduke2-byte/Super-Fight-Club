@@ -1,5 +1,5 @@
 import Phaser from 'phaser';
-import { fighterAnimKey, fighterTextureKey } from '../art/proceduralFighter';
+import { fighterAnimKey, fighterTextureKey, uiTexK } from '../art/proceduralFighter';
 import { CHARACTER_LIST } from '../characters';
 import { inputManager } from '../input/inputManager';
 import type { MenuEvent } from '../input/menuInput';
@@ -110,7 +110,7 @@ export class TitleScene extends MenuScene {
     for (let i = 0; i < n; i++) {
       const x = (w * (i + 1)) / (n + 1);
       const col = parseInt(CHARACTER_LIST[i].sprite.placeholder.accent.slice(1), 16);
-      this.sprites[i].setScale(spriteScale).setPosition(x, floorY);
+      this.sprites[i].setScale(spriteScale * uiTexK(CHARACTER_LIST[i])).setPosition(x, floorY);
       this.baseY.push(floorY);
       this.names[i].setPosition(x, nameY);
       // spotlight cone + floor glow + pad

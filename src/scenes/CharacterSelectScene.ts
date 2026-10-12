@@ -1,5 +1,5 @@
 import Phaser from 'phaser';
-import { animFrameIndex, fighterAnimKey, fighterTextureKey } from '../art/proceduralFighter';
+import { animFrameIndex, fighterAnimKey, fighterTextureKey, portraitCrop, uiTexK } from '../art/proceduralFighter';
 import { PIXEL_FONT } from '../art/pixelFont';
 import { CHARACTER_LIST } from '../characters';
 import { Lobby } from '../game/lobby';
@@ -73,7 +73,8 @@ export class CharacterSelectScene extends MenuScene {
       this.cards.push(card);
     }
     CHARACTER_LIST.forEach((c) => {
-      const img = this.add.image(0, 0, fighterTextureKey(c.id), animFrameIndex(c, 'idle', 0)).setOrigin(0.5, 0.5).setCrop(6, 0, 40, 40);
+      const img = this.add.image(0, 0, fighterTextureKey(c.id), animFrameIndex(c, 'idle', 0)).setOrigin(0.5, 0.5).setCrop(...portraitCrop(c));
+      img.setData('k', uiTexK(c));
       const name = text(this, this.ui, c.name, COLORS.text).setOrigin(0.5, 0);
       const pips = COLORS.p.slice(0, session.playerCount).map((col) => {
         const p = this.add.image(0, 0, 'px').setTint(col);
@@ -100,7 +101,7 @@ export class CharacterSelectScene extends MenuScene {
       c.frame.setPosition(cx, top + 70 * u).setDisplaySize(cw * 0.94, 140 * u);
       c.header.setScale(u * 2).setPosition(cx - (cw * 0.94) / 2 + 6 * u, top + 6 * u);
       c.device.setScale(u).setPosition(cx - (cw * 0.94) / 2 + 6 * u, top + 23 * u);
-      c.sprite.setScale(u * 0.95).setPosition(cx, top + 88 * u);
+      c.sprite.setScale(u * 0.95 * uiTexK(CHARACTER_LIST[0])).setPosition(cx, top + 88 * u);
       c.name.setScale(u * 1.5).setOrigin(0.5, 0).setPosition(cx, top + 92 * u);
       c.status.setScale(u * 1.2).setOrigin(0.5, 0).setPosition(cx, top + 106 * u);
       c.bars.forEach((b, k) => {
@@ -115,7 +116,7 @@ export class CharacterSelectScene extends MenuScene {
     const rw = Math.min(w / (rn + 0.5), 60 * u);
     this.roster.forEach((r, i) => {
       const cx = w / 2 + (i - (rn - 1) / 2) * rw;
-      r.img.setScale(u * 1.2).setPosition(cx - 6 * 1.2 * u, h * 0.82 - 20 * u);
+      r.img.setScale(u * 1.2 * (r.img.getData('k') as number)).setPosition(cx - 6 * 1.2 * u, h * 0.82 - 20 * u);
       r.name.setScale(u * 1.2).setPosition(cx, h * 0.82 + 6 * u);
       r.pips.forEach((p, k) => p.setScale((3 * u) / 4).setPosition(cx - ((r.pips.length - 1) * 4 * u) / 2 + k * 4 * u, h * 0.82 + 18 * u));
     });

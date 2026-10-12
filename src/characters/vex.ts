@@ -79,8 +79,8 @@ export const vex: CharacterData = {
   wallJump: true,
   dash: { speed: 5.4, frames: 11, invuln: [2, 7], cooldown: 22 },
   sprite: {
-    frameSize: 64,
-    pixelScale: 0.5,
+    frameSize: 128,
+    pixelScale: 0.29,
     animations: standardAnimations(['castF', 'castU', 'castD', 'dashS', 'raid']),
     placeholder: {
       skin: '#e8b890',
