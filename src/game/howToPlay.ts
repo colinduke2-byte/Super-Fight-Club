@@ -86,7 +86,21 @@ export const HOW_TO_PLAY: HowToPage[] = [
       ['STALE MOVES', 'Moves you spam hit softer. Mix it up.'],
       ['TRAINING MODE', 'Hitboxes, frame data and a dummy to practise on.'],
     ],
-    demo: ['halcyon', ['mv_nair', 'mv_bair', 'mv_dair', 'glide']],
+    demo: ['vex', ['mv_nair', 'mv_bair', 'mv_dair', 'idle']],
+  },
+  {
+    title: 'ITEMS AND STAGES',
+    rows: [
+      ['HEART', 'Heals 25%.'],
+      ['ENERGY CELL', '+50 ultimate meter.'],
+      ['OVERDRIVE', '10 seconds of +30% damage. You glow red.'],
+      ['AEGIS CORE', 'Rare: 5 seconds of invincibility.'],
+      ['SHOCK BOMB', 'Touch to carry, Attack to throw. Bursts on contact.'],
+      ['STAGE HAZARDS', 'Geysers, lightning, water spouts: mind the warning.'],
+      ['SOAKED', 'Wet fighters fly further, and fire will not catch.'],
+      ['VERSUS SETUP', 'Turn items and hazards on or off.'],
+    ],
+    demo: ['gizmo', ['idle', 'run', 'mv_fsmash', 'idle']],
   },
   {
     title: 'THE FIGHTERS',

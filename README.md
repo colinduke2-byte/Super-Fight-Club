@@ -33,8 +33,8 @@ alt = Grab (U / Tab: add CPU in the lobby), Start = pad Start. In the character 
 join the next free slot; empty slots are filled with CPUs (a warning says so). Players 3-4 need controllers.
 Settings holds audio, the announcer, stage ambience (surf, rain and thunder, the reactor's hum, birdsong; `src/audio/ambience.ts`), particles, FPS counter, fullscreen, tap-jump, smash mode and deadzone, with a one-line
 explanation of the selected option; **Controls** rebinds both keyboard schemes and both gamepad profiles (saved to localStorage),
-and opened from the pause menu it runs over the paused match and returns to it. **How to Play** is a seven-page guide (the goal,
-moving, attacking, defending, grabs, advanced tech, the fighters) with an animated fighter on each page (`src/game/howToPlay.ts`). Menus fade
+and opened from the pause menu it runs over the paused match and returns to it. **How to Play** is an eight-page guide (the goal,
+moving, attacking, defending, grabs, advanced tech, items and stages, the fighters) with an animated fighter on each page (`src/game/howToPlay.ts`). Menus fade
 between scenes and every list sits on a backing plate with a cursor bar. **Challenges** are ten hand-built scenarios (as a set
 fighter or any, against odds, in teams, on a timer, with bombs only...; `src/game/challenges.ts`), each cleared once and ticked off in
 Records. Leave the title screen idle for 25 s and a **demo** match of random CPUs plays; any key returns to the title. During READY every fighter makes an entrance (Brick drops in with a slam, Vex blinks in, Nova materialises in a rune

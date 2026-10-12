@@ -65,7 +65,7 @@ export class HowToPlayScene extends MenuScene {
     const by = h * 0.18;
     const bh = h - 20 * u - by;
     const roomForDemo = w > h * 1.2;
-    this.box = { x: bx, y: by, w: bw, h: bh, demoX: bx + bw - 44 * u, floorY: by + bh - 8 * u, k: roomForDemo ? 1 : 0 };
+    this.box = { x: bx, y: by, w: bw, h: bh, demoX: bx + bw - 60 * u, floorY: by + bh - 8 * u, k: roomForDemo ? 1 : 0 };
     this.relayoutPage();
   }
 
@@ -75,7 +75,7 @@ export class HowToPlayScene extends MenuScene {
     const u = this.u;
     const { x, y, w, h } = this.box;
     const p = HOW_TO_PLAY[this.page];
-    const demoW = this.box.k ? 92 * u : 0;
+    const demoW = this.box.k ? 120 * u : 0;
     this.tab.setScale(u * 1.5).setPosition(x + w / 2, y + 9 * u);
     const widest = Math.max(...p.rows.map((_, i) => Math.max(textPx(this.keys[i]), textPx(this.descs[i]) + 8)));
     const inner = w - demoW - 16 * u;
@@ -129,7 +129,7 @@ export class HowToPlayScene extends MenuScene {
       this.sprite.setTexture(fighterTextureKey(c.id), 0);
       this.sprite.play(loops ? key : { key, frameRate: 10, repeat: 0 });
     }
-    const sc = Math.min(this.u * 2, (this.box.h * 0.55) / 64);
+    const sc = Math.min(this.u * 1.6, (this.box.h * 0.5) / 64);
     this.sprite.setScale(sc * uiTexK(c)).setPosition(this.box.demoX, this.box.floorY);
   }
 
