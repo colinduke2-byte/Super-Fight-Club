@@ -22,6 +22,8 @@ export interface Settings {
   killCam: boolean;
   /** Spoken countdown, "GAME!" and the winner's name (browser speech synthesis). */
   announcer: boolean;
+  /** Stage ambience under the music (surf, rain, the reactor's hum...). */
+  ambience: boolean;
   /** 0..1 master and sound-effect volume. */
   masterVolume: number;
   sfxVolume: number;
@@ -40,6 +42,7 @@ export const DEFAULT_SETTINGS: Settings = {
   reduceFlashes: false,
   killCam: true,
   announcer: true,
+  ambience: true,
   masterVolume: 0.7,
   sfxVolume: 1,
   musicVolume: 0.6,

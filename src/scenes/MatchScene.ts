@@ -3,6 +3,7 @@ import { ensurePalette } from '../art/proceduralFighter';
 import { assignPalettes } from '../art/palettes';
 import Phaser from 'phaser';
 import { characterById, CHARACTERS } from '../characters';
+import { ambience } from '../audio/ambience';
 import { music } from '../audio/music';
 import { sfx } from '../audio/sfx';
 import { TrainingRunner } from '../engine/training';
@@ -297,6 +298,7 @@ export class MatchScene extends Phaser.Scene {
     sfx.arm();
     const track = this.slots.some((s) => s.boss) ? 'boss' : (stage.music ?? 'classic');
     music.play(track);
+    ambience.start(stage.background.theme);
     // back from the Controls overlay: the stage music and a clean frame clock
     const onResume = (): void => {
       music.play(track);
@@ -435,6 +437,7 @@ export class MatchScene extends Phaser.Scene {
       this.scale.off('resize', this.onResize, this);
       keyboardHub.onKeyDown = null;
       music.setDuck(1);
+      ambience.stop();
       inputManager.onPadConnect = null;
       inputManager.onPadDisconnect = null;
     });
@@ -517,6 +520,7 @@ export class MatchScene extends Phaser.Scene {
 
   // ---------------------------------------------------------------------------------------------
   override update(): void {
+    ambience.update();
     const now = performance.now();
     const frameMs = now - this.lastNow;
     this.lastNow = now;
@@ -995,6 +999,7 @@ export class MatchScene extends Phaser.Scene {
     const was = this.paused;
     this.paused = p;
     this.pauseReason = p ? reason : '';
+    ambience.setLevel(p ? 0.3 : 1);
     this.pauseOverlay.setVisible(p);
     this.pauseText.setVisible(p);
     this.pauseMenu.setVisible(p);
