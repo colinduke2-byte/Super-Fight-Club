@@ -319,6 +319,7 @@ export function deliverHit(world: World, d: HitDelivery): void {
   if (hb.status) def.applyStatus(hb.status, world);
   if (owner) owner.hitlag = hl;
   if (atk) {
+    if (d.freezeOwner !== false) atk.moveLanded = true; // melee, not projectiles or traps
     atk.gainMeter(d.damage, world);
     atk.gainResourcesDealt(d.damage);
     atk.data.behavior?.onHitDealt?.(atk, def, hb, d.damage, world);

@@ -248,3 +248,36 @@ describe('short-hop aerial shortcut', () => {
     expect(-minY).toBeLessThan(f.stats.shortHopHeight * 1.2);
   });
 });
+
+describe('hit confirm: landed normals recover faster', () => {
+  const framesToAct = (withTarget: boolean, shield = false): number => {
+    const world = new World(sandboxStage);
+    const a = new Fighter(0, agni);
+    const b = new Fighter(1, agni);
+    world.addFighter(a);
+    world.addFighter(b);
+    a.spawn(0, -2, 1);
+    b.spawn(withTarget ? 22 : 400, -2, -1);
+    for (let i = 0; i < 40; i++) world.step([inp(), inp()]);
+    a.invuln = b.invuln = 0;
+    const hold = shield ? inp({ held: Button.Shield }) : inp();
+    if (shield) for (let i = 0; i < 6; i++) world.step([inp(), hold]);
+    world.step([inp({ stickX: 0.6, pressed: Button.Attack, held: Button.Attack }), hold]);
+    expect(a.move?.id).toBe('ftilt');
+    let n = 1;
+    while (a.state === 'attack' && n < 120) {
+      const frozen = a.hitlag > 0; // hit-stop frames do not count
+      world.step([inp(), hold]);
+      if (!frozen) n++;
+    }
+    return n;
+  };
+
+  it('a forward tilt that hits ends sooner than a whiff; a shielded one keeps its full recovery', () => {
+    const whiff = framesToAct(false);
+    const hit = framesToAct(true);
+    const shielded = framesToAct(true, true);
+    expect(hit).toBeLessThan(whiff - 4);
+    expect(shielded).toBeGreaterThan(hit);
+  });
+});

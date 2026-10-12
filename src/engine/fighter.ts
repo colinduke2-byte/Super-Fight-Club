@@ -72,6 +72,12 @@ export const COMBO_STUN_STEP = 0.04;
 export const COMBO_STUN_MIN = 0.6;
 /** Frames of actionable state after which a combo is considered over. */
 export const COMBO_GAP = 24;
+/**
+ * Hit confirm: a jab / tilt / aerial / dash attack that lands on a fighter (not a shield) keeps only this fraction of
+ * its recovery, so strings flow; whiffs and shielded hits keep the full recovery and stay punishable.
+ */
+export const HIT_RECOVERY_KEEP = 0.5;
+const QUICK_ON_HIT: ReadonlySet<string> = new Set(['jab', 'tilt', 'aerial', 'dashAttack']);
 /** Hitlag SDI: stick flicks during hit-stop nudge the victim this many px, up to SDI_MAX times per hit. */
 export const SDI_DIST = 5;
 export const SDI_MAX = 3;
@@ -267,6 +273,8 @@ export class Fighter implements Body {
   private chargeButton = 0;
   private queuedNext = false;
   moveHit = false;
+  /** The current move hit a fighter cleanly (not a shield, parry or armor). */
+  moveLanded = false;
   /** Outgoing damage multiplier (character mechanics like Heat hook in here). */
   damageMult = 1;
   /** Permanent speed bonus a character mechanic can set each tick (Halcyon's Gale). */
@@ -1342,6 +1350,7 @@ export class Fighter implements Body {
     this.chargeFrames = 0;
     this.queuedNext = false;
     this.moveHit = false;
+    this.moveLanded = false;
     this.bReversed = false;
     this.moveStale = this.staleMult(m.id);
     this.hitMask.fill(0);
@@ -1493,6 +1502,10 @@ export class Fighter implements Body {
     if (!this.grounded && m.kind === 'special' && m.ledgeGrab !== false) this.tryLedgeGrab(inp, world);
     if (this.state !== 'attack') return;
 
+    if (this.moveLanded && !this.queuedNext && QUICK_ON_HIT.has(m.kind) && f >= m.startup + m.active + Math.ceil(m.recovery * HIT_RECOVERY_KEEP)) {
+      this.finishMove(world);
+      return;
+    }
     if (this.moveFrame >= moveTotal(m)) this.finishMove(world);
   }
 

@@ -313,12 +313,12 @@
    "anim": "jab",
    "startup": 6,
    "active": 2,
-   "recovery": 12,
+   "recovery": 9,
    "next": {
     "id": "jab2",
     "from": 6,
-    "to": 16,
-    "at": 15
+    "to": 13,
+    "at": 13
    },
    "cancels": [
     {
@@ -366,12 +366,12 @@
    "anim": "jabB",
    "startup": 6,
    "active": 2,
-   "recovery": 12,
+   "recovery": 9,
    "next": {
     "id": "jab3",
     "from": 6,
-    "to": 16,
-    "at": 15
+    "to": 13,
+    "at": 13
    },
    "cancels": [
     {
@@ -416,7 +416,7 @@
    "anim": "smashF",
    "startup": 8,
    "active": 3,
-   "recovery": 22,
+   "recovery": 17,
    "cancels": [
     {
      "button": "special",
@@ -462,7 +462,7 @@
    "anim": "jab",
    "startup": 8,
    "active": 3,
-   "recovery": 16,
+   "recovery": 12,
    "cancels": [
     {
      "button": "special",
@@ -524,7 +524,7 @@
    "anim": "smashU",
    "startup": 6,
    "active": 4,
-   "recovery": 16,
+   "recovery": 12,
    "cancels": [
     {
      "button": "jump",
@@ -572,7 +572,7 @@
    "anim": "smashD",
    "startup": 5,
    "active": 3,
-   "recovery": 14,
+   "recovery": 11,
    "cancels": [
     {
      "button": "special",
@@ -620,7 +620,7 @@
    "anim": "dashS",
    "startup": 7,
    "active": 8,
-   "recovery": 22,
+   "recovery": 18,
    "motion": [
     {
      "frame": 3,
@@ -660,7 +660,7 @@
    "anim": "smashF",
    "startup": 16,
    "active": 3,
-   "recovery": 30,
+   "recovery": 26,
    "charge": {
     "frame": 6,
     "max": 60,
@@ -712,7 +712,7 @@
    "anim": "smashU",
    "startup": 13,
    "active": 4,
-   "recovery": 28,
+   "recovery": 24,
    "charge": {
     "frame": 5,
     "max": 60,
@@ -750,7 +750,7 @@
    "anim": "smashD",
    "startup": 14,
    "active": 5,
-   "recovery": 28,
+   "recovery": 24,
    "charge": {
     "frame": 5,
     "max": 60,
@@ -800,16 +800,16 @@
    "anim": "aerialN",
    "startup": 5,
    "active": 20,
-   "recovery": 12,
-   "landingLag": 12,
+   "recovery": 9,
+   "landingLag": 10,
    "autocancel": [
     [
      1,
      5
     ],
     [
-     36,
-     40
+     33,
+     37
     ]
    ],
    "cancels": [
@@ -882,16 +882,16 @@
    "anim": "aerialF",
    "startup": 11,
    "active": 4,
-   "recovery": 20,
-   "landingLag": 16,
+   "recovery": 16,
+   "landingLag": 13,
    "autocancel": [
     [
      1,
      6
     ],
     [
-     32,
-     35
+     28,
+     31
     ]
    ],
    "cancels": [
@@ -949,16 +949,16 @@
    "anim": "aerialB",
    "startup": 6,
    "active": 3,
-   "recovery": 15,
-   "landingLag": 12,
+   "recovery": 12,
+   "landingLag": 10,
    "autocancel": [
     [
      1,
      5
     ],
     [
-     22,
-     26
+     19,
+     23
     ]
    ],
    "hitboxes": [
@@ -988,16 +988,16 @@
    "anim": "aerialU",
    "startup": 7,
    "active": 5,
-   "recovery": 16,
-   "landingLag": 11,
+   "recovery": 12,
+   "landingLag": 9,
    "autocancel": [
     [
      1,
      4
     ],
     [
-     24,
-     28
+     20,
+     24
     ]
    ],
    "hitboxes": [
@@ -1026,8 +1026,8 @@
    "anim": "aerialD",
    "startup": 14,
    "active": 2,
-   "recovery": 20,
-   "landingLag": 18,
+   "recovery": 16,
+   "landingLag": 14,
    "gravityScale": 0.4,
    "autocancel": [
     [
