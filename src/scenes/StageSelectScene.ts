@@ -44,12 +44,17 @@ export class StageSelectScene extends MenuScene {
   }
 
   protected override layoutUi(w: number, h: number, u: number): void {
-    this.title.setScale(u * 4).setPosition(w / 2, h * 0.1);
-    this.list.layout(w * 0.28, h * 0.3, u, 110);
-    this.area = { x: w * 0.5, y: h * 0.22, w: w * 0.44, h: w * 0.44 * (9 / 16) };
-    this.blurb.setScale(u * 1.1).setPosition(w * 0.5, this.area.y + this.area.h + 6 * u);
-    this.wrapChars = Math.max(10, Math.floor((w * 0.44) / (7.6 * u * 1.1)));
-    this.tags.setScale(u).setPosition(w * 0.5, h - 22 * u);
+    this.title.setScale(Math.min(u * 4, (w * 0.9) / Math.max(1, textPx(this.title)))).setPosition(w / 2, h * 0.1);
+    // list on the left, preview on the right: shrink the list's unit so the longest name fits its column
+    const lu = Math.max(0.8, Math.min(u, (w * 0.44) / 190)); // the longest name is ~180 units wide at full size
+    this.list.layout(w * 0.04 + 95 * lu, h * 0.28, lu, 190);
+    const aw = w * 0.46;
+    const ah = Math.min(aw * (9 / 16), h * 0.42);
+    this.area = { x: w * 0.5, y: h * 0.22, w: ah * (16 / 9), h: ah };
+    const bu = Math.max(0.75, Math.min(u * 1.1, (h * 0.2) / 40));
+    this.blurb.setScale(bu).setPosition(w * 0.5, this.area.y + this.area.h + 5 * u);
+    this.wrapChars = Math.max(10, Math.floor((w * 0.46) / (7.6 * bu)));
+    this.tags.setScale(Math.min(u, bu)).setPosition(w * 0.5, h - 22 * u);
     this.hint.setScale(Math.min(u, (w * 0.97) / Math.max(1, textPx(this.hint)))).setPosition(w / 2, h - 10 * u);
   }
 
@@ -78,7 +83,7 @@ export class StageSelectScene extends MenuScene {
       if (stage.hazards?.length) tags.push(`HAZARD: ${stage.hazards[0].kind === 'bolt' ? 'LIGHTNING' : 'GEYSER'}`);
       this.tags.setText(tags.join('   '));
     } else this.tags.setText('');
-    this.tags.setY(this.blurb.y + this.blurb.displayHeight + 5 * this.u);
+    this.tags.setY(Math.min(this.blurb.y + this.blurb.displayHeight + 4 * this.u, this.scale.height - 20 * this.u));
     if (!stage) {
       // RANDOM: question mark card
       g.fillStyle(0x4a4578, 1).fillRect(a.x + a.w / 2 - 6, a.y + a.h / 2 - 20, 12, 40);

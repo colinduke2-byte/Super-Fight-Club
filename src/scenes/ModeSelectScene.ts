@@ -72,12 +72,12 @@ export class ModeSelectScene extends MenuScene {
     this.desc.setScale(u * 1.5).setPosition(w / 2, h * 0.78);
     // flanking fighters only when there is room beside the menu
     const room = w > h * 1.25;
-    this.showScale = Math.max(0.6, Math.min(u * 2.4, (h * 0.42) / 64));
-    this.floorY = h * 0.7;
+    this.floorY = Math.min(h * 0.7, h * 0.78 - 20 * u);
+    this.showScale = Math.max(0.6, Math.min(u * 2.4, (this.floorY - h * 0.25) / 64));
     this.showcase.forEach((s, side) => {
       const x = side === 0 ? w * 0.17 : w * 0.83;
       s.sprite.setVisible(room).setPosition(x, this.floorY).setScale(this.showScale * uiTexK(CHARACTER_LIST[s.idx]));
-      s.name.setVisible(room).setScale(u * 1.2).setPosition(x, this.floorY + 4 * u);
+      s.name.setVisible(room && h >= 560).setScale(u * 1.2).setPosition(x, this.floorY + 4 * u);
     });
     this.hint.setScale(Math.min(u, (w * 0.97) / Math.max(1, textPx(this.hint)))).setPosition(w / 2, h - 10 * u);
   }
