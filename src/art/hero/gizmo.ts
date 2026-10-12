@@ -134,18 +134,27 @@ export function drawGizmo(r: Raster, k: Skel, look: PlaceholderLook): void {
     const ln = Math.hypot(dx, dy) || 1;
     dx /= ln;
     dy /= ln;
-    if (dy > 0.8) {
+    if (k.pose.aim !== undefined) {
+      // the move swings the wrench explicitly (degrees: 0 forward, -90 up, 90 down)
+      const a = (k.pose.aim * Math.PI) / 180;
+      dx = Math.cos(a);
+      dy = Math.sin(a);
+    } else if (dy > 0.8) {
       dx = 0.5;
       dy = 0.85;
     }
-    const tx = k.handF[0] + dx * 26;
-    const ty = k.handF[1] + dy * 26;
-    r.seg(P.steelD, k.handF[0], k.handF[1], tx, ty, 6, 6);
+    // an oversized monkey wrench: knurled handle, adjuster ring and an open jaw
+    const wl = dy > 0.3 ? Math.max(14, Math.min(32, (k.base - 12 - k.handF[1]) / dy)) : 32; // never through the floor
+    const tx = k.handF[0] + dx * wl;
+    const ty = k.handF[1] + dy * wl;
+    r.seg(P.steelD, k.handF[0] - dx * 6, k.handF[1] - dy * 6, tx, ty, 7, 7);
     r.seg(P.shine, k.handF[0] + 1, k.handF[1], tx + 1, ty, 1.5, 1.5);
-    r.ellipse(P.steel, tx, ty, 9, 9);
+    r.ellipse(P.accent, k.handF[0] + dx * 20, k.handF[1] + dy * 20, 3.6, 3.6);
+    r.ellipse(P.steel, tx, ty, 11, 11);
     const nx = -dy;
     const ny = dx;
-    r.poly(P.deep, [[tx + nx * 4 + dx * 2, ty + ny * 4 + dy * 2], [tx + nx * 4 + dx * 11, ty + ny * 4 + dy * 11], [tx - nx * 4 + dx * 11, ty - ny * 4 + dy * 11], [tx - nx * 4 + dx * 2, ty - ny * 4 + dy * 2]]);
+    r.poly(P.deep, [[tx + nx * 5 + dx * 2, ty + ny * 5 + dy * 2], [tx + nx * 5 + dx * 13, ty + ny * 5 + dy * 13], [tx - nx * 5 + dx * 13, ty - ny * 5 + dy * 13], [tx - nx * 5 + dx * 2, ty - ny * 5 + dy * 2]]);
+    r.ellipse(P.rivet, tx - dx * 4 + nx * 5, ty - dy * 4 + ny * 5, 1.5, 1.5);
     r.ellipse(P.steel, k.handF[0], k.handF[1], 6, 6);
     r.ellipse(P.accent, k.handF[0], k.handF[1], 2, 2);
   }

@@ -354,7 +354,12 @@
     ],
     "lean": 3,
     "step": 2,
-    "t": "slash"
+    "t": "slash",
+    "aim": [
+     -35,
+     -2,
+     -15
+    ]
    },
    "view": {
     "arc": "line"
@@ -407,7 +412,12 @@
     ],
     "lean": 3,
     "step": 3,
-    "t": "slash"
+    "t": "slash",
+    "aim": [
+     -70,
+     20,
+     0
+    ]
    }
   },
   "jab3": {
@@ -449,7 +459,12 @@
     "reach": 14,
     "h": -12,
     "lean": 4,
-    "t": "spin"
+    "t": "spin",
+    "aim": [
+     -150,
+     15,
+     -60
+    ]
    },
    "view": {
     "arc": "ring",
@@ -511,7 +526,12 @@
     "h": -8,
     "lean": 5,
     "step": 6,
-    "t": "punch"
+    "t": "punch",
+    "aim": [
+     -25,
+     -4,
+     -30
+    ]
    },
    "view": {
     "arc": "line",
@@ -563,7 +583,12 @@
      -42
     ],
     "lean": -2,
-    "t": "slash"
+    "t": "slash",
+    "aim": [
+     35,
+     -92,
+     -70
+    ]
    }
   },
   "dtilt": {
@@ -611,7 +636,12 @@
      10
     ],
     "crouch": 6,
-    "t": "slash"
+    "t": "slash",
+    "aim": [
+     -45,
+     40,
+     20
+    ]
    }
   },
   "dashAttack": {
@@ -652,7 +682,30 @@
      "scaling": 0.6,
      "fx": "punch"
     }
-   ]
+   ],
+   "pose": {
+    "t": "thrust",
+    "hand": "front",
+    "reach": 22,
+    "h": -10,
+    "lean": 8,
+    "step": 10,
+    "wind": [
+     -6,
+     -8
+    ],
+    "aim": [
+     -30,
+     -6,
+     -20
+    ]
+   },
+   "view": {
+    "stretch": 1.14,
+    "smear": 1.3,
+    "ghosts": true,
+    "arc": "line"
+   }
   },
   "fsmash": {
    "name": "Staff Burst",
@@ -699,7 +752,12 @@
     ],
     "lean": 7,
     "step": 8,
-    "t": "slash"
+    "t": "slash",
+    "aim": [
+     -125,
+     25,
+     10
+    ]
    },
    "view": {
     "stretch": 1.1,
@@ -738,7 +796,12 @@
     "reach": 10,
     "h": -46,
     "crouch": 5,
-    "t": "uppercut"
+    "t": "uppercut",
+    "aim": [
+     40,
+     -92,
+     -80
+    ]
    },
    "view": {
     "smear": 1.3
@@ -787,7 +850,12 @@
     "reach": 19,
     "h": 8,
     "crouch": 6,
-    "t": "spin"
+    "t": "spin",
+    "aim": [
+     -80,
+     8,
+     -40
+    ]
    },
    "view": {
     "arc": "ring",
@@ -870,7 +938,12 @@
    "pose": {
     "reach": 15,
     "h": -10,
-    "t": "spin"
+    "t": "spin",
+    "aim": [
+     -150,
+     25,
+     -60
+    ]
    },
    "view": {
     "arc": "ring"
@@ -940,7 +1013,12 @@
     ],
     "lean": 4,
     "step": 4,
-    "t": "slash"
+    "t": "slash",
+    "aim": [
+     -115,
+     40,
+     15
+    ]
    }
   },
   "bair": {
@@ -979,7 +1057,12 @@
     "reach": 17,
     "h": -8,
     "lean": 7,
-    "t": "elbow"
+    "t": "elbow",
+    "aim": [
+     -60,
+     178,
+     -100
+    ]
    }
   },
   "uair": {
@@ -1017,7 +1100,12 @@
     "reach": 6,
     "h": -44,
     "crouch": 2,
-    "t": "uppercut"
+    "t": "uppercut",
+    "aim": [
+     25,
+     -100,
+     -70
+    ]
    }
   },
   "dair": {
@@ -1067,7 +1155,12 @@
     "reach": 8,
     "h": 16,
     "lean": 2,
-    "t": "slam"
+    "t": "slam",
+    "aim": [
+     -95,
+     90,
+     55
+    ]
    },
    "view": {
     "stretch": 1.08
@@ -1818,6 +1911,92 @@
    "view": {
     "stretch": 1.1,
     "ghosts": true
+   }
+  },
+  "taunt": {
+   "name": "Taunt",
+   "kind": "jab",
+   "anim": "idle",
+   "startup": 6,
+   "active": 1,
+   "recovery": 44,
+   "hidden": true,
+   "events": [
+    {
+     "frame": 7,
+     "action": "fx",
+     "name": "taunt"
+    }
+   ],
+   "hitboxes": [],
+   "pose": {
+    "t": "custom",
+    "keys": [
+     [
+      -2,
+      2,
+      [
+       2,
+       -6
+      ],
+      [
+       -4,
+       -6
+      ],
+      [
+       6,
+       0
+      ],
+      [
+       -6,
+       0
+      ]
+     ],
+     [
+      -4,
+      0,
+      [
+       4,
+       -34
+      ],
+      [
+       -8,
+       -10
+      ],
+      [
+       4,
+       0
+      ],
+      [
+       -6,
+       0
+      ]
+     ],
+     [
+      -3,
+      0,
+      [
+       4,
+       -30
+      ],
+      [
+       -6,
+       -8
+      ],
+      [
+       4,
+       0
+      ],
+      [
+       -6,
+       0
+      ]
+     ]
+    ]
+   },
+   "view": {
+    "arc": "none",
+    "smear": 0.4
    }
   }
  }

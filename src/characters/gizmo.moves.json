@@ -149,7 +149,12 @@
     "h": -4,
     "lean": -3,
     "step": 2,
-    "t": "punch"
+    "t": "punch",
+    "aim": [
+     -25,
+     -2,
+     -12
+    ]
    },
    "view": {
     "arc": "line"
@@ -206,7 +211,12 @@
     "h": -10,
     "lean": 3,
     "step": 3,
-    "t": "hook"
+    "t": "hook",
+    "aim": [
+     -70,
+     10,
+     -5
+    ]
    }
   },
   "jab3": {
@@ -257,7 +267,12 @@
     "reach": 14,
     "h": 8,
     "lean": 6,
-    "t": "overhead"
+    "t": "overhead",
+    "aim": [
+     -115,
+     55,
+     35
+    ]
    },
    "view": {
     "stretch": 1.08,
@@ -313,7 +328,12 @@
     "h": -6,
     "lean": 6,
     "step": 6,
-    "t": "thrust"
+    "t": "thrust",
+    "aim": [
+     -15,
+     -4,
+     -12
+    ]
    },
    "view": {
     "arc": "line",
@@ -356,7 +376,12 @@
     "reach": 6,
     "h": -36,
     "crouch": 3,
-    "t": "uppercut"
+    "t": "uppercut",
+    "aim": [
+     35,
+     -95,
+     -70
+    ]
    }
   },
   "dtilt": {
@@ -397,7 +422,12 @@
    "pose": {
     "reach": 21,
     "crouch": 8,
-    "t": "sweep"
+    "t": "sweep",
+    "aim": [
+     10,
+     40,
+     25
+    ]
    }
   },
   "dashAttack": {
@@ -438,7 +468,30 @@
      "hitlag": 1.1,
      "fx": "heavy"
     }
-   ]
+   ],
+   "pose": {
+    "t": "thrust",
+    "hand": "front",
+    "reach": 20,
+    "h": -8,
+    "lean": 9,
+    "step": 10,
+    "wind": [
+     -6,
+     -6
+    ],
+    "aim": [
+     -20,
+     -6,
+     -15
+    ]
+   },
+   "view": {
+    "stretch": 1.15,
+    "smear": 1.3,
+    "ghosts": true,
+    "arc": "line"
+   }
   },
   "fsmash": {
    "name": "Wrench Swing",
@@ -501,7 +554,12 @@
     ],
     "lean": 7,
     "step": 9,
-    "t": "slash"
+    "t": "slash",
+    "aim": [
+     -135,
+     8,
+     25
+    ]
    },
    "view": {
     "stretch": 1.12,
@@ -543,7 +601,12 @@
     "reach": 8,
     "h": -44,
     "crouch": 6,
-    "t": "uppercut"
+    "t": "uppercut",
+    "aim": [
+     45,
+     -95,
+     -80
+    ]
    },
    "view": {
     "smear": 1.3
@@ -592,7 +655,12 @@
     "reach": 18,
     "h": 6,
     "crouch": 7,
-    "t": "spin"
+    "t": "spin",
+    "aim": [
+     -75,
+     10,
+     -30
+    ]
    },
    "view": {
     "arc": "ring",
@@ -675,7 +743,12 @@
    "pose": {
     "reach": 12,
     "h": -8,
-    "t": "spin"
+    "t": "spin",
+    "aim": [
+     -150,
+     20,
+     -60
+    ]
    },
    "view": {
     "arc": "ring"
@@ -763,7 +836,12 @@
     "h": -8,
     "lean": 6,
     "step": 5,
-    "t": "thrust"
+    "t": "thrust",
+    "aim": [
+     -25,
+     -6,
+     -15
+    ]
    },
    "view": {
     "arc": "line"
@@ -853,7 +931,12 @@
     "reach": 4,
     "h": -40,
     "crouch": 1,
-    "t": "uppercut"
+    "t": "uppercut",
+    "aim": [
+     20,
+     -100,
+     -70
+    ]
    }
   },
   "dair": {
@@ -892,7 +975,12 @@
     "reach": 8,
     "h": 16,
     "lean": 2,
-    "t": "slam"
+    "t": "slam",
+    "aim": [
+     -95,
+     90,
+     60
+    ]
    },
    "view": {
     "stretch": 1.1,
@@ -1614,6 +1702,92 @@
     "t": "custom"
    },
    "view": {}
+  },
+  "taunt": {
+   "name": "Taunt",
+   "kind": "jab",
+   "anim": "idle",
+   "startup": 6,
+   "active": 1,
+   "recovery": 44,
+   "hidden": true,
+   "events": [
+    {
+     "frame": 7,
+     "action": "fx",
+     "name": "taunt"
+    }
+   ],
+   "hitboxes": [],
+   "pose": {
+    "t": "custom",
+    "keys": [
+     [
+      0,
+      2,
+      [
+       2,
+       -6
+      ],
+      [
+       -4,
+       -6
+      ],
+      [
+       6,
+       0
+      ],
+      [
+       -6,
+       0
+      ]
+     ],
+     [
+      -2,
+      0,
+      [
+       10,
+       -28
+      ],
+      [
+       -6,
+       -4
+      ],
+      [
+       6,
+       0
+      ],
+      [
+       -6,
+       0
+      ]
+     ],
+     [
+      0,
+      0,
+      [
+       14,
+       -26
+      ],
+      [
+       -6,
+       -4
+      ],
+      [
+       6,
+       0
+      ],
+      [
+       -6,
+       0
+      ]
+     ]
+    ]
+   },
+   "view": {
+    "arc": "none",
+    "smear": 0.4
+   }
   }
  }
 }

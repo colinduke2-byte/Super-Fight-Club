@@ -154,7 +154,12 @@ export function drawNova(r: Raster, k: Skel, look: PlaceholderLook): void {
     const ln = Math.hypot(dx, dy) || 1;
     dx /= ln;
     dy /= ln;
-    if (dy > 0.7) {
+    if (k.pose.aim !== undefined) {
+      // the move aims the staff explicitly (degrees: 0 forward, -90 up, 90 down)
+      const a = (k.pose.aim * Math.PI) / 180;
+      dx = Math.cos(a);
+      dy = Math.sin(a);
+    } else if (dy > 0.7) {
       dx = 0.1;
       dy = -1; // resting: planted upright
     }

@@ -41,7 +41,7 @@ describe('frame data (brick.moves.json)', () => {
   it('parses and every move is internally consistent', () => {
     for (const m of Object.values(brick.moves)) {
       expect(moveTotal(m)).toBe(m.startup + m.active + m.recovery);
-      expect(m.hitboxes.length).toBeGreaterThan(0);
+      if (m.id !== 'taunt') expect(m.hitboxes.length).toBeGreaterThan(0); // the taunt is all pose
       for (const hb of m.hitboxes) {
         const [from, to] = hitboxFrames(m, hb);
         expect(from).toBeGreaterThan(m.startup);

@@ -94,6 +94,7 @@ export const nova: CharacterData = {
   body: { width: 16, height: 28, footHalfWidth: 6 },
   sprite: {
     frameSize: 160,
+    frameWidth: 216, // room for the staff swung level
     pixelScale: 0.29,
     animations: standardAnimations(['castF', 'castU', 'castD', 'dashS', 'raid']),
     placeholder: {

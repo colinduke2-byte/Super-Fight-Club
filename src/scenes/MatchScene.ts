@@ -35,6 +35,7 @@ import { COLORS, MenuList } from '../ui/menuKit';
 import { KoBlast } from '../ui/KoBlast';
 import { OffscreenBubbles } from '../ui/OffscreenBubbles';
 import { PlayerTags } from '../ui/PlayerTags';
+import { TauntBubbles } from '../ui/TauntBubbles';
 import { UltCutIn } from '../ui/UltCutIn';
 import { TargetView } from '../ui/TargetView';
 import { LaunchView } from '../ui/LaunchView';
@@ -106,6 +107,7 @@ export class MatchScene extends Phaser.Scene {
   private koBlast!: KoBlast;
   private bubbles!: OffscreenBubbles;
   private tags!: PlayerTags;
+  private bubblesSay!: TauntBubbles;
   private cutIn!: UltCutIn;
   /** Target Smash run (single fighter, break every target). */
   private isTargets = false;
@@ -324,6 +326,7 @@ export class MatchScene extends Phaser.Scene {
     const cpus = this.slots.filter((s) => s.type === 'cpu' && !s.boss).length;
     const labels = (this.labels = this.slots.map((s, i) => (s.boss ? 'BOSS' : this.isTraining ? (i === 0 ? 'YOU' : 'DUMMY') : s.type === 'cpu' ? (cpus > 1 ? `CPU${i + 1}` : 'CPU') : `P${i + 1}`)));
     this.tags = new PlayerTags(this, this.uiLayer, this.fighters, this.views, labels, tagColors);
+    this.bubblesSay = new TauntBubbles(this, this.uiLayer, this.fighters, this.views);
     this.cutIn = new UltCutIn(this, this.uiLayer);
     this.ultOn = this.fighters.map(() => false);
     this.bubbles = new OffscreenBubbles(this, this.uiLayer, this.fighters, this.views, tagColors);
@@ -420,6 +423,7 @@ export class MatchScene extends Phaser.Scene {
     });
     this.world.listener = (type, f, x, y, mag, extra, tag) => {
       this.training?.onEvent(type, f, x, y, mag, extra);
+      if (type === 'moveStart' && f?.move?.id === 'taunt') this.bubblesSay.say(f.id, performance.now());
       this.eventFx.handle(type, f, x, y, mag, extra, tag);
     };
 
@@ -833,6 +837,7 @@ export class MatchScene extends Phaser.Scene {
     this.koBlast.update(Math.min(frameMs, 50) / 1000, this.scale.width, this.scale.height);
     const hu = this.hudUnit(this.scale.height);
     this.tags.update(this.worldCam.worldView, this.scale.width, this.scale.height, hu);
+    this.bubblesSay.update(performance.now(), this.worldCam.worldView, this.scale.width, this.scale.height, hu);
     // an ultimate starting: cut-in banner (once per activation)
     this.fighters.forEach((f, i) => {
       const ult = f.state === 'attack' && f.move?.kind === 'ultimate';
