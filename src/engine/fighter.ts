@@ -965,6 +965,7 @@ export class Fighter implements Body {
       // tap down on a pass-through platform to drop through it
       if (this.flickDown > 0 && inp.stickY > STICK_CROUCH && this.groundPlat && this.groundPlat.kind === 'pass') {
         this.flickDown = 0;
+        this.buffer.consume(Button.Jump); // a jump pressed together with the drop is spent on it
         this.dropThrough();
         this.airLogic(inp, world, true);
         return;
