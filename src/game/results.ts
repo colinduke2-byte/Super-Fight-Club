@@ -16,6 +16,7 @@ export function buildResult(
   durationTicks: number,
   teams: readonly number[] = [],
   winnerTeam = -1,
+  bestCombo: readonly number[] = [],
 ): MatchResult {
   const order = slots.map((_, i) => i);
   const points = (i: number): number => scores[i].kos - (cfg.mode === 'time' ? scores[i].falls : 0);
@@ -37,6 +38,7 @@ export function buildResult(
     kos: scores[i].kos,
     falls: scores[i].falls,
     damageDealt: damageDealt[i] ?? 0,
+    bestCombo: bestCombo[i] ?? 0,
     eliminated: scores[i].eliminated,
     placement: winnerTeam >= 0 && teams[i] === winnerTeam ? 1 : order.indexOf(i) + 1,
     team: teams[i] ?? -1,

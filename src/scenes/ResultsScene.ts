@@ -21,6 +21,8 @@ export class ResultsScene extends MenuScene {
   private champK = 1;
   private champName: Phaser.GameObjects.BitmapText | null = null;
   private stageG!: Phaser.GameObjects.Graphics;
+  /** Plate behind the results table. */
+  private plate!: Phaser.GameObjects.Graphics;
   private fx!: Phaser.GameObjects.Graphics;
   private champColor = 0xffffff;
   private confetti: { x: number; y: number; vx: number; vy: number; c: number; r: number; vr: number }[] = [];
@@ -32,10 +34,12 @@ export class ResultsScene extends MenuScene {
 
   protected build(): void {
     this.rows = [];
+    this.plate = this.add.graphics();
+    this.ui.add(this.plate);
     const r = session.lastResult;
     const arcade = session.mode === 'arcade' && !!session.ladder;
     const winner = r ? r.winner : -1;
-    let label = !r ? 'MATCH OVER' : winner < 0 ? 'DRAW' : r.winnerTeam >= 0 ? `TEAM ${r.winnerTeam === 0 ? 'BLUE' : 'RED'} WINS` : `P${winner + 1} WINS`;
+    let label = !r ? 'MATCH OVER' : winner < 0 ? 'DRAW' : r.winnerTeam >= 0 ? `TEAM ${r.winnerTeam === 0 ? 'BLUE' : 'RED'} WINS` : `${r.players.find((p) => p.index === winner)?.type === 'cpu' ? 'CPU' : 'P'}${winner + 1} WINS`;
     // arcade: record the fight and decide what comes next
     let outcome: LadderOutcome | null = null;
     if (arcade) {
@@ -48,7 +52,7 @@ export class ResultsScene extends MenuScene {
     this.title = this.add.bitmapText(0, 0, PIXEL_FONT, label).setOrigin(0.5).setTint(winner >= 0 ? COLORS.p[winner % 4] : COLORS.title);
     this.ui.add(this.title);
     const timed = session.rules.mode === 'time' && !arcade;
-    this.head = text(this, this.ui, tr ? `TARGET SMASH  ${(characterById(tr.character)?.name ?? '').toUpperCase()}` : `PLAYER      FIGHTER    KOS  FALLS  DAMAGE  ${timed ? 'POINTS' : 'STOCKS'}`, COLORS.dim);
+    this.head = text(this, this.ui, tr ? `TARGET SMASH  ${(characterById(tr.character)?.name ?? '').toUpperCase()}` : `PLAYER    FIGHTER    KOS  FALLS  DAMAGE  COMBO  ${timed ? 'POINTS' : 'STOCKS'}`, COLORS.dim);
     this.stageG = this.add.graphics();
     this.fx = this.add.graphics().setBlendMode(Phaser.BlendModes.ADD);
     this.ui.add([this.stageG, this.fx]);
@@ -76,8 +80,8 @@ export class ResultsScene extends MenuScene {
       const sorted = [...r.players].sort((a, b) => a.placement - b.placement);
       for (const p of sorted) {
         const name = (characterById(p.character)?.name ?? p.character).replace('The ', '');
-        const who = `${p.placement}. P${p.index + 1}${p.type === 'cpu' ? ' CPU' : ''}`;
-        const line = `${who.padEnd(11)} ${name.slice(0, 10).padEnd(10)} ${String(p.kos).padStart(3)}  ${String(p.falls).padStart(5)}  ${String(Math.round(p.damageDealt)).padStart(6)}  ${String(timed ? p.kos - p.falls : p.stocks).padStart(6)}`;
+        const who = `${p.placement}. ${p.type === 'cpu' ? 'CPU' : 'P'}${p.index + 1}`;
+        const line = `${who.padEnd(9)} ${name.slice(0, 10).padEnd(10)} ${String(p.kos).padStart(3)}  ${String(p.falls).padStart(5)}  ${String(Math.round(p.damageDealt)).padStart(6)}  ${String(p.bestCombo ?? 0).padStart(5)}  ${String(timed ? p.kos - p.falls : p.stocks).padStart(6)}`;
         this.rows.push(text(this, this.ui, line, p.index === winner ? COLORS.hot : COLORS.p[p.index % 4]));
       }
     }
@@ -109,10 +113,17 @@ export class ResultsScene extends MenuScene {
     // champion on the left, the table and the menu on the right (everything centred when there is no winner)
     const side = this.champ ? w * 0.4 : w * 0.06;
     const tw = Math.max(1, textPx(this.head));
-    const ts = Math.min(u * 1.2, (w - side - 16 * u) / tw);
+    const ts = Math.min(u * 1.2, (w - side - 28 * u) / tw);
     const tx = side + (w - side - tw * ts) / 2;
     this.head.setScale(ts).setPosition(tx, h * 0.27);
     this.rows.forEach((r, i) => r.setScale(ts).setPosition(tx, h * 0.27 + (14 + i * 12) * (ts / 1.2)));
+    const pad = 5 * u;
+    const top = h * 0.27 - pad;
+    const bottom = h * 0.27 + (14 + Math.max(0, this.rows.length - 1) * 12 + 8) * (ts / 1.2) + pad;
+    this.plate.clear();
+    this.plate.fillStyle(0x07061a, 0.66).fillRect(tx - pad, top, tw * ts + pad * 2, bottom - top);
+    this.plate.lineStyle(u, 0x3c3478, 0.9).strokeRect(tx - pad, top, tw * ts + pad * 2, bottom - top);
+    this.plate.fillStyle(0x3c3478, 0.9).fillRect(tx, h * 0.27 + 10 * (ts / 1.2), tw * ts, Math.max(1, u / 2));
     this.list.layout(side + (w - side) / 2, h * 0.56, u, 120);
     if (this.champ) {
       const s = Math.max(0.6, Math.min(u * 3.2, (h * 0.5) / 64));

@@ -103,6 +103,8 @@ export class World {
 
   /** Damage % each fighter (by id) has inflicted on others; stats only, never read by the sim. */
   readonly damageDealt: number[] = [];
+  /** Longest combo (hits) each fighter (by id) has landed; stats only, never read by the sim. */
+  readonly bestCombo: number[] = [];
   /** hazardHit[hazard][fighter] = cycle of the last eruption that hit them. */
   readonly hazardHit: number[][];
 
@@ -153,6 +155,7 @@ export class World {
   addFighter(f: Fighter): void {
     this.fighters.push(f);
     this.damageDealt.push(0);
+    this.bestCombo.push(0);
   }
 
   step(inputs: ReadonlyArray<Readonly<import('./buttons').FighterInput>>): void {

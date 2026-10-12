@@ -760,7 +760,10 @@ export class Fighter implements Body {
     const dealt = hit.damage * dmgScale;
     this.damage += dealt;
     if (hit.attackerId !== undefined) this.lastHitBy = hit.attackerId;
-    if (hit.attackerId !== undefined && hit.attackerId !== this.id) world.damageDealt[hit.attackerId] = (world.damageDealt[hit.attackerId] ?? 0) + dealt;
+    if (hit.attackerId !== undefined && hit.attackerId !== this.id) {
+      world.damageDealt[hit.attackerId] = (world.damageDealt[hit.attackerId] ?? 0) + dealt;
+      world.bestCombo[hit.attackerId] = Math.max(world.bestCombo[hit.attackerId] ?? 0, this.comboHits);
+    }
     // crouch cancel: taking a hit while crouching on the ground absorbs part of the knockback
     const crouchCancel = this.state === 'crouch' && this.grounded ? CROUCH_CANCEL : 1;
     const kb =

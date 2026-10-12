@@ -51,6 +51,8 @@ export interface PlayerResult {
   kos: number;
   falls: number;
   damageDealt: number;
+  /** Most hits in one combo. */
+  bestCombo?: number;
   eliminated: boolean;
   placement: number;
   /** Team index (team battles), else -1. */

@@ -290,13 +290,15 @@ export class MatchScene extends Phaser.Scene {
     this.targetView = this.isTargets ? new TargetView(this, this.worldLayer, this.world) : null;
     const tagColors = this.fighters.map((f) => (f.team >= 0 ? COLORS.p[f.team] : COLORS.p[f.id % 4]));
     this.views.forEach((v, i) => (v.color = tagColors[i]));
-    this.tags = new PlayerTags(this, this.uiLayer, this.fighters, this.views, this.slots.map((s, i) => (s.boss ? 'BOSS' : this.isTraining ? (i === 0 ? 'YOU' : 'DUMMY') : s.type === 'cpu' ? 'CPU' : `P${i + 1}`)), tagColors);
+    // with several CPUs each gets its port number so stacked tags and HUDs can be told apart
+    const cpus = this.slots.filter((s) => s.type === 'cpu' && !s.boss).length;
+    const labels = this.slots.map((s, i) => (s.boss ? 'BOSS' : this.isTraining ? (i === 0 ? 'YOU' : 'DUMMY') : s.type === 'cpu' ? (cpus > 1 ? `CPU${i + 1}` : 'CPU') : `P${i + 1}`));
+    this.tags = new PlayerTags(this, this.uiLayer, this.fighters, this.views, labels, tagColors);
     this.cutIn = new UltCutIn(this, this.uiLayer);
     this.ultOn = this.fighters.map(() => false);
     this.bubbles = new OffscreenBubbles(this, this.uiLayer, this.fighters, this.views, tagColors);
     this.fighters.forEach((f, i) => {
-      const s = this.slots[i];
-      const label = s.boss ? 'BOSS' : this.isTraining ? (i === 0 ? 'YOU' : 'DUMMY') : s.type === 'cpu' ? 'CPU' : `P${i + 1}`;
+      const label = labels[i];
       this.huds.push(new FighterHud(this, this.uiLayer, f.data, f.team >= 0 ? (f.team === 0 ? 'BLUE' : 'RED') : label, f.team >= 0 ? f.team : i));
     });
     if (cfg.mode === 'stamina') this.huds.forEach((h) => (h.hpMax = cfg.staminaHp ?? 150));
@@ -653,7 +655,7 @@ export class MatchScene extends Phaser.Scene {
           session.targetRun = { character: ch, ticks: cleared ? this.targetTicks : this.world.tick, cleared, broken: ts.filter((t) => !t.alive).length, total: ts.length, best: bestTargetTime(ch), record };
         }
         if (this.recorder) session.replay = this.recorder.finish();
-        session.lastResult = buildResult(this.slots, this.match.scores, this.world.damageDealt, this.elimAt, this.match.cfg, this.match.winner, this.world.tick, this.fighters.map((f) => f.team), this.match.winnerTeam);
+        session.lastResult = buildResult(this.slots, this.match.scores, this.world.damageDealt, this.elimAt, this.match.cfg, this.match.winner, this.world.tick, this.fighters.map((f) => f.team), this.match.winnerTeam, this.world.bestCombo);
         // lifetime records for the humans who played (versus and arcade)
         if (!this.isTargets && (session.mode === 'versus' || session.mode === 'arcade')) {
           const res = session.lastResult;
