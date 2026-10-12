@@ -861,6 +861,13 @@ export class MatchScene extends Phaser.Scene {
     const c = --this.countdown;
     if (c === 0) {
       this.banner.setText('GO!').setVisible(true).setTint(0x7affa0);
+      // the controls reminder steps aside once the fight is under way (H brings it back)
+      this.time.delayedCall(5000, () => {
+        if (this.isTraining || !this.helpOn) return;
+        this.helpOn = false;
+        this.helpText.setVisible(false);
+        this.placeTrainText();
+      });
       this.introTicks = 45;
       this.bannerPop = 12;
       sfx.play('boom', 0.7, 0);
