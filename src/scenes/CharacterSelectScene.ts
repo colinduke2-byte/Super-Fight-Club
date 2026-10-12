@@ -18,6 +18,8 @@ interface Card {
   status: Phaser.GameObjects.BitmapText;
   frame: Phaser.GameObjects.Image;
   bars: Phaser.GameObjects.Image[];
+  barLabels: Phaser.GameObjects.BitmapText[];
+  tagline: Phaser.GameObjects.BitmapText;
   barBg: Phaser.GameObjects.Image[];
   tex: string;
   barW: number;
@@ -57,6 +59,8 @@ export class CharacterSelectScene extends MenuScene {
         status: text(this, this.ui, '', COLORS.warn),
         frame,
         bars: [],
+        barLabels: ['WGT', 'SPD', 'JMP'].map((t) => text(this, this.ui, t, COLORS.dim)),
+        tagline: text(this, this.ui, '', COLORS.dim).setCenterAlign(),
         barBg: [],
         tex: '',
         barW: 1,
@@ -92,7 +96,7 @@ export class CharacterSelectScene extends MenuScene {
 
   protected override layoutUi(w: number, h: number, u0: number): void {
     // cards + roster need about 205 art-pixel units of height: on short windows shrink the unit so everything stays on screen
-    const u = Math.max(1, Math.min(u0, Math.floor(((h * 0.86) / 205) * 2) / 2));
+    const u = Math.max(1, Math.min(u0, Math.floor(((h * 0.86) / 225) * 2) / 2));
     this.title.setScale(Math.min(u0 * 3, (w * 0.9) / Math.max(1, textPx(this.title)))).setPosition(w / 2, h * 0.07);
     const n = this.cards.length;
     const cw = Math.min(w / (n + 0.4), 112 * u * 1.1);
@@ -100,14 +104,16 @@ export class CharacterSelectScene extends MenuScene {
     this.cards.forEach((c, i) => {
       const cx = w / 2 + (i - (n - 1) / 2) * cw;
       const top = h * 0.14;
-      c.frame.setPosition(cx, top + 70 * u).setDisplaySize(cw * 0.94, 140 * u);
+      c.frame.setPosition(cx, top + 80 * u).setDisplaySize(cw * 0.94, 160 * u);
       c.header.setScale(u * 2).setPosition(cx - (cw * 0.94) / 2 + 6 * u, top + 6 * u);
       c.device.setScale(u).setPosition(cx - (cw * 0.94) / 2 + 6 * u, top + 23 * u);
       c.sprite.setScale(u * 0.95 * uiTexK(CHARACTER_LIST[0])).setPosition(cx, top + 88 * u);
       c.name.setScale(u * 1.5).setOrigin(0.5, 0).setPosition(cx, top + 92 * u);
       c.status.setScale(u * 1.2).setOrigin(0.5, 0).setPosition(cx, top + 106 * u);
+      c.tagline.setScale(u * 0.85).setOrigin(0.5, 0).setPosition(cx, top + 118 * u);
       c.bars.forEach((b, k) => {
-        const by = top + 120 * u + k * 5 * u;
+        const by = top + 136 * u + k * 6 * u;
+        c.barLabels[k].setScale(u * 0.8).setOrigin(0, 0).setPosition(cx - (cw * 0.94) / 2 + 5 * u, by - 0.5 * u);
         const bx = cx - (cw * 0.94) / 2 + 24 * u;
         c.barW = cw * 0.94 - 32 * u;
         c.barBg[k].setPosition(bx, by).setScale(c.barW / 4, (4 * u) / 4);
@@ -155,6 +161,31 @@ export class CharacterSelectScene extends MenuScene {
       if (c.status.displayWidth > limit) c.status.setScale((this.u * 1.2 * limit) / c.status.displayWidth);
       const stats = [this.norm(data.stats.weight, 80, 110), this.norm(data.stats.runSpeed, 1.6, 3.3), this.norm(data.stats.jumpHeight, 55, 82)];
       c.bars.forEach((b, k) => b.setVisible(shown).setScale((stats[k] * c.barW) / 4, (4 * u) / 4));
+      c.barLabels.forEach((t) => t.setVisible(shown));
+      if (shown && c.tagline.getData('src') !== data.id + this.cardW) {
+        // wrap to the card (fixed-width font: measure one glyph), at most two lines, shrinking if needed
+        c.tagline.setData('src', data.id + this.cardW).setText('M');
+        const glyph = Math.max(1, textPx(c.tagline));
+        let sc = this.u * 0.85;
+        let lines: string[] = [];
+        for (let tries = 0; tries < 4; tries++) {
+          const per = Math.max(8, Math.floor((this.cardW * 0.88) / (glyph * sc)));
+          lines = [];
+          let line = '';
+          for (const word of up(data.tagline).split(' ')) {
+            if (line && (line + ' ' + word).length > per) {
+              lines.push(line);
+              line = word;
+            } else line = line ? `${line} ${word}` : word;
+          }
+          if (line) lines.push(line);
+          if (lines.length <= 2) break;
+          sc *= 0.85;
+        }
+        c.tagline.setText(lines.join('\n')).setScale(sc);
+      } else if (!shown) {
+        c.tagline.setText('').setData('src', '');
+      }
     });
     this.roster.forEach((r, i) => {
       const pickedBy = l.active.map((s, k) => (s.kind !== 'empty' && s.character === i ? k : -1));
