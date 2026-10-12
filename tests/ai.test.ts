@@ -186,6 +186,8 @@ describe('CPU matches', () => {
     expect(play(['brick', 'vex'], [2, 2], 'temple', 30000).match.over, 'temple tier').toBe(true);
     expect(play(['brick', 'riptide'], [1, 1], 'skyhold', 30000).match.over, 'skyhold gap').toBe(true);
     expect(play(['vex', 'vex'], [1, 1], 'wreck', 36000).match.over, 'wreck quarterdeck').toBe(true);
+    // crystal pillars everywhere: two Obelisks and two rivals, nobody gets walled in
+    expect(play(['obelisk', 'brick', 'obelisk', 'halcyon'], [2, 2, 2, 2], 'temple', 36000).match.over, 'obelisk pillars').toBe(true);
   });
 
   it('four CPUs free-for-all stay sane (finite positions, someone wins)', () => {

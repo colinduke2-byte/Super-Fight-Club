@@ -65,6 +65,8 @@ export interface CharacterAi {
   style?: 'hitandrun';
   /** Preferred fighting distance (px between centres) when approaching. */
   spacing: number;
+  /** A special that blows up the CPU's own deployables (Obelisk's Bedrock Stomp): used when a rival is next to one in range. */
+  detonate?: { slot: string; range: number };
 }
 
 const GENERIC: CharacterAi = {
@@ -164,6 +166,7 @@ CHARACTER_AI.obelisk = {
   recovery: { slot: 'upB', up: 90, out: 34, aim: 'fixed' },
   ultimateRange: 70,
   spacing: 44,
+  detonate: { slot: 'downB', range: 120 },
 };
 
 export function aiFor(id: string): CharacterAi {

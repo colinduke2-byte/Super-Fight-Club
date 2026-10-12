@@ -867,6 +867,17 @@ export class CpuController implements Controller {
       this.runPlan(self, world);
     };
     const stalled = this.stall > 420;
+    // blow up our own pillars when a rival is standing next to one (and the pillar is in range of the stomp)
+    if (ai.detonate && self.grounded && usable(ai.detonate.slot) && !this.cooldownBusy('det', 60)) {
+      const r = ai.detonate.range;
+      for (const d of world.deployables) {
+        if (!d.active || d.owner !== self.id || !d.plat || Math.abs(d.x - self.x) > r) continue;
+        if (Math.abs(tgt.x - d.x) < 46 && tgt.y > d.plat.top - 60 && tgt.y < d.y + 4 && this.rnd() < 0.6) {
+          fire(ai.detonate.slot, 'det', false);
+          return true;
+        }
+      }
+    }
     if (Math.abs(dy) < 70 && !(stalled && dist < 260)) {
       for (const slot of ai.ranged) {
         if (dist > 90 && dist < 340 && usable(slot) && this.rnd() < 0.5 * p.aggression && !this.cooldownBusy(`r${slot}`, 40 + p.thinkEvery)) {
