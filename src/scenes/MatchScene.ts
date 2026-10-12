@@ -42,6 +42,9 @@ import { currentFight } from '../game/ladder';
 import { buildResult } from '../game/results';
 import { session, type PlayerSlot } from '../game/session';
 
+/** Countdown: READY? for a beat, then 3, 2, 1 at COUNT_STEP ticks each. */
+const COUNT_STEP = 36;
+const COUNTDOWN = COUNT_STEP * 3 + 40;
 const TRAINING: MatchConfig = { mode: 'training', stocks: 3, timeLimitSec: 0, respawnDelay: 70 };
 const DUPLICATE_TINTS = [undefined, 0xff9a9a, 0x9aff9a, 0x9ac8ff];
 const END_DELAY = 150;
@@ -127,6 +130,10 @@ export class MatchScene extends Phaser.Scene {
   private clock!: Phaser.GameObjects.BitmapText;
   private lastClockSec = -1;
   private introTicks = 0;
+  /** Pre-match READY / 3 / 2 / 1 countdown in sim ticks (the world is frozen until GO). */
+  private countdown = 0;
+  private bannerBase = 1;
+  private bannerPop = 0;
   private shake = 0;
   /** Brief camera push-in on heavy hits (decays each tick). */
   private punch = 0;
@@ -203,7 +210,7 @@ export class MatchScene extends Phaser.Scene {
     if (!rep && !this.isTraining && session.mode === 'versus') this.recorder = new ReplayRecorder(session.stage, rules, this.slots.map((sl) => ({ character: sl.character })), settings.smashMode === 'flick');
     this.match.onRespawn = (f) => this.respawn(f.id, true);
     this.match.onSuddenDeath = () => {
-      this.banner.setText('SUDDEN DEATH!').setVisible(true);
+      this.banner.setText('SUDDEN DEATH!').setVisible(true).setTint(0xff4a5a);
       this.introTicks = 110;
       sfx.play('boom', 0.8, 0);
       this.cam.snap();
@@ -275,9 +282,10 @@ export class MatchScene extends Phaser.Scene {
     if (!this.isTraining) {
       const lad = session.mode === 'arcade' ? session.ladder : null;
       const fight = lad ? currentFight(lad) : null;
-      const head = this.replay ? 'REPLAY\nESC: EXIT' : fight ? `FIGHT ${fight.index + 1}\n${fight.title}` : 'FIGHT!';
+      const head = this.replay ? 'REPLAY\nESC: EXIT' : fight ? `FIGHT ${fight.index + 1}\n${fight.title}` : 'READY?';
       this.banner.setText(up(head)).setVisible(true);
-      this.introTicks = 110;
+      this.countdown = COUNTDOWN;
+      this.introTicks = 0;
     }
     this.pauseMenu = new MenuList(this, this.uiLayer, [
       { label: 'RESUME', enabled: () => this.pauseReason !== 'disconnect', onConfirm: () => this.setPaused(false) },
@@ -501,6 +509,17 @@ export class MatchScene extends Phaser.Scene {
       return;
     }
 
+    if (this.countdown > 0 && !this.bench) {
+      if (this.countdown === COUNTDOWN) {
+        this.followCam();
+        this.cam.snap();
+      }
+      this.stepCountdown();
+      this.followCam();
+      inputManager.endTick();
+      return;
+    }
+
     if (this.pendingReset) {
       this.pendingReset = false;
       this.fighters.forEach((f) => this.respawn(f.id));
@@ -524,7 +543,14 @@ export class MatchScene extends Phaser.Scene {
     if (this.introTicks > 0 && --this.introTicks === 0 && !this.match.over) this.banner.setVisible(false);
     this.scores();
 
-    // camera follows living fighters
+    this.followCam();
+    this.shake *= 0.88;
+    this.punch *= 0.86;
+    if (this.shake < 0.05) this.shake = 0;
+  }
+
+  /** Camera follows living fighters. */
+  private followCam(): void {
     let n = 0;
     for (const f of this.fighters) {
       if (f.state === 'ko') continue;
@@ -533,9 +559,6 @@ export class MatchScene extends Phaser.Scene {
       t.y = f.y - f.h / 2;
     }
     this.cam.step(this.camTargets, n, this.worldCam.width, this.worldCam.height);
-    this.shake *= 0.88;
-    this.punch *= 0.86;
-    if (this.shake < 0.05) this.shake = 0;
   }
 
   /** Track eliminations and, a moment after the match ends, hand the result to the Results scene. */
@@ -649,11 +672,13 @@ export class MatchScene extends Phaser.Scene {
       this.huds[i].update(f.damage, sc.stocks, this.match.training, sc.eliminated, f.meter / (f.data.ultimate?.cost ?? 100), this.world.tick, f.data.hud ? (f.res[f.data.hud.resource] ?? 0) : 0, f.status);
     }
     this.updateClock();
+    if (this.bannerPop > 0) this.bannerPop = Math.max(0, this.bannerPop - frameMs / 16.7);
+    this.banner.setScale(this.bannerBase * (1 + 0.06 * this.bannerPop));
     if (this.match.over && !this.banner.visible) {
       const w = this.match.winner;
       const head = this.match.cfg.mode === 'time' && !this.match.suddenDeath ? 'TIME!' : 'GAME!';
       const tail = w < 0 ? 'DRAW' : this.match.winnerTeam >= 0 ? `TEAM ${this.match.winnerTeam === 0 ? 'BLUE' : 'RED'} WINS` : session.mode === 'arcade' ? (w === 0 ? 'VICTORY' : 'DEFEATED') : `P${w + 1} WINS`;
-      this.banner.setText(up(`${head}\n${tail}`)).setVisible(true);
+      this.banner.setText(up(`${head}\n${tail}`)).setVisible(true).setTint(0xffe14a);
     }
 
     if (this.training) {
@@ -810,6 +835,25 @@ export class MatchScene extends Phaser.Scene {
     return Math.max(2, Math.round(h / 360));
   }
 
+  /** READY? -> 3 -> 2 -> 1 -> GO!: nobody moves until GO (the sim does not tick, so replays stay in step). */
+  private stepCountdown(): void {
+    const c = --this.countdown;
+    if (c === 0) {
+      this.banner.setText('GO!').setVisible(true).setTint(0x7affa0);
+      this.introTicks = 45;
+      this.bannerPop = 12;
+      sfx.play('boom', 0.7, 0);
+      return;
+    }
+    const n = c >= COUNT_STEP * 3 ? 0 : Math.floor(c / COUNT_STEP) + 1;
+    const label = String(n);
+    if (n > 0 && this.banner.text !== label) {
+      this.banner.setText(label).setVisible(true).setTint(0xffe14a);
+      this.bannerPop = 10;
+      sfx.play('ding', 0.6, 0);
+    }
+  }
+
   /** MM:SS countdown in time mode: pulses red over the last ten seconds, ticks over the last five. */
   private updateClock(): void {
     const m = this.match;
@@ -845,6 +889,7 @@ export class MatchScene extends Phaser.Scene {
     this.placeTrainText();
     this.pauseText.setScale(u * 2).setPosition(w / 2, h * 0.3);
     this.pauseMenu.layout(w / 2, h * 0.42, u, 90);
+    this.bannerBase = u * 4;
     this.banner.setScale(u * 4).setPosition(w / 2, h * 0.3);
     this.clock.setScale(u * 2.5).setPosition(w / 2, m);
     const n = this.huds.length;
