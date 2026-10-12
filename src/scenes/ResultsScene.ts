@@ -1,4 +1,5 @@
 import { announcer } from '../audio/announcer';
+import { challengeById, challengeCleared } from '../game/challenges';
 import Phaser from 'phaser';
 import { PIXEL_FONT } from '../art/pixelFont';
 import { music } from '../audio/music';
@@ -57,6 +58,9 @@ export class ResultsScene extends MenuScene {
     // Launch Contest: distance, best and the damage it flew at
     const lr = session.mode === 'launch' ? session.launchRun : null;
     if (lr) label = lr.record ? 'NEW RECORD!' : lr.distance > 0 ? 'LAUNCHED!' : 'NO DISTANCE';
+    const chal = session.mode === 'challenge' && r ? challengeById(session.challenge) : undefined;
+    const chalClear = !!chal && !!r && challengeCleared(r);
+    if (chal) label = chalClear ? 'CHALLENGE CLEAR!' : 'CHALLENGE FAILED';
     this.title = this.add.bitmapText(0, 0, PIXEL_FONT, label).setOrigin(0.5).setTint(winner >= 0 ? COLORS.p[winner % 4] : COLORS.title);
     this.ui.add(this.title);
     const timed = session.rules.mode === 'time' && !arcade;
@@ -120,6 +124,8 @@ export class ResultsScene extends MenuScene {
       else if (outcome === 'retry') items.push({ label: `CONTINUE (${l.continuesLeft} LEFT)`, onConfirm: () => this.go('LadderMap') });
       else if (outcome === 'champion') items.push({ label: 'CONTINUE', onConfirm: () => this.go('Story', { cards: endingCards(l), next: 'ModeSelect' }) });
       items.push({ label: outcome === 'gameover' ? 'MAIN MENU' : 'QUIT LADDER', onConfirm: () => this.go('ModeSelect') });
+    } else if (chal) {
+      items.push({ label: 'RETRY', onConfirm: () => this.go('Match') }, { label: 'CHALLENGES', onConfirm: () => this.go('Challenges') }, { label: 'MAIN MENU', onConfirm: () => this.go('ModeSelect') });
     } else if (tr || lr) {
       items.push({ label: 'RETRY', onConfirm: () => this.go('Match') }, { label: 'CHARACTER SELECT', onConfirm: () => this.go('CharacterSelect') }, { label: 'MAIN MENU', onConfirm: () => this.go('ModeSelect') });
     } else {
@@ -132,9 +138,10 @@ export class ResultsScene extends MenuScene {
     }
     this.list = new MenuList(this, this.ui, items);
     // a human loss in the arcade gets the sad version; everything else celebrates
-    const humanLost = (arcade && winner !== 0) || (!!tr && !tr.cleared) || (!!lr && lr.distance <= 0);
+    const humanLost = (arcade && winner !== 0) || (!!tr && !tr.cleared) || (!!lr && lr.distance <= 0) || (!!chal && !chalClear);
     music.jingle(humanLost || winner < 0 ? 'lose' : 'win');
-    if (!tr && !lr) {
+    if (chal) announcer.say(chalClear ? 'Challenge complete!' : 'Try again.', { pitch: 0.55 });
+    else if (!tr && !lr) {
       const champName = wc?.name.replace('The ', '');
       announcer.say(
         !r || winner < 0 ? 'No contest.' : arcade ? (outcome === 'gameover' ? 'Game over.' : winner === 0 ? `${champName} wins!` : 'Defeated.') : r.winnerTeam >= 0 ? `Team ${r.winnerTeam === 0 ? 'blue' : 'red'} wins!` : `The winner is ${champName}!`,

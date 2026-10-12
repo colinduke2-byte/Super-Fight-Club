@@ -88,4 +88,18 @@ export const HOW_TO_PLAY: HowToPage[] = [
     ],
     demo: ['halcyon', ['mv_nair', 'mv_bair', 'mv_dair', 'glide']],
   },
+  {
+    title: 'THE FIGHTERS',
+    rows: [
+      ['BRICK', 'Heavy. HEAT from hits: armored smashes, Vent to explode.'],
+      ['VEX', 'Fast rogue. Blink leaves a marker: special again to recall.'],
+      ['NOVA', 'Zoner. Down special cycles fire, ice and lightning spells.'],
+      ['GIZMO', 'Trapper. Turrets and SCRAP; Overclock to upgrade them.'],
+      ['AGNI', 'All-rounder. FLAME levels up every special as it builds.'],
+      ['HALCYON', 'Lancer. Three air flaps, a glide, spear tip sweetspots.'],
+      ['RIPTIDE', 'Grappler. Water SOAKS rivals; throws wring it out.'],
+      ['ULTIMATE', 'Every fighter: full meter + Ultimate for a finisher.'],
+    ],
+    demo: ['riptide', ['idle', 'mv_taunt', 'mv_fsmash', 'idle']],
+  },
 ];

@@ -14,6 +14,8 @@ interface Records {
   fighters: Record<string, FighterRecord>;
   /** Launch Contest best distance (metres) per fighter. */
   launch: Record<string, number>;
+  /** Cleared challenges: id -> the fighter that cleared it first. */
+  challenges: Record<string, string>;
 }
 
 function load(): Records {
@@ -21,12 +23,12 @@ function load(): Records {
     const raw = localStorage.getItem(KEY);
     if (raw) {
       const r = JSON.parse(raw) as Partial<Records>;
-      return { targets: { ...(r.targets ?? {}) }, fighters: { ...(r.fighters ?? {}) }, launch: { ...(r.launch ?? {}) } };
+      return { targets: { ...(r.targets ?? {}) }, fighters: { ...(r.fighters ?? {}) }, launch: { ...(r.launch ?? {}) }, challenges: { ...(r.challenges ?? {}) } };
     }
   } catch {
     /* private mode / blocked storage */
   }
-  return { targets: {}, fighters: {}, launch: {} };
+  return { targets: {}, fighters: {}, launch: {}, challenges: {} };
 }
 
 function save(r: Records): void {
@@ -68,6 +70,20 @@ export function recordLaunch(character: string, metres: number): boolean {
   return true;
 }
 
+/** Cleared challenges (id -> fighter). */
+export function clearedChallenges(): Record<string, string> {
+  return load().challenges;
+}
+
+/** Mark a challenge cleared; returns true the first time. */
+export function recordChallenge(id: string, character: string): boolean {
+  const r = load();
+  if (r.challenges[id]) return false;
+  r.challenges[id] = character;
+  save(r);
+  return true;
+}
+
 /** m:ss.cc from sim ticks (60 Hz). */
 export function formatTicks(ticks: number): string {
   const cs = Math.floor((ticks / 60) * 100);
@@ -95,5 +111,5 @@ export function fighterRecords(): Record<string, FighterRecord> {
 
 /** Forget everything (Records > RESET). */
 export function resetRecords(): void {
-  save({ targets: {}, fighters: {}, launch: {} });
+  save({ targets: {}, fighters: {}, launch: {}, challenges: {} });
 }

@@ -6,6 +6,7 @@ import { CHARACTER_LIST } from '../characters';
 import { Lobby } from '../game/lobby';
 import { buildLadder } from '../game/ladder';
 import { launchSlots } from '../game/launch';
+import { challengeById, challengeSlots } from '../game/challenges';
 import { introCards } from '../game/story';
 import { session, type PlayerSlot } from '../game/session';
 import { inputManager } from '../input/inputManager';
@@ -50,7 +51,10 @@ export class CharacterSelectScene extends MenuScene {
     this.palettes = (session.players.length ? session.players.map((p) => p.palette ?? 0) : []).concat([0, 0, 0, 0]).slice(0, 4);
     this.lobby = new Lobby(session.playerCount, CHARACTER_LIST.length);
     this.lobby.slots.forEach((s, i) => (s.character = i % CHARACTER_LIST.length));
-    const title = session.mode === 'versus' ? 'CHOOSE YOUR FIGHTERS' : session.mode === 'arcade' ? 'CHOOSE YOUR CHAMPION' : session.mode === 'targets' ? 'TARGET SMASH' : session.mode === 'launch' ? 'LAUNCH CONTEST' : 'TRAINING: CHOOSE A FIGHTER';
+    // a challenge with a set fighter: the cursor starts (and stays) on them
+    const fixed = this.fixedFighter();
+    if (fixed >= 0) this.lobby.slots.forEach((s) => (s.character = fixed));
+    const title = session.mode === 'versus' ? 'CHOOSE YOUR FIGHTERS' : session.mode === 'arcade' ? 'CHOOSE YOUR CHAMPION' : session.mode === 'targets' ? 'TARGET SMASH' : session.mode === 'launch' ? 'LAUNCH CONTEST' : session.mode === 'challenge' ? `CHALLENGE: ${challengeById(session.challenge)?.title ?? ''}` : 'TRAINING: CHOOSE A FIGHTER';
     this.title = this.add.bitmapText(0, 0, PIXEL_FONT, title).setOrigin(0.5).setTint(COLORS.title);
     this.ui.add(this.title);
 
@@ -221,6 +225,13 @@ export class CharacterSelectScene extends MenuScene {
     this.hint.setScale(Math.min(this.u, (this.scale.width * 0.97) / Math.max(1, textPx(this.hint))));
   }
 
+  /** Roster index of the fighter a challenge imposes, or -1. */
+  private fixedFighter(): number {
+    if (session.mode !== 'challenge') return -1;
+    const you = challengeById(session.challenge)?.you;
+    return you ? CHARACTER_LIST.findIndex((c) => c.id === you) : -1;
+  }
+
   private deviceById(id: string | null) {
     return inputManager.allDevices.find((d) => d.id === id) ?? null;
   }
@@ -251,7 +262,13 @@ export class CharacterSelectScene extends MenuScene {
       session.ladder.introduced = true;
       this.go('Story', { cards: introCards(slots[0].character), next: 'LadderMap' });
     }
-    else if (session.mode === 'launch') {
+    else if (session.mode === 'challenge') {
+      const ch = challengeById(session.challenge);
+      if (!ch) return;
+      session.stage = ch.stage;
+      session.players = challengeSlots(ch, slots[0]);
+      this.go('Match');
+    } else if (session.mode === 'launch') {
       session.stage = 'launch';
       session.players = launchSlots(slots[0]);
       this.go('Match');
@@ -271,10 +288,8 @@ export class CharacterSelectScene extends MenuScene {
     const id = e.device.id;
     switch (e.action) {
       case 'left':
-        l.move(id, -1);
-        break;
       case 'right':
-        l.move(id, 1);
+        if (this.fixedFighter() < 0) l.move(id, e.action === 'left' ? -1 : 1);
         break;
       case 'up':
       case 'down': {
@@ -293,7 +308,7 @@ export class CharacterSelectScene extends MenuScene {
       }
       case 'back': {
         const r = l.back(id);
-        if (r === 'none' && l.humans() === 0) this.go(session.mode === 'versus' ? 'VersusSetup' : 'ModeSelect');
+        if (r === 'none' && l.humans() === 0) this.go(session.mode === 'versus' ? 'VersusSetup' : session.mode === 'challenge' ? 'Challenges' : 'ModeSelect');
         break;
       }
       case 'alt':

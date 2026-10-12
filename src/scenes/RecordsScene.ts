@@ -2,7 +2,8 @@ import Phaser from 'phaser';
 import { fighterAnimKey, fighterTextureKey, uiTexK } from '../art/proceduralFighter';
 import { PIXEL_FONT } from '../art/pixelFont';
 import { CHARACTER_LIST } from '../characters';
-import { bestLaunch, bestTargetTime, fighterRecords, formatTicks, resetRecords } from '../game/records';
+import { CHALLENGES } from '../game/challenges';
+import { bestLaunch, bestTargetTime, clearedChallenges, fighterRecords, formatTicks, resetRecords } from '../game/records';
 import type { MenuEvent } from '../input/menuInput';
 import { COLORS, MenuList, MenuScene, text, textPx } from '../ui/menuKit';
 
@@ -15,6 +16,7 @@ export class RecordsScene extends MenuScene {
   private list!: MenuList;
   private hint!: Phaser.GameObjects.BitmapText;
   private confirmReset = false;
+  private chal!: Phaser.GameObjects.BitmapText;
 
   constructor() {
     super('Records');
@@ -43,6 +45,7 @@ export class RecordsScene extends MenuScene {
       { label: 'BACK', onConfirm: () => this.go('ModeSelect') },
     ]);
     this.list.index = 1;
+    this.chal = text(this, this.ui, '', COLORS.good).setOrigin(0.5);
     this.hint = text(this, this.ui, 'UP/DOWN: MOVE   J / ENTER: SELECT   K / ESC: BACK', COLORS.dim).setOrigin(0.5);
   }
 
@@ -77,12 +80,15 @@ export class RecordsScene extends MenuScene {
     this.head.setScale(ts).setPosition(x, h * 0.2);
     this.rows.forEach((r, i) => r.setScale(ts).setPosition(x, h * 0.2 + rowH * (i + 1)));
     this.icons.forEach((img, i) => img.setScale(((rowH * 1.1) / 64) * (img.getData('k') as number)).setPosition(x - 12 * u, h * 0.2 + rowH * (i + 1) + rowH * 0.8));
-    this.list.layout(w / 2, h * 0.2 + rowH * (this.rows.length + 1.6), u, 120);
+    this.chal.setScale(u * 1.2).setPosition(w / 2, h * 0.2 + rowH * (this.rows.length + 1.5));
+    this.list.layout(w / 2, h * 0.2 + rowH * (this.rows.length + 2.4), u, 120);
     this.hint.setScale(Math.min(u, (w * 0.97) / Math.max(1, textPx(this.hint)))).setPosition(w / 2, h - 10 * u);
   }
 
   protected override tick(time: number): void {
     this.list.update(time);
+    const n = Object.keys(clearedChallenges()).length;
+    this.chal.setText(`CHALLENGES CLEARED  ${n} / ${CHALLENGES.length}`).setTint(n === CHALLENGES.length ? COLORS.hot : COLORS.good);
   }
 
   protected onEvent(e: MenuEvent): void {

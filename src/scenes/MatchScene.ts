@@ -40,8 +40,9 @@ import { UltCutIn } from '../ui/UltCutIn';
 import { TargetView } from '../ui/TargetView';
 import { LaunchView } from '../ui/LaunchView';
 import { LaunchContest } from '../game/launch';
+import { challengeById, challengeCleared, challengeRules } from '../game/challenges';
 import { moveListText } from '../game/moveList';
-import { bestLaunch, bestTargetTime, formatTicks, recordLaunch, recordMatch, recordTargetTime } from '../game/records';
+import { bestLaunch, bestTargetTime, formatTicks, recordChallenge, recordLaunch, recordMatch, recordTargetTime } from '../game/records';
 import { PIXEL_FONT, up } from '../art/pixelFont';
 import { StageView } from '../ui/StageView';
 import { SlashArcs } from '../ui/SlashArcs';
@@ -224,9 +225,10 @@ export class MatchScene extends Phaser.Scene {
     this.slots = rep ? rep.players.map((p, i) => ({ index: i, type: 'cpu' as const, device: null, character: p.character, cpuLevel: 1 as const, palette: p.palette })) : session.players;
     this.isTraining = !rep && session.mode === 'training';
     this.isLaunch = !rep && session.mode === 'launch' && this.slots.length === 2;
-    const rulesNow = rep ? rep.rules : session.rules;
+    const chal = !rep && session.mode === 'challenge' ? challengeById(session.challenge) : undefined;
+    const rulesNow = rep ? rep.rules : chal ? challengeRules(chal) : session.rules;
     const base = STAGES[rep ? rep.stage : session.stage] ?? sandboxStage;
-    const stage = (this.stageData = rulesNow.hazards === false && (rep || session.mode === 'versus') ? { ...base, hazards: undefined } : base);
+    const stage = (this.stageData = rulesNow.hazards === false && (rep || session.mode === 'versus' || chal) ? { ...base, hazards: undefined } : base);
     this.world = new World(stage);
 
     this.fighters = this.slots.map((s, i) => new Fighter(i, resolveCharacter(s.character)));
@@ -239,7 +241,7 @@ export class MatchScene extends Phaser.Scene {
       this.respawn(f.id);
     }
     const rules = rulesNow;
-    if (rules.teams && this.fighters.length === 4 && !this.isTraining && (rep || session.mode === 'versus')) this.fighters.forEach((f, i) => (f.team = i < 2 ? 0 : 1));
+    if (rules.teams && this.fighters.length === 4 && !this.isTraining && (rep || session.mode === 'versus' || chal)) this.fighters.forEach((f, i) => (f.team = i < 2 ? 0 : 1));
     this.isTargets = !rep && session.mode === 'targets' && this.world.targets.length > 0;
     this.targetTicks = -1;
     this.world.config.itemRate = this.isTraining || this.isTargets || this.isLaunch || (!rep && session.mode === 'arcade') ? 0 : rules.items;
@@ -351,7 +353,7 @@ export class MatchScene extends Phaser.Scene {
     if (!this.isTraining) {
       const lad = session.mode === 'arcade' ? session.ladder : null;
       const fight = lad ? currentFight(lad) : null;
-      const head = this.replay ? 'REPLAY\nESC: EXIT' : fight ? `FIGHT ${fight.index + 1}\n${fight.title}` : this.isTargets ? 'BREAK THE\nTARGETS!' : this.isLaunch ? 'TEN SECONDS:\nPILE IT ON!' : 'READY?';
+      const head = this.replay ? 'REPLAY\nESC: EXIT' : fight ? `FIGHT ${fight.index + 1}\n${fight.title}` : this.isTargets ? 'BREAK THE\nTARGETS!' : this.isLaunch ? 'TEN SECONDS:\nPILE IT ON!' : chal ? `CHALLENGE\n${chal.title}` : 'READY?';
       this.banner.setText(up(head)).setVisible(true);
       this.countdown = COUNTDOWN;
       this.introTicks = 0;
@@ -727,6 +729,8 @@ export class MatchScene extends Phaser.Scene {
         if (this.recorder) session.replay = this.recorder.finish();
         session.lastResult = buildResult(this.slots, this.match.scores, this.world.damageDealt, this.elimAt, this.match.cfg, this.match.winner, this.world.tick, this.fighters.map((f) => f.team), this.match.winnerTeam, this.world.bestCombo);
         // lifetime records for the humans who played (versus and arcade)
+        const chal = !this.replay && session.mode === 'challenge' ? challengeById(session.challenge) : undefined;
+        if (chal && challengeCleared(session.lastResult)) recordChallenge(chal.id, this.slots[0].character);
         if (!this.isTargets && !this.isLaunch && (session.mode === 'versus' || session.mode === 'arcade')) {
           const res = session.lastResult;
           for (const p of res.players) {

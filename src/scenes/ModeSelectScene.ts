@@ -23,11 +23,11 @@ export class ModeSelectScene extends MenuScene {
     'FIGHT 5 ESCALATING OPPONENTS THEN A BOSS.',
     'BREAK TEN TARGETS AGAINST THE CLOCK. BEAT YOUR BEST TIME.',
     'TEN SECONDS TO PILE ON DAMAGE, THEN LAUNCH THE DUMMY. HOW FAR?',
+    'TEN HAND-MADE FIGHTS WITH A TWIST. CLEAR THEM ALL.',
     'PRACTICE WITH A DUMMY, HITBOXES AND FRAME DATA.',
     'CONTROLS, MOVES AND TECHNIQUES, PAGE BY PAGE.',
     'YOUR WINS, KOS, BEST TIMES AND DISTANCES PER FIGHTER.',
-    'CONTROLS, AUDIO AND VIDEO.',
-    '',
+    'CONTROLS, AUDIO, VIDEO AND FULLSCREEN.',
   ];
 
   constructor() {
@@ -42,15 +42,11 @@ export class ModeSelectScene extends MenuScene {
       { label: 'ARCADE LADDER', onConfirm: () => this.start('arcade') },
       { label: 'TARGET SMASH', onConfirm: () => this.start('targets') },
       { label: 'LAUNCH CONTEST', onConfirm: () => this.start('launch') },
+      { label: 'CHALLENGES', onConfirm: () => this.go('Challenges') },
       { label: 'TRAINING', onConfirm: () => this.start('training') },
       { label: 'HOW TO PLAY', onConfirm: () => this.go('HowToPlay') },
       { label: 'RECORDS', onConfirm: () => this.go('Records') },
       { label: 'SETTINGS', onConfirm: () => this.go('Settings', { back: 'ModeSelect' }) },
-      {
-        label: 'FULLSCREEN',
-        value: () => (this.scale.isFullscreen ? 'ON' : 'OFF'),
-        onConfirm: () => (this.scale.isFullscreen ? this.scale.stopFullscreen() : this.scale.startFullscreen()),
-      },
     ]);
     this.glow = this.add.graphics().setBlendMode(Phaser.BlendModes.ADD);
     this.ui.add(this.glow);
@@ -75,8 +71,8 @@ export class ModeSelectScene extends MenuScene {
   }
 
   protected override layoutUi(w: number, h: number, u: number): void {
-    this.title.setScale(u * 4).setPosition(w / 2, h * 0.14);
-    this.list.layout(w / 2, h * 0.3, u, 130);
+    this.title.setScale(u * 4).setPosition(w / 2, h * 0.12);
+    this.list.layout(w / 2, h * 0.24, u, 130, h * 0.73);
     this.desc.setScale(u * 1.5).setPosition(w / 2, h * 0.78);
     // flanking fighters only when there is room beside the menu
     const room = w > h * 1.25;
