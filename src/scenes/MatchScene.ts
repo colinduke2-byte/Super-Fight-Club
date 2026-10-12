@@ -34,6 +34,7 @@ import { OffscreenBubbles } from '../ui/OffscreenBubbles';
 import { PlayerTags } from '../ui/PlayerTags';
 import { UltCutIn } from '../ui/UltCutIn';
 import { TargetView } from '../ui/TargetView';
+import { moveListText } from '../game/moveList';
 import { bestTargetTime, formatTicks, recordTargetTime } from '../game/records';
 import { PIXEL_FONT, up } from '../art/pixelFont';
 import { StageView } from '../ui/StageView';
@@ -127,6 +128,8 @@ export class MatchScene extends Phaser.Scene {
   private paused = false;
   private pauseReason: '' | 'user' | 'disconnect' = '';
   private pauseMenu!: MenuList;
+  /** Pause > MOVE LIST: the paused player's moves with inputs, damage and first active frame. */
+  private moveListBox!: Phaser.GameObjects.BitmapText;
   private pendingHitDummy = false;
   private pendingHitSelf = false;
   private pendingReset = false;
@@ -316,10 +319,13 @@ export class MatchScene extends Phaser.Scene {
     this.pauseMenu = new MenuList(this, this.uiLayer, [
       { label: 'RESUME', enabled: () => this.pauseReason !== 'disconnect', onConfirm: () => this.setPaused(false) },
       ...(session.mode !== 'arcade' ? [{ label: 'RESTART', onConfirm: () => this.scene.restart() }] : []),
+      ...(!this.replay ? [{ label: 'MOVE LIST', onConfirm: () => this.showMoveList(true) }] : []),
       { label: 'CONTROLS', onConfirm: () => this.scene.start('Controls', { back: 'Match' }) },
       { label: 'QUIT', onConfirm: () => this.scene.start(this.isTraining ? 'ModeSelect' : 'ModeSelect') },
     ]);
     this.pauseMenu.setVisible(false);
+    this.moveListBox = this.add.bitmapText(0, 0, PIXEL_FONT, '').setOrigin(0.5).setLeftAlign().setVisible(false);
+    this.uiLayer.add(this.moveListBox);
 
     this.layout(w, h);
     this.startBench();
@@ -477,6 +483,10 @@ export class MatchScene extends Phaser.Scene {
     this.stepsLastFrame = 0;
     if (this.paused) {
       for (const e of menuInput.poll()) {
+        if (this.moveListBox.visible) {
+          if (e.action === 'back' || e.action === 'confirm' || e.action === 'start') this.showMoveList(false);
+          continue;
+        }
         if (this.pauseMenu.handle(e)) continue;
         if ((e.action === 'back' || e.action === 'start') && this.pauseReason === 'user') this.setPaused(false);
       }
@@ -880,6 +890,10 @@ export class MatchScene extends Phaser.Scene {
     this.pauseOverlay.setVisible(p);
     this.pauseText.setVisible(p);
     this.pauseMenu.setVisible(p);
+    if (!p) {
+      this.moveListBox?.setVisible(false);
+      this.pauseOverlay.setAlpha(0.6);
+    }
     music.setDuck(p ? 0.3 : 1);
     if (p) {
       this.pauseText.setText(up(reason === 'disconnect' ? `${this.disconnectedName} CONTROLLER DISCONNECTED\n\nRECONNECT IT TO CONTINUE` : 'PAUSED'));
@@ -892,6 +906,21 @@ export class MatchScene extends Phaser.Scene {
       this.lastNow = performance.now();
       this.humans.forEach((h) => h?.reset());
     }
+  }
+
+  private showMoveList(on: boolean): void {
+    if (on) {
+      const i = Math.max(0, this.slots.findIndex((s) => s.type === 'human'));
+      this.moveListBox.setText(moveListText(this.fighters[i].data)).setScale(1);
+      const w = this.scale.width;
+      const h = this.scale.height;
+      const b = this.moveListBox.getTextBounds().local;
+      this.moveListBox.setScale(Math.min(this.hudUnit(h) * 1.4, (w * 0.92) / Math.max(1, b.width), (h * 0.9) / Math.max(1, b.height))).setPosition(w / 2, h / 2);
+    }
+    this.moveListBox.setVisible(on);
+    this.pauseOverlay.setAlpha(on ? 0.88 : 0.6);
+    this.pauseMenu.setVisible(!on && this.paused);
+    this.pauseText.setVisible(!on && this.paused);
   }
 
   private showToast(msg: string): void {
