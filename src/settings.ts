@@ -31,7 +31,7 @@ export const DEFAULT_SETTINGS: Settings = {
   tapJump: true,
   smashMode: 'flick',
   particleQuality: 'high',
-  showPerf: true,
+  showPerf: false,
   autoQuality: true,
   rumble: true,
   screenShake: 1,

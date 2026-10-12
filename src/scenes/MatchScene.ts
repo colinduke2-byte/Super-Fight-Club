@@ -128,6 +128,7 @@ export class MatchScene extends Phaser.Scene {
   private paused = false;
   private pauseReason: '' | 'user' | 'disconnect' = '';
   private pauseMenu!: MenuList;
+  private bannerWasOn = false;
   /** Pause > MOVE LIST: the paused player's moves with inputs, damage and first active frame. */
   private moveListBox!: Phaser.GameObjects.BitmapText;
   private pendingHitDummy = false;
@@ -279,6 +280,7 @@ export class MatchScene extends Phaser.Scene {
     const dpr = this.dpr();
     const fontPx = Math.round(12 * dpr);
     this.perf = new PerfCounter(this, fontPx);
+    this.perf.visible = settings.showPerf;
     this.uiLayer.add(this.perf.text);
     this.debug = new DebugOverlay(this, this.worldLayer, this.uiLayer, this.world, this.views, fontPx);
 
@@ -840,6 +842,8 @@ export class MatchScene extends Phaser.Scene {
         return;
       case 'Backquote':
         this.perf.visible = !this.perf.visible;
+        settings.showPerf = this.perf.visible;
+        saveSettings();
         return;
       case 'KeyF':
         if (this.scale.isFullscreen) this.scale.stopFullscreen();
@@ -899,6 +903,11 @@ export class MatchScene extends Phaser.Scene {
     this.pauseOverlay.setVisible(p);
     this.pauseText.setVisible(p);
     this.pauseMenu.setVisible(p);
+    // the countdown / banner sits under the pause text; hide it while paused, restore it after
+    if (p && !was) {
+      this.bannerWasOn = this.banner.visible;
+      this.banner.setVisible(false);
+    } else if (!p && was) this.banner.setVisible(this.bannerWasOn);
     if (!p) {
       this.moveListBox?.setVisible(false);
       this.pauseOverlay.setAlpha(0.6);

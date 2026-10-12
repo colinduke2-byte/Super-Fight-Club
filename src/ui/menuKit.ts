@@ -36,6 +36,8 @@ export interface MenuItem {
   onLeft?: () => void;
   onRight?: () => void;
   enabled?: () => boolean;
+  /** One-line explanation, for scenes that show the selected row's hint. */
+  hint?: string;
 }
 
 /** A vertical list of rows with a highlighted cursor; label on the left, value on the right. */
@@ -54,12 +56,19 @@ export class MenuList {
   private width = 160;
   private rowH = 18;
   private fontK = 1.5;
+  private visible = true;
+  /** Backing plate and cursor bar, drawn under the rows. */
+  private readonly panel: Phaser.GameObjects.Graphics;
+  /** Draw the backing plate (on by default; scenes with their own frame turn it off). */
+  plate = true;
 
   constructor(
     private readonly scene: Phaser.Scene,
     private readonly layer: Phaser.GameObjects.Layer,
     public items: MenuItem[],
   ) {
+    this.panel = scene.add.graphics();
+    layer.add(this.panel);
     this.rebuild();
   }
 
@@ -129,7 +138,39 @@ export class MenuList {
   }
 
   setVisible(v: boolean): void {
+    this.visible = v;
+    this.panel.setVisible(v);
     for (const t of [...this.labels, ...this.values]) t.setVisible(v);
+  }
+
+  /** The selected row's hint ('' if it has none). */
+  get hint(): string {
+    return this.items[this.index]?.hint ?? '';
+  }
+
+  /** Translucent plate behind the rows plus a bar under the cursor, so the menu reads over any backdrop. */
+  private drawPanel(k: number, time: number): void {
+    const g = this.panel;
+    g.clear();
+    if (!this.plate || !this.visible || !this.items.length) return;
+    const u = this.u;
+    const rh = this.rowH * u;
+    const textH = 7 * k * u;
+    const pad = 6 * u;
+    const x = this.cx - (this.width / 2) * u - pad;
+    const w = this.width * u + pad * 2;
+    const y = this.top - (rh - textH) / 2 - u * 2;
+    const h = this.items.length * rh + u * 3;
+    g.fillStyle(0x07061a, 0.62).fillRect(x, y, w, h);
+    g.lineStyle(u, 0x3c3478, 0.9).strokeRect(x - u / 2, y - u / 2, w + u, h + u);
+    // corner ticks
+    g.fillStyle(COLORS.title, 0.85);
+    for (const [cx, cy] of [[x - u, y - u], [x + w - u * 2, y - u], [x - u, y + h - u * 2], [x + w - u * 2, y + h - u * 2]]) g.fillRect(cx, cy, u * 3, u * 3);
+    // cursor bar
+    const sy = this.top + this.index * rh - (rh - textH) / 2;
+    const a = 0.16 + 0.06 * Math.sin(time * 6);
+    g.fillStyle(COLORS.hot, a).fillRect(x + u, sy, w - u * 2, rh);
+    g.fillStyle(COLORS.hot, 0.9).fillRect(x + u, sy, u * 2, rh);
   }
 
   update(time: number): void {
@@ -143,7 +184,7 @@ export class MenuList {
       this.labels[i].setTint(!on ? 0x5a5680 : sel ? (pulse ? COLORS.hot : COLORS.title) : COLORS.text);
       const v = it.value ? up(`${sel && it.onLeft ? '< ' : ''}${it.value()}${sel && it.onRight ? ' >' : ''}`) : '';
       this.values[i].setText(v).setTint(!on ? 0x5a5680 : sel ? COLORS.hot : COLORS.accent);
-      if (it.value) worst = Math.max(worst, textPx(this.labels[i]) + textPx(this.values[i]) + 12);
+      worst = Math.max(worst, textPx(this.labels[i]) + (it.value ? textPx(this.values[i]) + 12 : 0));
     });
     // one text size for the whole menu: shrunk only when the widest row (label + value) would overflow the menu width
     const k = Math.min(this.fontK, (this.width * this.u) / (worst * this.u));
@@ -151,9 +192,11 @@ export class MenuList {
       this.labels[i].setScale(this.u * k);
       this.values[i].setScale(this.u * k);
     }
+    this.drawPanel(k, time);
   }
 
   destroy(): void {
+    this.panel.destroy();
     for (const t of [...this.labels, ...this.values]) t.destroy();
   }
 }
