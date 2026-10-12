@@ -37,8 +37,9 @@ export class FighterHud {
     data: CharacterData,
     label: string,
     index: number,
+    skin = data.id,
   ) {
-    const key = fighterTextureKey(data.id);
+    const key = fighterTextureKey(skin);
     const frame = animFrameIndex(data, 'idle', 0);
     this.panel = scene.add.image(0, 0, 'hud-panel').setOrigin(0.5, 1);
     this.accent = scene.add.image(0, 0, 'px').setOrigin(0, 0).setTint(PLAYER_COLORS[index % 4]);

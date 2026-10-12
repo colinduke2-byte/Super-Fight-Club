@@ -7,7 +7,7 @@ import { applyLadderResult, type LadderOutcome } from '../game/ladder';
 import { endingCards } from '../game/story';
 import { session } from '../game/session';
 import type { MenuEvent } from '../input/menuInput';
-import { fighterAnimKey, fighterTextureKey, uiTexK } from '../art/proceduralFighter';
+import { ensurePalette, fighterAnimKey, fighterTextureKey, uiTexK } from '../art/proceduralFighter';
 import { COLORS, MenuList, MenuScene, text, textPx, type MenuItem } from '../ui/menuKit';
 
 /** After a match: winner banner, per-player stats, and what to do next. */
@@ -64,8 +64,9 @@ export class ResultsScene extends MenuScene {
     if (wp && wc) {
       this.champColor = parseInt(wc.sprite.placeholder.accent.slice(1), 16);
       this.champK = uiTexK(wc);
-      this.champ = this.add.sprite(0, 0, fighterTextureKey(wc.id), 0).setOrigin(0.5, 1);
-      this.champ.play(fighterAnimKey(wc.id, 'idle'));
+      const skin = ensurePalette(this, wc, wp.palette ?? 0);
+      this.champ = this.add.sprite(0, 0, fighterTextureKey(skin), 0).setOrigin(0.5, 1);
+      this.champ.play(fighterAnimKey(skin, 'idle'));
       this.ui.add(this.champ);
       this.champName = text(this, this.ui, wc.name.replace('The ', '').toUpperCase(), this.champColor).setOrigin(0.5);
     }

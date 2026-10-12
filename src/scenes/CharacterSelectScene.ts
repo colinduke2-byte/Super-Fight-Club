@@ -1,5 +1,6 @@
 import Phaser from 'phaser';
-import { animFrameIndex, fighterAnimKey, fighterTextureKey, portraitCrop, portraitK, uiTexK } from '../art/proceduralFighter';
+import { animFrameIndex, ensurePalette, fighterAnimKey, fighterTextureKey, portraitCrop, portraitK, uiTexK } from '../art/proceduralFighter';
+import { ALT_LOOKS, paletteCount } from '../art/palettes';
 import { PIXEL_FONT } from '../art/pixelFont';
 import { CHARACTER_LIST } from '../characters';
 import { Lobby } from '../game/lobby';
@@ -23,6 +24,8 @@ interface Card {
   barBg: Phaser.GameObjects.Image[];
   tex: string;
   barW: number;
+  /** Palette swatches (the fighter's own colours first). */
+  swatches: Phaser.GameObjects.Image[];
 }
 
 /** Character select for 1-4 slots: devices join, pick with their own cursor, lock in; CPUs fill the rest. */
@@ -33,6 +36,8 @@ export class CharacterSelectScene extends MenuScene {
   private roster: { img: Phaser.GameObjects.Image; name: Phaser.GameObjects.BitmapText; pips: Phaser.GameObjects.Image[] }[] = [];
   private warn!: Phaser.GameObjects.BitmapText;
   private hint!: Phaser.GameObjects.BitmapText;
+  /** Chosen colour palette per slot. */
+  private palettes: number[] = [];
 
   constructor() {
     super('CharacterSelect');
@@ -41,6 +46,7 @@ export class CharacterSelectScene extends MenuScene {
   protected build(): void {
     this.cards = [];
     this.roster = [];
+    this.palettes = (session.players.length ? session.players.map((p) => p.palette ?? 0) : []).concat([0, 0, 0, 0]).slice(0, 4);
     this.lobby = new Lobby(session.playerCount, CHARACTER_LIST.length);
     this.lobby.slots.forEach((s, i) => (s.character = i % CHARACTER_LIST.length));
     const title = session.mode === 'versus' ? 'CHOOSE YOUR FIGHTERS' : session.mode === 'arcade' ? 'CHOOSE YOUR CHAMPION' : session.mode === 'targets' ? 'TARGET SMASH' : 'TRAINING: CHOOSE A FIGHTER';
@@ -64,6 +70,11 @@ export class CharacterSelectScene extends MenuScene {
         barBg: [],
         tex: '',
         barW: 1,
+        swatches: [0, 1, 2, 3].map(() => {
+          const sw = this.add.image(0, 0, 'px').setOrigin(0.5);
+          this.ui.add(sw);
+          return sw;
+        }),
       };
       this.ui.add([frame, sprite]);
       this.ui.sendToBack(frame);
@@ -111,6 +122,7 @@ export class CharacterSelectScene extends MenuScene {
       c.name.setScale(u * 1.5).setOrigin(0.5, 0).setPosition(cx, top + 92 * u);
       c.status.setScale(u * 1.2).setOrigin(0.5, 0).setPosition(cx, top + 106 * u);
       c.tagline.setScale(u * 0.85).setOrigin(0.5, 0).setPosition(cx, top + 118 * u);
+      c.swatches.forEach((sw, k) => sw.setPosition(cx + (cw * 0.94) / 2 - 8 * u - (3 - k) * 7 * u, top + 72 * u).setData('u', u));
       c.bars.forEach((b, k) => {
         const by = top + 136 * u + k * 6 * u;
         c.barLabels[k].setScale(u * 0.8).setOrigin(0, 0).setPosition(cx - (cw * 0.94) / 2 + 5 * u, by - 0.5 * u);
@@ -142,11 +154,21 @@ export class CharacterSelectScene extends MenuScene {
     this.cards.forEach((c, i) => {
       const slot = l.slots[i];
       const data = CHARACTER_LIST[slot.character];
-      if (c.tex !== data.id) {
-        c.tex = data.id;
-        c.sprite.setTexture(fighterTextureKey(data.id), 0);
-        c.sprite.play(fighterAnimKey(data.id, 'idle'));
+      const pal = slot.kind === 'human' ? this.palettes[i] % paletteCount(data.id) : 0;
+      const skin = pal > 0 ? ensurePalette(this, data, pal) : data.id;
+      if (c.tex !== skin) {
+        c.tex = skin;
+        c.sprite.setTexture(fighterTextureKey(skin), 0);
+        c.sprite.play(fighterAnimKey(skin, 'idle'));
       }
+      const looks = [data.sprite.placeholder, ...(ALT_LOOKS[data.id] ?? [])];
+      c.swatches.forEach((sw, k) => {
+        const su = (sw.getData('u') as number) ?? u;
+        const on = slot.kind === 'human' && k < looks.length;
+        sw.setVisible(on);
+        if (!on) return;
+        sw.setTint(parseInt(looks[k].armor.slice(1), 16)).setScale(((k === pal ? 6 : 4) * su) / 4).setAlpha(k === pal ? 1 : 0.55);
+      });
       const dev = slot.kind === 'human' ? (inputManager.allDevices.find((d) => d.id === slot.deviceId)?.label ?? slot.deviceId ?? '') : slot.kind === 'cpu' ? `CPU LEVEL ${slot.cpuLevel}` : '';
       const teamTag = session.rules.teams && session.playerCount === 4 ? (i < 2 ? ' BLUE' : ' RED') : '';
       c.header.setText(up(`P${i + 1}${teamTag}`));
@@ -194,7 +216,8 @@ export class CharacterSelectScene extends MenuScene {
     });
     const pads = inputManager.padList.length;
     this.warn.setText(up(l.warning(pads) ?? (l.ready ? 'ALL SET: PRESS CONFIRM AGAIN OR START TO CONTINUE' : '')));
-    this.hint.setText(up('LEFT/RIGHT: PICK   J / ENTER: JOIN + LOCK   K / ESC: BACK' + (session.mode === 'versus' ? '   U / TAB: ADD CPU' : '')));
+    this.hint.setText(up('LEFT/RIGHT: PICK   UP/DOWN: COLOR   J / ENTER: JOIN + LOCK   K / ESC: BACK' + (session.mode === 'versus' ? '   U / TAB: ADD CPU' : '')));
+    this.hint.setScale(Math.min(this.u, (this.scale.width * 0.97) / Math.max(1, textPx(this.hint))));
   }
 
   private deviceById(id: string | null) {
@@ -216,7 +239,8 @@ export class CharacterSelectScene extends MenuScene {
         ci = pool[Math.floor(Math.random() * pool.length)];
       }
       used.add(ci);
-      return { index: i, type: s.kind === 'human' ? 'human' : 'cpu', device: s.kind === 'human' ? this.deviceById(s.deviceId) : null, character: CHARACTER_LIST[ci].id, cpuLevel: s.cpuLevel };
+      const palette = s.kind === 'human' ? this.palettes[i] % paletteCount(CHARACTER_LIST[ci].id) : 0;
+      return { index: i, type: s.kind === 'human' ? 'human' : 'cpu', device: s.kind === 'human' ? this.deviceById(s.deviceId) : null, character: CHARACTER_LIST[ci].id, cpuLevel: s.cpuLevel, palette };
     });
     session.players = slots;
     if (session.mode === 'versus') this.go('StageSelect');
@@ -247,6 +271,15 @@ export class CharacterSelectScene extends MenuScene {
       case 'right':
         l.move(id, 1);
         break;
+      case 'up':
+      case 'down': {
+        // colour palette for this player's fighter
+        const i = l.slotOf(id);
+        if (i < 0 || l.slots[i].kind !== 'human') break;
+        const n = paletteCount(CHARACTER_LIST[l.slots[i].character].id);
+        this.palettes[i] = (this.palettes[i] + (e.action === 'down' ? 1 : -1) + n) % n;
+        break;
+      }
       case 'confirm': {
         const i = l.slotOf(id);
         if (i >= 0 && l.slots[i].locked && (l.ready || session.mode !== 'versus')) this.proceed();

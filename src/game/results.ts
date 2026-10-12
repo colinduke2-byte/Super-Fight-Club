@@ -33,6 +33,7 @@ export function buildResult(
   const players: PlayerResult[] = slots.map((s, i) => ({
     index: s.index,
     character: s.character,
+    palette: s.palette ?? 0,
     type: s.type,
     stocks: scores[i].stocks,
     kos: scores[i].kos,

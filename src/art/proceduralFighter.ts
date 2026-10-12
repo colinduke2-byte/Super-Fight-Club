@@ -1,4 +1,5 @@
 import Phaser from 'phaser';
+import { ALT_LOOKS } from './palettes';
 import type { CharacterData, PlaceholderLook } from '../engine/types';
 import { buildKeys, type Key } from './poseTemplates';
 import { detailPass, finishHero, type Anchors } from './spriteDetail';
@@ -883,6 +884,21 @@ export function portraitCrop(data: CharacterData): [number, number, number, numb
 /** Scale that makes a portrait crop fill a 40-unit well. */
 export function portraitK(data: CharacterData): number {
   return 40 / portraitCrop(data)[2];
+}
+
+/** Texture / animation id of a fighter in a palette (palette 0 is the plain id). */
+export function skinKey(id: string, palette = 0): string {
+  return palette > 0 ? `${id}~${palette}` : id;
+}
+
+/** Build (once) the sheet for a fighter in an alternate palette and return its id for fighterTextureKey / fighterAnimKey. */
+export function ensurePalette(scene: Phaser.Scene, data: CharacterData, palette: number): string {
+  const alt = palette > 0 ? ALT_LOOKS[data.id]?.[palette - 1] : undefined;
+  if (!alt) return data.id;
+  const key = skinKey(data.id, palette);
+  if (scene.textures.exists(fighterTextureKey(key))) return key;
+  buildPlaceholderSheet(scene, { ...data, id: key, sprite: { ...data.sprite, sheetUrl: undefined, placeholder: { ...data.sprite.placeholder, ...alt } } });
+  return key;
 }
 
 export function fighterAnimKey(id: string, anim: string): string {

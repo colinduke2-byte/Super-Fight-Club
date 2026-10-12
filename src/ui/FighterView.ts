@@ -47,11 +47,15 @@ export class FighterView {
   private readonly layer: Phaser.GameObjects.Layer;
   private readonly scene: Phaser.Scene;
 
-  constructor(scene: Phaser.Scene, layer: Phaser.GameObjects.Layer, readonly fighter: Fighter, tint?: number) {
+  /** Texture / animation id (the fighter's id, or its palette variant). */
+  private readonly skin: string;
+
+  constructor(scene: Phaser.Scene, layer: Phaser.GameObjects.Layer, readonly fighter: Fighter, tint?: number, skin?: string) {
     this.baseTint = tint;
     this.layer = layer;
     this.scene = scene;
-    const key = fighterTextureKey(fighter.data.id);
+    this.skin = skin ?? fighter.data.id;
+    const key = fighterTextureKey(this.skin);
     this.shadow = scene.add.image(0, 0, 'px').setTint(0x000000).setAlpha(0.25).setScale(5, 0.7);
     this.sprite = scene.add.sprite(0, 0, key, 0).setOrigin(0.5, 1).setScale(fighter.data.sprite.pixelScale);
     if (tint !== undefined) this.sprite.setTint(tint);
@@ -130,7 +134,7 @@ export class FighterView {
         this.lastAnim = key;
       }
     } else {
-      const anim = fighterAnimKey(f.data.id, f.anim);
+      const anim = fighterAnimKey(this.skin, f.anim);
       if (anim !== this.lastAnim) {
         s.anims.play(anim, true);
         this.lastAnim = anim;

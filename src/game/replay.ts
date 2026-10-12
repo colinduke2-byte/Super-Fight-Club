@@ -4,6 +4,7 @@ import type { MatchRules } from './session';
 /** One recorded fighter slot. */
 export interface ReplayPlayer {
   character: string;
+  palette?: number;
 }
 
 /**

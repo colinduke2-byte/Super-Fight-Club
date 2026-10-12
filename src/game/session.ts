@@ -27,6 +27,8 @@ export interface PlayerSlot {
   stocks?: number;
   /** Driven by the scripted boss brain instead of a CPU. */
   boss?: boolean;
+  /** Colour palette (0 = the fighter's own); duplicates in a match are bumped to a free one. */
+  palette?: number;
 }
 
 export interface MatchRules {
@@ -51,6 +53,8 @@ export interface PlayerResult {
   kos: number;
   falls: number;
   damageDealt: number;
+  /** Colour palette the fighter wore. */
+  palette?: number;
   /** Most hits in one combo. */
   bestCombo?: number;
   eliminated: boolean;

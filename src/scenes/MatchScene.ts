@@ -1,3 +1,5 @@
+import { ensurePalette } from '../art/proceduralFighter';
+import { assignPalettes } from '../art/palettes';
 import Phaser from 'phaser';
 import { characterById, CHARACTERS } from '../characters';
 import { music } from '../audio/music';
@@ -53,7 +55,6 @@ import { session, type PlayerSlot } from '../game/session';
 const COUNT_STEP = 36;
 const COUNTDOWN = COUNT_STEP * 3 + 40;
 const TRAINING: MatchConfig = { mode: 'training', stocks: 3, timeLimitSec: 0, respawnDelay: 70 };
-const DUPLICATE_TINTS = [undefined, 0xff9a9a, 0x9aff9a, 0x9ac8ff];
 const END_DELAY = 150;
 const HELP_TRAINING = [
   'MOVE WASD  JUMP I  ATTACK J  SPECIAL K  SHIELD L  GRAB U  SMASH O',
@@ -129,6 +130,8 @@ export class MatchScene extends Phaser.Scene {
   private pauseReason: '' | 'user' | 'disconnect' = '';
   private pauseMenu!: MenuList;
   private bannerWasOn = false;
+  /** Texture id per fighter (its palette). */
+  private skins: string[] = [];
   /** Pause > MOVE LIST: the paused player's moves with inputs, damage and first active frame. */
   private moveListBox!: Phaser.GameObjects.BitmapText;
   private pendingHitDummy = false;
@@ -205,7 +208,7 @@ export class MatchScene extends Phaser.Scene {
     this.recorder = null;
     if (!this.replay) this.ensureSession();
     const rep = this.replay;
-    this.slots = rep ? rep.players.map((p, i) => ({ index: i, type: 'cpu' as const, device: null, character: p.character, cpuLevel: 1 as const })) : session.players;
+    this.slots = rep ? rep.players.map((p, i) => ({ index: i, type: 'cpu' as const, device: null, character: p.character, cpuLevel: 1 as const, palette: p.palette })) : session.players;
     this.isTraining = !rep && session.mode === 'training';
     const rulesNow = rep ? rep.rules : session.rules;
     const base = STAGES[rep ? rep.stage : session.stage] ?? sandboxStage;
@@ -228,7 +231,7 @@ export class MatchScene extends Phaser.Scene {
     this.world.config.itemRate = this.isTraining || this.isTargets || (!rep && session.mode === 'arcade') ? 0 : rules.items;
     const cfg: MatchConfig = this.isTraining ? TRAINING : { mode: rules.mode, stocks: rules.stocks, timeLimitSec: rules.timeSec, respawnDelay: 70, staminaHp: rules.staminaHp };
     this.match = new Match(this.world, cfg);
-    if (!rep && !this.isTraining && session.mode === 'versus') this.recorder = new ReplayRecorder(session.stage, rules, this.slots.map((sl) => ({ character: sl.character })), settings.smashMode === 'flick');
+    if (!rep && !this.isTraining && session.mode === 'versus') this.recorder = new ReplayRecorder(session.stage, rules, this.slots.map((sl) => ({ character: sl.character, palette: sl.palette })), settings.smashMode === 'flick');
     this.match.onRespawn = (f) => this.respawn(f.id, true);
     this.match.onSuddenDeath = () => {
       this.banner.setText('SUDDEN DEATH!').setVisible(true).setTint(0xff4a5a);
@@ -258,12 +261,11 @@ export class MatchScene extends Phaser.Scene {
     this.bg.setTheme(stage.background.theme);
     this.stageView = new StageView(this, this.worldLayer, this.world);
     if (stage.hazards) this.hazardView = new HazardView(this, this.worldLayer, stage.hazards);
-    const seen = new Set<string>();
-    this.views = this.fighters.map((f, i) => {
-      const dup = seen.has(this.slots[i].character);
-      seen.add(this.slots[i].character);
-      return new FighterView(this, this.worldLayer, f, dup ? DUPLICATE_TINTS[i % 4] : undefined);
-    });
+    // palettes: chosen ones kept, duplicates of the same fighter bumped to a free colour (built on demand)
+    const palettes = assignPalettes(this.slots);
+    this.slots.forEach((s, i) => (s.palette = palettes[i])); // results / rematches show the same colours
+    this.skins = this.fighters.map((f, i) => ensurePalette(this, f.data, palettes[i]));
+    this.views = this.fighters.map((f, i) => new FighterView(this, this.worldLayer, f, undefined, this.skins[i]));
     this.effects = new Effects(this, this.worldLayer);
     this.effects.cap = this.adaptive.cap; // a reduction earlier in the session carries over to rematches
     this.entityViews = new EntityViews(this, this.worldLayer, this.world);
@@ -299,7 +301,7 @@ export class MatchScene extends Phaser.Scene {
     this.bubbles = new OffscreenBubbles(this, this.uiLayer, this.fighters, this.views, tagColors);
     this.fighters.forEach((f, i) => {
       const label = labels[i];
-      this.huds.push(new FighterHud(this, this.uiLayer, f.data, f.team >= 0 ? (f.team === 0 ? 'BLUE' : 'RED') : label, f.team >= 0 ? f.team : i));
+      this.huds.push(new FighterHud(this, this.uiLayer, f.data, f.team >= 0 ? (f.team === 0 ? 'BLUE' : 'RED') : label, f.team >= 0 ? f.team : i, this.skins[i]));
     });
     if (cfg.mode === 'stamina') this.huds.forEach((h) => (h.hpMax = cfg.staminaHp ?? 150));
     this.helpText = this.add.bitmapText(0, 0, PIXEL_FONT, up((this.isTraining ? HELP_TRAINING : HELP_MATCH).join('\n'))).setOrigin(0, 1).setTint(0xb8b0e8);
@@ -462,7 +464,7 @@ export class MatchScene extends Phaser.Scene {
     session.players = [{ index: 0, type: auto ? 'cpu' : 'human', device: auto ? null : device, character: id, cpuLevel: 3 }];
     const lvl = Math.min(3, Math.max(1, Number(q.get('cpu') ?? 1))) as 1 | 2 | 3;
     for (let i = 1; i < Math.max(2, n); i++) {
-      const pick = ids.filter((c) => c !== id)[(i - 1) % (ids.length - 1)];
+      const pick = q.has('mirror') ? id : ids.filter((c) => c !== id)[(i - 1) % (ids.length - 1)]; // ?mirror: everyone plays the same fighter
       session.players.push({ index: i, type: 'cpu', device: null, character: pick, cpuLevel: lvl });
     }
   }
@@ -770,7 +772,7 @@ export class MatchScene extends Phaser.Scene {
     this.fighters.forEach((f, i) => {
       const ult = f.state === 'attack' && f.move?.kind === 'ultimate';
       if (ult && !this.ultOn[i] && f.move) {
-        this.cutIn.play(f.data, f.move.name ?? 'ULTIMATE', f.facing);
+        this.cutIn.play(f.data, f.move.name ?? 'ULTIMATE', f.facing, this.skins[f.id]);
         sfx.play('charge', 0.9, 0);
       }
       this.ultOn[i] = ult;

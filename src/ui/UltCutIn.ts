@@ -29,12 +29,12 @@ export class UltCutIn {
   }
 
   /** `side`: which way the fighter faces (the band sweeps that way). */
-  play(data: CharacterData, moveName: string, side: number): void {
+  play(data: CharacterData, moveName: string, side: number, skin = data.id): void {
     this.t = 0;
     this.dir = side >= 0 ? 1 : -1;
     this.color = parseInt(data.sprite.placeholder.accent.slice(1), 16);
     this.k = uiTexK(data);
-    this.sprite.setTexture(fighterTextureKey(data.id), animFrameIndex(data, 'idle', 0)).setFlipX(this.dir < 0).setTint(0xffffff);
+    this.sprite.setTexture(fighterTextureKey(skin), animFrameIndex(data, 'idle', 0)).setFlipX(this.dir < 0).setTint(0xffffff);
     this.name.setText(moveName.toUpperCase());
   }
 
