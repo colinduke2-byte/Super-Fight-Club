@@ -1,4 +1,5 @@
 import type { PlaceholderLook } from '../../engine/types';
+import { drawFace } from './face';
 import { col, mix, mul, type Raster, type RGB, type V2 } from './raster';
 import { solveLimb, type Skel } from './skeleton';
 
@@ -28,6 +29,10 @@ export function drawHalcyon(r: Raster, k: Skel, look: PlaceholderLook): void {
     goldL: r.part(goldL, { flat: true }),
     goldFlat: r.part(gold, { flat: true }),
     skin: r.part(skin, { soft: true }),
+    skinD: r.part(mul(skin, 0.8), { soft: true }),
+    sclera: r.part([246, 246, 255], { flat: true }),
+    line: r.part(mul(skin, 0.4), { flat: true }),
+    iris: r.part([60, 130, 235], { flat: true }),
     hair: r.part([246, 226, 160], { soft: true }),
     hairD: r.part([205, 176, 108], { soft: true }),
     azure: r.part(azure, { soft: true }),
@@ -121,11 +126,7 @@ export function drawHalcyon(r: Raster, k: Skel, look: PlaceholderLook): void {
       py = y;
     }
     // face
-    r.rect(P.skin, hx + 6, hy + 4, hs - 4, hs - 6);
-    r.rect(P.skin, hx + hs - 2, hy + 12, 3, 6); // nose
-    r.rect(P.eye, hx + hs - 9, hy + 11, 6, 3);
-    r.rect(P.deep, hx + hs - 11, hy + 8, 9, 2); // brow
-    r.rect(P.seam, hx + hs - 7, hy + hs - 7, 5, 1); // mouth
+    drawFace(r, { skin: P.skin, skinD: P.skinD, eye: P.sclera, pupil: P.iris, line: P.line }, hx + 6, hy + 6, hs - 4, hs - 6, { grim: 0.5 });
     // helm: dome, cheek guard, gold circlet
     r.poly(P.armor, [[hx + 2, hy + 10], [hx + 6, hy], [hx + hs - 2, hy - 2], [hx + hs + 3, hy + 6], [hx + hs - 4, hy + 8], [hx + 8, hy + 8]]);
     r.poly(P.light, [[hx + 6, hy + 1], [hx + hs - 2, hy - 1], [hx + hs - 4, hy + 3], [hx + 8, hy + 4]]);
@@ -192,7 +193,7 @@ export function drawHalcyon(r: Raster, k: Skel, look: PlaceholderLook): void {
   }
 }
 
-type Parts = Record<'armor' | 'light' | 'dark' | 'deep' | 'gold' | 'goldL' | 'goldFlat' | 'skin' | 'hair' | 'hairD' | 'azure' | 'azureD' | 'feather' | 'featherU' | 'featherF' | 'covert' | 'bone' | 'steel' | 'shaft' | 'glow' | 'eye' | 'ribbon' | 'seam', number>;
+type Parts = Record<'skinD' | 'sclera' | 'line' | 'iris' | 'armor' | 'light' | 'dark' | 'deep' | 'gold' | 'goldL' | 'goldFlat' | 'skin' | 'hair' | 'hairD' | 'azure' | 'azureD' | 'feather' | 'featherU' | 'featherF' | 'covert' | 'bone' | 'steel' | 'shaft' | 'glow' | 'eye' | 'ribbon' | 'seam', number>;
 
 /** A leaf-shaped feather from `a` to `b`, widest about 40% along. */
 function featherPoly(r: Raster, part: number, a: V2, b: V2, w: number): void {

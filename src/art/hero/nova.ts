@@ -1,4 +1,5 @@
 import type { PlaceholderLook } from '../../engine/types';
+import { drawFace } from './face';
 import { col, mix, mul, type Raster, type RGB, type V2 } from './raster';
 import type { Skel } from './skeleton';
 
@@ -18,6 +19,11 @@ export function drawNova(r: Raster, k: Skel, look: PlaceholderLook): void {
     cloak: r.part(dark, { soft: true }),
     cloakD: r.part(deep, { soft: true }),
     skin: r.part(skin, { soft: true }),
+    skinD: r.part(mul(skin, 0.8), { soft: true }),
+    hair: r.part([226, 230, 246], { soft: true }),
+    hairD: r.part([170, 176, 206], { soft: true }),
+    sclera: r.part([246, 246, 255], { flat: true }),
+    line: r.part(mul(skin, 0.42), { flat: true }),
     hat: r.part(mix(armor, [30, 10, 60], 0.35)),
     hatL: r.part(mix(armor, [220, 200, 255], 0.18)),
     wood: r.part(wood),
@@ -119,11 +125,11 @@ export function drawNova(r: Raster, k: Skel, look: PlaceholderLook): void {
     r.rect(P.skin, hx + 6, T.y - 4, hs - 12, 8); // neck
     // hair wisps under the hat
     r.poly(P.cloak, [[hx - 2, hy + 6], [hx - 12 - sway(3), hy + hs - 2], [hx + 4, hy + hs - 6]]);
+    // long silver hair framing the face and falling behind the shoulder
+    r.poly(P.hairD, [[hx - 4, hy + 4], [hx + 10, hy + 2], [hx + 12, hy + hs - 2], [hx - 10 - sway(4), hy + hs + 18], [hx - 12, hy + 14]]);
+    r.poly(P.hair, [[hx - 2, hy + 4], [hx + 8, hy + 3], [hx + 9, hy + hs - 4], [hx - 6 - sway(5), hy + hs + 14]]);
     // face
-    r.ellipse(P.skin, hx + hs / 2 + 2, hy + hs / 2 + 2, hs / 2, hs / 2 - 1);
-    r.rect(P.eye, hx + hs - 9, hy + hs / 2, 5, 3);
-    r.rect(P.cloakD, hx + hs - 10, hy + hs / 2 - 2, 8, 1); // brow
-    r.rect(P.cloakD, hx + hs - 5, hy + hs - 5, 4, 1); // mouth
+    drawFace(r, { skin: P.skin, skinD: P.skinD, eye: P.eye, pupil: P.eye, line: P.line }, hx + 4, hy + 4, hs, hs - 2, { eyeLit: true, mouth: true });
     // hat: wide brim, cone with a bend, glowing band and star
     r.ellipse(P.hat, hx + hs / 2 + 2, hy + 3, hs / 2 + 12, 5);
     r.ellipse(P.hatL, hx + hs / 2, hy + 2, hs / 2 + 10, 3);

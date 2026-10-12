@@ -1,4 +1,5 @@
 import type { PlaceholderLook } from '../../engine/types';
+import { drawFace } from './face';
 import { col, mix, mul, type Raster, type RGB, type V2 } from './raster';
 import type { Skel } from './skeleton';
 
@@ -121,13 +122,8 @@ export function drawAgni(r: Raster, k: Skel, look: PlaceholderLook): void {
       r.poly(P.glow, [[hx + ox + 3, hy + 4], [hx + ox + 5 + fl * 0.3, hy + 4 - hgt * 0.6 - fl * 0.6], [hx + ox + 8, hy + 4]]);
     });
     // face
-    r.rect(P.skin, hx, hy + 2, hs, hs - 2);
-    r.rect(P.skinD, hx, hy + 8, 8, hs - 10);
-    r.rect(P.deep, hx + hs - 12, hy + 7, 10, 2); // brow
-    r.rect(P.eye, hx + hs - 11, hy + 9, 6, 3);
-    r.rect(P.pupil, hx + hs - 8, hy + 9, 3, 3);
-    r.rect(P.abs, hx + hs - 6, hy + hs - 6, 5, 1); // mouth
-    r.rect(P.deep, hx + hs - 2, hy + 14, 2, 4); // jaw line
+    drawFace(r, { skin: P.skin, skinD: P.skinD, eye: P.eye, pupil: P.pupil, line: P.deep }, hx, hy + 4, hs, hs - 2, { grim: 1 });
+    r.poly(P.deep, [[hx - 1, hy + 6], [hx + 8, hy + 3], [hx + 12, hy + hs - 6], [hx + 2, hy + hs - 2]]); // dark hair at the nape
     // headband with trailing tails
     r.rect(P.light, hx - 1, hy + 2, hs + 2, 5);
     r.rect(P.accent, hx - 1, hy + 4, hs + 2, 2);

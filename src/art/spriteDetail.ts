@@ -276,3 +276,79 @@ function decorate(ctx: Ctx, ss: number, look: PlaceholderLook, a: Anchors, phase
     }
   }
 }
+
+/**
+ * Fast finishing for hero-art frames (already lit by `Raster.shade`): bloom around self-lit pixels, a coloured glow just outside them and a
+ * selective outline tinted by the colour it borders. Allocation-free inner loops, because every frame of every fighter goes through here at boot.
+ */
+export function finishHero(ctx: Ctx, w: number, h: number, look: PlaceholderLook): void {
+  const img = ctx.getImageData(0, 0, w, h);
+  const d = img.data;
+  const n = w * h;
+  const A = new Uint8Array(n); // opaque mask
+  const E = new Uint8Array(n); // emissive mask
+  const accent = rgb(look.accent);
+  const glow = bright(accent, 1.55);
+  const outline = rgb(look.outline);
+  const near = (r: number, g: number, b: number, u: [number, number, number]): boolean => Math.abs(r - u[0]) + Math.abs(g - u[1]) + Math.abs(b - u[2]) < 40;
+  for (let i = 0; i < n; i++) {
+    if (d[i * 4 + 3] === 0) continue;
+    A[i] = 1;
+    const r = d[i * 4];
+    const g = d[i * 4 + 1];
+    const b = d[i * 4 + 2];
+    if (near(r, g, b, accent) || near(r, g, b, glow)) E[i] = 1;
+  }
+  // bloom kernel
+  const R = 3;
+  const K: number[] = [];
+  for (let dy = -R; dy <= R; dy++) for (let dx = -R; dx <= R; dx++) K.push(Math.max(0, 1 - Math.hypot(dx, dy) / (R + 0.5)) * 0.22);
+  const bloom = new Float32Array(n);
+  for (let y = R; y < h - R; y++) {
+    for (let x = R; x < w - R; x++) {
+      if (!E[y * w + x]) continue;
+      let k = 0;
+      for (let dy = -R; dy <= R; dy++) {
+        const row = (y + dy) * w + x;
+        for (let dx = -R; dx <= R; dx++) bloom[row + dx] += K[k++];
+      }
+    }
+  }
+  for (let y = 0; y < h; y++) {
+    for (let x = 0; x < w; x++) {
+      const p = y * w + x;
+      const i = p * 4;
+      if (A[p]) {
+        const b = bloom[p];
+        if (b > 0.02 && !E[p]) {
+          const m = Math.min(1, b) * 0.5;
+          d[i] = Math.min(255, d[i] + accent[0] * m);
+          d[i + 1] = Math.min(255, d[i + 1] + accent[1] * m);
+          d[i + 2] = Math.min(255, d[i + 2] + accent[2] * m);
+        }
+        continue;
+      }
+      let sr = 0;
+      let sg = 0;
+      let sb = 0;
+      let cnt = 0;
+      if (x > 0 && A[p - 1]) { sr += d[i - 4]; sg += d[i - 3]; sb += d[i - 2]; cnt++; }
+      if (x < w - 1 && A[p + 1]) { sr += d[i + 4]; sg += d[i + 5]; sb += d[i + 6]; cnt++; }
+      if (y > 0 && A[p - w]) { sr += d[i - w * 4]; sg += d[i - w * 4 + 1]; sb += d[i - w * 4 + 2]; cnt++; }
+      if (y < h - 1 && A[p + w]) { sr += d[i + w * 4]; sg += d[i + w * 4 + 1]; sb += d[i + w * 4 + 2]; cnt++; }
+      if (cnt > 0) {
+        // outline = the neighbouring colour darkened, mixed with the character's outline colour
+        d[i] = (sr / cnt) * 0.28 * 0.45 + outline[0] * 0.55;
+        d[i + 1] = (sg / cnt) * 0.28 * 0.45 + outline[1] * 0.55;
+        d[i + 2] = (sb / cnt) * 0.28 * 0.45 + outline[2] * 0.55;
+        d[i + 3] = 255;
+      } else if (bloom[p] > 0.05) {
+        d[i] = accent[0];
+        d[i + 1] = accent[1];
+        d[i + 2] = accent[2];
+        d[i + 3] = Math.min(110, bloom[p] * 220);
+      }
+    }
+  }
+  ctx.putImageData(img, 0, 0);
+}

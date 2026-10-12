@@ -1,7 +1,7 @@
 import Phaser from 'phaser';
 import type { CharacterData, PlaceholderLook } from '../engine/types';
 import { buildKeys, type Key } from './poseTemplates';
-import { detailPass, type Anchors } from './spriteDetail';
+import { detailPass, finishHero, type Anchors } from './spriteDetail';
 import { animFrameIndex, sheetDims, sheetLayout } from './sheetLayout';
 export { animFrameIndex, sheetDims };
 import { hasHeroArt, renderHero } from './hero';
@@ -915,7 +915,7 @@ export function buildPlaceholderSheet(scene: Phaser.Scene, data: CharacterData):
       if (hero) {
         hctx.clearRect(0, 0, fw, size);
         renderHero(hctx, fw, size, sprite.placeholder, pose, f);
-        detailPass(hctx, fw, size, ss, sprite.placeholder, null, f, false);
+        finishHero(hctx, fw, size, sprite.placeholder);
         sctx.drawImage(hi, dx, dy);
         continue;
       }
