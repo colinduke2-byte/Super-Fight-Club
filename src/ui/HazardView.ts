@@ -29,7 +29,8 @@ export class HazardView {
         this.bolt(g, h, phase, tick);
         continue;
       }
-      this.geyser(g, this.ga, h, phase, tick);
+      if (h.style === 'water') this.spout(g, this.ga, h, phase, tick);
+      else this.geyser(g, this.ga, h, phase, tick);
     }
   }
 
@@ -80,6 +81,70 @@ export class HazardView {
         const cyc = Math.floor((tick * 2 + i * 11) / 40);
         const side = jit(i, cyc) - 0.5;
         ga.fillStyle(i % 4 === 0 ? 0xffffff : 0xffb040, 1 - life).fillRect(h.x + side * h.w * (1 + life * 1.6), h.y - life * h.h * (0.4 + jit(i + 3, cyc) * 0.7), 2, 2);
+      }
+    }
+  }
+
+  /** Water spout: a swirling blowhole, a churning telegraph with spray, then a roaring column of seawater with a foam crown. */
+  private spout(g: Phaser.GameObjects.Graphics, ga: Phaser.GameObjects.Graphics, h: HazardDef, phase: 'idle' | 'warn' | 'active', tick: number): void {
+    const jit = (i: number, k: number): number => {
+      const r = Math.sin(i * 12.9898 + k * 78.233) * 43758.5453;
+      return r - Math.floor(r);
+    };
+    // blowhole: a dark round hole in the deck with a barnacled rim and water sloshing in it
+    g.fillStyle(0x0a1c26, 1).fillEllipse(h.x, h.y - 1, h.w + 10, 7);
+    g.fillStyle(0x3a5a5a, 1).fillRect(h.x - h.w / 2 - 5, h.y - 3, 3, 2).fillRect(h.x + h.w / 2 + 2, h.y - 3, 3, 2);
+    const slosh = phase === 'idle' ? 0.3 + 0.1 * Math.sin(tick * 0.07) : phase === 'warn' ? 0.7 : 1;
+    g.fillStyle(0x1a6a8a, 1).fillEllipse(h.x + Math.sin(tick * 0.06) * 2, h.y - 1, h.w * 0.8, 4);
+    ga.fillStyle(0x4ae0e0, 0.16 * slosh).fillEllipse(h.x, h.y - 2, h.w + 24, 10);
+    for (let i = 0; i < 3; i++) {
+      // ripples swirling around the hole
+      const a = tick * 0.05 + (i * Math.PI * 2) / 3;
+      ga.fillStyle(0xbff6ff, 0.5 * slosh).fillRect(h.x + Math.cos(a) * (h.w / 2), h.y - 1.5 + Math.sin(a) * 1.5, 3, 1);
+    }
+    if (phase === 'warn') {
+      // the sea churns: a growing foam dome, spray spitting up, a faint outline of the column to come
+      const p = (tick % 14) / 14;
+      g.fillStyle(0xd8f6ff, 0.55 + 0.25 * Math.sin(tick * 0.6)).fillEllipse(h.x, h.y - 3, h.w * (0.7 + 0.3 * p), 6 + 6 * p);
+      for (let i = 0; i < 12; i++) {
+        const life = ((tick + i * 5) % 22) / 22;
+        const cyc = Math.floor((tick + i * 5) / 22);
+        const sx = h.x + (jit(i, cyc) - 0.5) * h.w * (0.8 + life);
+        const sy = h.y - 4 - Math.sin(life * Math.PI) * (16 + jit(i + 9, cyc) * 26);
+        g.fillStyle(i % 3 === 0 ? 0xffffff : 0x8adcf0, 1 - life * 0.6).fillRect(sx, sy, 2, 2);
+      }
+      g.lineStyle(1, 0x8adcf0, 0.16 + 0.12 * Math.sin(tick * 0.5)).strokeRect(h.x - h.w / 2, h.y - h.h, h.w, h.h);
+    } else if (phase === 'active') {
+      // the column: deep blue core, lighter flanks, white foam streaks racing up it
+      const top = h.y - h.h;
+      for (let y = h.y; y > top - 14; y -= 2) {
+        const u = (h.y - y) / h.h;
+        const wave = Math.sin(tick * 0.4 - y * 0.14) * 0.5 + Math.sin(tick * 0.27 + y * 0.06) * 0.5;
+        const crown = u > 0.86 ? 1 + (u - 0.86) * 7 : 1;
+        const half = (h.w / 2) * (0.84 + 0.14 * wave) * crown * (u > 1 ? Math.max(0, 1.7 - u) : 1);
+        const dx = Math.sin(tick * 0.18 + y * 0.05) * 2;
+        g.fillStyle(0x1a5a8a, 0.78).fillRect(h.x + dx - half, y, half * 2, 2);
+        g.fillStyle(0x3aa8d8, 0.8).fillRect(h.x + dx - half * 0.7, y, half * 1.1, 2);
+        g.fillStyle(0x8ae4ff, 0.75).fillRect(h.x + dx - half * 0.6, y, half * 0.35, 2);
+        if (u > 0.82) g.fillStyle(0xf0fcff, 0.85 * Math.min(1, (u - 0.82) * 6)).fillRect(h.x + dx - half, y, half * 2, 2);
+      }
+      for (let i = 0; i < 7; i++) {
+        // foam streaks rushing upward
+        const life = ((tick * 3 + i * 17) % 50) / 50;
+        const cyc = Math.floor((tick * 3 + i * 17) / 50);
+        const sx = h.x + (jit(i, cyc) - 0.5) * h.w * 0.8;
+        g.fillStyle(0xffffff, 0.7 * (1 - life)).fillRect(sx, h.y - life * h.h, 2, 8);
+      }
+      ga.fillStyle(0x6ad8ff, 0.18).fillRect(h.x - h.w / 2 - 4, top, h.w + 8, h.h);
+      // splash ring at the base and spray falling from the crown
+      g.fillStyle(0xe8faff, 0.8).fillEllipse(h.x, h.y - 2, h.w * 1.9, 8);
+      for (let i = 0; i < 18; i++) {
+        const life = ((tick * 2 + i * 9) % 44) / 44;
+        const cyc = Math.floor((tick * 2 + i * 9) / 44);
+        const side = jit(i, cyc) - 0.5;
+        const x = h.x + side * h.w * (1.2 + life * 2.6);
+        const y = top - 6 + life * life * h.h * 0.9 - Math.sin(life * Math.PI) * 18;
+        g.fillStyle(i % 4 === 0 ? 0xffffff : 0x9ae6ff, 1 - life).fillRect(x, y, 2, 2);
       }
     }
   }

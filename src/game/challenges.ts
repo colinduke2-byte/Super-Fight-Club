@@ -25,7 +25,7 @@ export interface Challenge {
 
 export const CHALLENGES: Challenge[] = [
   { id: 'first-blood', title: 'FIRST BLOOD', brief: 'One stock each. Show Brick the way off the stage.', stage: 'classic', you: null, rules: { stocks: 1 }, foes: [{ character: 'brick', level: 1 }] },
-  { id: 'shark-week', title: 'SHARK WEEK', brief: 'As Riptide: water beats fire. Soak Agni, then drag him under.', stage: 'temple', you: 'riptide', rules: { stocks: 2 }, foes: [{ character: 'agni', level: 2 }] },
+  { id: 'shark-week', title: 'SHARK WEEK', brief: 'As Riptide on Wreck Cove: water beats fire. Soak Agni, then drag him under.', stage: 'wreck', you: 'riptide', rules: { stocks: 2 }, foes: [{ character: 'agni', level: 2 }] },
   { id: 'last-standing', title: 'LAST ONE STANDING', brief: 'Stamina, 120 HP. Vex is fast: make every hit count.', stage: 'ring', you: null, rules: { mode: 'stamina', staminaHp: 120, stocks: 1 }, foes: [{ character: 'vex', level: 3 }] },
   { id: 'outnumbered', title: 'OUTNUMBERED', brief: 'Gizmo and Nova, together, on Stormspire. Mind the lightning.', stage: 'storm', you: null, rules: { stocks: 2 }, foes: [{ character: 'gizmo', level: 2 }, { character: 'nova', level: 2 }] },
   { id: 'bomb-party', title: 'BOMB PARTY', brief: 'Items on high. Three rivals, one reactor, a lot of bombs.', stage: 'reactor', you: null, rules: { stocks: 2, items: 2 }, foes: [{ character: 'agni', level: 1 }, { character: 'gizmo', level: 1 }, { character: 'vex', level: 1 }] },

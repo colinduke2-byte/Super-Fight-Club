@@ -105,8 +105,8 @@ export class WorldEventFx {
         e.flash(x, y, 0.9, 0xffffff);
         break;
       case 'hazardWarn': {
-        const bolt = this.host.world.stage.hazards?.[mag | 0]?.kind === 'bolt';
-        e.burst(x, y, 8, 40, bolt ? 0x9fd8ff : 0xff8a30, 0.6, 2);
+        const hz = this.host.world.stage.hazards?.[mag | 0];
+        e.burst(x, y, 8, 40, hz?.kind === 'bolt' ? 0x9fd8ff : hz?.style === 'water' ? 0xbff0ff : 0xff8a30, 0.6, 2);
         sfx.play('charge', 0.6, 0);
         break;
       }
@@ -119,6 +119,15 @@ export class WorldEventFx {
           this.host.shake(9);
           sfx.play('zap', 1, 0);
           sfx.play('boom', 0.7, 0);
+          break;
+        }
+        if (this.host.world.stage.hazards?.[mag | 0]?.style === 'water') {
+          // water spout: a burst of spray and a roar of surf
+          e.burst(x, y - 20, 34, 170, 0xbff0ff, 0.6, 4);
+          e.ring(x, y - 4, 44, 0x8adcf0, 0.4);
+          this.host.shake(6);
+          sfx.play('splash', 1, 0);
+          sfx.play('boom', 0.45, 0);
           break;
         }
         e.burst(x, y - 20, 30, 160, 0xffa040, 0.6, 4);

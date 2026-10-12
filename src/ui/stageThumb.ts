@@ -29,10 +29,11 @@ export function stageThumb(scene: Phaser.Scene, stage: StageData, W = 480, H = 2
     const pl = src('bg-planet');
     if (pl) g.drawImage(pl, W * 0.72, H * 0.08, 64, 64);
   }
-  if (theme === 'dawn') {
-    g.fillStyle = 'rgba(255,248,230,0.9)';
+  if (theme === 'dawn' || theme === 'tide') {
+    const moon = theme === 'tide';
+    g.fillStyle = moon ? 'rgba(230,244,255,0.95)' : 'rgba(255,248,230,0.9)';
     g.beginPath();
-    g.arc(W * 0.7, H * 0.32, 22, 0, Math.PI * 2);
+    g.arc(W * (moon ? 0.24 : 0.7), H * (moon ? 0.2 : 0.32), moon ? 18 : 22, 0, Math.PI * 2);
     g.fill();
   }
   const strip = (k: string, y: number, sc: number, off: number): void => {
@@ -88,9 +89,10 @@ export function stageThumb(scene: Phaser.Scene, stage: StageData, W = 480, H = 2
     } else {
       const top = oy + (h.y - h.h) * sc;
       const gg = g.createLinearGradient(0, top, 0, oy + h.y * sc);
-      gg.addColorStop(0, 'rgba(255,200,90,0)');
-      gg.addColorStop(0.4, 'rgba(255,140,40,0.7)');
-      gg.addColorStop(1, 'rgba(255,240,180,0.95)');
+      const water = h.style === 'water';
+      gg.addColorStop(0, water ? 'rgba(220,250,255,0.2)' : 'rgba(255,200,90,0)');
+      gg.addColorStop(0.4, water ? 'rgba(60,170,220,0.75)' : 'rgba(255,140,40,0.7)');
+      gg.addColorStop(1, water ? 'rgba(230,250,255,0.95)' : 'rgba(255,240,180,0.95)');
       g.fillStyle = gg;
       g.fillRect(cx - (h.w / 2) * sc, top, h.w * sc, h.h * sc);
     }

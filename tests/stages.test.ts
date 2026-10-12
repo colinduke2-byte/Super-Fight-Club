@@ -7,10 +7,11 @@ import { hazardPhase } from '../src/engine/hazards';
 import { World, type WorldEventType } from '../src/engine/world';
 import { STAGES, STAGE_LIST } from '../src/stages';
 import { reactorStage } from '../src/stages/reactor';
+import { wreckStage } from '../src/stages/wreck';
 
 describe('stage data', () => {
-  it('offers six stages in stage select', () => {
-    expect(STAGE_LIST.map((s) => s.id)).toEqual(['classic', 'ring', 'reactor', 'storm', 'temple', 'skyhold']);
+  it('offers seven stages in stage select', () => {
+    expect(STAGE_LIST.map((s) => s.id)).toEqual(['classic', 'ring', 'reactor', 'storm', 'temple', 'wreck', 'skyhold']);
   });
   for (const s of Object.values(STAGES)) {
     it(`${s.id}: four spawns stand on a solid platform inside the blast zones`, () => {
@@ -123,5 +124,23 @@ describe('lightning hazard', () => {
     const h = STAGES.storm.hazards![0];
     expect(h.kind).toBe('bolt');
     expect(h.warn + h.active).toBeLessThan(h.period);
+  });
+});
+
+describe('Wreck Cove water spouts', () => {
+  it('take turns, launch whoever stands in them and soak them', () => {
+    const [a, b] = wreckStage.hazards!;
+    expect(a.style).toBe('water');
+    expect(hazardPhase(a, 700)).toBe('active');
+    expect(hazardPhase(b, 700)).toBe('idle');
+    const world = new World(wreckStage);
+    const f = new Fighter(0, brick);
+    world.addFighter(f);
+    f.spawn(a.x, -1, 1);
+    const ins = [makeInput()];
+    while (world.tick < 700) world.step(ins);
+    expect(f.damage).toBeGreaterThanOrEqual(a.damage - 0.01);
+    expect(f.status.soak).toBeGreaterThan(0);
+    expect(f.vy).toBeLessThan(0);
   });
 });

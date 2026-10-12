@@ -185,6 +185,7 @@ describe('CPU matches', () => {
   it('CPUs cross terrain: hop the Sunken Temple centre tier and jump gaps between Skyhold islands', () => {
     expect(play(['brick', 'vex'], [2, 2], 'temple', 30000).match.over, 'temple tier').toBe(true);
     expect(play(['brick', 'riptide'], [1, 1], 'skyhold', 30000).match.over, 'skyhold gap').toBe(true);
+    expect(play(['vex', 'vex'], [1, 1], 'wreck', 36000).match.over, 'wreck quarterdeck').toBe(true);
   });
 
   it('four CPUs free-for-all stay sane (finite positions, someone wins)', () => {

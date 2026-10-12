@@ -780,6 +780,161 @@ function cloudBank(seed: number, base: string, light: string, shade: string, W =
   return c;
 }
 
+/** Where the lighthouse lamp sits in the `bg-cove-far` texture (art px), so the backdrop can sweep its beam from it. */
+export const COVE_LAMP = { x: 372, y: 192 - 112 - 31 };
+
+/** Sea stacks rising from a moonlit sea: flat grassy tops, strata, an arch, surf at their feet and a lighthouse; tileable. */
+function seaStacks(seed: number, body: string, light: string, dark: string, grass: string, sea: string, foam: string, W = 512, H = 192): HTMLCanvasElement {
+  const [c, g] = canvas(W, H);
+  const rnd = mulberry32(seed);
+  const stack = (cx: number, w: number, h: number, lean: number): void => {
+    wrapX(W, cx, (bx) => {
+      for (let k = 0; k < h; k++) {
+        const t = k / h; // 0 top .. 1 waterline
+        const ww = Math.max(4, Math.round(w * (0.82 + 0.18 * t) + ((k * 5) % 9 === 0 ? 1 : 0) - (k > h - 10 ? (k - h + 10) * 0.4 : 0)));
+        const xx = bx - Math.floor(ww / 2) + Math.round(lean * (1 - t));
+        px(g, body, xx, H - h + k, ww, 1);
+        px(g, light, xx, H - h + k, 2, 1);
+        px(g, dark, xx + ww - 3, H - h + k, 3, 1);
+        if (k % 13 === 6) px(g, dark, xx + 2, H - h + k, ww - 4, 1); // strata
+      }
+      const tx = bx - Math.floor(w * 0.41) + lean;
+      px(g, grass, tx, H - h - 2, Math.round(w * 0.82), 3);
+      for (let i = 0; i < w * 0.8; i += 3) px(g, grass, tx + i, H - h - 3 - ((i * 7) % 3), 1, 2);
+      // surf around the base
+      for (let i = -3; i < w + 6; i += 2) px(g, foam, bx - Math.floor(w / 2) - 3 + i, H - 4 - ((i * 3) % 5 === 0 ? 1 : 0), 2, 1);
+    });
+  };
+  // the sea band and a few long swells catching moonlight
+  px(g, sea, 0, H - 6, W, 6);
+  for (let i = 0; i < 40; i++) px(g, foam, Math.floor(rnd() * W), H - 5 + Math.floor(rnd() * 5), 3 + Math.floor(rnd() * 8), 1);
+  // the arch: two legs joined by a bridge with the sky through it
+  const ax = 90;
+  stack(ax - 22, 22, 96, 2);
+  stack(ax + 22, 24, 88, -2);
+  stack(ax + 560 + 30, 18, 66, 1); // a smaller second arch far down the coast
+  stack(ax + 560 + 62, 20, 60, -1);
+  px(g, body, ax + 560 + 26, H - 72, 42, 12);
+  px(g, light, ax + 560 + 26, H - 72, 42, 1);
+  px(g, grass, ax + 560 + 26, H - 74, 42, 2);
+  px(g, body, ax - 30, H - 100, 62, 18);
+  px(g, light, ax - 30, H - 100, 62, 2);
+  px(g, dark, ax - 30, H - 84, 62, 2);
+  px(g, grass, ax - 30, H - 102, 62, 2);
+  // free-standing stacks
+  for (const [cx, w, h] of [[200, 30, 70], [262, 16, 48], [452, 26, 84], [500, 14, 40], [610, 22, 58], [792, 18, 50], [884, 28, 74], [962, 16, 42]] as const) stack(cx + Math.floor(rnd() * 6), w, h, Math.floor((rnd() - 0.5) * 6));
+  // the lighthouse stack and tower: red and white bands, a lamp room, a gallery rail
+  const lx = COVE_LAMP.x;
+  stack(lx, 34, 112, 0);
+  const top = H - 112 - 2;
+  for (let k = 0; k < 26; k++) {
+    const ww = 10 - Math.floor(k / 9);
+    const band = Math.floor(k / 5) % 2 === 0;
+    px(g, band ? '#d8d4cc' : '#a03030', lx - Math.floor(ww / 2), top - k, ww, 1);
+    px(g, band ? '#8a8680' : '#5a1a1a', lx + Math.ceil(ww / 2) - 2, top - k, 2, 1);
+  }
+  px(g, '#2a2a2a', lx - 6, top - 27, 12, 2); // gallery
+  px(g, '#2a2a2a', lx - 4, top - 33, 8, 1);
+  px(g, '#fff4c0', lx - 3, top - 32, 6, 5); // lamp room
+  px(g, '#ffffff', lx - 1, top - 31, 2, 3);
+  px(g, '#3a1a1a', lx - 4, top - 36, 8, 3); // roof
+  px(g, '#3a1a1a', lx - 1, top - 38, 2, 2);
+  // a lit cottage window at the tower foot
+  px(g, dark, lx + 7, top - 6, 9, 6);
+  px(g, '#ffd870', lx + 10, top - 4, 2, 2);
+  return c;
+}
+
+/** Wrecked ships run aground in the shallows: tilted hulls, broken masts with torn sails, rocks and surf; tileable. */
+function wrecks(seed: number, hull: string, hullL: string, hullD: string, sail: string, sea: string, foam: string, glow: string, W = 512, H = 192): HTMLCanvasElement {
+  const [c, g] = canvas(W, H);
+  const rnd = mulberry32(seed);
+  const ships = [[70, 120, 0.22], [300, 150, -0.16], [440, 90, 0.3]] as const;
+  for (const [cx, len, tilt] of ships) {
+    wrapX(W, cx, (bx) => {
+      const deckY = H - 36 - Math.floor(rnd() * 10);
+      const depth = Math.round(len * 0.24);
+      // hull: a bow-to-stern curve, sunk at one end
+      for (let i = 0; i < len; i++) {
+        const u = i / (len - 1);
+        const x = bx - Math.floor(len / 2) + i;
+        const sink = Math.round((u - 0.5) * len * tilt);
+        const keel = Math.round(depth * Math.sin(Math.min(1, u * 1.15) * Math.PI) ** 0.6);
+        const y0 = deckY + sink - (u < 0.12 ? Math.round((0.12 - u) * 50) : 0); // bow rises
+        for (let k = 0; k < keel; k++) px(g, k === 0 ? hullL : k % 6 === 0 ? hullD : hull, x, y0 + k, 1, 1);
+        if (i % 11 === 0 && keel > 6) px(g, hullD, x, y0 + 2, 1, keel - 2); // ribs showing through
+        if (i % 19 === 7 && keel > 10) px(g, glow, x, y0 + 4, 2, 2); // porthole still lit by sea-glow
+      }
+      // a ragged breach in the hull
+      const hx = bx - Math.floor(len * 0.1);
+      for (let k = 0; k < 10; k++) px(g, hullD, hx - 6 + Math.round(Math.sin(k) * 2), deckY + 4 + k, 10 - Math.abs(k - 5), 1);
+      // masts: one standing, one snapped, yardarms and torn sails
+      for (let m = 0; m < 2; m++) {
+        const mx = bx - Math.floor(len * 0.2) + m * Math.floor(len * 0.42);
+        const mh = m === 0 ? 70 + Math.floor(rnd() * 30) : 28 + Math.floor(rnd() * 20);
+        const lean = tilt * (m === 0 ? 1 : 2.4);
+        const my = deckY + Math.round(((mx - bx) / len) * len * tilt);
+        for (let k = 0; k < mh; k++) px(g, hullD, mx + Math.round(lean * k), my - k, 2, 1);
+        if (m === 0) {
+          const ty = my - mh + 8;
+          const tx = mx + Math.round(lean * (mh - 8));
+          px(g, hullD, tx - 16, ty, 32, 2); // yardarm
+          for (let k = 0; k < 22; k++) {
+            const ww = Math.max(2, 26 - k - ((k * 7) % 5));
+            if ((k * 3) % 7 === 0) continue; // tears
+            px(g, sail, tx - 13 + Math.floor(k * 0.3), ty + 2 + k, ww, 1);
+          }
+          // rigging lines to the deck
+          for (let k = 0; k < 30; k++) {
+            px(g, hullD, tx - 16 + Math.round(k * -0.4), ty + k, 1, 1);
+            px(g, hullD, tx + 15 + Math.round(k * 0.5), ty + k, 1, 1);
+          }
+        }
+      }
+    });
+  }
+  // rocks and the sea with breaking surf
+  for (let i = 0; i < 9; i++) {
+    const rx = Math.floor(rnd() * W);
+    const rw = 10 + Math.floor(rnd() * 26);
+    const rh = 6 + Math.floor(rnd() * 12);
+    wrapX(W, rx, (bx) => {
+      for (let k = 0; k < rh; k++) {
+        const ww = Math.round(rw * Math.sqrt(1 - ((rh - k) / rh) ** 2));
+        px(g, hullD, bx - Math.floor(ww / 2), H - 20 - rh + k, ww, 1);
+        px(g, hullL, bx - Math.floor(ww / 2), H - 20 - rh + k, 1, 1);
+      }
+    });
+  }
+  px(g, sea, 0, H - 20, W, 20);
+  for (let i = 0; i < 70; i++) px(g, foam, Math.floor(rnd() * W), H - 20 + Math.floor(rnd() * 18), 4 + Math.floor(rnd() * 14), 1);
+  for (let x = 0; x < W; x += 2) px(g, foam, x, H - 21 + Math.round(Math.sin((x / W) * Math.PI * 16) * 1.5), 2, 1);
+  return c;
+}
+
+/** Rolling surf for the bottom of the screen: three ranks of wave crests with foam, solid water below; tileable. */
+function surf(seed: number, ranks: [string, string, string][], W = 512, H = 128): HTMLCanvasElement {
+  const [c, g] = canvas(W, H);
+  const rnd = mulberry32(seed);
+  const bayer = [0, 8, 2, 10, 12, 4, 14, 6, 3, 11, 1, 9, 15, 7, 13, 5];
+  ranks.forEach(([water, crest, foam], r) => {
+    const base = 18 + r * 18;
+    const amp = 2 + r * 2;
+    const n = 6 - r; // integer wave count so the strip tiles
+    const ph = rnd() * Math.PI * 2;
+    for (let x = 0; x < W; x++) {
+      const a = (x / W) * Math.PI * 2;
+      const y = Math.round(base + Math.sin(a * n + ph) * amp + Math.sin(a * n * 3 + ph * 2) * amp * 0.25);
+      px(g, water, x, y, 1, H - y);
+      px(g, foam, x, y, 1, 1);
+      px(g, crest, x, y + 1, 1, 2);
+      // dithered foam trailing under the crest
+      for (let k = 3; k < 9; k++) if (bayer[((y + k) & 3) * 4 + (x & 3)] / 16 > (k - 2) / 7) px(g, crest, x, y + k);
+    }
+  });
+  return c;
+}
+
 /** Small glow sprite used as additive spark: 4-point star. */
 function sparkTex(): HTMLCanvasElement {
   const [c, g] = canvas(17, 17);
@@ -874,6 +1029,9 @@ export function buildStageTextures(scene: Phaser.Scene): void {
   add('bg-jungle-near', canopy(27, '#1e4a2a', '#3a7a3a', '#10301a', '#2a1e14', 512, 192));
   add('bg-mist', cloudBank(12, '#7ab0a0', '#b8e0c8', '#4a8070', 512, 128));
   add('bg-cloudsea', cloudBank(3, '#f4c8b8', '#fff0e0', '#c48aa0', 512, 128));
+  add('bg-cove-far', seaStacks(4, '#1e3442', '#3a5a6a', '#0e1c26', '#2e5a4a', '#0e2a3c', '#6a9ab0', 1024, 192));
+  add('bg-cove-near', wrecks(17, '#2a2420', '#4a3e34', '#140f0c', '#8a8a7a', '#0a2232', '#5a8aa0', '#4ae0d0', 512, 192));
+  add('bg-surf', surf(6, [['#0e2a40', '#2a5a78', '#6a9ab8'], ['#0a2236', '#2a6a8a', '#9acce0'], ['#071a2a', '#3a7a9a', '#d0f0ff']], 512, 128));
   add('bg-stormbank', cloudBank(8, '#2e4560', '#5a7a9c', '#16243a', 512, 128));
   add('spark', sparkTex());
   add('ring', ringTex());

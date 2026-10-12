@@ -1,4 +1,5 @@
 import Phaser from 'phaser';
+import { COVE_LAMP } from '../art/stageTextures';
 import { settings } from '../settings';
 
 const SKY = ['#070520', '#0c0928', '#150e3a', '#231552', '#3a1f6a', '#5a2b78', '#8a4488'];
@@ -23,7 +24,7 @@ export interface Backdrop {
   bankTex?: string;
 }
 
-export type Extra = 'rain' | 'flash' | 'sun' | 'birds' | 'godrays' | 'shooting' | 'clouds' | 'embers' | 'glow' | 'lightning' | 'beams' | 'grid' | 'motes' | 'aurora' | 'airships';
+export type Extra = 'rain' | 'flash' | 'sun' | 'birds' | 'godrays' | 'shooting' | 'clouds' | 'embers' | 'glow' | 'lightning' | 'beams' | 'grid' | 'motes' | 'aurora' | 'airships' | 'moon' | 'beacon';
 
 export const BACKDROPS: Record<string, Backdrop> = {
   skyline: { sky: SKY, planet: true, nebula: 0xffffff, far: 0xffffff, near: 0xffffff, tiles: 0xffffff, extras: ['aurora', 'clouds', 'shooting', 'airships'] },
@@ -78,6 +79,19 @@ export const BACKDROPS: Record<string, Backdrop> = {
     stars: true,
     nebulaOn: false,
     extras: ['godrays', 'motes', 'birds'],
+  },
+  tide: {
+    sky: ['#03060f', '#071226', '#0c1e3a', '#14304e', '#1e4862', '#215a6e', '#0c2a3c'],
+    planet: false,
+    nebula: 0x6ab0d0,
+    far: 0xffffff,
+    near: 0xffffff,
+    tiles: 0xd0f0f0,
+    farTex: 'bg-cove-far',
+    nearTex: 'bg-cove-near',
+    bankTex: 'bg-surf',
+    nebulaOn: false,
+    extras: ['moon', 'beacon', 'shooting', 'motes'],
   },
   reactor: {
     sky: ['#120404', '#240808', '#3a0e0a', '#5a1a0c', '#8a2c0c', '#c0501a', '#f08a30'],
@@ -313,6 +327,42 @@ export class BackgroundView {
               x = nx;
               y = ny;
             }
+          }
+          break;
+        }
+        case 'moon': {
+          // a full moon with soft halo rings and a few maria
+          const mx = W * 0.24 - cx * 0.015 * zoom;
+          const my = H * 0.2 - cy * 0.01 * zoom;
+          const r = H * 0.06;
+          for (let k = 5; k >= 1; k--) {
+            gb.fillStyle(0x9ad0ff, 0.035);
+            gb.fillCircle(mx, my, r * (1 + k * 0.55));
+          }
+          gb.fillStyle(0xe6f2ff, 0.95).fillCircle(mx, my, r);
+          gb.fillStyle(0x8aa0c0, 0.35).fillCircle(mx - r * 0.3, my - r * 0.15, r * 0.28).fillCircle(mx + r * 0.25, my + r * 0.3, r * 0.2).fillCircle(mx + r * 0.35, my - r * 0.35, r * 0.12);
+          break;
+        }
+        case 'beacon': {
+          // the lighthouse lamp in the far layer sweeps its beam round; brightest when it swings toward us
+          const s = zoom * 0.5 * 0.55;
+          const top = (20 - cy * 0.12) * zoom + H / 2 - 192 * s;
+          const tile = 1024 * s; // bg-cove-far is twice the usual width so the lighthouse appears once
+          const first = ((((COVE_LAMP.x - (cx * 0.12 * zoom) / s) * s) % tile) + tile) % tile;
+          const a = time * 0.9;
+          const reach = W * 0.9;
+          const sweep = Math.sin(a);
+          const toward = Math.max(0, Math.cos(a));
+          for (let lx = first - tile; lx < W + tile; lx += tile) {
+            if (lx < -reach || lx > W + reach) continue;
+            const ly = top + COVE_LAMP.y * s;
+            const ex = lx + sweep * reach;
+            const spread = H * (0.04 + 0.05 * toward);
+            gb.fillStyle(0xfff4c8, 0.07 + 0.05 * (1 - Math.abs(sweep)));
+            gb.fillTriangle(lx, ly, ex, ly - spread, ex, ly + spread * 0.6);
+            gb.fillStyle(0xffffff, 0.05);
+            gb.fillTriangle(lx, ly, ex, ly - spread * 0.35, ex, ly + spread * 0.2);
+            gb.fillStyle(0xfff4c8, 0.12 + 0.35 * toward ** 6).fillCircle(lx, ly, (3 + 10 * toward ** 6) * ps);
           }
           break;
         }

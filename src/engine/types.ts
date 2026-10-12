@@ -50,7 +50,7 @@ export interface StageBackground {
   /** Parallax layer ids understood by the stage renderer. */
   layers: string[];
   /** Look of the parallax backdrop and tiles (palette + tints); see `BACKDROPS` in the UI layer. */
-  theme?: 'skyline' | 'void' | 'reactor' | 'storm' | 'dawn' | 'temple';
+  theme?: 'skyline' | 'void' | 'reactor' | 'storm' | 'dawn' | 'temple' | 'tide';
 }
 
 /** A stage hazard. Phase is a pure function of the sim tick, so it is deterministic and needs no state. */
@@ -72,6 +72,10 @@ export interface HazardDef {
   scaling: number;
   /** Launch angle in degrees (90 = straight up). */
   angle: number;
+  /** Look of an erupting column (default plasma); visual only. */
+  style?: 'plasma' | 'water';
+  /** Frames of soak added to whoever the eruption hits. */
+  soak?: number;
 }
 
 export interface StageData {

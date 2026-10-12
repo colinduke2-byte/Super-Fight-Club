@@ -40,6 +40,7 @@ export function stepHazards(world: World): void {
       if (hit && r[0] < h.x + h.w / 2 && r[0] + r[2] > h.x - h.w / 2) {
         world.hazardHit[i][f.id] = cycle;
         f.receiveHit({ damage: h.damage, base: h.base, scaling: h.scaling, angle: h.angle, direction: f.x >= h.x ? 1 : -1, hitlag: 8 }, world);
+        if (h.soak) f.applyStatus({ type: 'soak', frames: h.soak }, world);
       }
     }
   }

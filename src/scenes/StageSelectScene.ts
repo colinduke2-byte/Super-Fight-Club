@@ -80,8 +80,15 @@ export class StageSelectScene extends MenuScene {
       const moving = stage.platforms.filter((p) => p.move).length;
       const tags = [`SIZE: ${size}`, `PLATFORMS: ${stage.platforms.length}`];
       if (moving) tags.push(`MOVING: ${moving}`);
-      if (stage.hazards?.length) tags.push(`HAZARD: ${stage.hazards[0].kind === 'bolt' ? 'LIGHTNING' : 'GEYSER'}`);
-      this.tags.setText(tags.join('   '));
+      if (stage.hazards?.length) tags.push(`HAZARD: ${stage.hazards[0].kind === 'bolt' ? 'LIGHTNING' : stage.hazards[0].style === 'water' ? 'WATER SPOUTS' : 'GEYSER'}`);
+      // as many tags per line as fit the card
+      const rows: string[] = [];
+      for (const t of tags) {
+        const last = rows.length ? rows[rows.length - 1] : '';
+        if (last && (last + '   ' + t).length <= Math.floor(this.wrapChars * 1.2)) rows[rows.length - 1] = `${last}   ${t}`;
+        else rows.push(t);
+      }
+      this.tags.setText(rows.join('\n'));
     } else this.tags.setText('');
     this.tags.setY(Math.min(this.blurb.y + this.blurb.displayHeight + 4 * this.u, this.scale.height - 20 * this.u));
     if (!stage) {

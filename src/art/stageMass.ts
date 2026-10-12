@@ -23,10 +23,10 @@ interface MassTheme {
   stone: string[]; // 6 shades, dark -> light
   accent: string[]; // 5 shades, dark -> bright (emissive)
   alt?: string[]; // second accent
-  body: 'ashlar' | 'plate';
-  cap: 'metal' | 'tech' | 'hazard' | 'slate' | 'grass';
-  panel: 'window' | 'holo' | 'vent' | 'rune' | 'alcove' | 'glyph';
-  under: 'crystal' | 'tech' | 'machine' | 'shard' | 'roots';
+  body: 'ashlar' | 'plate' | 'hull';
+  cap: 'metal' | 'tech' | 'hazard' | 'slate' | 'grass' | 'deck';
+  panel: 'window' | 'holo' | 'vent' | 'rune' | 'alcove' | 'glyph' | 'porthole';
+  under: 'crystal' | 'tech' | 'machine' | 'shard' | 'roots' | 'reef';
   fog: string;
 }
 
@@ -78,6 +78,17 @@ const THEMES: Record<string, MassTheme> = {
     panel: 'glyph',
     under: 'roots',
     fog: '#163c3a',
+  },
+  tide: {
+    // a wrecked ship's hull: grey driftwood, bioluminescent sea life, coral
+    stone: ['#161414', '#26201e', '#382e2a', '#4e4038', '#685648', '#8a7660'],
+    accent: ['#0a3a40', '#127078', '#2ad0c8', '#8af8e8', '#e0fff8'],
+    alt: ['#5a1a2a', '#a03048', '#e8607a', '#ffa0b0', '#ffe0e8'],
+    body: 'hull',
+    cap: 'deck',
+    panel: 'porthole',
+    under: 'reef',
+    fog: '#0c2a3a',
   },
   dawn: {
     stone: ['#8a6a66', '#a88a82', '#c6aa9c', '#dcc6b2', '#eedcc8', '#fff4e4'],
@@ -220,6 +231,16 @@ export function stageMass(themeId: string | undefined, w: number, h: number, see
         b.set(x, y, col);
       }
     }
+    if (T.body === 'hull') {
+      // wood grain streaks and a treenail at each plank end
+      for (let k = 0; k < bw / 14; k++) {
+        const gx = x0 + Math.floor(rnd() * bw);
+        const gy = y0 + 2 + Math.floor(rnd() * Math.max(1, bh - 4));
+        for (let j = 0; j < 4 + Math.floor(rnd() * 8); j++) if (gx + j >= X0 && gx + j < X0 + BW && gy >= bodyTop && gy < bodyBot) b.set(gx + j, gy, S[clampI(s - 1, 0, 5)]);
+      }
+      for (const nx of [x0 + 2, x0 + bw - 4]) if (nx >= X0 && nx < X0 + BW && y0 + 3 < bodyBot) b.set(nx, y0 + 3, S[0]);
+      return;
+    }
     if (plate) {
       // rivets in the corners, a panel seam across big plates
       for (const [rx, ry] of [[3, 3], [bw - 4, 3], [3, bh - 4], [bw - 4, bh - 4]]) {
@@ -237,10 +258,11 @@ export function stageMass(themeId: string | undefined, w: number, h: number, see
     }
   };
   for (let y = bodyTop + CORN, row = 0; y < bodyBot; row++) {
-    const bh = T.body === 'plate' ? 22 + Math.floor(rnd() * 8) : 14 + Math.floor(rnd() * 7);
-    let x = X0 - (row % 2 === 0 ? 0 : 10 + Math.floor(rnd() * 14));
+    const hull = T.body === 'hull';
+    const bh = T.body === 'plate' ? 22 + Math.floor(rnd() * 8) : hull ? 7 + Math.floor(rnd() * 2) : 14 + Math.floor(rnd() * 7);
+    let x = X0 - (row % 2 === 0 ? 0 : 10 + Math.floor(rnd() * (hull ? 40 : 14)));
     while (x < X0 + BW) {
-      const bw = T.body === 'plate' ? 36 + Math.floor(rnd() * 36) : 18 + Math.floor(rnd() * 30);
+      const bw = T.body === 'plate' ? 36 + Math.floor(rnd() * 36) : hull ? 50 + Math.floor(rnd() * 70) : 18 + Math.floor(rnd() * 30);
       block(x, y, bw, bh, 2 + (rnd() > 0.6 ? 1 : 0));
       x += bw;
     }
@@ -389,6 +411,25 @@ function bloom(b: Buf, r: number, k: number): void {
 }
 
 function pillar(b: Buf, S: Ramp, A: Ramp, T: MassTheme, x0: number, y0: number, pw: number, ph: number, panelBot: number): void {
+  if (T.body === 'hull') {
+    // a heavy hull rib: dark timber with iron straps and a hanging glow-lantern
+    const rw = Math.max(8, pw - 6);
+    const rx = x0 + Math.floor((pw - rw) / 2);
+    for (let y = y0; y < y0 + ph; y++) {
+      for (let lx = 0; lx < rw; lx++) {
+        const t = lx / (rw - 1);
+        b.set(rx + lx, y, S[t < 0.2 ? 3 : t < 0.75 ? 2 : 1]);
+      }
+      if ((y - y0) % 26 === 12) for (let lx = -1; lx <= rw; lx++) { b.set(rx + lx, y, hex('#5a6266')); b.set(rx + lx, y + 1, hex('#2a2e30')); }
+    }
+    const cy = Math.round((y0 + 16 + panelBot) / 2);
+    const cx = rx + Math.floor(rw / 2) - 2;
+    for (let y = cy - 8; y < cy - 3; y++) b.set(cx + 2, y, S[0]);
+    b.rect(cx, cy - 3, 5, 7, S[0]);
+    b.rect(cx + 1, cy - 2, 3, 5, A[3], true);
+    b.set(cx + 2, cy - 1, A[4], true);
+    return;
+  }
   // fluted column, lit from the left
   for (let y = y0; y < y0 + ph; y++) {
     for (let lx = 0; lx < pw; lx++) {
@@ -426,6 +467,10 @@ function pillar(b: Buf, S: Ramp, A: Ramp, T: MassTheme, x0: number, y0: number, 
 }
 
 function panel(b: Buf, T: MassTheme, S: Ramp, A: Ramp, A2: Ramp, x0: number, y0: number, pw: number, ph: number, rnd: () => number, n: (x: number, y: number) => number): void {
+  if (T.panel === 'porthole') {
+    portholes(b, S, A, A2, x0, y0, pw, ph, rnd);
+    return;
+  }
   // recessed: dark interior, shadow along the top/left inner edge, light along the bottom/right
   for (let y = y0; y < y0 + ph; y++) {
     for (let x = x0; x < x0 + pw; x++) {
@@ -635,6 +680,80 @@ function panel(b: Buf, T: MassTheme, S: Ramp, A: Ramp, A2: Ramp, x0: number, y0:
   }
 }
 
+/** Brass-rimmed portholes glowing with sea light (one has a fish swimming past), kelp draped down the planks, barnacles. */
+function portholes(b: Buf, S: Ramp, A: Ramp, A2: Ramp, x0: number, y0: number, pw: number, ph: number, rnd: () => number): void {
+  const BRASS: Ramp = ['#3a2a10', '#7a5a20', '#c09a40', '#f0d080', '#fff4c0'].map(hex);
+  const KELP: Ramp = ['#0e2a1a', '#1a4a2a', '#2e7040', '#4aa058', '#8ad07a'].map(hex);
+  const r = Math.max(6, Math.min(11, Math.floor(ph * 0.22)));
+  const count = Math.max(1, Math.floor(pw / (r * 2 + 18)));
+  const cy = y0 + Math.floor(ph * 0.42);
+  const fishIn = Math.floor(rnd() * count);
+  for (let i = 0; i < count; i++) {
+    const cx = x0 + Math.round(((i + 0.5) / count) * pw);
+    const broken = rnd() > 0.75;
+    for (let yy = -r - 2; yy <= r + 2; yy++) for (let xx = -r - 2; xx <= r + 2; xx++) {
+      const d = Math.hypot(xx, yy);
+      if (d > r + 2) continue;
+      if (d > r - 0.5) {
+        // brass ring lit from the top-left
+        const lit = (-xx - yy) / (r * 1.4);
+        b.set(cx + xx, cy + yy, BRASS[d > r + 1.2 ? 1 : lit > 0.3 ? 4 : lit > -0.3 ? 3 : 2]);
+      } else if (broken && (xx + yy * 0.6 > r * 0.2 || d < r * 0.35)) {
+        b.set(cx + xx, cy + yy, S[0]); // shattered glass: dark hold behind
+      } else {
+        const t = (yy + r) / (2 * r);
+        b.set(cx + xx, cy + yy, t < 0.3 ? A[3] : t < 0.7 ? A[2] : A[1], true);
+      }
+    }
+    // glint and bolts
+    b.set(cx - Math.round(r * 0.45), cy - Math.round(r * 0.45), A[4], true);
+    for (let k = 0; k < 8; k++) {
+      const a = (k / 8) * Math.PI * 2;
+      b.set(cx + Math.cos(a) * (r + 1), cy + Math.sin(a) * (r + 1), BRASS[0]);
+    }
+    if (i === fishIn && !broken && r >= 7) {
+      // a little fish silhouette
+      const fx = cx - 2;
+      const fy = cy + 1;
+      b.rect(fx - 3, fy - 1, 6, 3, A[0], true);
+      b.rect(fx - 2, fy - 2, 4, 1, A[0], true);
+      b.set(fx + 3, fy - 2, A[0], true);
+      b.set(fx + 3, fy + 2, A[0], true);
+      b.set(fx + 4, fy - 2, A[0], true);
+      b.set(fx + 4, fy + 2, A[0], true);
+      b.set(fx - 2, fy - 1, A[4], true);
+    }
+  }
+  // kelp draped from the gunwale, swaying down the planks
+  for (let v = 0; v < Math.max(2, Math.floor(pw / 22)); v++) {
+    let x = x0 + Math.floor(rnd() * pw);
+    const len = 8 + Math.floor(rnd() * (ph * 0.8));
+    for (let y = y0 - 12; y < y0 - 12 + len; y++) {
+      const k = (y - y0 + 12) / len;
+      b.set(x, y, KELP[k < 0.3 ? 3 : k < 0.7 ? 2 : 1]);
+      b.set(x + 1, y, KELP[1]);
+      if ((y + x) % 7 === 0) b.set(x + 2, y, KELP[2]); // leaf
+      if (rnd() > 0.8) x += rnd() > 0.5 ? 1 : -1;
+    }
+  }
+  // barnacle clusters and the odd coral bloom on the lower planks
+  for (let i = 0; i < pw / 9; i++) {
+    const bx = x0 + Math.floor(rnd() * pw);
+    const by = y0 + Math.floor(ph * 0.6 + rnd() * ph * 0.45);
+    if (rnd() > 0.82) {
+      b.set(bx, by, A2[3]);
+      b.set(bx - 1, by + 1, A2[2]);
+      b.set(bx + 1, by + 1, A2[2]);
+      b.set(bx, by + 1, A2[1]);
+    } else {
+      b.set(bx, by, S[5]);
+      b.set(bx + 1, by, S[4]);
+      b.set(bx, by + 1, S[3]);
+      b.set(bx + 1, by + 1, S[1]);
+    }
+  }
+}
+
 function cap(b: Buf, T: MassTheme, S: Ramp, A: Ramp, A2: Ramp, y0: number, ch: number, W: number, rnd: () => number): void {
   const M = S;
   for (let x = 0; x < W; x++) {
@@ -669,6 +788,17 @@ function cap(b: Buf, T: MassTheme, S: Ramp, A: Ramp, A2: Ramp, y0: number, ch: n
           else if (ly < 9) col = M[4];
           else if (ly === 9) col = A[2];
           else col = M[2];
+          break;
+        }
+        case 'deck': {
+          // deck planks with tarred seams, then a brass-capped gunwale
+          const seam = (x + (ly < 6 ? 0 : 23)) % 46 === 0;
+          if (ly === 0) col = M[5];
+          else if (ly === 1) col = M[4];
+          else if (ly < 8) col = seam ? M[0] : (x * 13 + ly) % 17 === 0 ? M[2] : ly === 4 ? M[2] : M[3];
+          else if (ly === 8) col = hex('#c09a40');
+          else if (ly === 9) col = hex('#7a5a20');
+          else col = M[1];
           break;
         }
         case 'tech': {
@@ -709,6 +839,29 @@ function cap(b: Buf, T: MassTheme, S: Ramp, A: Ramp, A2: Ramp, y0: number, ch: n
     }
     // grass hanging over the lip at the ledges
     for (const x0 of [0, W - 3]) for (let k = 0; k < 6; k++) b.set(x0 + 1, y0 + ch + k, A2[k < 3 ? 2 : 1]);
+  }
+  if (T.cap === 'deck') {
+    // coils of rope, a starfish, puddles catching the light, kelp hanging over the ledges
+    const KELP: Ramp = ['#0e2a1a', '#1a4a2a', '#2e7040', '#4aa058', '#8ad07a'].map(hex);
+    for (let i = 0; i < W / 70; i++) {
+      const x = 10 + Math.floor(rnd() * (W - 24));
+      const kind = rnd();
+      if (kind < 0.4) {
+        for (let k = 0; k < 9; k++) b.set(x + k, y0 - 1, k % 2 === 0 ? hex('#c8a870') : hex('#8a6a40'));
+        for (let k = 1; k < 8; k++) b.set(x + k, y0 - 2, k % 2 === 0 ? hex('#e0c890') : hex('#8a6a40'));
+        for (let k = 3; k < 6; k++) b.set(x + k, y0 - 3, hex('#c8a870'));
+      } else if (kind < 0.65) {
+        b.set(x, y0 - 1, A2[2]);
+        b.set(x + 1, y0 - 1, A2[3]);
+        b.set(x + 2, y0 - 1, A2[2]);
+        b.set(x + 1, y0 - 2, A2[3]);
+        b.set(x - 1, y0 - 1, A2[1]);
+        b.set(x + 3, y0 - 1, A2[1]);
+      } else {
+        for (let k = 0; k < 6; k++) b.set(x + k, y0 + 1, A[3], true);
+      }
+    }
+    for (const x0 of [0, W - 3]) for (let k = 0; k < 10; k++) b.set(x0 + 1 + (k > 5 ? 1 : 0), y0 + ch + k, KELP[k < 4 ? 3 : 2]);
   }
   if (T.cap === 'slate') {
     // puddle glints
@@ -779,6 +932,53 @@ function underside(b: Buf, T: MassTheme, S: Ramp, A: Ramp, A2: Ramp, x0: number,
         b.set(x0 + x, y, A[2], true);
         y++;
         if (rnd() > 0.5) x = clampI(x + (rnd() > 0.5 ? 1 : -1), 0, bw - 1);
+      }
+    }
+  } else if (T.under === 'reef') {
+    // the keel is crusted with sea life: coral fans and tubes, glowing anemones, barnacles, kelp trailing below
+    const KELP: Ramp = ['#0e2a1a', '#1a4a2a', '#2e7040', '#4aa058', '#8ad07a'].map(hex);
+    for (let i = 0; i < bw / 9; i++) {
+      let x = 4 + Math.floor(rnd() * (bw - 8));
+      let y = tip(x) - 2;
+      const len = 10 + Math.floor(rnd() * 38);
+      for (let k = 0; k < len; k++) {
+        b.set(x0 + x, y, KELP[k < len * 0.3 ? 1 : k < len * 0.75 ? 2 : 3]);
+        if (k % 6 === 3) b.set(x0 + x + 1, y, KELP[3]);
+        y++;
+        if (rnd() > 0.6) x += Math.sin(k * 0.6 + i) > 0 ? 1 : -1;
+      }
+    }
+    for (let i = 0; i < bw / 30; i++) {
+      // coral: a branching cluster growing off the hull
+      const x = 10 + Math.floor(rnd() * (bw - 20));
+      const y = tip(x) - 3;
+      const C = rnd() > 0.35 ? A2 : A;
+      for (let br = -2; br <= 2; br++) {
+        let cx = x;
+        for (let k = 0; k < 6 + Math.abs(br) * 2; k++) {
+          b.set(x0 + cx, y + k, C[k < 3 ? 1 : k < 6 ? 2 : 3], C === A);
+          if (k % 2 === 1) cx += br > 0 ? 1 : br < 0 ? -1 : 0;
+        }
+        b.set(x0 + cx, y + 6 + Math.abs(br) * 2, C[4], true);
+      }
+    }
+    for (let i = 0; i < bw / 7; i++) {
+      // barnacles and limpets on the planks
+      const x = Math.floor(rnd() * bw);
+      const y = y0 + 8 + Math.floor(rnd() * Math.max(1, prof[x] - 12));
+      b.set(x0 + x, y, S[5]);
+      b.set(x0 + x + 1, y, S[4]);
+      b.set(x0 + x, y + 1, S[2]);
+      if (rnd() > 0.85) b.set(x0 + x + 1, y + 1, A[3], true);
+    }
+    // a breach in the hull: dark hold with sea-light inside
+    if (bw > 120) {
+      const hx = Math.floor(bw * (0.3 + rnd() * 0.4));
+      const hy = y0 + 12;
+      for (let yy = 0; yy < 14; yy++) for (let xx = -12; xx <= 12; xx++) {
+        const edge = Math.abs(xx) + (yy - 7) * (yy - 7) * 0.25 + Math.sin(xx * 1.7 + yy) * 1.5;
+        if (edge > 11 || hy + yy >= tip(hx + xx) - 2) continue;
+        b.set(x0 + hx + xx, hy + yy, edge > 9 ? S[4] : yy > 9 ? A[1] : S[0], yy > 9 && edge <= 9);
       }
     }
   } else if (T.under === 'roots') {
@@ -859,9 +1059,10 @@ export function platformArt(themeId: string | undefined, w: number, h: number, m
   const G = moving && T.cap !== 'grass' && T.cap !== 'slate' ? amber : A;
   // grass themes: wooden bridges; moving ones are clouds at dawn and carved stone altars in the temple
   const stoneAltar = T.panel === 'glyph' && moving;
-  const woody = T.cap === 'grass' && !stoneAltar;
+  const deck = T.cap === 'deck';
+  const woody = (T.cap === 'grass' && !stoneAltar) || deck;
 
-  if (T.cap === 'slate' || (woody && moving)) {
+  if (T.cap === 'slate' || (woody && moving && !deck)) {
     // cloud slab: a flat top you can stand on, billowing underneath
     const top = T.cap === 'slate' ? hex('#e8f2ff') : hex('#fff0e0');
     const mid = T.cap === 'slate' ? hex('#b6c9e2') : hex('#f4c8b8');
@@ -891,8 +1092,8 @@ export function platformArt(themeId: string | undefined, w: number, h: number, m
       if (woody) {
         // wooden planks with a pale top edge
         const plank = Math.floor(x / 14);
-        const base = mix(hex('#8a5a2c'), hex('#a06a34'), (plank * 37) % 5 / 5);
-        c = ly === 0 ? hex('#e8d6a8') : ly === 1 ? hex('#d49a58') : ly === PH - 1 ? hex('#3a2410') : base;
+        const base = deck ? mix(S[3], S[4], (plank * 37) % 5 / 5) : mix(hex('#8a5a2c'), hex('#a06a34'), (plank * 37) % 5 / 5);
+        c = ly === 0 ? (deck ? S[5] : hex('#e8d6a8')) : ly === 1 ? (deck ? hex('#c09a40') : hex('#d49a58')) : ly === PH - 1 ? (deck ? S[0] : hex('#3a2410')) : base;
         if (x % 14 === 0 && ly > 0) c = hex('#5a3a1c');
         if (ly === 4 && (x + plank * 3) % 9 === 0) c = hex('#5a3a1c');
       } else {
@@ -907,6 +1108,20 @@ export function platformArt(themeId: string | undefined, w: number, h: number, m
     }
   }
   const bot = y0 + PH;
+  if (deck && moving) {
+    // a floating raft: lashed to two barrels bobbing underneath, kelp trailing
+    for (const x of [Math.round(W * 0.22), Math.round(W * 0.78)]) {
+      for (let yy = 0; yy < 12; yy++) for (let xx = -7; xx <= 7; xx++) {
+        const bulge = 7 - Math.round(Math.abs(yy - 5.5) * 0.35);
+        if (Math.abs(xx) > bulge) continue;
+        let c = xx < -3 ? S[4] : xx < 3 ? S[3] : S[1];
+        if (yy === 2 || yy === 9) c = hex('#5a6266');
+        b.set(x + xx, bot + yy, c);
+      }
+    }
+    for (let x = 6; x < W - 6; x += 17) for (let k = 0; k < 6 + (x % 5); k++) b.set(x + (k % 4 < 2 ? 0 : 1), bot + k, hex('#2e7040'));
+    return finish(b, W, H);
+  }
   if (woody) {
     // rope rail posts above, lanterns and rope loops below
     for (const x of [3, W - 4]) for (let k = 1; k <= 5; k++) b.set(x, y0 - k, hex('#6a4220'));
