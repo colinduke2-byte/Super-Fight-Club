@@ -304,6 +304,13 @@ export class FighterView {
   }
 
   /** Spawn a fading copy of the current sprite (afterimage) at a world position. */
+  /** Entrance (READY countdown only): shift, fade and stretch the body on top of its pose. */
+  entrance(dx: number, dy: number, alpha: number, sy = 1): void {
+    const s = this.sprite;
+    s.setPosition(s.x + dx, s.y + dy).setAlpha(s.alpha * alpha).setScale(s.scaleX, s.scaleY * sy);
+    this.shadow.setAlpha(0.25 * alpha * (dy < -6 ? 0.5 : 1));
+  }
+
   afterimage(x: number, y: number, tint = 0xffffff, life = 7): void {
     let g = this.ghosts[this.nextGhost];
     if (!g) {

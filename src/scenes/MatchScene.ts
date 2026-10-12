@@ -61,6 +61,10 @@ import { session, type PlayerSlot } from '../game/session';
 /** Countdown: READY? for a beat, then 3, 2, 1 at COUNT_STEP ticks each. */
 const COUNT_STEP = 36;
 const COUNTDOWN = COUNT_STEP * 3 + 40;
+
+/** How each fighter arrives during READY (visual only: the sim is frozen until GO). */
+type Entrance = 'slam' | 'jet' | 'blink' | 'rune' | 'flame' | 'glide' | 'splash' | 'fade';
+const ENTRANCES: Record<string, Entrance> = { brick: 'slam', gizmo: 'jet', vex: 'blink', nova: 'rune', agni: 'flame', halcyon: 'glide', riptide: 'splash' };
 const TRAINING: MatchConfig = { mode: 'training', stocks: 3, timeLimitSec: 0, respawnDelay: 70 };
 const END_DELAY = 150;
 const HELP_TRAINING = [
@@ -170,6 +174,8 @@ export class MatchScene extends Phaser.Scene {
   private introTicks = 0;
   /** Pre-match READY / 3 / 2 / 1 countdown in sim ticks (the world is frozen until GO). */
   private countdown = 0;
+  /** Per fighter: 1 = entrance start effects played, 2 = arrival effects played. */
+  private entranceFx: number[] = [];
   private bannerBase = 1;
   private bannerPop = 0;
   private shake = 0;
@@ -364,6 +370,7 @@ export class MatchScene extends Phaser.Scene {
       const head = this.replay ? 'REPLAY\nESC: EXIT' : fight ? `FIGHT ${fight.index + 1}\n${fight.title}` : this.isTargets ? 'BREAK THE\nTARGETS!' : this.isLaunch ? 'TEN SECONDS:\nPILE IT ON!' : chal ? `CHALLENGE\n${chal.title}` : session.demo ? 'DEMO PLAY' : 'READY?';
       this.banner.setText(up(head)).setVisible(true);
       this.countdown = COUNTDOWN;
+      this.entranceFx = [];
       this.introTicks = 0;
     }
     this.pauseMenu = new MenuList(this, this.uiLayer, [
@@ -518,7 +525,8 @@ export class MatchScene extends Phaser.Scene {
     session.players = [{ index: 0, type: auto ? 'cpu' : 'human', device: auto ? null : device, character: id, cpuLevel: 3 }];
     const lvl = Math.min(3, Math.max(1, Number(q.get('cpu') ?? 1))) as 1 | 2 | 3;
     for (let i = 1; i < Math.max(2, n); i++) {
-      const pick = q.has('mirror') ? id : ids.filter((c) => c !== id)[(i - 1) % (ids.length - 1)]; // ?mirror: everyone plays the same fighter
+      const vs = q.get('vs')?.split(',').filter((c) => c in CHARACTERS); // ?vs=a,b,c picks the other slots
+      const pick = vs?.[i - 1] ?? (q.has('mirror') ? id : ids.filter((c) => c !== id)[(i - 1) % (ids.length - 1)]); // ?mirror: everyone plays the same fighter
       session.players.push({ index: i, type: 'cpu', device: null, character: pick, cpuLevel: lvl });
     }
   }
@@ -844,6 +852,7 @@ export class MatchScene extends Phaser.Scene {
     this.targetView?.update(performance.now() / 1000);
     this.launchView?.update(performance.now() / 1000);
     for (const v of this.views) v.update(alpha, this.world.tick);
+    if (this.countdown > 0 && !this.bench) this.runEntrances();
     this.entityViews.update(alpha, this.world.tick);
     this.ambientFx();
     this.effects.update(Math.min(frameMs, 50) / 1000);
@@ -1086,6 +1095,88 @@ export class MatchScene extends Phaser.Scene {
   /** Device pixels per HUD art pixel (integer, >= 2). */
   private hudUnit(h: number): number {
     return Math.max(2, Math.round(h / 360));
+  }
+
+  /** Each fighter arrives in character during READY: Brick drops in with a slam, Vex blinks in, Riptide bursts out of a splash... */
+  private runEntrances(): void {
+    const t = COUNTDOWN - this.countdown;
+    const e = this.effects;
+    this.views.forEach((v, i) => {
+      const f = this.fighters[i];
+      if (f.state === 'ko') return;
+      const k = Math.max(0, Math.min(1, (t - 4 - i * 7) / 34));
+      const style = ENTRANCES[f.data.id] ?? 'fade';
+      const done = this.entranceFx[i] ?? 0;
+      const top = f.y - f.h / 2;
+      let dx = 0;
+      let dy = 0;
+      let a = k > 0 ? 1 : 0;
+      let sy = 1;
+      const start = k > 0 && !(done & 1);
+      const arrive = k >= 1 && !(done & 2);
+      switch (style) {
+        case 'slam':
+          dy = -((1 - k) ** 2) * 150;
+          if (arrive) {
+            e.dust(f.x, f.y, 10, 0);
+            e.ring(f.x, f.y - 2, 34, 0xffffff, 0.3);
+            this.shake = Math.max(this.shake, 5 * settings.screenShake);
+            sfx.play('boom', 0.5, 0);
+          }
+          break;
+        case 'jet':
+          dy = -((1 - k) ** 2) * 120;
+          if (k > 0 && k < 1) e.burst(f.x, f.y + dy, 1, 30, 0xffa040, 0.2, 2);
+          if (arrive) e.dust(f.x, f.y, 6, 0);
+          break;
+        case 'blink':
+          a = k <= 0 ? 0 : k < 0.6 ? ((t >> 1) % 2 === 0 ? 0.55 * k : 0) : 1;
+          if (start) e.flash(f.x, top, 1.2, 0xff5ab0);
+          if (k >= 0.6 && !(done & 2)) {
+            e.burst(f.x, top, 10, 70, 0xff5ab0, 0.3, 2);
+            v.afterimage(f.x - f.facing * 14, f.y, 0xff5ab0, 8);
+            this.entranceFx[i] = done | 3;
+            return;
+          }
+          break;
+        case 'rune':
+          a = k;
+          sy = 0.3 + 0.7 * k;
+          if (start) {
+            e.ring(f.x, f.y - 2, 42, 0x9fe9ff, 0.5);
+            e.burst(f.x, top, 12, 50, 0xc8b0ff, 0.5, 2);
+          }
+          break;
+        case 'flame':
+          a = Math.min(1, k * 1.6);
+          sy = 0.4 + 0.6 * k;
+          if (start) e.flash(f.x, f.y - 6, 1.6, 0xffb040);
+          if (k > 0 && k < 1) e.burst(f.x, f.y - 4, 2, 60, k < 0.5 ? 0xffe08a : 0xff6a20, 0.3, 2);
+          if (arrive) e.ring(f.x, f.y - 2, 30, 0xff8a30, 0.3);
+          break;
+        case 'glide':
+          dx = -f.facing * (1 - k) * 90;
+          dy = -(1 - k) * 110;
+          if (arrive) e.burst(f.x, top, 10, 50, 0xf0f4ff, 0.5, 2);
+          break;
+        case 'splash':
+          dy = -Math.sin(k * Math.PI) * 46;
+          a = Math.min(1, k * 4);
+          if (start) {
+            e.burst(f.x, f.y - 2, 16, 110, 0x8adcf0, 0.5, 2);
+            e.ring(f.x, f.y - 2, 30, 0xbff0ff, 0.35);
+            sfx.play('splash', 0.6, 0);
+          }
+          if (arrive) e.burst(f.x, f.y - 2, 10, 70, 0xbff0ff, 0.35, 2);
+          break;
+        default:
+          a = k;
+          if (start) e.flash(f.x, top, 2, 0xffffff);
+      }
+      if (start) this.entranceFx[i] = (this.entranceFx[i] ?? 0) | 1;
+      if (arrive) this.entranceFx[i] = (this.entranceFx[i] ?? 0) | 2;
+      v.entrance(dx, dy, a, sy);
+    });
   }
 
   /** READY? -> 3 -> 2 -> 1 -> GO!: nobody moves until GO (the sim does not tick, so replays stay in step). */

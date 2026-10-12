@@ -8,7 +8,7 @@ audio are original and generated in code. The game runs in the browser.
 > scenarios, rebindable keyboard / gamepad controls, synthesized SFX and chiptune music, CPU AI with three difficulties.
 > What still needs **you**: hands-on play (balance feel), real Xbox / PlayStation / Switch pads, Safari, 120/144 Hz displays and GPU
 > measurements. `?bench=20&stage=reactor&players=4&cpu=3&auto` gives you comparable numbers (see *Performance*).
-> Dev shortcuts: `?char=<id>` training, `?stage=<id>&players=<2-4>&cpu=<1-3>[&auto]` versus, `?arcade=<char>[&fight=<0-5>]` ladder,
+> Dev shortcuts: `?char=<id>` training, `?stage=<id>&players=<2-4>&cpu=<1-3>[&auto][&vs=<id>,<id>...]` versus, `?arcade=<char>[&fight=<0-5>]` ladder,
 > `?scene=<Key>` any scene, `?bench=<seconds>` benchmark.
 
 ## Run
@@ -37,7 +37,8 @@ and opened from the pause menu it runs over the paused match and returns to it. 
 moving, attacking, defending, grabs, advanced tech, the fighters) with an animated fighter on each page (`src/game/howToPlay.ts`). Menus fade
 between scenes and every list sits on a backing plate with a cursor bar. **Challenges** are ten hand-built scenarios (as a set
 fighter or any, against odds, in teams, on a timer, with bombs only...; `src/game/challenges.ts`), each cleared once and ticked off in
-Records. Leave the title screen idle for 25 s and a **demo** match of random CPUs plays; any key returns to the title. A taunt shows
+Records. Leave the title screen idle for 25 s and a **demo** match of random CPUs plays; any key returns to the title. During READY every fighter makes an entrance (Brick drops in with a slam, Vex blinks in, Nova materialises in a rune
+circle, Gizmo lands on a jet, Agni rises from flame, Halcyon glides down, Riptide bursts from a splash). A taunt shows
 the fighter's catchphrase in a speech bubble, the winner taunts on the results screen, and CPUs taunt after scoring a KO. Unplugging a pad mid-match pauses with the
 player named; re-plugging (or plugging another pad) re-attaches it.
 
