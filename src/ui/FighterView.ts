@@ -32,6 +32,8 @@ export class FighterView {
   private lastGhostTick = -9;
   /** Two additive copies of the previous pose frames behind the strike: a motion-blur smear. */
   private readonly smear: Phaser.GameObjects.Sprite[] = [];
+  /** Additive silhouette over the body: brightens towards a colour (charge, burn, stun) instead of a muddy multiply tint. */
+  private readonly glow: Phaser.GameObjects.Sprite;
   private readonly layer: Phaser.GameObjects.Layer;
   private readonly scene: Phaser.Scene;
 
@@ -51,6 +53,8 @@ export class FighterView {
       layer.add(g);
     }
     layer.add(this.sprite);
+    this.glow = scene.add.sprite(0, 0, key, 0).setBlendMode(Phaser.BlendModes.ADD).setVisible(false);
+    layer.add(this.glow);
     layer.add(this.bubble);
     this.comboText = scene.add.bitmapText(0, 0, PIXEL_FONT, '').setOrigin(0.5, 1).setScale(0.5).setTint(0xffe14a).setVisible(false);
     layer.add(this.comboText);
@@ -81,6 +85,7 @@ export class FighterView {
     this.shadow.setVisible(f.state !== 'ko' && f.grounded);
     if (f.state === 'ko') {
       this.bubble.setVisible(false);
+      this.glow.setVisible(false);
       return;
     }
 
@@ -155,18 +160,41 @@ export class FighterView {
     // invincibility blink (dodges stay translucent), smash-charge glow
     const dodging = f.state === 'spotdodge' || f.state === 'roll' || f.state === 'airdodge';
     s.setAlpha(dodging ? 0.4 : f.invuln > 0 && (tick >> 2) % 2 === 0 ? 0.45 : 1);
-    // tint priority: freeze > stun > burn > slow > transform > smash charge > base
+    // multiply tints only for cold effects (they should darken); bright effects glow additively over the body
     const st = f.status;
+    let glowCol = -1;
+    let glowA = 0;
     if (st.freeze > 0) s.setTint(0x9fe9ff);
-    else if (st.stun > 0) s.setTint(((tick >> 2) & 1) === 0 ? 0xffff60 : 0xffffff);
-    else if (st.burn > 0) s.setTint(((tick >> 2) & 1) === 0 ? 0xffa040 : 0xff6a38);
     else if (st.slow > 0) s.setTint(0x8aa0ff);
     else if (tr && big > 1) s.setTint(((tick >> 3) & 1) === 0 ? tr.tint : 0xffffff);
-    else if (f.data.hud && (f.res[f.data.hud.resource] ?? 0) >= f.data.hud.hotAt) s.setTint(((tick >> 3) & 1) === 0 ? 0xffd9c0 : 0xffffff);
-    else if (f.chargeFrames > 0 && f.state === 'attack') s.setTint(((tick >> 1) & 1) === 0 ? 0xffe14a : 0xffffff);
     else if (f.hitlag > 0 && f.state === 'hitstun' && (tick & 3) < 2) s.setTintFill(HIT_FLASH[f.lastHitFx] ?? 0xffffff); // impact flash during hit-stop, coloured by the hit's element
     else if (this.baseTint !== undefined) s.setTint(this.baseTint);
     else s.clearTint();
+    if (st.stun > 0) {
+      glowCol = 0xffff60;
+      glowA = ((tick >> 2) & 1) === 0 ? 0.55 : 0.15;
+    } else if (st.burn > 0) {
+      glowCol = 0xff6a20;
+      glowA = 0.32 + 0.18 * Math.sin(tick * 0.9);
+    } else if (f.chargeFrames > 0 && f.state === 'attack') {
+      glowCol = 0xffe9a0;
+      glowA = 0.12 + 0.18 * (0.5 + 0.5 * Math.sin(tick * 0.7)) + Math.min(0.15, f.chargeFrames / 300);
+    } else if (f.data.hud && (f.res[f.data.hud.resource] ?? 0) >= f.data.hud.hotAt) {
+      glowCol = 0xffc890;
+      glowA = 0.12 + 0.1 * Math.sin(tick * 0.25);
+    }
+    const g = this.glow;
+    if (glowCol >= 0 && s.visible) {
+      g.setTexture(s.texture.key, s.frame.name)
+        .setOrigin(s.originX, s.originY)
+        .setPosition(s.x, s.y)
+        .setFlipX(s.flipX)
+        .setScale(s.scaleX, s.scaleY)
+        .setRotation(s.rotation)
+        .setTintFill(glowCol)
+        .setAlpha(glowA * s.alpha)
+        .setVisible(true);
+    } else g.setVisible(false);
 
     this.updateCombo(f);
     this.updateOrb(f, tick);
