@@ -35,6 +35,8 @@ export class FighterView {
   private readonly smear: Phaser.GameObjects.Sprite[] = [];
   /** Additive silhouette over the body: brightens towards a colour (charge, burn, stun) instead of a muddy multiply tint. */
   private readonly glow: Phaser.GameObjects.Sprite;
+  /** A carried Shock Bomb, held out in front. */
+  private readonly held: Phaser.GameObjects.Image;
   private readonly layer: Phaser.GameObjects.Layer;
   private readonly scene: Phaser.Scene;
 
@@ -56,6 +58,8 @@ export class FighterView {
     layer.add(this.sprite);
     this.glow = scene.add.sprite(0, 0, key, 0).setBlendMode(Phaser.BlendModes.ADD).setVisible(false);
     layer.add(this.glow);
+    this.held = scene.add.image(0, 0, 'item-bomb').setScale(0.42).setVisible(false);
+    layer.add(this.held);
     layer.add(this.bubble);
     this.comboText = scene.add.bitmapText(0, 0, PIXEL_FONT, '').setOrigin(0.5, 1).setScale(0.5).setTint(0xffe14a).setVisible(false);
     layer.add(this.comboText);
@@ -84,6 +88,8 @@ export class FighterView {
     const s = this.sprite;
     s.setVisible(f.state !== 'ko');
     this.shadow.setVisible(f.state !== 'ko' && f.grounded);
+    this.held.setVisible(f.heldBomb && f.state !== 'ko');
+    if (f.heldBomb) this.held.setPosition(this.x + f.facing * 8 * f.sizeMul, this.y - f.h * 0.5 * f.sizeMul + Math.sin(tick * 0.2));
     if (f.state === 'ko') {
       this.bubble.setVisible(false);
       this.glow.setVisible(false);

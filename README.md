@@ -163,7 +163,7 @@ Key design points
 - **Ledge attack / get-up attack:** Attack on the ledge, or while lying down, for an invulnerable attack (generic moves in `src/engine/genericMoves.ts`; a character can override `ledgeAttack` / `getupAttack` in its move file).
 - **Taunt:** press Ultimate while the meter is not full.
 - **Team battles:** Versus Setup > Teams (4 players): P1+P2 vs P3+P4, no friendly fire (hits, projectiles, traps), the match ends when a whole team is out; results rank the winning team first.
-- **Items:** Versus Setup > Items (off / low / high): Heart (-25%), Energy Cell (+50 ultimate meter) and Overdrive (10 s of +30% damage) drop onto the stage; the CPU goes for them. Drops use a seeded generator, so they are deterministic.
+- **Items:** Versus Setup > Items (off / low / high): Heart (-25%), Energy Cell (+50 ultimate meter) and Overdrive (10 s of +30% damage) drop onto the stage, plus the Shock Bomb: touch it to pick it up, then Attack throws it (forward in an arc, Up straight up, Down drops it). It bursts on the first fighter it touches, on landing or when its fuse runs out; shields soak it. The CPU goes for items and lobs bombs. Drops use a seeded generator, so they are deterministic.
 - **Timed matches:** an on-screen clock counts down (red for the last ten seconds). A tie at the bell goes to SUDDEN DEATH: the tied fighters respawn at 300% with one stock each and the first to fall loses.
 - **Replays:** after a Versus match, Results > WATCH REPLAY re-runs it from the recorded inputs (the sim is deterministic). ESC/Enter exits. Versus Setup > STAGE HAZARDS turns stage hazards off.
 - **Rumble:** gamepad vibration on hits, pickups and KOs (Chromium / Edge; Settings > Controller rumble).

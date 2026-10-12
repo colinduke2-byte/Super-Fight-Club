@@ -8,6 +8,7 @@ import { moveTotal, type MoveDef, type StatusApply } from './moves';
 import type { Ledge, Platform } from './platform';
 import type { CharacterData, CharacterStats } from './types';
 import { GENERIC_MOVES } from './genericMoves';
+import { throwBomb } from './items';
 import type { World } from './world';
 
 export type FighterState =
@@ -214,6 +215,8 @@ export class Fighter implements Body {
   techWindow = 0;
   techLock = 0;
   lastHitBy = -1;
+  /** Carrying a Shock Bomb item: the next Attack throws it. */
+  heldBomb = false;
   /** Frames left in which a freshly raised shield is a perfect shield. */
   parryFrames = 0;
   parryCount = 0;
@@ -398,6 +401,7 @@ export class Fighter implements Body {
     this.grabTarget = -1;
     this.grabbedBy = -1;
     this.lastHitBy = -1;
+    this.heldBomb = false;
     this.damageMult = 1;
     this.speedBonus = 1;
     this.kbMult = 1;
@@ -1076,6 +1080,10 @@ export class Fighter implements Body {
     const smashBtn = this.buffer.has(Button.Smash);
     const atkBtn = this.buffer.has(Button.Attack);
     if (!smashBtn && !atkBtn) return false;
+    if (this.heldBomb) {
+      this.buffer.consume(smashBtn ? Button.Smash : Button.Attack);
+      return throwBomb(world, this.id, inp.stickX, inp.stickY);
+    }
     const up = inp.stickY < -0.5;
     const down = inp.stickY > 0.5;
     const side = Math.abs(inp.stickX) > 0.5;
@@ -2060,6 +2068,7 @@ export class Fighter implements Body {
       this.grabbedBy = -1;
       this.state = 'ko';
       this.stateFrame = 0;
+      this.heldBomb = false;
       world.emit('ko', this, this.x, this.y, Math.hypot(this.vx, this.vy), this.lastHitBy);
       if (this.lastHitBy >= 0 && this.lastHitBy !== this.id) world.fighters[this.lastHitBy]?.data.behavior?.onKill?.(world.fighters[this.lastHitBy], this, world);
     }

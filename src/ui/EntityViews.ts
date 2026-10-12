@@ -56,8 +56,15 @@ export class EntityViews {
         s.setVisible(false);
         continue;
       }
+      if (it.thrown) {
+        // spinning in flight, flashing faster as the fuse burns down
+        const fast = it.fuse < 45 ? 2 : 3;
+        s.setTexture('item-bomb').setVisible(true).setPosition(it.x, it.y).setRotation(tick * 0.35 * Math.sign(it.vx || 1));
+        s.setTint((tick >> fast) % 2 === 0 ? 0xffffff : 0xff9a9a);
+        continue;
+      }
       const blink = it.age > 600 && (tick >> 2) % 2 === 0;
-      s.setTexture(`item-${it.kind}`).setVisible(!blink).setPosition(it.x, it.y + Math.sin(tick * 0.1 + i) * (it.resting ? 1.2 : 0));
+      s.setTexture(`item-${it.kind}`).setVisible(!blink).setRotation(0).clearTint().setPosition(it.x, it.y + Math.sin(tick * 0.1 + i) * (it.resting ? 1.2 : 0));
     }
     for (let i = 0; i < this.proj.length; i++) {
       const p = w.projectiles[i];

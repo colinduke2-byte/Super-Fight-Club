@@ -209,6 +209,21 @@ export class CpuController implements Controller {
 
     if (this.params.smart && this.chaseItem(self, world, tgt)) return;
     if (!tgt) return;
+    // carrying a Shock Bomb: lob it once the target is in range (any attack would throw it anyway)
+    if (self.heldBomb && self.grounded) {
+      const dx = tgt.x - self.x;
+      const dy = tgt.y - self.y;
+      if (Math.abs(dx) < 150 && Math.abs(dy) < 60 && Math.abs(dx) > 30) {
+        this.sx = Math.sign(dx);
+        this.held = Button.Attack;
+        return;
+      }
+      if (Math.abs(dx) <= 40 && dy < -50) {
+        this.sy = -1;
+        this.held = Button.Attack;
+        return;
+      }
+    }
     this.offense(self, world, tgt, ai);
   }
 

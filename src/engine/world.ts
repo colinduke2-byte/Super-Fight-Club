@@ -47,6 +47,8 @@ export type WorldEventType =
   | 'hazardWarn'
   | 'itemSpawn'
   | 'itemPickup'
+  | 'itemThrow'
+  | 'itemBoom'
   | 'hazardFire'
   | 'ko';
 /** `extra` meaning: hit/armorHit/shieldHit/pummel = damage dealt; ko = id of the last attacker (-1 none). */

@@ -228,9 +228,23 @@ export class WorldEventFx {
         break;
       case 'itemPickup':
         e.ring(x, y, 22, 0xffe14a, 0.4);
-        e.burst(x, y, 14, 90, [0x5fe08a, 0xffd04a, 0xff6a5a][mag | 0] ?? 0xffffff, 0.5, 3);
+        e.burst(x, y, 14, 90, [0x5fe08a, 0xffd04a, 0xff6a5a, 0x3ad0e8][mag | 0] ?? 0xffffff, 0.5, 3);
         sfx.play('ding', 0.8, 0);
         this.host.rumble(f, 0.2, 0.4, 80);
+        break;
+      case 'itemThrow':
+        sfx.play('swing', 0.6, this.host.pan(x));
+        break;
+      case 'itemBoom':
+        // shock burst: white flash, an expanding ring at the blast radius, cyan arcs and hot sparks
+        e.flash(x, y, 3.2, 0xffffff);
+        e.ring(x, y, mag, 0xa0f4ff, 0.35);
+        e.ring(x, y, mag * 0.6, 0xffffff, 0.22);
+        e.burst(x, y, 30, 180, 0x3ad0e8, 0.45, 3);
+        e.burst(x, y, 18, 120, 0xffe08a, 0.6, 3);
+        e.dust(x, y + 6, 6, 0);
+        this.host.shake(7);
+        sfx.play('boom', 1, this.host.pan(x));
         break;
       case 'ko': {
         const kx = Phaser.Math.Clamp(f.koX, this.host.world.blast.left, this.host.world.blast.right);

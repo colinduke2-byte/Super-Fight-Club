@@ -42,6 +42,26 @@ export function buildEntityTextures(scene: Phaser.Scene): void {
     add(key, c);
   }
 
+  // shock bomb 16x16: dark shell, glowing cyan band and core, a lit fuse spark on top
+  {
+    const [c, g] = mk(16, 16);
+    for (let y = 2; y < 16; y++) {
+      for (let x = 0; x < 16; x++) {
+        const d = Math.hypot(x - 7.5, y - 9);
+        if (d > 6.6) continue;
+        const lit = x + y < 14;
+        px(g, d > 5.6 ? '#0c0a18' : lit && d > 3.5 ? '#4a4870' : '#2a2840', x, y);
+      }
+    }
+    px(g, '#3ad0e8', 2, 9, 12, 1);
+    px(g, '#a0f4ff', 4, 9, 8, 1);
+    px(g, '#e6ffff', 6, 8, 3, 3);
+    px(g, '#8a8aa8', 7, 1, 2, 3); // fuse cap
+    px(g, '#ffe08a', 8, 0, 2, 1);
+    px(g, '#ffffff', 9, 0, 1, 1);
+    add('item-bomb', c);
+  }
+
   // orb 16x16: bright core, mid body, dithered rim
   {
     const [c, g] = mk(16, 16);
