@@ -40,6 +40,7 @@ import { UltCutIn } from '../ui/UltCutIn';
 import { TargetView } from '../ui/TargetView';
 import { LaunchView } from '../ui/LaunchView';
 import { LaunchContest } from '../game/launch';
+import { endDemo } from '../game/demo';
 import { challengeById, challengeCleared, challengeRules } from '../game/challenges';
 import { moveListText } from '../game/moveList';
 import { bestLaunch, bestTargetTime, formatTicks, recordChallenge, recordLaunch, recordMatch, recordTargetTime } from '../game/records';
@@ -251,7 +252,7 @@ export class MatchScene extends Phaser.Scene {
     this.launchView = null;
     const cfg: MatchConfig = this.isTraining || this.isLaunch ? TRAINING : { mode: rules.mode, stocks: rules.stocks, timeLimitSec: rules.timeSec, respawnDelay: 70, staminaHp: rules.staminaHp };
     this.match = new Match(this.world, cfg);
-    if (!rep && !this.isTraining && session.mode === 'versus') this.recorder = new ReplayRecorder(session.stage, rules, this.slots.map((sl) => ({ character: sl.character, palette: sl.palette })), settings.smashMode === 'flick');
+    if (!rep && !this.isTraining && session.mode === 'versus' && !session.demo) this.recorder = new ReplayRecorder(session.stage, rules, this.slots.map((sl) => ({ character: sl.character, palette: sl.palette })), settings.smashMode === 'flick');
     this.match.onRespawn = (f) => this.respawn(f.id, true);
     this.match.onSuddenDeath = () => {
       this.banner.setText('SUDDEN DEATH!').setVisible(true).setTint(0xff4a5a);
@@ -339,7 +340,7 @@ export class MatchScene extends Phaser.Scene {
     if (cfg.mode === 'stamina') this.huds.forEach((h) => (h.hpMax = cfg.staminaHp ?? 150));
     this.helpText = this.add.bitmapText(0, 0, PIXEL_FONT, up((this.isTraining ? HELP_TRAINING : HELP_MATCH).join('\n'))).setOrigin(0, 1).setTint(0xb8b0e8);
     // modes with a clock at the top start with the reminder hidden (H shows it)
-    this.helpOn = !(this.isLaunch || this.isTargets || cfg.mode === 'time');
+    this.helpOn = !(this.isLaunch || this.isTargets || cfg.mode === 'time' || session.demo);
     this.helpText.setVisible(this.helpOn);
     this.trainText = this.add.bitmapText(0, 0, PIXEL_FONT, '').setOrigin(0, 0).setTint(0xffe9a8).setLeftAlign();
     this.uiLayer.add(this.trainText);
@@ -353,7 +354,7 @@ export class MatchScene extends Phaser.Scene {
     if (!this.isTraining) {
       const lad = session.mode === 'arcade' ? session.ladder : null;
       const fight = lad ? currentFight(lad) : null;
-      const head = this.replay ? 'REPLAY\nESC: EXIT' : fight ? `FIGHT ${fight.index + 1}\n${fight.title}` : this.isTargets ? 'BREAK THE\nTARGETS!' : this.isLaunch ? 'TEN SECONDS:\nPILE IT ON!' : chal ? `CHALLENGE\n${chal.title}` : 'READY?';
+      const head = this.replay ? 'REPLAY\nESC: EXIT' : fight ? `FIGHT ${fight.index + 1}\n${fight.title}` : this.isTargets ? 'BREAK THE\nTARGETS!' : this.isLaunch ? 'TEN SECONDS:\nPILE IT ON!' : chal ? `CHALLENGE\n${chal.title}` : session.demo ? 'DEMO PLAY' : 'READY?';
       this.banner.setText(up(head)).setVisible(true);
       this.countdown = COUNTDOWN;
       this.introTicks = 0;
@@ -611,6 +612,14 @@ export class MatchScene extends Phaser.Scene {
       this.training.step(i);
     }
 
+    if (session.demo) {
+      // attract mode: any button (or the end of the match, or a minute) goes back to the title
+      if (menuInput.poll().length > 0 || this.match.over || this.world.tick > 60 * 60) {
+        endDemo();
+        this.scene.start('Title');
+        return;
+      }
+    }
     if (pausePressed && this.endTimer < 0) {
       this.setPaused(true, 'user');
       inputManager.endTick();
@@ -1086,6 +1095,10 @@ export class MatchScene extends Phaser.Scene {
   /** MM:SS countdown in time mode: pulses red over the last ten seconds, ticks over the last five. */
   private updateClock(): void {
     const m = this.match;
+    if (session.demo) {
+      this.clock.setVisible(true).setText('DEMO   PRESS ANY BUTTON').setTint(((this.world.tick >> 5) & 1) === 0 ? 0xffe14a : 0xffffff);
+      return;
+    }
     if (this.launch) {
       const lc = this.launch;
       if (lc.phase === 'barrier') {

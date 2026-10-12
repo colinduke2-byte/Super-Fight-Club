@@ -1,3 +1,4 @@
+import { startDemo } from '../game/demo';
 import Phaser from 'phaser';
 import { fighterAnimKey, fighterTextureKey, uiTexK } from '../art/proceduralFighter';
 import { CHARACTER_LIST } from '../characters';
@@ -8,7 +9,11 @@ import { COLORS, MenuScene, text, textPx } from '../ui/menuKit';
 import { PIXEL_FONT } from '../art/pixelFont';
 
 /** Title screen: logo, the roster standing under spotlights with nameplates, "press any button". */
+/** Seconds of idle title screen before the demo match starts. */
+const DEMO_AFTER = 25;
+
 export class TitleScene extends MenuScene {
+  private demoStarted = false;
   private logo1!: Phaser.GameObjects.BitmapText;
   private logo2!: Phaser.GameObjects.BitmapText;
   private logo2Shadow!: Phaser.GameObjects.BitmapText;
@@ -28,6 +33,7 @@ export class TitleScene extends MenuScene {
   }
 
   protected build(): void {
+    this.demoStarted = false;
     this.footerMsg = '';
     this.sprites = [];
     this.names = [];
@@ -128,6 +134,13 @@ export class TitleScene extends MenuScene {
   }
 
   protected override tick(time: number): void {
+    // attract mode: left alone for a while, the title plays a demo match
+    if (time > DEMO_AFTER && !this.demoStarted) {
+      this.demoStarted = true;
+      startDemo();
+      this.go('Match');
+      return;
+    }
     this.prompt.setAlpha(((time * 2) | 0) % 2 === 0 ? 1 : 0.35);
     this.logo1.setTint(((time * 3) | 0) % 2 === 0 ? COLORS.title : 0xffffff);
     // a shine pulse sweeps across the big logo every few seconds

@@ -103,6 +103,8 @@ export interface Session {
   launchRun: LaunchRun | null;
   /** The running challenge's id (Challenges mode). */
   challenge: string | null;
+  /** Attract-mode demo match (started by an idle title screen). */
+  demo?: boolean;
 }
 
 export const DEFAULT_RULES: MatchRules = { mode: 'stock', stocks: 3, timeSec: 180, teams: false, items: 0, hazards: true, staminaHp: 150 };
