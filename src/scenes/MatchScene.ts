@@ -286,7 +286,6 @@ export class MatchScene extends Phaser.Scene {
     this.uiLayer.add(this.dimOverlay);
     this.koBlast = new KoBlast(this, this.uiLayer);
     this.targetView = this.isTargets ? new TargetView(this, this.worldLayer, this.world) : null;
-    if (cfg.mode === 'stamina') this.huds.forEach((h) => (h.hpMax = cfg.staminaHp ?? 150));
     const tagColors = this.fighters.map((f) => (f.team >= 0 ? COLORS.p[f.team] : COLORS.p[f.id % 4]));
     this.views.forEach((v, i) => (v.color = tagColors[i]));
     this.tags = new PlayerTags(this, this.uiLayer, this.fighters, this.views, this.slots.map((s, i) => (s.boss ? 'BOSS' : this.isTraining ? (i === 0 ? 'YOU' : 'DUMMY') : s.type === 'cpu' ? 'CPU' : `P${i + 1}`)), tagColors);
@@ -298,6 +297,7 @@ export class MatchScene extends Phaser.Scene {
       const label = s.boss ? 'BOSS' : this.isTraining ? (i === 0 ? 'YOU' : 'DUMMY') : s.type === 'cpu' ? 'CPU' : `P${i + 1}`;
       this.huds.push(new FighterHud(this, this.uiLayer, f.data, f.team >= 0 ? (f.team === 0 ? 'BLUE' : 'RED') : label, f.team >= 0 ? f.team : i));
     });
+    if (cfg.mode === 'stamina') this.huds.forEach((h) => (h.hpMax = cfg.staminaHp ?? 150));
     this.helpText = this.add.bitmapText(0, 0, PIXEL_FONT, up((this.isTraining ? HELP_TRAINING : HELP_MATCH).join('\n'))).setOrigin(0, 1).setTint(0xb8b0e8);
     this.trainText = this.add.bitmapText(0, 0, PIXEL_FONT, '').setOrigin(0, 0).setTint(0xffe9a8).setLeftAlign();
     this.uiLayer.add(this.trainText);
