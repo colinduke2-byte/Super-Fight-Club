@@ -37,8 +37,10 @@ import { OffscreenBubbles } from '../ui/OffscreenBubbles';
 import { PlayerTags } from '../ui/PlayerTags';
 import { UltCutIn } from '../ui/UltCutIn';
 import { TargetView } from '../ui/TargetView';
+import { LaunchView } from '../ui/LaunchView';
+import { LaunchContest } from '../game/launch';
 import { moveListText } from '../game/moveList';
-import { bestTargetTime, formatTicks, recordMatch, recordTargetTime } from '../game/records';
+import { bestLaunch, bestTargetTime, formatTicks, recordLaunch, recordMatch, recordTargetTime } from '../game/records';
 import { PIXEL_FONT, up } from '../art/pixelFont';
 import { StageView } from '../ui/StageView';
 import { SlashArcs } from '../ui/SlashArcs';
@@ -107,6 +109,12 @@ export class MatchScene extends Phaser.Scene {
   private cutIn!: UltCutIn;
   /** Target Smash run (single fighter, break every target). */
   private isTargets = false;
+  /** Launch Contest run (null in other modes). */
+  private isLaunch = false;
+  private launch: LaunchContest | null = null;
+  private launchView: LaunchView | null = null;
+  /** Damage on the dummy at the moment it left the platform. */
+  private launchDamage = 0;
   private targetView: TargetView | null = null;
   private targetTicks = -1;
   private ultOn: boolean[] = [];
@@ -213,6 +221,7 @@ export class MatchScene extends Phaser.Scene {
     const rep = this.replay;
     this.slots = rep ? rep.players.map((p, i) => ({ index: i, type: 'cpu' as const, device: null, character: p.character, cpuLevel: 1 as const, palette: p.palette })) : session.players;
     this.isTraining = !rep && session.mode === 'training';
+    this.isLaunch = !rep && session.mode === 'launch' && this.slots.length === 2;
     const rulesNow = rep ? rep.rules : session.rules;
     const base = STAGES[rep ? rep.stage : session.stage] ?? sandboxStage;
     const stage = (this.stageData = rulesNow.hazards === false && (rep || session.mode === 'versus') ? { ...base, hazards: undefined } : base);
@@ -220,7 +229,7 @@ export class MatchScene extends Phaser.Scene {
 
     this.fighters = this.slots.map((s, i) => new Fighter(i, resolveCharacter(s.character)));
     this.humans = this.slots.map((s) => (s.type === 'human' && s.device ? new PlayerInput(s.device) : null));
-    this.controllers = this.slots.map((s, i) => (rep || s.type !== 'cpu' ? new NullController() : s.boss ? new BossController(() => this.match.scores[i].stocks, 1) : this.isTraining && i === 1 ? this.dummy : new CpuController(s.cpuLevel, i + 1)));
+    this.controllers = this.slots.map((s, i) => (rep || s.type !== 'cpu' ? new NullController() : s.boss ? new BossController(() => this.match.scores[i].stocks, 1) : this.isTraining && i === 1 ? this.dummy : this.isLaunch && i === 1 ? new DummyController() : new CpuController(s.cpuLevel, i + 1)));
     this.inputs = this.slots.map(() => makeInput());
     this.elimAt = this.slots.map(() => -1);
     for (const f of this.fighters) {
@@ -231,8 +240,12 @@ export class MatchScene extends Phaser.Scene {
     if (rules.teams && this.fighters.length === 4 && !this.isTraining && (rep || session.mode === 'versus')) this.fighters.forEach((f, i) => (f.team = i < 2 ? 0 : 1));
     this.isTargets = !rep && session.mode === 'targets' && this.world.targets.length > 0;
     this.targetTicks = -1;
-    this.world.config.itemRate = this.isTraining || this.isTargets || (!rep && session.mode === 'arcade') ? 0 : rules.items;
-    const cfg: MatchConfig = this.isTraining ? TRAINING : { mode: rules.mode, stocks: rules.stocks, timeLimitSec: rules.timeSec, respawnDelay: 70, staminaHp: rules.staminaHp };
+    this.world.config.itemRate = this.isTraining || this.isTargets || this.isLaunch || (!rep && session.mode === 'arcade') ? 0 : rules.items;
+    // Launch Contest: no stocks (falls just respawn); the contest ends the match itself
+    this.launch = this.isLaunch ? new LaunchContest(this.fighters[1]) : null;
+    if (this.isLaunch) this.fighters.forEach((f) => (f.invuln = 0)); // the dummy can be hit from the first frame
+    this.launchView = null;
+    const cfg: MatchConfig = this.isTraining || this.isLaunch ? TRAINING : { mode: rules.mode, stocks: rules.stocks, timeLimitSec: rules.timeSec, respawnDelay: 70, staminaHp: rules.staminaHp };
     this.match = new Match(this.world, cfg);
     if (!rep && !this.isTraining && session.mode === 'versus') this.recorder = new ReplayRecorder(session.stage, rules, this.slots.map((sl) => ({ character: sl.character, palette: sl.palette })), settings.smashMode === 'flick');
     this.match.onRespawn = (f) => this.respawn(f.id, true);
@@ -304,6 +317,7 @@ export class MatchScene extends Phaser.Scene {
     this.uiLayer.add(this.dimOverlay);
     this.koBlast = new KoBlast(this, this.uiLayer);
     this.targetView = this.isTargets ? new TargetView(this, this.worldLayer, this.world) : null;
+    if (this.launch) this.launchView = new LaunchView(this, this.worldLayer, this.launch, bestLaunch(this.slots[0].character), stage.blast.right - 400);
     const tagColors = this.fighters.map((f) => (f.team >= 0 ? COLORS.p[f.team] : COLORS.p[f.id % 4]));
     this.views.forEach((v, i) => (v.color = tagColors[i]));
     // with several CPUs each gets its port number so stacked tags and HUDs can be told apart
@@ -319,6 +333,9 @@ export class MatchScene extends Phaser.Scene {
     });
     if (cfg.mode === 'stamina') this.huds.forEach((h) => (h.hpMax = cfg.staminaHp ?? 150));
     this.helpText = this.add.bitmapText(0, 0, PIXEL_FONT, up((this.isTraining ? HELP_TRAINING : HELP_MATCH).join('\n'))).setOrigin(0, 1).setTint(0xb8b0e8);
+    // modes with a clock at the top start with the reminder hidden (H shows it)
+    this.helpOn = !(this.isLaunch || this.isTargets || cfg.mode === 'time');
+    this.helpText.setVisible(this.helpOn);
     this.trainText = this.add.bitmapText(0, 0, PIXEL_FONT, '').setOrigin(0, 0).setTint(0xffe9a8).setLeftAlign();
     this.uiLayer.add(this.trainText);
     this.toast = this.add.bitmapText(0, 0, PIXEL_FONT, '').setOrigin(0.5, 0).setAlpha(0).setCenterAlign();
@@ -331,7 +348,7 @@ export class MatchScene extends Phaser.Scene {
     if (!this.isTraining) {
       const lad = session.mode === 'arcade' ? session.ladder : null;
       const fight = lad ? currentFight(lad) : null;
-      const head = this.replay ? 'REPLAY\nESC: EXIT' : fight ? `FIGHT ${fight.index + 1}\n${fight.title}` : this.isTargets ? 'BREAK THE\nTARGETS!' : 'READY?';
+      const head = this.replay ? 'REPLAY\nESC: EXIT' : fight ? `FIGHT ${fight.index + 1}\n${fight.title}` : this.isTargets ? 'BREAK THE\nTARGETS!' : this.isLaunch ? 'TEN SECONDS:\nPILE IT ON!' : 'READY?';
       this.banner.setText(up(head)).setVisible(true);
       this.countdown = COUNTDOWN;
       this.introTicks = 0;
@@ -625,6 +642,22 @@ export class MatchScene extends Phaser.Scene {
     this.world.step(this.inputs);
     inputManager.endTick();
     this.match.step();
+    if (this.launch && !this.match.over) {
+      const was = this.launch.phase;
+      this.launch.step();
+      if (was !== 'flying' && this.launch.phase === 'flying') this.launchDamage = this.fighters[1].damage;
+      if (was === 'barrier' && this.launch.phase === 'open') {
+        this.banner.setText('LAUNCH IT!').setVisible(true).setTint(0x7fe8ff);
+        this.bannerPop = 12;
+        this.introTicks = 70;
+        sfx.play('boom', 0.8, 0);
+        announcer.say('Launch it!', { pitch: 0.7, rate: 1.15 });
+      }
+      if (this.launch.over) {
+        this.match.over = true;
+        this.match.winner = 0;
+      }
+    }
     if (this.introTicks > 0 && --this.introTicks === 0 && !this.match.over) this.banner.setVisible(false);
     this.scores();
 
@@ -637,7 +670,10 @@ export class MatchScene extends Phaser.Scene {
   /** Camera follows living fighters. */
   private followCam(): void {
     let n = 0;
+    // Launch Contest: once the dummy is off the platform the camera rides with it
+    const flight = this.launch && (this.launch.phase === 'flying' || (this.launch.phase === 'done' && this.launch.distance > 0));
     for (const f of this.fighters) {
+      if (flight && f.id !== 1) continue;
       if (f.state === 'ko') continue;
       const t = this.camTargets[n++];
       t.x = f.x;
@@ -678,10 +714,16 @@ export class MatchScene extends Phaser.Scene {
           const record = cleared && recordTargetTime(ch, this.targetTicks);
           session.targetRun = { character: ch, ticks: cleared ? this.targetTicks : this.world.tick, cleared, broken: ts.filter((t) => !t.alive).length, total: ts.length, best: bestTargetTime(ch), record };
         }
+        if (this.launch) {
+          const ch = this.slots[0].character;
+          const distance = Math.round(this.launch.distance * 10) / 10;
+          const record = recordLaunch(ch, distance);
+          session.launchRun = { character: ch, distance, damage: Math.round(this.launch.distance > 0 ? this.launchDamage : this.fighters[1].damage), best: bestLaunch(ch), record };
+        }
         if (this.recorder) session.replay = this.recorder.finish();
         session.lastResult = buildResult(this.slots, this.match.scores, this.world.damageDealt, this.elimAt, this.match.cfg, this.match.winner, this.world.tick, this.fighters.map((f) => f.team), this.match.winnerTeam, this.world.bestCombo);
         // lifetime records for the humans who played (versus and arcade)
-        if (!this.isTargets && (session.mode === 'versus' || session.mode === 'arcade')) {
+        if (!this.isTargets && !this.isLaunch && (session.mode === 'versus' || session.mode === 'arcade')) {
           const res = session.lastResult;
           for (const p of res.players) {
             if (p.type !== 'human') continue;
@@ -773,6 +815,7 @@ export class MatchScene extends Phaser.Scene {
     this.slashes.update(this.world);
     this.hazardView?.update(this.world.tick);
     this.targetView?.update(performance.now() / 1000);
+    this.launchView?.update(performance.now() / 1000);
     for (const v of this.views) v.update(alpha, this.world.tick);
     this.entityViews.update(alpha, this.world.tick);
     this.ambientFx();
@@ -805,7 +848,13 @@ export class MatchScene extends Phaser.Scene {
     this.banner.setScale(this.bannerBase * (1 + 0.06 * this.bannerPop));
     if (this.match.over && !this.banner.visible) {
       const w = this.match.winner;
-      if (this.isTargets) {
+      if (this.launch) {
+        const d = this.launch.distance;
+        const best = bestLaunch(this.slots[0].character);
+        const rec = d > 0 && (best === null || d > best);
+        this.banner.setText(d > 0 ? `${d.toFixed(1)} M${rec ? '\nNEW RECORD!' : ''}` : 'NO DISTANCE').setVisible(true).setTint(d > 0 ? 0x7affa0 : 0xff5a4a);
+        announcer.say(d > 0 ? `${Math.round(d)} metres!${rec ? ' New record!' : ''}` : 'Too bad.');
+      } else if (this.isTargets) {
         const done = this.targetTicks >= 0;
         this.banner.setText(done ? `COMPLETE!\n${formatTicks(this.targetTicks)}` : 'FAILED').setVisible(true).setTint(done ? 0x7affa0 : 0xff5a4a);
         announcer.say(done ? 'Complete!' : 'Failure.');
@@ -1028,6 +1077,19 @@ export class MatchScene extends Phaser.Scene {
   /** MM:SS countdown in time mode: pulses red over the last ten seconds, ticks over the last five. */
   private updateClock(): void {
     const m = this.match;
+    if (this.launch) {
+      const lc = this.launch;
+      if (lc.phase === 'barrier') {
+        const left = (lc.barrierLeft / 60).toFixed(1);
+        this.clock.setVisible(true).setText(`${left}   ${Math.round(this.fighters[1].damage)}%`).setTint(lc.barrierLeft < 180 ? ((this.world.tick >> 3) & 1 ? 0xff4a5a : 0xffffff) : 0xffffff);
+        const sec = Math.ceil(lc.barrierLeft / 60);
+        if (sec !== this.lastClockSec && sec > 0 && sec <= 3) sfx.play('ding', 0.5, 0);
+        this.lastClockSec = sec;
+      } else {
+        this.clock.setVisible(true).setText(lc.phase === 'open' ? `LAUNCH IT!   ${Math.round(this.fighters[1].damage)}%` : `${lc.distance.toFixed(1)} M`).setTint(lc.phase === 'open' ? 0x7fe8ff : 0x7affa0);
+      }
+      return;
+    }
     if (this.isTargets) {
       // Target Smash: targets broken and the running time
       const ts = this.world.targets;

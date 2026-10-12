@@ -5,6 +5,7 @@ import { PIXEL_FONT } from '../art/pixelFont';
 import { CHARACTER_LIST } from '../characters';
 import { Lobby } from '../game/lobby';
 import { buildLadder } from '../game/ladder';
+import { launchSlots } from '../game/launch';
 import { introCards } from '../game/story';
 import { session, type PlayerSlot } from '../game/session';
 import { inputManager } from '../input/inputManager';
@@ -49,7 +50,7 @@ export class CharacterSelectScene extends MenuScene {
     this.palettes = (session.players.length ? session.players.map((p) => p.palette ?? 0) : []).concat([0, 0, 0, 0]).slice(0, 4);
     this.lobby = new Lobby(session.playerCount, CHARACTER_LIST.length);
     this.lobby.slots.forEach((s, i) => (s.character = i % CHARACTER_LIST.length));
-    const title = session.mode === 'versus' ? 'CHOOSE YOUR FIGHTERS' : session.mode === 'arcade' ? 'CHOOSE YOUR CHAMPION' : session.mode === 'targets' ? 'TARGET SMASH' : 'TRAINING: CHOOSE A FIGHTER';
+    const title = session.mode === 'versus' ? 'CHOOSE YOUR FIGHTERS' : session.mode === 'arcade' ? 'CHOOSE YOUR CHAMPION' : session.mode === 'targets' ? 'TARGET SMASH' : session.mode === 'launch' ? 'LAUNCH CONTEST' : 'TRAINING: CHOOSE A FIGHTER';
     this.title = this.add.bitmapText(0, 0, PIXEL_FONT, title).setOrigin(0.5).setTint(COLORS.title);
     this.ui.add(this.title);
 
@@ -250,7 +251,11 @@ export class CharacterSelectScene extends MenuScene {
       session.ladder.introduced = true;
       this.go('Story', { cards: introCards(slots[0].character), next: 'LadderMap' });
     }
-    else if (session.mode === 'targets') {
+    else if (session.mode === 'launch') {
+      session.stage = 'launch';
+      session.players = launchSlots(slots[0]);
+      this.go('Match');
+    } else if (session.mode === 'targets') {
       session.stage = 'targets';
       session.players = [slots[0]];
       this.go('Match');

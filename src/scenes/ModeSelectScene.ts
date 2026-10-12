@@ -22,9 +22,10 @@ export class ModeSelectScene extends MenuScene {
     'FREE-FOR-ALL FOR 2-4 FIGHTERS. HUMANS AND CPUS.',
     'FIGHT 5 ESCALATING OPPONENTS THEN A BOSS.',
     'BREAK TEN TARGETS AGAINST THE CLOCK. BEAT YOUR BEST TIME.',
+    'TEN SECONDS TO PILE ON DAMAGE, THEN LAUNCH THE DUMMY. HOW FAR?',
     'PRACTICE WITH A DUMMY, HITBOXES AND FRAME DATA.',
     'CONTROLS, MOVES AND TECHNIQUES, PAGE BY PAGE.',
-    'YOUR WINS, KOS AND BEST TIMES PER FIGHTER.',
+    'YOUR WINS, KOS, BEST TIMES AND DISTANCES PER FIGHTER.',
     'CONTROLS, AUDIO AND VIDEO.',
     '',
   ];
@@ -40,6 +41,7 @@ export class ModeSelectScene extends MenuScene {
       { label: 'VERSUS', onConfirm: () => this.go('VersusSetup') },
       { label: 'ARCADE LADDER', onConfirm: () => this.start('arcade') },
       { label: 'TARGET SMASH', onConfirm: () => this.start('targets') },
+      { label: 'LAUNCH CONTEST', onConfirm: () => this.start('launch') },
       { label: 'TRAINING', onConfirm: () => this.start('training') },
       { label: 'HOW TO PLAY', onConfirm: () => this.go('HowToPlay') },
       { label: 'RECORDS', onConfirm: () => this.go('Records') },
@@ -65,7 +67,7 @@ export class ModeSelectScene extends MenuScene {
     this.hint = text(this, this.ui, '', COLORS.dim).setOrigin(0.5);
   }
 
-  private start(mode: 'arcade' | 'training' | 'targets'): void {
+  private start(mode: 'arcade' | 'training' | 'targets' | 'launch'): void {
     session.mode = mode;
     session.playerCount = 1;
     session.ladder = null;

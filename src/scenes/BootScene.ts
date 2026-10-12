@@ -1,3 +1,4 @@
+import { launchSlots } from '../game/launch';
 import Phaser from 'phaser';
 import { buildPlaceholderSheet, registerAnimations } from '../art/proceduralFighter';
 import { buildStageTextures } from '../art/stageTextures';
@@ -89,6 +90,16 @@ export class BootScene extends Phaser.Scene {
       session.mode = 'targets';
       session.stage = 'targets';
       session.players = [{ index: 0, type: 'human', device: inputManager.keyboards[0], character: tgt, cpuLevel: 1 }];
+      this.scene.start('Match');
+      return;
+    }
+    const lch = q.get('launch');
+    if (lch) {
+      // ?launch=<char> starts a Launch Contest run directly (keyboard player 1)
+      inputManager.init();
+      session.mode = 'launch';
+      session.stage = 'launch';
+      session.players = launchSlots({ index: 0, type: 'human', device: inputManager.keyboards[0], character: lch, cpuLevel: 1 });
       this.scene.start('Match');
       return;
     }

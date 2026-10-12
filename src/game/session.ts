@@ -2,7 +2,7 @@ import type { InputDevice } from '../input/device';
 import type { LadderState } from './ladder';
 import type { CpuLevel } from './lobby';
 
-export type GameMode = 'versus' | 'arcade' | 'training' | 'targets';
+export type GameMode = 'versus' | 'arcade' | 'training' | 'targets' | 'launch';
 
 /** The last Target Smash run (for the results screen). */
 export interface TargetRun {
@@ -11,6 +11,16 @@ export interface TargetRun {
   cleared: boolean;
   broken: number;
   total: number;
+  best: number | null;
+  record: boolean;
+}
+
+export interface LaunchRun {
+  character: string;
+  /** Metres reached (0 = never sent off). */
+  distance: number;
+  /** Damage on the dummy when it was launched. */
+  damage: number;
   best: number | null;
   record: boolean;
 }
@@ -90,12 +100,13 @@ export interface Session {
   /** Set by Results: the next Match scene plays `replay` back instead of a live game. */
   watchReplay: boolean;
   targetRun: TargetRun | null;
+  launchRun: LaunchRun | null;
 }
 
 export const DEFAULT_RULES: MatchRules = { mode: 'stock', stocks: 3, timeSec: 180, teams: false, items: 0, hazards: true, staminaHp: 150 };
 
 export function newSession(): Session {
-  return { mode: 'versus', players: [], stage: 'classic', rules: { ...DEFAULT_RULES }, playerCount: 2, lastResult: null, ladder: null, arcadeHuman: null, replay: null, watchReplay: false, targetRun: null };
+  return { mode: 'versus', players: [], stage: 'classic', rules: { ...DEFAULT_RULES }, playerCount: 2, lastResult: null, ladder: null, arcadeHuman: null, replay: null, watchReplay: false, targetRun: null, launchRun: null };
 }
 
 export const session: Session = newSession();

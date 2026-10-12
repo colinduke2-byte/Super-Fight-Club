@@ -7,6 +7,7 @@ import { skyholdStage } from './skyhold';
 import { stormStage } from './storm';
 import { templeStage } from './temple';
 import { targetsStage } from './targets';
+import { launchStage } from './launch';
 
 /** Every stage by id, including the dev sandbox used by training. */
 export const STAGES: Record<string, StageData> = {
@@ -17,6 +18,7 @@ export const STAGES: Record<string, StageData> = {
   [skyholdStage.id]: skyholdStage,
   [templeStage.id]: templeStage,
   [targetsStage.id]: targetsStage,
+  [launchStage.id]: launchStage,
   [sandboxStage.id]: sandboxStage,
 };
 /** Stages offered in Stage Select (the sandbox is training-only). */

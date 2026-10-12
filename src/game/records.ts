@@ -12,6 +12,8 @@ export interface FighterRecord {
 interface Records {
   targets: Record<string, number>;
   fighters: Record<string, FighterRecord>;
+  /** Launch Contest best distance (metres) per fighter. */
+  launch: Record<string, number>;
 }
 
 function load(): Records {
@@ -19,12 +21,12 @@ function load(): Records {
     const raw = localStorage.getItem(KEY);
     if (raw) {
       const r = JSON.parse(raw) as Partial<Records>;
-      return { targets: { ...(r.targets ?? {}) }, fighters: { ...(r.fighters ?? {}) } };
+      return { targets: { ...(r.targets ?? {}) }, fighters: { ...(r.fighters ?? {}) }, launch: { ...(r.launch ?? {}) } };
     }
   } catch {
     /* private mode / blocked storage */
   }
-  return { targets: {}, fighters: {} };
+  return { targets: {}, fighters: {}, launch: {} };
 }
 
 function save(r: Records): void {
@@ -46,6 +48,22 @@ export function recordTargetTime(character: string, ticks: number): boolean {
   const prev = r.targets[character];
   if (prev !== undefined && prev <= ticks) return false;
   r.targets[character] = ticks;
+  save(r);
+  return true;
+}
+
+/** Best Launch Contest distance (metres) for a fighter, or null. */
+export function bestLaunch(character: string): number | null {
+  return load().launch[character] ?? null;
+}
+
+/** Record a launch; returns true when it beats the previous best (a zero never counts). */
+export function recordLaunch(character: string, metres: number): boolean {
+  if (!(metres > 0)) return false;
+  const r = load();
+  const prev = r.launch[character];
+  if (prev !== undefined && prev >= metres) return false;
+  r.launch[character] = metres;
   save(r);
   return true;
 }
@@ -77,5 +95,5 @@ export function fighterRecords(): Record<string, FighterRecord> {
 
 /** Forget everything (Records > RESET). */
 export function resetRecords(): void {
-  save({ targets: {}, fighters: {} });
+  save({ targets: {}, fighters: {}, launch: {} });
 }

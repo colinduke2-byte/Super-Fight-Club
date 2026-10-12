@@ -2,7 +2,7 @@ import Phaser from 'phaser';
 import { fighterAnimKey, fighterTextureKey, uiTexK } from '../art/proceduralFighter';
 import { PIXEL_FONT } from '../art/pixelFont';
 import { CHARACTER_LIST } from '../characters';
-import { bestTargetTime, fighterRecords, formatTicks, resetRecords } from '../game/records';
+import { bestLaunch, bestTargetTime, fighterRecords, formatTicks, resetRecords } from '../game/records';
 import type { MenuEvent } from '../input/menuInput';
 import { COLORS, MenuList, MenuScene, text, textPx } from '../ui/menuKit';
 
@@ -23,7 +23,7 @@ export class RecordsScene extends MenuScene {
   protected build(): void {
     this.title = this.add.bitmapText(0, 0, PIXEL_FONT, 'RECORDS').setOrigin(0.5).setTint(COLORS.title);
     this.ui.add(this.title);
-    this.head = text(this, this.ui, `${'FIGHTER'.padEnd(10)}${'PLAYED'.padStart(7)}${'WINS'.padStart(6)}${'WIN%'.padStart(6)}${'KOS'.padStart(6)}${'FALLS'.padStart(7)}${'TARGETS'.padStart(10)}`, COLORS.dim);
+    this.head = text(this, this.ui, `${'FIGHTER'.padEnd(10)}${'PLAYED'.padStart(7)}${'WINS'.padStart(6)}${'WIN%'.padStart(6)}${'KOS'.padStart(6)}${'FALLS'.padStart(7)}${'TARGETS'.padStart(10)}${'LAUNCH'.padStart(9)}`, COLORS.dim);
     this.rows = [];
     this.icons = [];
     this.fill();
@@ -53,7 +53,8 @@ export class RecordsScene extends MenuScene {
       const r = recs[c.id] ?? { played: 0, wins: 0, kos: 0, falls: 0 };
       const pct = r.played ? `${Math.round((r.wins / r.played) * 100)}%` : '-';
       const best = bestTargetTime(c.id);
-      return `${c.name.toUpperCase().slice(0, 9).padEnd(10)}${String(r.played).padStart(7)}${String(r.wins).padStart(6)}${pct.padStart(6)}${String(r.kos).padStart(6)}${String(r.falls).padStart(7)}${(best !== null ? formatTicks(best) : '-').padStart(10)}`;
+      const far = bestLaunch(c.id);
+      return `${c.name.toUpperCase().slice(0, 9).padEnd(10)}${String(r.played).padStart(7)}${String(r.wins).padStart(6)}${pct.padStart(6)}${String(r.kos).padStart(6)}${String(r.falls).padStart(7)}${(best !== null ? formatTicks(best) : '-').padStart(10)}${(far !== null ? `${far.toFixed(1)}M` : '-').padStart(9)}`;
     });
     if (this.rows.length === 0) {
       CHARACTER_LIST.forEach((c, i) => {
