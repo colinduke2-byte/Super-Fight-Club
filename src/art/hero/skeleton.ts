@@ -80,7 +80,10 @@ export function skeleton(look: PlaceholderLook, pose: HeroPose, W: number, H: nu
   const ankle = 4 * k;
   // two-bone limbs: fixed bone lengths, so a folded arm / bent leg keeps its size (the end point is clamped to the reach)
   const armL = armLen * 0.52;
-  const legL = ((legH - ankle) / 2) * 1.01;
+  // bones keep the standing leg length: a crouch bends the knees instead of shrinking the legs (so wide stances,
+  // splits and stomps can actually reach their feet)
+  const standLeg = b.legH * 2 * k;
+  const legL = ((Math.max(legH, standLeg * 0.86) - ankle) / 2) * 1.01;
   const limb = solveLimb;
   const aF = limb(shF, handF, armL, 1);
   const aB = limb(shB, handB, armL, 1);

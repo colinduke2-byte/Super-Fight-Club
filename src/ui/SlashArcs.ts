@@ -5,6 +5,8 @@ import type { World } from '../engine/world';
 import { fighterTrailColor } from '../fx/runner';
 
 const r4 = [0, 0, 0, 0];
+/** [width multiplier, colour, alpha] from the outside in. */
+const FIRE_LAYERS = [[1.6, 0xff2a10, 0.38], [1.05, 0xff7a1a, 0.75], [0.5, 0xfff0a0, 0.95]] as const;
 const N = 14;
 
 /**
@@ -25,7 +27,10 @@ export class SlashArcs {
     for (const f of world.fighters) {
       const m = f.move;
       if (f.state !== 'attack' || !m) continue;
-      const col = fighterTrailColor(f, world.tick);
+      const fire = f.data.fx?.slash === 'fire';
+      const col = fire ? 0xff7a1a : fighterTrailColor(f, world.tick);
+      // fire: red rim, orange body, yellow-hot core; plain: the trail colour around a white core
+      const layers = fire ? FIRE_LAYERS : ([[1.5, col, 0.35], [1, col, 0.7], [0.45, 0xffffff, 0.95]] as const);
       const chestX = f.x;
       const chestY = f.y - f.h * 0.55;
       let drawn = 0;
@@ -62,10 +67,21 @@ export class SlashArcs {
           const py = ux;
           const wid = Math.min(10, Math.max(4, Math.min(r4[2], r4[3]) * 0.4));
           const fadeLine = after > 0 ? 1 - after / 6 : 1;
-          for (const [mulW, c, a] of [[1.4, col, 0.35], [0.9, col, 0.75], [0.4, 0xffffff, 0.95]] as const) {
-            const w = (wid * mulW) / 2;
+          for (const [mulW0, c, a] of layers) {
+            const w = (wid * mulW0 * 0.93) / 2;
             g.fillStyle(c, a * fadeLine);
             g.fillPoints([{ x: tx, y: ty }, { x: hx + px * w, y: hy + py * w }, { x: hx + ux * f.facing * 4, y: hy + uy * 4 }, { x: hx - px * w, y: hy - py * w }] as Phaser.Geom.Point[], true);
+          }
+          if (fire) {
+            // flames licking up off the streak
+            for (let i = 1; i <= 4; i++) {
+              const t = i / 5;
+              const fx0 = tx + (hx - tx) * t;
+              const fy0 = ty + (hy - ty) * t;
+              const fl = (4 + 5 * t) * fadeLine * (0.7 + 0.3 * Math.sin(world.tick * 1.7 + i * 2.1));
+              g.fillStyle(i % 2 ? 0xffb030 : 0xff5a1a, 0.7 * fadeLine);
+              g.fillTriangle(fx0 - 2.5, fy0, fx0 + 2.5, fy0, fx0 + Math.sin(world.tick * 0.9 + i) * 2, fy0 - fl);
+            }
           }
           continue;
         }
@@ -74,7 +90,7 @@ export class SlashArcs {
         const fade = after > 0 ? 1 - after / 6 : 1;
         const heavy = hb.damage >= 12 || m.kind === 'smash';
         const width = Math.min(13, Math.max(5, Math.min(r4[2], r4[3]) * 0.5 + (heavy ? 3 : 0)));
-        for (const [mulW, c, a] of [[1.5, col, 0.35], [1, col, 0.7], [0.45, 0xffffff, 0.95]] as const) {
+        for (const [mulW, c, a] of layers) {
           const outer: [number, number][] = [];
           const inner: [number, number][] = [];
           for (let i = 0; i <= N; i++) {
@@ -90,6 +106,19 @@ export class SlashArcs {
           const pts = [...outer, ...inner.reverse()].map(([x, y]) => ({ x, y }));
           g.fillStyle(c, a * fade);
           g.fillPoints(pts as Phaser.Geom.Point[], true);
+        }
+        if (fire) {
+          // flame tongues rising off the outer edge of the crescent, flickering per tick
+          for (let i = 3; i <= N; i += 2) {
+            const t = i / N;
+            const ang = tail + (head - tail) * t;
+            const w = width * Math.pow(t, 1.1);
+            const ox = chestX + Math.cos(ang) * (r + w / 2) * f.facing;
+            const oy = chestY + Math.sin(ang) * (r + w / 2);
+            const fl = (3 + 7 * t) * fade * (0.65 + 0.35 * Math.sin(world.tick * 1.9 + i * 1.3));
+            g.fillStyle(i % 4 === 1 ? 0xffc040 : 0xff5a1a, 0.75 * fade);
+            g.fillTriangle(ox - 2.4, oy, ox + 2.4, oy, ox + Math.sin(world.tick * 0.8 + i) * 2.5, oy - fl);
+          }
         }
       }
     }
