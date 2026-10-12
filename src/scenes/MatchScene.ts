@@ -214,7 +214,7 @@ export class MatchScene extends Phaser.Scene {
     const rules = rulesNow;
     if (rules.teams && this.fighters.length === 4 && !this.isTraining && (rep || session.mode === 'versus')) this.fighters.forEach((f, i) => (f.team = i < 2 ? 0 : 1));
     this.world.config.itemRate = this.isTraining || (!rep && session.mode === 'arcade') ? 0 : rules.items;
-    const cfg: MatchConfig = this.isTraining ? TRAINING : { mode: rules.mode, stocks: rules.stocks, timeLimitSec: rules.timeSec, respawnDelay: 70 };
+    const cfg: MatchConfig = this.isTraining ? TRAINING : { mode: rules.mode, stocks: rules.stocks, timeLimitSec: rules.timeSec, respawnDelay: 70, staminaHp: rules.staminaHp };
     this.match = new Match(this.world, cfg);
     if (!rep && !this.isTraining && session.mode === 'versus') this.recorder = new ReplayRecorder(session.stage, rules, this.slots.map((sl) => ({ character: sl.character })), settings.smashMode === 'flick');
     this.match.onRespawn = (f) => this.respawn(f.id, true);
@@ -274,6 +274,7 @@ export class MatchScene extends Phaser.Scene {
     this.dimOverlay = this.add.rectangle(0, 0, 10, 10, 0x000010, 1).setOrigin(0, 0).setAlpha(0);
     this.uiLayer.add(this.dimOverlay);
     this.koBlast = new KoBlast(this, this.uiLayer);
+    if (cfg.mode === 'stamina') this.huds.forEach((h) => (h.hpMax = cfg.staminaHp ?? 150));
     const tagColors = this.fighters.map((f) => (f.team >= 0 ? COLORS.p[f.team] : COLORS.p[f.id % 4]));
     this.views.forEach((v, i) => (v.color = tagColors[i]));
     this.tags = new PlayerTags(this, this.uiLayer, this.fighters, this.views, this.slots.map((s, i) => (s.boss ? 'BOSS' : this.isTraining ? (i === 0 ? 'YOU' : 'DUMMY') : s.type === 'cpu' ? 'CPU' : `P${i + 1}`)), tagColors);
@@ -344,6 +345,16 @@ export class MatchScene extends Phaser.Scene {
         const sw = this.scale.width;
         const sh = this.scale.height;
         const col = f.team >= 0 ? COLORS.p[f.team] : COLORS.p[f.id % 4];
+        // KO'd on screen (stamina mode, out of hit points): burst where they stand instead of a blast from the edge
+        if (f.koX > v.x && f.koX < v.right && f.koY > v.y && f.koY < v.bottom) {
+          const e = this.effects;
+          e.flash(f.koX, f.koY, 6, 0xffffff);
+          e.ring(f.koX, f.koY, 60, col, 0.5);
+          e.ring(f.koX, f.koY, 34, 0xffffff, 0.3);
+          e.burst(f.koX, f.koY, 46, 240, col, 0.8, 4);
+          e.burst(f.koX, f.koY, 30, 160, 0xffffff, 0.6, 3);
+          return;
+        }
         this.koBlast.add(((f.koX - v.x) / Math.max(1, v.width)) * sw, ((f.koY - f.h / 2 - v.y) / Math.max(1, v.height)) * sh, sw, sh, col);
       },
     });
@@ -420,6 +431,10 @@ export class MatchScene extends Phaser.Scene {
     session.rules.teams = q.has('teams');
     session.rules.items = Math.min(2, Math.max(0, Number(q.get('items') ?? 0))) as 0 | 1 | 2;
     session.stage = q.get('stage') ?? 'sandbox';
+    if (q.has('stamina')) {
+      session.rules.mode = 'stamina'; // ?stamina=<hp> plays a stamina match
+      session.rules.staminaHp = Math.max(30, Number(q.get('stamina')) || 150);
+    }
     if (q.has('time')) {
       session.rules.mode = 'time'; // ?time=<seconds> plays a timed match
       session.rules.timeSec = Math.max(5, Number(q.get('time')) || 120);

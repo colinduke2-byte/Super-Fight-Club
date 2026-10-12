@@ -93,6 +93,9 @@ export class FighterHud {
   private jolt = 0;
   private percentAt: [number, number] = [0, 0];
 
+  /** Stamina mode: hit points per stock (the number shows HP left instead of percent). 0 = percent. */
+  hpMax = 0;
+
   update(damage: number, stocks: number, training: boolean, out: boolean, meterFrac = 0, tick = 0, resource = 0, status?: { burn: number; slow: number; freeze: number; stun: number }): void {
     if (damage > this.lastDamage) {
       this.pop = 1;
@@ -106,8 +109,17 @@ export class FighterHud {
     const r = 255;
     const g = Math.round(255 - 150 * Math.min(1, d * 1.6) - 60 * Math.max(0, d - 0.6));
     const b = Math.round(255 - 255 * Math.min(1, d * 3));
-    this.percent.setText(up(`${Math.floor(damage)}%`));
-    this.percent.setTint(Phaser.Display.Color.GetColor(r, Math.max(30, g), Math.max(30, b)));
+    if (this.hpMax > 0) {
+      // hit points: green while healthy, through yellow, red when nearly out (and flashing at the end)
+      const left = Math.max(0, Math.ceil(this.hpMax - damage));
+      const f = left / this.hpMax;
+      const low = f < 0.2 && ((tick >> 3) & 1) === 0;
+      this.percent.setText(`${left}HP`);
+      this.percent.setTint(low ? 0xffffff : f > 0.5 ? 0x7affa0 : f > 0.25 ? 0xffe14a : 0xff5a4a);
+    } else {
+      this.percent.setText(up(`${Math.floor(damage)}%`));
+      this.percent.setTint(Phaser.Display.Color.GetColor(r, Math.max(30, g), Math.max(30, b)));
+    }
     this.percent.setScale(this.u * 2 * (1 + this.pop * 0.25));
     const j = this.jolt * this.u * 2.5;
     this.percent.setPosition(this.percentAt[0] + (tick & 1 ? j : -j), this.percentAt[1] + ((tick >> 1) & 1 ? j * 0.6 : -j * 0.6));

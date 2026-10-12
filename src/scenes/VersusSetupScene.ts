@@ -21,14 +21,26 @@ export class VersusSetupScene extends MenuScene {
     this.ui.add(this.title);
     const r = session.rules;
     const timed = (): boolean => r.mode === 'time';
+    const MODES = ['stock', 'time', 'stamina'] as const;
+    const NAMES = { stock: 'STOCKS', time: 'TIMED', stamina: 'STAMINA' };
+    const cycle = (d: number) => (): void => {
+      r.mode = MODES[(MODES.indexOf(r.mode) + d + MODES.length) % MODES.length];
+    };
     this.list = new MenuList(this, this.ui, [
       { label: 'PLAYERS', value: () => String(session.playerCount), onLeft: () => (session.playerCount = clamp(session.playerCount - 1, 2, 4)), onRight: () => (session.playerCount = clamp(session.playerCount + 1, 2, 4)) },
-      { label: 'RULES', value: () => (timed() ? 'TIMED' : 'STOCKS'), onLeft: () => (r.mode = timed() ? 'stock' : 'time'), onRight: () => (r.mode = timed() ? 'stock' : 'time'), onConfirm: () => (r.mode = timed() ? 'stock' : 'time') },
+      { label: 'RULES', value: () => NAMES[r.mode], onLeft: cycle(-1), onRight: cycle(1), onConfirm: cycle(1) },
       {
         label: () => (timed() ? 'TIME LIMIT' : 'STOCKS'),
         value: () => (timed() ? `${Math.round(r.timeSec / 60)} MIN` : String(r.stocks)),
         onLeft: () => (timed() ? (r.timeSec = clamp(r.timeSec - 60, 60, 480)) : (r.stocks = clamp(r.stocks - 1, 1, 5))),
         onRight: () => (timed() ? (r.timeSec = clamp(r.timeSec + 60, 60, 480)) : (r.stocks = clamp(r.stocks + 1, 1, 5))),
+      },
+      {
+        label: 'STAMINA HP',
+        value: () => (r.mode === 'stamina' ? String(r.staminaHp) : '-'),
+        enabled: () => r.mode === 'stamina',
+        onLeft: () => (r.staminaHp = clamp(r.staminaHp - 50, 50, 300)),
+        onRight: () => (r.staminaHp = clamp(r.staminaHp + 50, 50, 300)),
       },
       { label: 'TEAMS', value: () => (r.teams && session.playerCount === 4 ? '2 V 2' : 'FREE FOR ALL'), enabled: () => session.playerCount === 4, onLeft: () => (r.teams = !r.teams), onRight: () => (r.teams = !r.teams), onConfirm: () => (r.teams = !r.teams) },
       { label: 'ITEMS', value: () => ['OFF', 'LOW', 'HIGH'][r.items], onLeft: () => (r.items = ((r.items + 2) % 3) as 0 | 1 | 2), onRight: () => (r.items = ((r.items + 1) % 3) as 0 | 1 | 2), onConfirm: () => (r.items = ((r.items + 1) % 3) as 0 | 1 | 2) },

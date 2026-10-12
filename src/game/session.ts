@@ -19,7 +19,9 @@ export interface PlayerSlot {
 }
 
 export interface MatchRules {
-  mode: 'stock' | 'time';
+  mode: 'stock' | 'time' | 'stamina';
+  /** Stamina mode: hit points each fighter starts a stock with. */
+  staminaHp: number;
   stocks: number;
   timeSec: number;
   /** 2v2 team battle (4 players): P1+P2 vs P3+P4, no friendly fire. */
@@ -72,7 +74,7 @@ export interface Session {
   watchReplay: boolean;
 }
 
-export const DEFAULT_RULES: MatchRules = { mode: 'stock', stocks: 3, timeSec: 180, teams: false, items: 0, hazards: true };
+export const DEFAULT_RULES: MatchRules = { mode: 'stock', stocks: 3, timeSec: 180, teams: false, items: 0, hazards: true, staminaHp: 150 };
 
 export function newSession(): Session {
   return { mode: 'versus', players: [], stage: 'classic', rules: { ...DEFAULT_RULES }, playerCount: 2, lastResult: null, ladder: null, arcadeHuman: null, replay: null, watchReplay: false };

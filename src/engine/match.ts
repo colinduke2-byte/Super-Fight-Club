@@ -1,7 +1,7 @@
 import type { Fighter } from './fighter';
 import type { World } from './world';
 
-export type MatchMode = 'stock' | 'time' | 'training';
+export type MatchMode = 'stock' | 'time' | 'stamina' | 'training';
 
 export interface MatchConfig {
   mode: MatchMode;
@@ -10,6 +10,8 @@ export interface MatchConfig {
   timeLimitSec: number;
   /** Frames between a KO and the respawn. */
   respawnDelay: number;
+  /** Stamina mode: hit points per stock (a fighter whose damage reaches it is KO'd on the spot). */
+  staminaHp?: number;
 }
 
 export const DEFAULT_MATCH: MatchConfig = { mode: 'stock', stocks: 3, timeLimitSec: 180, respawnDelay: 70 };
@@ -74,7 +76,7 @@ export class Match {
       s.stocks = 0;
       return;
     }
-    if (s.stocks <= 0 && this.cfg.mode === 'stock') {
+    if (s.stocks <= 0 && (this.cfg.mode === 'stock' || this.cfg.mode === 'stamina')) {
       s.eliminated = true;
       s.stocks = 0;
     } else {
@@ -101,7 +103,12 @@ export class Match {
       }
     } else if (this.cfg.mode === 'time') {
       if (--this.ticksLeft <= 0) this.finish();
-    } else if (this.cfg.mode === 'stock') {
+    } else if (this.cfg.mode === 'stock' || this.cfg.mode === 'stamina') {
+      // stamina: running out of hit points is a KO wherever you are
+      if (this.cfg.mode === 'stamina') {
+        const hp = this.cfg.staminaHp ?? 150;
+        for (const f of w.fighters) if (f.state !== 'ko' && f.damage >= hp) f.forceKo(w);
+      }
       const alive = this.scores.map((s, i) => (s.eliminated ? -1 : i)).filter((i) => i >= 0);
       const team0 = alive.length ? w.fighters[alive[0]].team : -1;
       const oneTeam = team0 >= 0 && alive.every((i) => w.fighters[i].team === team0);

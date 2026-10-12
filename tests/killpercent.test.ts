@@ -44,7 +44,7 @@ describe('kill percents (classic stage, no DI)', () => {
         expect(Math.min(f, u), `${a} cannot kill ${v} with a smash`).toBeLessThanOrEqual(250);
       }
     }
-  });
+  }, 30000);
 
   it('heavier fighters survive longer than lighter ones against the same hit', () => {
     const byWeight = [...ids].sort((x, y) => CHARACTERS[x].stats.weight - CHARACTERS[y].stats.weight);

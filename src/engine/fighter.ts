@@ -2191,6 +2191,32 @@ export class Fighter implements Body {
     this.stateFrame = 0;
   }
 
+  /** KO on the spot (stamina mode: out of hit points). */
+  forceKo(world: World): void {
+    if (this.state === 'ko') return;
+    this.koX = this.x;
+    this.koY = this.y - this.h / 2;
+    this.koVx = this.vx;
+    this.koVy = this.vy;
+    this.releaseLedge();
+    this.endMoveState();
+    if (this.grabTarget >= 0) world.fighters[this.grabTarget]?.releaseGrab();
+    if (this.grabbedBy >= 0) {
+      const g = world.fighters[this.grabbedBy];
+      if (g && g.state === 'holding') {
+        g.grabTarget = -1;
+        g.setState('idle');
+      }
+    }
+    this.grabTarget = -1;
+    this.grabbedBy = -1;
+    this.heldBomb = false;
+    this.state = 'ko';
+    this.stateFrame = 0;
+    world.emit('ko', this, this.x, this.y, 0, this.lastHitBy);
+    if (this.lastHitBy >= 0 && this.lastHitBy !== this.id) world.fighters[this.lastHitBy]?.data.behavior?.onKill?.(world.fighters[this.lastHitBy], this, world);
+  }
+
   private checkBlastZones(world: World): void {
     const b = world.blast;
     if (this.x < b.left || this.x > b.right || this.y - this.h > b.bottom || this.y < b.top) {

@@ -373,3 +373,22 @@ describe('determinism with combat', () => {
     expect(run()).toBe(run());
   });
 });
+
+describe('stamina mode', () => {
+  it('running out of hit points is a KO on the spot; the last fighter with stock wins', () => {
+    const r = rig();
+    const match = new Match(r.world, { mode: 'stamina', stocks: 1, timeLimitSec: 0, respawnDelay: 20, staminaHp: 50 });
+    r.world.listener = (t, f, _x, _y, _m, extra) => {
+      if (t === 'ko') match.onKo(f, extra);
+    };
+    r.b.damage = 49;
+    match.step();
+    expect(r.b.state).not.toBe('ko');
+    r.b.damage = 50;
+    match.step();
+    expect(r.b.state).toBe('ko');
+    match.step();
+    expect(match.over).toBe(true);
+    expect(match.winner).toBe(0);
+  });
+});
