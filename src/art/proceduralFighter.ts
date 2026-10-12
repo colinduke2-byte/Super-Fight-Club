@@ -855,7 +855,7 @@ export function fighterTextureKey(id: string): string {
 }
 /** Multiplier for UI that was laid out for 64px frames (portraits, menus). */
 export function uiTexK(data: CharacterData): number {
-  return 64 / data.sprite.frameSize;
+  return (0.4 * data.sprite.pixelScale) / 0.29; // equal world size on screen, whatever the frame size
 }
 /** Crop rectangle of a fighter portrait (the head and shoulders of a 64px frame, scaled to the real frame size). */
 export function portraitCrop(data: CharacterData): [number, number, number, number] {

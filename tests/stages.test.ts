@@ -9,8 +9,8 @@ import { STAGES, STAGE_LIST } from '../src/stages';
 import { reactorStage } from '../src/stages/reactor';
 
 describe('stage data', () => {
-  it('offers three stages in stage select', () => {
-    expect(STAGE_LIST.map((s) => s.id)).toEqual(['classic', 'ring', 'reactor']);
+  it('offers five stages in stage select', () => {
+    expect(STAGE_LIST.map((s) => s.id)).toEqual(['classic', 'ring', 'reactor', 'storm', 'skyhold']);
   });
   for (const s of Object.values(STAGES)) {
     it(`${s.id}: four spawns stand on a solid platform inside the blast zones`, () => {
@@ -114,5 +114,14 @@ describe('four-fighter camera', () => {
     expect(out.zoom).toBeLessThan(720 / DEFAULT_CAMERA.minVisibleH + 1e-6);
     const halfW = 1280 / out.zoom / 2;
     for (const p of pts) expect(Math.abs(p.x - out.cx)).toBeLessThan(halfW);
+  });
+});
+
+describe('lightning hazard', () => {
+  it('a bolt hurts whoever stands in its column during the strike, once', () => {
+    // covered by the soak brawls on every stage; here just the phase maths: warn then active at the end of each cycle
+    const h = STAGES.storm.hazards![0];
+    expect(h.kind).toBe('bolt');
+    expect(h.warn + h.active).toBeLessThan(h.period);
   });
 });

@@ -35,5 +35,6 @@ export function validateStage(s: StageData): void {
     if (h.w <= 0 || h.h <= 0) fail(`hazard ${i} has no size`);
     if (h.period <= 0 || h.warn + h.active >= h.period) fail(`hazard ${i}: warn + active must be shorter than the period`);
     if (h.x - h.w / 2 <= b.left || h.x + h.w / 2 >= b.right) fail(`hazard ${i} is outside the blast zones`);
+    if (h.kind === 'bolt' && h.y <= b.top) fail(`hazard ${i}: a bolt must start inside the blast zones`);
   });
 }

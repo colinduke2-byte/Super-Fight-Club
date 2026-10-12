@@ -15,9 +15,14 @@ export interface Backdrop {
   nearTex?: string;
   /** Animated extras drawn in screen space. */
   extras?: Extra[];
+  /** Hide the star layers / nebula (daytime skies). */
+  stars?: boolean;
+  nebulaOn?: boolean;
+  /** A band of cloud tops across the bottom of the screen. */
+  bankTex?: string;
 }
 
-export type Extra = 'shooting' | 'clouds' | 'embers' | 'glow' | 'lightning' | 'beams' | 'grid' | 'motes' | 'aurora' | 'airships';
+export type Extra = 'rain' | 'flash' | 'sun' | 'birds' | 'godrays' | 'shooting' | 'clouds' | 'embers' | 'glow' | 'lightning' | 'beams' | 'grid' | 'motes' | 'aurora' | 'airships';
 
 export const BACKDROPS: Record<string, Backdrop> = {
   skyline: { sky: SKY, planet: true, nebula: 0xffffff, far: 0xffffff, near: 0xffffff, tiles: 0xffffff, extras: ['aurora', 'clouds', 'shooting', 'airships'] },
@@ -31,6 +36,33 @@ export const BACKDROPS: Record<string, Backdrop> = {
     farTex: 'bg-pylons-far',
     nearTex: 'bg-pylons-near',
     extras: ['beams', 'grid', 'shooting', 'motes'],
+  },
+  storm: {
+    sky: ['#050912', '#0a1426', '#102038', '#1a3050', '#244260', '#2c5470', '#3a6a88'],
+    planet: false,
+    nebula: 0x5a86aa,
+    far: 0xffffff,
+    near: 0xffffff,
+    tiles: 0xc8dcf0,
+    farTex: 'bg-spires-far',
+    nearTex: 'bg-spires-near',
+    bankTex: 'bg-stormbank',
+    stars: false,
+    extras: ['flash', 'rain'],
+  },
+  dawn: {
+    sky: ['#2a1a4a', '#4a2a6a', '#8a3a7a', '#d0607a', '#f08a70', '#f8b070', '#ffd890'],
+    planet: false,
+    nebula: 0xffffff,
+    far: 0xffffff,
+    near: 0xffffff,
+    tiles: 0xffe8d8,
+    farTex: 'bg-islands-far',
+    nearTex: 'bg-islands-near',
+    bankTex: 'bg-cloudsea',
+    stars: false,
+    nebulaOn: false,
+    extras: ['sun', 'godrays', 'clouds', 'birds'],
   },
   reactor: {
     sky: ['#120404', '#240808', '#3a0e0a', '#5a1a0c', '#8a2c0c', '#c0501a', '#f08a30'],
@@ -68,6 +100,9 @@ export class BackgroundView {
   private readonly far: Phaser.GameObjects.TileSprite;
   private readonly near: Phaser.GameObjects.TileSprite;
   private readonly clouds: Phaser.GameObjects.TileSprite;
+  private readonly bank: Phaser.GameObjects.TileSprite;
+  private readonly gMid: Phaser.GameObjects.Graphics;
+  private bankOn = false;
   private readonly gBack: Phaser.GameObjects.Graphics;
   private readonly gFront: Phaser.GameObjects.Graphics;
   private extras: Extra[] = [];
@@ -90,7 +125,9 @@ export class BackgroundView {
     this.clouds = scene.add.tileSprite(0, 0, 1, 64, 'bg-clouds').setOrigin(0, 0).setVisible(false);
     this.gBack = scene.add.graphics().setBlendMode(1 /* ADD */);
     this.gFront = scene.add.graphics().setBlendMode(1 /* ADD */);
-    layer.add([this.nebula, this.starsA, this.starsB, this.planet, this.gBack, this.clouds, this.far, this.near, this.gFront]);
+    this.bank = scene.add.tileSprite(0, 0, 1, 128, 'bg-cloudsea').setOrigin(0, 0).setVisible(false);
+    this.gMid = scene.add.graphics();
+    layer.add([this.nebula, this.starsA, this.starsB, this.planet, this.gBack, this.clouds, this.far, this.near, this.gMid, this.bank, this.gFront]);
   }
 
   setTheme(id: string | undefined): void {
@@ -104,6 +141,12 @@ export class BackgroundView {
     this.near.setTexture(b.nearTex ?? 'bg-ruins-near');
     this.extras = b.extras ?? [];
     this.clouds.setVisible(this.extras.includes('clouds'));
+    this.starsA.setVisible(b.stars !== false);
+    this.starsB.setVisible(b.stars !== false);
+    this.nebula.setVisible(b.nebulaOn !== false);
+    this.bankOn = !!b.bankTex;
+    this.bank.setVisible(this.bankOn);
+    if (b.bankTex) this.bank.setTexture(b.bankTex);
     if (this.w > 1) this.resize(this.w, this.h);
   }
 
@@ -182,6 +225,14 @@ export class BackgroundView {
       t.tilePositionX = (cx * f * zoom) / s;
     }
 
+    if (this.bankOn) {
+      const k = ps * 2;
+      this.bank.setTileScale(k, k);
+      this.bank.setSize(W, 128 * k);
+      this.bank.setPosition(0, H - 128 * k * 0.55 + Math.max(0, cy * 0.02 * zoom));
+      this.bank.tilePositionX = (cx * 0.35 * zoom + time * 5 * ps) / k;
+    }
+
     this.drawExtras(cx, cy, zoom, time);
   }
 
@@ -190,6 +241,8 @@ export class BackgroundView {
     const gf = this.gFront;
     gb.clear();
     gf.clear();
+    this.gMid.clear();
+    const gm = this.gMid;
     const W = this.w;
     const H = this.h;
     const ps = this.ps;
@@ -202,6 +255,89 @@ export class BackgroundView {
           this.clouds.setPosition(0, H * 0.34 - cy * 0.04 * zoom);
           this.clouds.tilePositionX = (cx * 0.08 * zoom + time * 7 * ps) / k;
           this.clouds.setAlpha(0.85);
+          break;
+        }
+        case 'rain': {
+          // slanted streaks falling past the camera, two depths
+          for (let i = 0; i < 110; i++) {
+            const depth = hash(i * 7 + 5) > 0.6 ? 1 : 0.55;
+            const sp = (1.1 + hash(i * 7 + 1) * 0.6) * depth;
+            const ph = (time * sp + hash(i * 7 + 2)) % 1;
+            const x = (((hash(i * 7) * (W + 80) - ph * 40 * ps - cx * 0.3 * zoom * depth) % (W + 80)) + (W + 80)) % (W + 80) - 20;
+            const y = ph * (H + 30) - 15;
+            gf.lineStyle(Math.max(1, ps * 0.6 * depth), 0xa8d0f0, 0.3 * depth);
+            gf.lineBetween(x, y, x - 3 * ps, y + 10 * ps * depth);
+          }
+          break;
+        }
+        case 'flash': {
+          // distant lightning: a jagged bolt with branches, and a pale flash of the whole sky
+          const slot = Math.floor(time / 5.5);
+          const off = 0.8 + hash(slot * 3 + 7) * 3.6;
+          const d = time - slot * 5.5 - off;
+          if (d > 0 && d < 0.55 && hash(slot * 3 + 4) > 0.2) {
+            const fade = d < 0.08 ? 1 : d < 0.18 ? 0.25 : d < 0.28 ? 0.8 : Math.max(0, 1 - d * 1.9);
+            gb.fillStyle(0xcfe8ff, 0.14 * fade);
+            gb.fillRect(0, 0, W, H);
+            const bx = W * (0.15 + hash(slot * 3 + 9) * 0.7) - cx * 0.02 * zoom;
+            let x = bx;
+            let y = -4;
+            gb.lineStyle(Math.max(2, ps * 1.5), 0xffffff, 0.9 * fade);
+            for (let i = 0; i < 12; i++) {
+              const nx = x + (hash(slot * 31 + i) - 0.5) * 38 * ps;
+              const ny = y + H * 0.075;
+              gb.lineBetween(x, y, nx, ny);
+              if (i === 4 || i === 8) {
+                gb.lineStyle(Math.max(1, ps), 0xbfe0ff, 0.6 * fade);
+                gb.lineBetween(nx, ny, nx + (hash(slot * 17 + i) - 0.3) * 60 * ps, ny + H * 0.1);
+                gb.lineStyle(Math.max(2, ps * 1.5), 0xffffff, 0.9 * fade);
+              }
+              x = nx;
+              y = ny;
+            }
+          }
+          break;
+        }
+        case 'sun': {
+          const sx = W * 0.7 - cx * 0.015 * zoom;
+          const sy = H * 0.36 - cy * 0.01 * zoom;
+          const pulse = 0.94 + 0.06 * Math.sin(time * 0.9);
+          for (let r = 7; r >= 1; r--) {
+            gb.fillStyle(r > 4 ? 0xffb070 : 0xffd890, 0.05 + (7 - r) * 0.012);
+            gb.fillCircle(sx, sy, r * H * 0.075 * pulse);
+          }
+          gb.fillStyle(0xfff2c8, 0.9).fillCircle(sx, sy, H * 0.07);
+          gb.fillStyle(0xffffff, 0.8).fillCircle(sx - H * 0.012, sy - H * 0.012, H * 0.05);
+          break;
+        }
+        case 'godrays': {
+          const sx = W * 0.7 - cx * 0.015 * zoom;
+          const sy = H * 0.36 - cy * 0.01 * zoom;
+          for (let i = 0; i < 7; i++) {
+            const a = Math.PI * (0.62 + i * 0.12) + Math.sin(time * 0.15 + i) * 0.03;
+            const len = H * 1.3;
+            const half = 0.045 + (i % 3) * 0.015;
+            gb.fillStyle(0xffe0b0, 0.05);
+            gb.fillTriangle(sx, sy, sx + Math.cos(a - half) * len, sy + Math.sin(a - half) * len, sx + Math.cos(a + half) * len, sy + Math.sin(a + half) * len);
+          }
+          break;
+        }
+        case 'birds': {
+          // small flocks crossing the sky, wings flapping
+          for (let f = 0; f < 2; f++) {
+            const dir = f === 0 ? 1 : -1;
+            const u = ((time * (0.018 + f * 0.007) + f * 0.5) % 1 + 1) % 1;
+            const bx0 = (dir > 0 ? u : 1 - u) * (W + 200) - 100 - cx * 0.04 * zoom;
+            const by0 = H * (0.2 + f * 0.13) - cy * 0.03 * zoom;
+            for (let i = 0; i < 5; i++) {
+              const x = bx0 - dir * i * 14 * ps;
+              const y = by0 + Math.abs(i - 2) * 6 * ps + Math.sin(time * 1.3 + i) * 3 * ps;
+              const flap = Math.sin(time * 7 + i * 1.3) * 3 * ps;
+              gm.lineStyle(Math.max(1, ps * 0.8), 0x4a2a4e, 0.85);
+              gm.lineBetween(x - 5 * ps, y - flap, x, y);
+              gm.lineBetween(x, y, x + 5 * ps, y - flap);
+            }
+          }
           break;
         }
         case 'aurora': {

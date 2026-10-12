@@ -50,13 +50,14 @@ export interface StageBackground {
   /** Parallax layer ids understood by the stage renderer. */
   layers: string[];
   /** Look of the parallax backdrop and tiles (palette + tints); see `BACKDROPS` in the UI layer. */
-  theme?: 'skyline' | 'void' | 'reactor';
+  theme?: 'skyline' | 'void' | 'reactor' | 'storm' | 'dawn';
 }
 
 /** A stage hazard. Phase is a pure function of the sim tick, so it is deterministic and needs no state. */
 export interface HazardDef {
-  kind: 'geyser';
-  /** Column centre x and the y of its base (it grows upward by `h`). */
+  /** 'geyser' erupts upward from its base; 'bolt' is lightning that strikes straight down from its top. */
+  kind: 'geyser' | 'bolt';
+  /** Column centre x and the y of its base (it grows upward by `h`); for a bolt, the y of its top (it reaches down by `h`). */
   x: number;
   y: number;
   w: number;

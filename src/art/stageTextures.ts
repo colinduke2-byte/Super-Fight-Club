@@ -543,6 +543,132 @@ function cloudStrip(): HTMLCanvasElement {
   return c;
 }
 
+
+/** Draw `fn` at x, x - W and x + W so shapes crossing the tile edge wrap around (horizontally tileable art). */
+function wrapX(W: number, x: number, fn: (x: number) => void): void {
+  fn(x);
+  if (x < W * 0.25) fn(x + W);
+  if (x > W * 0.75) fn(x - W);
+}
+
+/** Jagged rock spires with glowing ruins, for the thunderstorm: tileable. */
+function spires(seed: number, body: string, light: string, dark: string, glow: string, W = 512, H = 192): HTMLCanvasElement {
+  const [c, g] = canvas(W, H);
+  const rnd = mulberry32(seed);
+  let x = 0;
+  while (x < W - 14) {
+    const w = 16 + Math.floor(rnd() * 22);
+    const h = 60 + Math.floor(rnd() * 120);
+    const lean = Math.floor((rnd() - 0.5) * 8);
+    const cx = x;
+    wrapX(W, cx, (bx) => {
+      for (let k = 0; k < h; k++) {
+        const t = k / h;
+        const ww = Math.max(3, Math.round(w * (0.45 + 0.55 * t) + (k % 7 === 0 ? 2 : 0)));
+        const off = Math.round(lean * (1 - t)) + (k % 11 === 0 ? 1 : 0);
+        const xx = bx + Math.floor((w - ww) / 2) + off;
+        px(g, body, xx, H - h + k, ww, 1);
+        px(g, light, xx + ww - 2, H - h + k, 2, 1);
+        px(g, dark, xx, H - h + k, 2, 1);
+        if (k % 17 === 9) px(g, dark, xx, H - h + k, ww, 1); // strata
+      }
+      // ruin: a small tower on the tip with a lit window
+      if (rnd() > 0.35) {
+        const tx = bx + Math.floor(w / 2) - 3 + lean;
+        px(g, dark, tx, H - h - 12, 7, 12);
+        px(g, light, tx + 5, H - h - 12, 2, 12);
+        px(g, glow, tx + 2, H - h - 8, 2, 3);
+        px(g, dark, tx - 1, H - h - 14, 9, 3);
+      }
+      // glowing crack
+      if (rnd() > 0.5) for (let k = 0; k < 16; k++) px(g, glow, bx + Math.floor(w / 2) + Math.round(Math.sin(k) * 2), H - h + 20 + k * 2, 1, 1);
+    });
+    x += w + 6 + Math.floor(rnd() * 22);
+  }
+  return c;
+}
+
+/** Floating islands with grass, trees, tiny towers, stalactite undersides and waterfalls; tileable, sky above. */
+function islands(seed: number, rock: string, rockL: string, rockD: string, grass: string, grassL: string, water: string, W = 512, H = 192): HTMLCanvasElement {
+  const [c, g] = canvas(W, H);
+  const rnd = mulberry32(seed);
+  const count = 5;
+  for (let n = 0; n < count; n++) {
+    const w = 46 + Math.floor(rnd() * 56);
+    const topY = 40 + Math.floor(rnd() * 70);
+    const cx = Math.floor(((n + 0.3 + rnd() * 0.4) / count) * W);
+    wrapX(W, cx, (bx) => {
+      const left = bx - Math.floor(w / 2);
+      // grass top
+      for (let k = 0; k < 8; k++) {
+        const ww = w - Math.abs(Math.round(Math.sin(k * 0.9) * 2));
+        px(g, k < 2 ? grassL : grass, left + Math.floor((w - ww) / 2), topY + k, ww, 1);
+      }
+      // rock underside tapering to a point
+      const depth = 34 + Math.floor(rnd() * 26);
+      for (let k = 0; k < depth; k++) {
+        const t = k / depth;
+        const ww = Math.max(2, Math.round(w * (1 - Math.pow(t, 0.8))) - ((k * 7 + n) % 5 === 0 ? 2 : 0));
+        const xx = left + Math.floor((w - ww) / 2);
+        px(g, rock, xx, topY + 8 + k, ww, 1);
+        px(g, rockL, xx + ww - 2, topY + 8 + k, 2, 1);
+        px(g, rockD, xx, topY + 8 + k, 2, 1);
+      }
+      // trees
+      for (let t = 0; t < 3 + Math.floor(rnd() * 3); t++) {
+        const tx = left + 6 + Math.floor(rnd() * (w - 12));
+        const th = 6 + Math.floor(rnd() * 8);
+        px(g, rockD, tx, topY - th + 2, 1, th);
+        for (let k = 0; k < 6; k++) px(g, k < 2 ? grassL : grass, tx - 3 + Math.floor(k / 3), topY - th - 2 + k, 7 - Math.floor(k / 3) * 2, 1);
+      }
+      // little tower / ruin
+      if (rnd() > 0.4) {
+        const tx = left + Math.floor(w * 0.35);
+        px(g, rockL, tx, topY - 16, 8, 16);
+        px(g, rockD, tx, topY - 16, 2, 16);
+        px(g, rock, tx - 2, topY - 19, 12, 4);
+        px(g, '#ffe9a8', tx + 3, topY - 10, 2, 3);
+      }
+      // waterfall off the lip
+      if (rnd() > 0.5) {
+        const wx = left + w - 5;
+        for (let k = 0; k < 70; k++) {
+          const a = 1 - k / 70;
+          px(g, `rgba(${water},${0.35 + 0.5 * a})`, wx + (k % 9 === 0 ? 1 : 0), topY + 6 + k, 2, 1);
+        }
+      }
+    });
+  }
+  return c;
+}
+
+/** Puffy cloud tops (tileable): dithered-shaded round puffs with a light top-left rim, solid underneath. */
+function cloudBank(seed: number, base: string, light: string, shade: string, W = 512, H = 128): HTMLCanvasElement {
+  const [c, g] = canvas(W, H);
+  const rnd = mulberry32(seed);
+  const bayer = [0, 8, 2, 10, 12, 4, 14, 6, 3, 11, 1, 9, 15, 7, 13, 5];
+  // solid body in the lower part
+  px(g, shade, 0, H - 40, W, 40);
+  const puffs = 26;
+  for (let i = 0; i < puffs; i++) {
+    const r = 12 + Math.floor(rnd() * 20);
+    const cx = Math.floor(rnd() * W);
+    const cy = H - 42 - Math.floor(rnd() * 34);
+    wrapX(W, cx, (bx) => {
+      for (let y = -r; y <= r; y++) {
+        for (let x = -r; x <= r; x++) {
+          const d = Math.hypot(x, y * 1.15);
+          if (d > r) continue;
+          const lit = (-x * 0.5 - y * 0.8) / r; // light from the upper-left
+          const v = lit + (bayer[(((cy + y) & 3) * 4 + ((bx + x) & 3))] / 16 - 0.5) * 0.5;
+          px(g, v > 0.45 ? light : v > -0.1 ? base : shade, bx + x, cy + y);
+        }
+      }
+    });
+  }
+  return c;
+}
+
 /** Small glow sprite used as additive spark: 4-point star. */
 function sparkTex(): HTMLCanvasElement {
   const [c, g] = canvas(17, 17);
@@ -615,6 +741,12 @@ export function buildStageTextures(scene: Phaser.Scene): void {
   add('bg-pylons-far', pylons(31, '#1c4a64', '#4a9ac0', '#0e2a3c', '#7ff0ff', 512, 192));
   add('bg-pylons-near', pylons(63, '#0e2c42', '#2a6a90', '#08182a', '#bffcff', 512, 192));
   add('bg-clouds', cloudStrip());
+  add('bg-spires-far', spires(11, '#1e3350', '#3e6a96', '#101c30', '#9fd8ff', 512, 192));
+  add('bg-spires-near', spires(23, '#0f1c30', '#27456a', '#08101e', '#cfeeff', 512, 192));
+  add('bg-islands-far', islands(5, '#8a6a7a', '#c89aa0', '#5a4256', '#7a9a5a', '#b8d27a', '255,235,215', 512, 192));
+  add('bg-islands-near', islands(9, '#a07a78', '#e0aa98', '#6a4a5e', '#8aae60', '#c8e088', '255,240,225', 512, 192));
+  add('bg-cloudsea', cloudBank(3, '#f4c8b8', '#fff0e0', '#c48aa0', 512, 128));
+  add('bg-stormbank', cloudBank(8, '#2e4560', '#5a7a9c', '#16243a', 512, 128));
   add('spark', sparkTex());
   add('ring', ringTex());
   add('bubble', bubbleTex());

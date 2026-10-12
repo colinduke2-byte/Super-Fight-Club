@@ -88,17 +88,30 @@ export class WorldEventFx {
       case 'tether':
         e.flash(x, y, 0.9, 0xffffff);
         break;
-      case 'hazardWarn':
-        e.burst(x, y, 8, 40, 0xff8a30, 0.6, 2);
+      case 'hazardWarn': {
+        const bolt = this.host.world.stage.hazards?.[mag | 0]?.kind === 'bolt';
+        e.burst(x, y, 8, 40, bolt ? 0x9fd8ff : 0xff8a30, 0.6, 2);
         sfx.play('charge', 0.6, 0);
         break;
-      case 'hazardFire':
+      }
+      case 'hazardFire': {
+        if (this.host.world.stage.hazards?.[mag | 0]?.kind === 'bolt') {
+          // lightning: a white-blue strike with a crackle and a hard flash
+          e.burst(x, y - 8, 36, 190, 0xbfe6ff, 0.5, 3);
+          e.ring(x, y - 4, 52, 0xffffff, 0.35);
+          e.flash(x, y - 30, 4, 0xe8f6ff);
+          this.host.shake(9);
+          sfx.play('zap', 1, 0);
+          sfx.play('boom', 0.7, 0);
+          break;
+        }
         e.burst(x, y - 20, 30, 160, 0xffa040, 0.6, 4);
         e.ring(x, y - 4, 40, 0xffd46a, 0.4);
         e.flash(x, y - 40, 3, 0xffe9a8);
         this.host.shake(6);
         sfx.play('boom', 0.8, 0);
         break;
+      }
       case 'cinematicStart':
         e.ring(x, y, 60, 0xffffff, 0.5);
         e.flash(x, y, 4, 0xffffff);

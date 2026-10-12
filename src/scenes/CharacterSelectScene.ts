@@ -117,8 +117,8 @@ export class CharacterSelectScene extends MenuScene {
     this.roster.forEach((r, i) => {
       const cx = w / 2 + (i - (rn - 1) / 2) * rw;
       r.img.setScale(u * 1.2 * (r.img.getData('k') as number)).setPosition(cx - 6 * 1.2 * u, h * 0.82 - 20 * u);
-      r.name.setScale(u * 1.2).setPosition(cx, h * 0.82 + 6 * u);
-      r.pips.forEach((p, k) => p.setScale((3 * u) / 4).setPosition(cx - ((r.pips.length - 1) * 4 * u) / 2 + k * 4 * u, h * 0.82 + 18 * u));
+      r.name.setScale(Math.min(u * 1.2, (rw * 0.92) / Math.max(1, r.name.width))).setPosition(cx, h * 0.82 + 9 * u);
+      r.pips.forEach((p, k) => p.setScale((3 * u) / 4).setPosition(cx - ((r.pips.length - 1) * 4 * u) / 2 + k * 4 * u, h * 0.82 + 21 * u));
     });
     this.warn.setScale(u * 1.2).setPosition(w / 2, h * 0.93);
     this.hint.setScale(u).setPosition(w / 2, h - 8 * u);

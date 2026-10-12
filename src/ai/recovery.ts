@@ -145,4 +145,6 @@ export function recoveryStep(f: Fighter, world: World, ai: CharacterAi, ep: Reco
     out.sy = -1; // Up must be held on the press frame to select the up special; aim is refined while it runs
     out.sx = Math.abs(dx) < 4 ? 0 : Math.sign(dx);
   }
+  // winged fighters out of flaps hold Jump to glide toward the stage
+  if (f.data.glide && f.jumpsLeft === 0 && !out.special && f.vy > f.data.glide.fall && Math.abs(dx) > 8 && f.glideFrames < f.data.glide.max) out.jump = true;
 }
