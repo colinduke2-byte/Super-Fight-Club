@@ -94,6 +94,20 @@ function updateProjectiles(world: World): void {
       rB[2] = plat.w;
       rB[3] = plat.h;
       if (!overlap(rA, rB)) continue;
+      const pillar = plat.dynamic ? world.deployables.find((d) => d.plat === plat && d.active) : undefined;
+      if (pillar) {
+        // a crystal pillar: its owner's shots shatter it into shards, anyone else's chip at it
+        if (p.owner === pillar.owner) {
+          pillar.shatter = true;
+          pillar.deactivate();
+        } else {
+          pillar.hp -= def.hit.damage * p.dmgMult;
+          if (pillar.hp <= 0) destroyDeployable(world, pillar, p.owner);
+        }
+        world.emit('projectileHit', world.fighters[p.owner], p.x, p.y, 0, 0);
+        p.deactivate();
+        break;
+      }
       if (def.bounce && p.vy > 0 && p.prevY + def.h / 2 <= plat.top + 1) {
         p.y = plat.top - def.h / 2;
         p.vy = -p.vy * def.bounce;

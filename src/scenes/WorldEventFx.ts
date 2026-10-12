@@ -76,6 +76,19 @@ export class WorldEventFx {
         e.flash(x, y, 2.4, 0xffe9a8);
         this.host.shake(5);
         break;
+      case 'pillarShatter':
+        // a crystal pillar bursts: purple shards, a white crack of light and a jolt (mag = -height)
+        e.burst(x, y, 26, 160, 0xc898f6, 0.5, 3);
+        e.burst(x, y, 10, 90, 0xf0e2ff, 0.35, 2);
+        e.ring(x, y, 34, 0xe0c0ff, 0.3);
+        e.flash(x, y, 2.2, 0xf0e2ff);
+        this.host.shake(5);
+        break;
+      case 'pillarCrumble':
+        // sinking back into the ground: rubble and dust at the base
+        e.dust(x, y, 8, 0);
+        e.burst(x, y - 4, 8, 50, 0x8a7a70, 0.45, 2);
+        break;
       case 'deployableDestroyed':
         e.burst(x, y, 14, 100, 0xffd46a, 0.35, 3);
         e.flash(x, y, 1.2, 0xffffff);

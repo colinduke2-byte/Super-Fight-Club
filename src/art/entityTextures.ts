@@ -208,3 +208,44 @@ export function buildEntityTextures(scene: Phaser.Scene): void {
     add('dep-whirlpool', c);
   }
 }
+
+/**
+ * A crystal pillar `w` x `h` world units (drawn at 2 px per unit): an amethyst column with lit facets, a bright flat top
+ * you can stand on, glints and a glowing inner vein, rising out of a jagged granite collar.
+ */
+export function pillarCanvas(w: number, h: number): HTMLCanvasElement {
+  const W = Math.round(w * 2);
+  const H = Math.round(h * 2);
+  const [c, g] = mk(W, H);
+  const AM = ['#22103a', '#3e1f66', '#6a34a0', '#9a5ad6', '#c898f6', '#f0e2ff'];
+  const GR = ['#2a2522', '#3e3833', '#585049', '#746a60'];
+  for (let y = 0; y < H; y++) {
+    const collar = H - 10;
+    for (let x = 0; x < W; x++) {
+      const u = x / (W - 1);
+      // granite collar at the base, its top edge jagged
+      const jag = H - 12 - ((x * 7) % 5) - ((x * 13) % 3);
+      if (y >= jag && y >= collar - 6) {
+        const k = y === jag ? 3 : u < 0.25 ? 2 : u > 0.8 ? 0 : 1;
+        px(g, GR[k], x, y);
+        continue;
+      }
+      let k = u < 0.16 ? 4 : u < 0.58 ? 3 : u < 0.84 ? 2 : 1;
+      if (x === 0 || x === W - 1) k = 0;
+      if (y === 0) k = 5;
+      else if (y < 3) k = Math.max(k, 4);
+      else if (y === 3) k = 1; // a crisp shadow under the lit top edge
+      if ((x * 3 + y * 2) % 41 === 0 && y > 4) k = 5; // glints
+      if (y > 4 && (u === 0.58 || Math.abs(u - 0.58) < 1 / W)) k = 1; // facet seam
+      px(g, AM[k], x, y);
+    }
+  }
+  // a glowing vein wandering up the middle
+  let vx = Math.round(W * 0.42);
+  for (let y = H - 14; y > 5; y--) {
+    px(g, '#e8c8ff', vx, y);
+    if ((y * 7) % 9 === 0) vx += (y * 5) % 2 === 0 ? 1 : -1;
+    vx = Math.max(3, Math.min(W - 4, vx));
+  }
+  return c;
+}

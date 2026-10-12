@@ -68,6 +68,10 @@ export function soundFor(type: WorldEventType, mag: number, extra: number): Soun
       return { name: 'boom', intensity: clamp(0.5 + extra / 20, 0.5, 1) };
     case 'deployableDestroyed':
       return { name: 'break', intensity: 0.7 };
+    case 'pillarShatter':
+      return { name: 'break', intensity: 1 };
+    case 'pillarCrumble':
+      return { name: 'land', intensity: 0.6 };
     case 'status': {
       // 0-3 burn / slow / freeze / stun, 4 soaked, 5 steam (fire on a soaked fighter), 6 silent drips while soaked
       if (extra === 4) return { name: 'splash', intensity: 0.5 };

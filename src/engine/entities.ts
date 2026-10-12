@@ -81,6 +81,10 @@ export class Deployable {
   damageMul = 1;
   shield = 0;
   modFrames = 0;
+  /** Crystal pillar: its live platform, whether it bursts into shards when it goes, and who its rise already hit. */
+  plat: import('./platform').Platform | null = null;
+  shatter = false;
+  riseMask = 0;
 
   constructor(index: number) {
     this.index = index;

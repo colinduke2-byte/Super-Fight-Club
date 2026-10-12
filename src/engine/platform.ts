@@ -17,7 +17,12 @@ export class Platform {
   private readonly baseX: number;
   private readonly baseY: number;
 
-  constructor(id: number, readonly def: PlatformDef) {
+  constructor(
+    id: number,
+    readonly def: PlatformDef,
+    /** Moved by game logic (crystal pillars) rather than a `move` def. */
+    readonly dynamic = false,
+  ) {
     this.id = id;
     this.kind = def.kind;
     this.w = def.w;
@@ -31,7 +36,7 @@ export class Platform {
   }
 
   get moving(): boolean {
-    return !!this.def.move;
+    return !!this.def.move || this.dynamic;
   }
 
   get top(): number {
@@ -46,6 +51,7 @@ export class Platform {
 
   /** Advance to the given sim tick. Deterministic: position is a pure function of tick. */
   update(tick: number): void {
+    if (this.dynamic) return; // driven by stepPillars
     this.prevX = this.x;
     this.prevY = this.y;
     if (this.def.move) this.place(tick);

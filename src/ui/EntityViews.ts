@@ -2,6 +2,7 @@ import Phaser from 'phaser';
 import { MAX_DEPLOYABLES, MAX_PROJECTILES } from '../engine/entities';
 import { MAX_ITEMS } from '../engine/items';
 import type { World } from '../engine/world';
+import { pillarCanvas } from '../art/entityTextures';
 
 const SHAPE_TEX: Record<string, string> = { orb: 'proj-orb', bolt: 'proj-bolt', bullet: 'proj-bullet', fist: 'proj-fist', beam: 'proj-beam' };
 const DEP_TEX: Record<string, string> = { mine: 'dep-mine', turret: 'dep-turret', rune: 'dep-rune', marker: 'dep-marker', whirlpool: 'dep-whirlpool' };
@@ -19,7 +20,11 @@ export class EntityViews {
   private readonly tether: Phaser.GameObjects.Graphics;
   private readonly items: Phaser.GameObjects.Image[] = [];
 
-  constructor(scene: Phaser.Scene, layer: Phaser.GameObjects.Layer, private readonly world: World) {
+  constructor(
+    private readonly scene: Phaser.Scene,
+    layer: Phaser.GameObjects.Layer,
+    private readonly world: World,
+  ) {
     for (let i = 0; i < MAX_PROJECTILES; i++) {
       const s = scene.add.image(0, 0, 'proj-orb').setVisible(false).setScale(0.5);
       layer.add(s);
@@ -102,6 +107,12 @@ export class EntityViews {
         continue;
       }
       const look = d.def.look;
+      if (look.shape === 'pillar') {
+        this.drawPillar(s, d, alpha, tick);
+        l.setVisible(false);
+        continue;
+      }
+      s.setCrop().setOrigin(0.5, 1);
       s.setTexture(DEP_TEX[look.shape] ?? 'dep-mine').setVisible(true).setTint(color(look.color));
       const armed = d.age >= (d.def.armFrames ?? 0);
       let y = d.y;
@@ -142,5 +153,22 @@ export class EntityViews {
       g.lineStyle(0.6, 0xd8d8f0, 1).lineBetween(hx, hy - 0.3, f.tetherX, f.tetherY - 0.3);
       g.fillStyle(0xffffff, 1).fillCircle(f.tetherX, f.tetherY, 1.4);
     }
+  }
+
+  /** A crystal pillar: its full-height texture, cropped to the part above ground, shimmering as it stands. */
+  private drawPillar(s: Phaser.GameObjects.Image, d: import('../engine/entities').Deployable, alpha: number, tick: number): void {
+    const def = d.def!;
+    const key = `dep-pillar-${def.w}x${def.h}`;
+    if (!this.scene.textures.exists(key)) this.scene.textures.addCanvas(key, pillarCanvas(def.w, def.h));
+    const p = d.plat;
+    const top = p ? p.prevY + (p.y - p.prevY) * alpha : d.y;
+    const shown = Math.max(0, d.y - top);
+    s.setTexture(key).setVisible(shown > 0.5).setOrigin(0.5, 0).setPosition(d.x, top).setScale(0.5).setRotation(0).setFlipX(false);
+    s.setCrop(0, 0, def.w * 2, Math.ceil(shown * 2));
+    const dmg = def.health > 0 ? 1 - d.hp / def.health : 0;
+    // cracked pillars darken; a slow shimmer runs over healthy ones
+    const sh = 0.94 + 0.06 * Math.sin(tick * 0.12 + d.index);
+    const v = Math.round(255 * Math.max(0.55, sh - dmg * 0.4));
+    s.setTint((v << 16) | (v << 8) | 255).setAlpha(1);
   }
 }

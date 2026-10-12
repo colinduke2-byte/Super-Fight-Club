@@ -4,6 +4,7 @@ import { resolveEntityCombat, updateEntities } from './entityCombat';
 import type { MoveDef } from './moves';
 import { GRAB_DISTANCE, type Fighter } from './fighter';
 import { stepHazards } from './hazards';
+import { stepPillars } from './pillars';
 import { Item, MAX_ITEMS, stepItems } from './items';
 import { stepTargets, type Target } from './targets';
 import { Ledge, Platform } from './platform';
@@ -55,6 +56,8 @@ export type WorldEventType =
   | 'itemThrow'
   | 'itemBoom'
   | 'hazardFire'
+  | 'pillarShatter'
+  | 'pillarCrumble'
   | 'ko';
 /** `extra` meaning: hit/armorHit/shieldHit/pummel = damage dealt; ko = id of the last attacker (-1 none). */
 export type WorldListener = (type: WorldEventType, fighter: Fighter, x: number, y: number, magnitude: number, extra: number, tag?: string) => void;
@@ -169,6 +172,7 @@ export class World {
       return;
     }
     for (let i = 0; i < this.platforms.length; i++) this.platforms[i].update(this.tick);
+    stepPillars(this);
     for (let i = 0; i < this.fighters.length; i++) this.fighters[i].update(inputs[i], this);
     this.fixGrabs();
     this.softPush();
@@ -213,6 +217,16 @@ export class World {
     const owner = this.fighters[ownerId];
     const def = owner?.data.deployables?.[defId];
     if (!def) throw new Error(`unknown deployable '${defId}'`);
+    if (def.pillar) {
+      // a pillar grows out of the nearest ground under the spot (stage ground only, never another pillar); none, no pillar
+      let top = Infinity;
+      for (const p of this.platforms) {
+        if (p.dynamic || x < p.x + 2 || x > p.right - 2 || p.top < y - 24 || p.top > y + 60) continue;
+        top = Math.min(top, p.top);
+      }
+      if (top === Infinity) return null;
+      y = top;
+    }
     const group = def.limitGroup ?? defId;
     if (this.countDeployables(ownerId, group) >= def.limit) {
       if (!def.replaceOldest) return null;
@@ -344,6 +358,7 @@ export class World {
       mix(d.x);
       mix(d.y);
       mix(d.hp);
+      if (d.plat) mix(d.plat.y);
     }
     return h;
   }

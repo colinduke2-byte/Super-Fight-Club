@@ -248,7 +248,19 @@ export interface DeployableDef {
   turret?: { range: number; interval: number; projectile: string; muzzleX: number; muzzleY: number; speed: number };
   /** Granted to the owner when an enemy destroys it. */
   reward?: { key: string; add: number };
-  look: { shape: 'mine' | 'turret' | 'rune' | 'marker' | 'whirlpool'; color: string };
+  look: { shape: 'mine' | 'turret' | 'rune' | 'marker' | 'whirlpool' | 'pillar'; color: string };
+  /**
+   * A crystal pillar: the deployable raises a temporary solid platform `w` x `h` from its base (x, y = ground). It blocks
+   * fighters and projectiles, can be stood on, and sinks back over `sinkFrames` before its `life` runs out.
+   */
+  pillar?: {
+    riseFrames: number;
+    sinkFrames?: number;
+    /** Hit dealt (once each) to rivals the pillar rises into. */
+    riseHit?: { damage: number; base: number; scaling: number; angle: number; hitlag?: number };
+    /** Shattering (by its owner) bursts it into this many shard projectiles. */
+    shards?: { projectile: string; count: number; speed: number };
+  };
 }
 
 export function moveTotal(m: MoveDef): number {
@@ -312,6 +324,7 @@ export function validateReferences(moves: Record<string, MoveDef>, projectiles: 
   }
   for (const [id, d] of Object.entries(deployables)) {
     if (d.turret && !projectiles[d.turret.projectile]) throw new Error(`${owner}.${id}: turret uses unknown projectile '${d.turret.projectile}'`);
+    if (d.pillar?.shards && !projectiles[d.pillar.shards.projectile]) throw new Error(`${owner}.${id}: pillar shards use unknown projectile '${d.pillar.shards.projectile}'`);
   }
 }
 
