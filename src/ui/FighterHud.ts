@@ -78,6 +78,7 @@ export class FighterHud {
     this.portrait.setScale(k * this.texK).setPosition(left + 4 * u - this.crop[0] * k * this.texK, top + 4 * u - this.crop[1] * k * this.texK);
     this.name.setPosition(left + 41 * u, top + 8 * u).setScale(u);
     this.percent.setPosition(left + 41 * u, top + 16 * u).setScale(u * 2);
+    this.percentAt = [left + 41 * u, top + 16 * u];
     this.sub.setPosition(left + 78 * u, top + 8 * u).setScale(u);
     this.pips.setScale(u).setPosition(left + 78 * u, top + 8 * u);
     this.meter.setPosition(left + 41 * u, top + 3 * u);
@@ -89,8 +90,15 @@ export class FighterHud {
   }
 
   /** @param meterFrac ultimate meter 0..1 (drawn over the plate's conduit; pulses gold when full) */
+  private jolt = 0;
+  private percentAt: [number, number] = [0, 0];
+
   update(damage: number, stocks: number, training: boolean, out: boolean, meterFrac = 0, tick = 0, resource = 0, status?: { burn: number; slow: number; freeze: number; stun: number }): void {
-    if (damage > this.lastDamage) this.pop = 1;
+    if (damage > this.lastDamage) {
+      this.pop = 1;
+      this.jolt = Math.min(1, (damage - this.lastDamage) / 14); // big hits shake the number
+    }
+    this.jolt = Math.max(0, this.jolt - 0.06);
     this.lastDamage = damage;
     this.pop = Math.max(0, this.pop - 0.08);
     const d = Math.min(damage / 160, 1);
@@ -101,6 +109,8 @@ export class FighterHud {
     this.percent.setText(up(`${Math.floor(damage)}%`));
     this.percent.setTint(Phaser.Display.Color.GetColor(r, Math.max(30, g), Math.max(30, b)));
     this.percent.setScale(this.u * 2 * (1 + this.pop * 0.25));
+    const j = this.jolt * this.u * 2.5;
+    this.percent.setPosition(this.percentAt[0] + (tick & 1 ? j : -j), this.percentAt[1] + ((tick >> 1) & 1 ? j * 0.6 : -j * 0.6));
     this.sub.setText(training ? 'INF' : out ? 'OUT' : '');
     this.sub.setVisible(training || out);
     this.pips.setText(!training && !out ? '@'.repeat(Math.min(stocks, MAX_PIPS)).split('').join(' ') : '');
