@@ -7,6 +7,7 @@ import { skyholdStage } from './skyhold';
 import { stormStage } from './storm';
 import { templeStage } from './temple';
 import { wreckStage } from './wreck';
+import { hollowStage } from './hollow';
 import { targetsStage } from './targets';
 import { launchStage } from './launch';
 
@@ -19,9 +20,10 @@ export const STAGES: Record<string, StageData> = {
   [skyholdStage.id]: skyholdStage,
   [templeStage.id]: templeStage,
   [wreckStage.id]: wreckStage,
+  [hollowStage.id]: hollowStage,
   [targetsStage.id]: targetsStage,
   [launchStage.id]: launchStage,
   [sandboxStage.id]: sandboxStage,
 };
 /** Stages offered in Stage Select (the sandbox is training-only). */
-export const STAGE_LIST: StageData[] = [classicStage, ringStage, reactorStage, stormStage, templeStage, wreckStage, skyholdStage];
+export const STAGE_LIST: StageData[] = [classicStage, ringStage, reactorStage, stormStage, templeStage, wreckStage, hollowStage, skyholdStage];

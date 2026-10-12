@@ -50,13 +50,16 @@ export interface StageBackground {
   /** Parallax layer ids understood by the stage renderer. */
   layers: string[];
   /** Look of the parallax backdrop and tiles (palette + tints); see `BACKDROPS` in the UI layer. */
-  theme?: 'skyline' | 'void' | 'reactor' | 'storm' | 'dawn' | 'temple' | 'tide';
+  theme?: 'skyline' | 'void' | 'reactor' | 'storm' | 'dawn' | 'temple' | 'tide' | 'cavern';
 }
 
 /** A stage hazard. Phase is a pure function of the sim tick, so it is deterministic and needs no state. */
 export interface HazardDef {
-  /** 'geyser' erupts upward from its base; 'bolt' is lightning that strikes straight down from its top. */
-  kind: 'geyser' | 'bolt';
+  /**
+   * 'geyser' erupts upward from its base; 'bolt' is lightning that strikes straight down from its top; 'stalactite' is a crystal
+   * spike that drops from its top (the cave ceiling) down `h` to the floor, hitting whoever it falls through.
+   */
+  kind: 'geyser' | 'bolt' | 'stalactite';
   /** Column centre x and the y of its base (it grows upward by `h`); for a bolt, the y of its top (it reaches down by `h`). */
   x: number;
   y: number;
@@ -76,6 +79,8 @@ export interface HazardDef {
   style?: 'plasma' | 'water';
   /** Frames of soak added to whoever the eruption hits. */
   soak?: number;
+  /** Stalactite: where it lands it leaves a crystal stump (a small solid block) standing for `frames`. */
+  stump?: { w: number; h: number; frames: number };
 }
 
 export interface StageData {

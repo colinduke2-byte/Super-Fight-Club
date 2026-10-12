@@ -110,10 +110,13 @@ export class World {
   readonly bestCombo: number[] = [];
   /** hazardHit[hazard][fighter] = cycle of the last eruption that hit them. */
   readonly hazardHit: number[][];
+  /** Stalactite stumps standing on the floor, per hazard (null when none). */
+  readonly hazardPlats: (import('./platform').Platform | null)[];
 
   constructor(readonly stage: StageData) {
     this.blast = stage.blast;
     this.hazardHit = (stage.hazards ?? []).map(() => []);
+    this.hazardPlats = (stage.hazards ?? []).map(() => null);
     this.platforms = stage.platforms.map((d, i) => new Platform(i, d));
     for (const p of this.platforms) {
       if (!p.ledges) continue;

@@ -24,8 +24,8 @@ interface MassTheme {
   accent: string[]; // 5 shades, dark -> bright (emissive)
   alt?: string[]; // second accent
   body: 'ashlar' | 'plate' | 'hull';
-  cap: 'metal' | 'tech' | 'hazard' | 'slate' | 'grass' | 'deck';
-  panel: 'window' | 'holo' | 'vent' | 'rune' | 'alcove' | 'glyph' | 'porthole';
+  cap: 'metal' | 'tech' | 'hazard' | 'slate' | 'grass' | 'deck' | 'crystal';
+  panel: 'window' | 'holo' | 'vent' | 'rune' | 'alcove' | 'glyph' | 'porthole' | 'geode';
   under: 'crystal' | 'tech' | 'machine' | 'shard' | 'roots' | 'reef';
   fog: string;
 }
@@ -89,6 +89,17 @@ const THEMES: Record<string, MassTheme> = {
     panel: 'porthole',
     under: 'reef',
     fog: '#0c2a3a',
+  },
+  cavern: {
+    // cave rock: cool dark granite, amethyst seams and clusters, a teal mineral glint
+    stone: ['#16121a', '#221c26', '#302834', '#423846', '#58505c', '#746a78'],
+    accent: ['#3a1f66', '#6a34a0', '#a868e0', '#d8b0ff', '#f4e8ff'],
+    alt: ['#0e3a40', '#1c6a70', '#3ac8c0', '#9ff4e8', '#e8fffc'],
+    body: 'ashlar',
+    cap: 'crystal',
+    panel: 'geode',
+    under: 'crystal',
+    fog: '#120a22',
   },
   dawn: {
     stone: ['#8a6a66', '#a88a82', '#c6aa9c', '#dcc6b2', '#eedcc8', '#fff4e4'],
@@ -471,6 +482,10 @@ function panel(b: Buf, T: MassTheme, S: Ramp, A: Ramp, A2: Ramp, x0: number, y0:
     portholes(b, S, A, A2, x0, y0, pw, ph, rnd);
     return;
   }
+  if (T.panel === 'geode') {
+    geodes(b, S, A, A2, x0, y0, pw, ph, rnd);
+    return;
+  }
   // recessed: dark interior, shadow along the top/left inner edge, light along the bottom/right
   for (let y = y0; y < y0 + ph; y++) {
     for (let x = x0; x < x0 + pw; x++) {
@@ -680,6 +695,43 @@ function panel(b: Buf, T: MassTheme, S: Ramp, A: Ramp, A2: Ramp, x0: number, y0:
   }
 }
 
+/** Geodes cracked open in the rock face: a rough rim, a lining of crystal teeth shading in to a glowing hollow, veins between. */
+function geodes(b: Buf, S: Ramp, A: Ramp, A2: Ramp, x0: number, y0: number, pw: number, ph: number, rnd: () => number): void {
+  const count = Math.max(1, Math.floor(pw / 46));
+  for (let i = 0; i < count; i++) {
+    const rx = Math.max(7, Math.min(16, pw / count / 2 - 5 + Math.floor(rnd() * 3)));
+    const ry = Math.max(6, Math.min(ph * 0.34, rx * 0.8));
+    const cx = x0 + Math.round(((i + 0.5) / count) * pw) + Math.floor((rnd() - 0.5) * 6);
+    const cy = y0 + Math.round(ph * (0.35 + rnd() * 0.25));
+    const C = rnd() > 0.8 ? A2 : A;
+    for (let yy = -ry - 2; yy <= ry + 2; yy++) {
+      for (let xx = -rx - 2; xx <= rx + 2; xx++) {
+        const d = Math.hypot(xx / (rx + 2), yy / (ry + 2));
+        if (d > 1) continue;
+        const e = Math.hypot(xx / rx, yy / ry);
+        if (e > 1) {
+          b.set(cx + xx, cy + yy, S[(xx + yy) < 0 ? 4 : 1]); // rough rim, lit top-left
+        } else if (e > 0.62) {
+          // crystal teeth pointing in: alternating facets
+          const ang = Math.atan2(yy, xx);
+          const tooth = (Math.floor((ang + Math.PI) * 4) % 2) === 0;
+          b.set(cx + xx, cy + yy, tooth ? C[2] : C[1], tooth && e < 0.75);
+        } else {
+          b.set(cx + xx, cy + yy, e < 0.3 ? C[4] : C[3], true); // the glowing hollow
+        }
+      }
+    }
+  }
+  // glowing veins wandering across the rock between them
+  for (let v = 0; v < Math.max(1, Math.floor(pw / 60)); v++) {
+    let x = x0 + Math.floor(rnd() * pw);
+    for (let y = y0 + 2; y < y0 + ph - 2; y++) {
+      b.set(x, y, A[2], (y & 3) === 0);
+      if (rnd() > 0.6) x = clampI(x + (rnd() > 0.5 ? 1 : -1), x0, x0 + pw - 1);
+    }
+  }
+}
+
 /** Brass-rimmed portholes glowing with sea light (one has a fish swimming past), kelp draped down the planks, barnacles. */
 function portholes(b: Buf, S: Ramp, A: Ramp, A2: Ramp, x0: number, y0: number, pw: number, ph: number, rnd: () => number): void {
   const BRASS: Ramp = ['#3a2a10', '#7a5a20', '#c09a40', '#f0d080', '#fff4c0'].map(hex);
@@ -790,6 +842,17 @@ function cap(b: Buf, T: MassTheme, S: Ramp, A: Ramp, A2: Ramp, y0: number, ch: n
           else col = M[2];
           break;
         }
+        case 'crystal': {
+          // rough rock top with a glowing amethyst seam just under the surface
+          if (ly === 0) col = M[5];
+          else if (ly < 3) col = (x * 7 + ly) % 11 < 2 ? M[3] : M[4];
+          else if (ly < 8) col = (x * 13 + ly * 5) % 17 === 0 ? M[1] : M[3];
+          else if (ly === 8) {
+            col = (x >> 2) % 3 === 0 ? A[3] : A[1];
+            em = (x >> 2) % 3 === 0;
+          } else col = M[1];
+          break;
+        }
         case 'deck': {
           // deck planks with tarred seams, then a brass-capped gunwale
           const seam = (x + (ly < 6 ? 0 : 23)) % 46 === 0;
@@ -839,6 +902,20 @@ function cap(b: Buf, T: MassTheme, S: Ramp, A: Ramp, A2: Ramp, y0: number, ch: n
     }
     // grass hanging over the lip at the ledges
     for (const x0 of [0, W - 3]) for (let k = 0; k < 6; k++) b.set(x0 + 1, y0 + ch + k, A2[k < 3 ? 2 : 1]);
+  }
+  if (T.cap === 'crystal') {
+    // crystal clusters poking up through the floor (decor, no collision), a few glowing
+    for (let x = 4; x < W - 4; x++) {
+      if (rnd() > 0.07) continue;
+      const n = 1 + Math.floor(rnd() * 3);
+      for (let j = 0; j < n; j++) {
+        const hgt = 2 + Math.floor(rnd() * 5);
+        const xx = x + j * 2 - n;
+        const lit = rnd() > 0.6;
+        for (let k = 1; k <= hgt; k++) b.set(xx + (k > hgt * 0.6 && j !== 1 ? (j > 1 ? 1 : -1) : 0), y0 - k, k === hgt ? A[4] : A[k > hgt / 2 ? 3 : 2], lit);
+      }
+      x += 6;
+    }
   }
   if (T.cap === 'deck') {
     // coils of rope, a starfish, puddles catching the light, kelp hanging over the ledges
@@ -1060,6 +1137,7 @@ export function platformArt(themeId: string | undefined, w: number, h: number, m
   // grass themes: wooden bridges; moving ones are clouds at dawn and carved stone altars in the temple
   const stoneAltar = T.panel === 'glyph' && moving;
   const deck = T.cap === 'deck';
+  if (T.cap === 'crystal') return rockShelf(b, S, A, W, PH, y0, moving, seed);
   const woody = (T.cap === 'grass' && !stoneAltar) || deck;
 
   if (T.cap === 'slate' || (woody && moving && !deck)) {
@@ -1151,6 +1229,35 @@ export function platformArt(themeId: string | undefined, w: number, h: number, m
     }
   }
   return finish(b, W, H);
+}
+
+/** A rock shelf jutting out of the cave wall: a flat lit top, a jagged tapering underside and crystals hanging off it. */
+function rockShelf(b: Buf, S: Ramp, A: Ramp, W: number, PH: number, y0: number, moving: boolean, seed: number): HTMLCanvasElement {
+  const n = noise(seed + 5);
+  const rnd = mulberry32(seed * 31 + 3);
+  for (let x = 0; x < W; x++) {
+    const edge = Math.min(x, W - 1 - x) / W;
+    const depth = PH + Math.round(Math.max(0, 0.5 - Math.abs(x / W - 0.5)) * 18 + n(x / 5, 2) * 5);
+    for (let ly = 0; ly < depth; ly++) {
+      const t = ly / depth;
+      let c = ly === 0 ? S[5] : ly < 2 ? S[4] : t < 0.6 ? S[3] : S[2];
+      if (n(x / 2.5, ly / 2.5) > 0.74) c = S[1];
+      if (edge < 0.04 && ly > 1) c = S[1];
+      b.set(x, y0 + ly, c);
+    }
+    b.set(x, y0 + depth - 1, S[0]);
+  }
+  // crystals hanging off the underside, glowing at their tips
+  for (let i = 0; i < Math.max(2, Math.floor(W / 22)); i++) {
+    const x = 4 + Math.floor(rnd() * (W - 8));
+    const len = 4 + Math.floor(rnd() * (moving ? 6 : 9));
+    const by = y0 + PH + 2;
+    for (let k = 0; k < len; k++) {
+      const ww = Math.max(1, 3 - Math.floor((k / len) * 3));
+      for (let j = 0; j < ww; j++) b.set(x + j - Math.floor(ww / 2), by + k, k > len - 3 ? A[4] : A[2], k > len - 3);
+    }
+  }
+  return finish(b, W, b.h);
 }
 
 function finish(b: Buf, W: number, H: number): HTMLCanvasElement {

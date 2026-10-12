@@ -119,7 +119,7 @@ export class WorldEventFx {
         break;
       case 'hazardWarn': {
         const hz = this.host.world.stage.hazards?.[mag | 0];
-        e.burst(x, y, 8, 40, hz?.kind === 'bolt' ? 0x9fd8ff : hz?.style === 'water' ? 0xbff0ff : 0xff8a30, 0.6, 2);
+        e.burst(x, y, 8, 40, hz?.kind === 'bolt' ? 0x9fd8ff : hz?.kind === 'stalactite' ? 0xc898f6 : hz?.style === 'water' ? 0xbff0ff : 0xff8a30, 0.6, 2);
         sfx.play('charge', 0.6, 0);
         break;
       }
@@ -132,6 +132,17 @@ export class WorldEventFx {
           this.host.shake(9);
           sfx.play('zap', 1, 0);
           sfx.play('boom', 0.7, 0);
+          break;
+        }
+        if (this.host.world.stage.hazards?.[mag | 0]?.kind === 'stalactite') {
+          // the spike hits the floor and bursts into crystal shards
+          e.burst(x, y - 6, 28, 160, 0xc898f6, 0.5, 3);
+          e.burst(x, y - 4, 12, 90, 0xf0e2ff, 0.35, 2);
+          e.dust(x, y, 8, 0);
+          e.flash(x, y - 8, 2, 0xf0e2ff);
+          this.host.shake(7);
+          sfx.play('break', 1, 0);
+          sfx.play('boom', 0.5, 0);
           break;
         }
         if (this.host.world.stage.hazards?.[mag | 0]?.style === 'water') {

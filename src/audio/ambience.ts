@@ -14,7 +14,7 @@ interface Bed {
 }
 
 /** One-shot sounds dropped in at random, about every `every` seconds. */
-type Event = 'thunder' | 'bird' | 'gull' | 'creak' | 'hiss' | 'chime';
+type Event = 'thunder' | 'bird' | 'gull' | 'creak' | 'hiss' | 'chime' | 'drip';
 
 interface Scape {
   beds: Bed[];
@@ -58,6 +58,16 @@ const SCAPES: Record<string, Scape> = {
   void: {
     beds: [{ filter: 'lowpass', freq: 120, gain: 0.03, drone: { type: 'sine', hz: 41 } }],
     events: [{ kind: 'chime', every: 10 }],
+  },
+  cavern: {
+    beds: [
+      { filter: 'lowpass', freq: 140, gain: 0.05, swell: { period: 11, depth: 0.5 } }, // the deep rumble of the rock
+      { filter: 'bandpass', freq: 520, q: 0.4, gain: 0.012, swell: { period: 7, depth: 0.6 } }, // air moving in the tunnels
+    ],
+    events: [
+      { kind: 'drip', every: 1.6 },
+      { kind: 'chime', every: 8 },
+    ],
   },
   skyline: {
     beds: [{ filter: 'lowpass', freq: 300, gain: 0.03, swell: { period: 10, depth: 0.6 } }],
@@ -225,6 +235,13 @@ export class Ambience {
         s.connect(f).connect(g).connect(out);
         s.start(t);
         s.stop(t + 1.2);
+        break;
+      }
+      case 'drip': {
+        // a drop landing in a pool: a quick falling blip with a short echo
+        const f = 1400 + Math.random() * 900;
+        tone('sine', f, f * 0.45, 0.09, 0.02);
+        tone('sine', f * 0.9, f * 0.4, 0.08, 0.008, t + 0.18);
         break;
       }
       case 'chime':

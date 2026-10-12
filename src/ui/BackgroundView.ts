@@ -24,7 +24,7 @@ export interface Backdrop {
   bankTex?: string;
 }
 
-export type Extra = 'rain' | 'flash' | 'sun' | 'birds' | 'godrays' | 'shooting' | 'clouds' | 'embers' | 'glow' | 'lightning' | 'beams' | 'grid' | 'motes' | 'aurora' | 'airships' | 'moon' | 'beacon';
+export type Extra = 'rain' | 'flash' | 'sun' | 'birds' | 'godrays' | 'shooting' | 'clouds' | 'embers' | 'glow' | 'lightning' | 'beams' | 'grid' | 'motes' | 'aurora' | 'airships' | 'moon' | 'beacon' | 'ceiling' | 'drips';
 
 export const BACKDROPS: Record<string, Backdrop> = {
   skyline: { sky: SKY, planet: true, nebula: 0xffffff, far: 0xffffff, near: 0xffffff, tiles: 0xffffff, extras: ['aurora', 'clouds', 'shooting', 'airships'] },
@@ -92,6 +92,20 @@ export const BACKDROPS: Record<string, Backdrop> = {
     bankTex: 'bg-surf',
     nebulaOn: false,
     extras: ['moon', 'beacon', 'shooting', 'motes'],
+  },
+  cavern: {
+    sky: ['#05030a', '#0a0614', '#120a22', '#1c1032', '#2a1646', '#3a1e5a', '#4a2670'],
+    planet: false,
+    nebula: 0xa868e0,
+    far: 0xffffff,
+    near: 0xffffff,
+    tiles: 0xe8d8ff,
+    farTex: 'bg-geode-far',
+    nearTex: 'bg-geode-near',
+    bankTex: 'bg-cavemist',
+    stars: false,
+    nebulaOn: false,
+    extras: ['ceiling', 'drips', 'motes'],
   },
   reactor: {
     sky: ['#120404', '#240808', '#3a0e0a', '#5a1a0c', '#8a2c0c', '#c0501a', '#f08a30'],
@@ -327,6 +341,42 @@ export class BackgroundView {
               x = nx;
               y = ny;
             }
+          }
+          break;
+        }
+        case 'ceiling': {
+          // the cave roof: a ragged band of rock across the top with stalactites hanging from it, glinting crystal in the cracks
+          const top = -H * 0.02 - cy * 0.05 * zoom;
+          const step = 6 * ps;
+          const shift = cx * 0.08 * zoom;
+          gm.fillStyle(0x0a0710, 1);
+          for (let x = -step; x < W + step; x += step) {
+            const u = Math.floor((x + shift) / step);
+            const d = H * (0.05 + 0.03 * hash(u * 3 + 1));
+            gm.fillRect(x - (shift % step), top, step + 1, d);
+            if (hash(u * 7 + 2) > 0.72) {
+              // a stalactite: a narrow downward spike
+              const len = H * (0.06 + 0.1 * hash(u * 5 + 3));
+              const sx = x - (shift % step) + step / 2;
+              gm.fillTriangle(sx - step * 0.9, top + d - 1, sx + step * 0.9, top + d - 1, sx, top + d + len);
+              if (hash(u * 11 + 4) > 0.5) {
+                gf.fillStyle(0xc898f6, 0.35 + 0.2 * Math.sin(time * 1.3 + u));
+                gf.fillRect(sx - ps, top + d + len * 0.4, ps * 2, ps * 2);
+                gm.fillStyle(0x0a0710, 1);
+              }
+            }
+          }
+          break;
+        }
+        case 'drips': {
+          // water dripping from the roof, catching the crystal light as it falls
+          for (let i = 0; i < 14; i++) {
+            const sp = 0.35 + hash(i * 3 + 1) * 0.35;
+            const ph = (time * sp + hash(i * 3 + 2)) % 1;
+            const x = ((hash(i * 3) * W - cx * 0.15 * zoom) % W + W) % W;
+            const y = H * (0.1 + ph * 0.95);
+            gf.fillStyle(0xd8c8ff, 0.5 * (1 - ph));
+            gf.fillRect(Math.round(x), Math.round(y), ps, ps * 3);
           }
           break;
         }

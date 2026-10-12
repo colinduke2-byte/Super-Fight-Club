@@ -10,8 +10,8 @@ import { reactorStage } from '../src/stages/reactor';
 import { wreckStage } from '../src/stages/wreck';
 
 describe('stage data', () => {
-  it('offers seven stages in stage select', () => {
-    expect(STAGE_LIST.map((s) => s.id)).toEqual(['classic', 'ring', 'reactor', 'storm', 'temple', 'wreck', 'skyhold']);
+  it('offers eight stages in stage select', () => {
+    expect(STAGE_LIST.map((s) => s.id)).toEqual(['classic', 'ring', 'reactor', 'storm', 'temple', 'wreck', 'hollow', 'skyhold']);
   });
   for (const s of Object.values(STAGES)) {
     it(`${s.id}: four spawns stand on a solid platform inside the blast zones`, () => {
@@ -150,5 +150,30 @@ describe('ledges', () => {
     const world = new World({ ...wreckStage, platforms: [wreckStage.platforms[0], { x: 120, y: -22, w: 70, h: 22, kind: 'solid' }] });
     expect(world.ledges.map((l) => l.side)).toEqual([-1]);
     expect(new World(wreckStage).ledges).toHaveLength(2);
+  });
+});
+
+describe('Amethyst Hollow stalactites', () => {
+  it('drop on a fighter below, then leave a crystal stump that crumbles away', async () => {
+    const { hollowStage } = await import('../src/stages/hollow');
+    const h = hollowStage.hazards![1];
+    const world = new World(hollowStage);
+    const f = new Fighter(0, brick);
+    world.addFighter(f);
+    f.spawn(h.x, -1, 1);
+    const ins = [makeInput()];
+    // the fighter takes the hit once as the spike falls through them
+    while (world.tick < (h.period - (h.offset ?? 0)) - h.active + 4) world.step(ins);
+    f.invuln = 0;
+    f.spawn(h.x, -1, 1);
+    f.invuln = 0;
+    const before = f.damage;
+    for (let i = 0; i < h.active; i++) world.step(ins);
+    expect(f.damage).toBeGreaterThan(before);
+    // a stump stands where it landed, then crumbles
+    expect(world.hazardPlats[1]).not.toBeNull();
+    expect(world.platforms.includes(world.hazardPlats[1]!)).toBe(true);
+    for (let i = 0; i < h.stump!.frames + 2; i++) world.step(ins);
+    expect(world.hazardPlats[1]).toBeNull();
   });
 });

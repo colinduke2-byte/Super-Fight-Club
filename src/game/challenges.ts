@@ -33,6 +33,7 @@ export const CHALLENGES: Challenge[] = [
   { id: 'clock', title: 'BEAT THE CLOCK', brief: 'Ninety seconds. Out-score a Hard Brick.', stage: 'classic', you: null, rules: { mode: 'time', timeSec: 90 }, foes: [{ character: 'brick', level: 3 }] },
   { id: 'tag-team', title: 'TAG TEAM', brief: 'You and Agni against Brick and Vex. No friendly fire.', stage: 'temple', you: null, rules: { stocks: 2, teams: true }, ally: { character: 'agni', level: 2 }, foes: [{ character: 'brick', level: 2 }, { character: 'vex', level: 3 }] },
   { id: 'free-for-all', title: 'FREE-FOR-ALL', brief: 'Three Hard CPUs on Skyhold. Every fighter for themselves.', stage: 'skyhold', you: null, rules: { stocks: 2 }, foes: [{ character: 'nova', level: 3 }, { character: 'riptide', level: 3 }, { character: 'agni', level: 3 }] },
+  { id: 'trespassers', title: 'TRESPASSERS', brief: 'As Obelisk, in its own cave: Vex and Nova are in Amethyst Hollow. Wall them out.', stage: 'hollow', you: 'obelisk', rules: { stocks: 2 }, foes: [{ character: 'vex', level: 2 }, { character: 'nova', level: 2 }] },
   { id: 'warden', title: 'THE WARDEN', brief: 'The Overseer, without the Ladder to warm up. Three stocks.', stage: 'reactor', you: null, rules: { stocks: 3 }, foes: [{ character: 'overseer', level: 3, stocks: 2, boss: true }], playerStocks: 3 },
 ];
 

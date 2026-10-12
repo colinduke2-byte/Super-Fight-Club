@@ -935,6 +935,59 @@ function surf(seed: number, ranks: [string, string, string][], W = 512, H = 128)
   return c;
 }
 
+/** Cave depths: stalagmites and rock masses rising from the bottom, studded with glowing crystal clusters; tileable. */
+function geodeCave(seed: number, rock: string, rockL: string, rockD: string, xtal: string[], W = 512, H = 192, near = false): HTMLCanvasElement {
+  const [c, g] = canvas(W, H);
+  const rnd = mulberry32(seed);
+  const n1 = makeNoise(seed, 32);
+  // an uneven floor of rock across the bottom
+  for (let x = 0; x < W; x++) {
+    const top = Math.round(H * (near ? 0.78 : 0.7) + (n1(x / 24, 0) - 0.5) * 26);
+    px(g, rock, x, top, 1, H - top);
+    px(g, rockL, x, top, 1, 1);
+  }
+  // stalagmites: tapering spires, lit on one side
+  const count = near ? 7 : 11;
+  for (let i = 0; i < count; i++) {
+    const cx = Math.floor(((i + 0.2 + rnd() * 0.6) / count) * W);
+    const hgt = (near ? 70 : 50) + Math.floor(rnd() * (near ? 90 : 80));
+    const wid = (near ? 22 : 14) + Math.floor(rnd() * 16);
+    wrapX(W, cx, (bx) => {
+      for (let k = 0; k < hgt; k++) {
+        const t = k / hgt; // 0 tip .. 1 base
+        const ww = Math.max(1, Math.round(wid * Math.pow(t, 0.7)));
+        const xx = bx - Math.floor(ww / 2) + Math.round(Math.sin(k * 0.2 + i) * 1.2);
+        px(g, rock, xx, H - hgt + k, ww, 1);
+        px(g, rockL, xx, H - hgt + k, Math.max(1, Math.floor(ww * 0.25)), 1);
+        px(g, rockD, xx + ww - Math.max(1, Math.floor(ww * 0.2)), H - hgt + k, Math.max(1, Math.floor(ww * 0.2)), 1);
+        if (k % 9 === 4) px(g, rockD, xx, H - hgt + k, ww, 1); // strata rings
+      }
+    });
+  }
+  // crystal clusters: fans of pointed prisms, glowing at the tips
+  const clusters = near ? 9 : 14;
+  for (let i = 0; i < clusters; i++) {
+    const cx = Math.floor(rnd() * W);
+    const cy = Math.floor(H * (near ? 0.82 : 0.74) + rnd() * 20);
+    const n = 3 + Math.floor(rnd() * 3);
+    wrapX(W, cx, (bx) => {
+      for (let j = 0; j < n; j++) {
+        const ang = -Math.PI / 2 + (j - (n - 1) / 2) * 0.38 + (rnd() - 0.5) * 0.2;
+        const len = (near ? 16 : 10) + Math.floor(rnd() * (near ? 26 : 16));
+        const wid = near ? 3 : 2;
+        for (let k = 0; k < len; k++) {
+          const x = bx + Math.cos(ang) * k;
+          const y = cy + Math.sin(ang) * k;
+          const ww = Math.max(1, Math.round(wid * (1 - (k / len) * 0.7)));
+          px(g, k > len - 3 ? xtal[3] : k % 5 === 0 ? xtal[2] : xtal[1], x - Math.floor(ww / 2), y, ww, 1);
+          if (ww > 1) px(g, xtal[0], x - Math.floor(ww / 2), y, 1, 1);
+        }
+      }
+    });
+  }
+  return c;
+}
+
 /** Small glow sprite used as additive spark: 4-point star. */
 function sparkTex(): HTMLCanvasElement {
   const [c, g] = canvas(17, 17);
@@ -1032,6 +1085,9 @@ export function buildStageTextures(scene: Phaser.Scene): void {
   add('bg-cove-far', seaStacks(4, '#1e3442', '#3a5a6a', '#0e1c26', '#2e5a4a', '#0e2a3c', '#6a9ab0', 1024, 192));
   add('bg-cove-near', wrecks(17, '#2a2420', '#4a3e34', '#140f0c', '#8a8a7a', '#0a2232', '#5a8aa0', '#4ae0d0', 512, 192));
   add('bg-surf', surf(6, [['#0e2a40', '#2a5a78', '#6a9ab8'], ['#0a2236', '#2a6a8a', '#9acce0'], ['#071a2a', '#3a7a9a', '#d0f0ff']], 512, 128));
+  add('bg-geode-far', geodeCave(31, '#1c1428', '#2e2240', '#120c1a', ['#3a1f66', '#7a44c0', '#b07ae8', '#f0e2ff'], 512, 192));
+  add('bg-geode-near', geodeCave(57, '#100c16', '#1e1828', '#08060c', ['#2a1650', '#6a34a0', '#a868e0', '#f4e8ff'], 512, 192, true));
+  add('bg-cavemist', cloudBank(19, '#3a2458', '#5a3c80', '#22143a', 512, 128));
   add('bg-stormbank', cloudBank(8, '#2e4560', '#5a7a9c', '#16243a', 512, 128));
   add('spark', sparkTex());
   add('ring', ringTex());

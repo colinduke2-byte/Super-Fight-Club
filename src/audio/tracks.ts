@@ -112,6 +112,16 @@ export const TRACKS: Record<string, Track> = {
     lead: ['7.7.7..5.3.0.3.5', '12.12.12..10.7.3.7.10', '7.7.7..9.12.9.7.5', '7.4.0..4.7......'],
     drums: 'k..h..s.k..h..sh',
   },
+  hollow: {
+    id: 'hollow',
+    bpm: 104,
+    roots: [50, 46, 43, 45],
+    minor: [true, false, true, false],
+    bass: '1...1...8...5...',
+    arp: '0.2.3.2.0.2.3.2.',
+    lead: ['12...10.7...3.5.7.', '10...7.5...2.3.5.', '7...3.2.0...2.3.', '7.5.4.0...4.7...'],
+    drums: 'k...h.s.k.k.h.s.',
+  },
   reactor: {
     id: 'reactor',
     bpm: 156,

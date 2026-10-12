@@ -1,5 +1,5 @@
 import Phaser from 'phaser';
-import { hazardPhase } from '../engine/hazards';
+import { hazardPhase, stalactiteFall } from '../engine/hazards';
 import type { HazardDef } from '../engine/types';
 
 /** Draws stage hazards: a glowing vent while idle, a pulsing telegraph while warning, a bright column while erupting. */
@@ -27,6 +27,10 @@ export class HazardView {
       const phase = hazardPhase(h, tick);
       if (h.kind === 'bolt') {
         this.bolt(g, h, phase, tick);
+        continue;
+      }
+      if (h.kind === 'stalactite') {
+        this.stalactite(g, this.ga, h, phase, tick);
         continue;
       }
       if (h.style === 'water') this.spout(g, this.ga, h, phase, tick);
@@ -146,6 +150,44 @@ export class HazardView {
         const y = top - 6 + life * life * h.h * 0.9 - Math.sin(life * Math.PI) * 18;
         g.fillStyle(i % 4 === 0 ? 0xffffff : 0x9ae6ff, 1 - life).fillRect(x, y, 2, 2);
       }
+    }
+  }
+
+  /** Stalactite: a crystal spike hanging from the cave roof; it cracks and shakes in the warning, then drops and shatters. */
+  private stalactite(g: Phaser.GameObjects.Graphics, ga: Phaser.GameObjects.Graphics, h: HazardDef, phase: 'idle' | 'warn' | 'active', tick: number): void {
+    const p = (tick + (h.offset ?? 0)) % h.period;
+    const fall = stalactiteFall(h, p);
+    const len = 34;
+    const w = h.w * 0.7;
+    // a rock knuckle on the roof it hangs from
+    g.fillStyle(0x16121a, 1).fillEllipse(h.x, h.y, w * 1.8, 12);
+    const shake = phase === 'warn' ? Math.sin(tick * 1.7) * (1 + 2 * ((p - (h.period - h.active - h.warn)) / h.warn)) : 0;
+    const dropped = phase === 'active' && fall >= 1;
+    if (!dropped) {
+      const top = h.y + (phase === 'active' ? h.h * fall - len : 0);
+      const x = h.x + shake;
+      // the spike: dark core, lit facet, glowing tip
+      g.fillStyle(0x3e1f66, 1).fillTriangle(x - w / 2, top, x + w / 2, top, x, top + len);
+      g.fillStyle(0x9a5ad6, 1).fillTriangle(x - w / 2, top, x - w * 0.05, top, x, top + len);
+      g.fillStyle(0xd8b0ff, 1).fillTriangle(x - w * 0.3, top, x - w * 0.12, top, x, top + len * 0.8);
+      ga.fillStyle(0xc898f6, 0.25 + (phase === 'idle' ? 0.08 * Math.sin(tick * 0.08) : 0.3)).fillCircle(x, top + len - 4, 6);
+      if (phase === 'active') {
+        // a falling streak behind it
+        ga.fillStyle(0xd8b0ff, 0.25).fillRect(x - 2, h.y, 4, Math.max(0, top - h.y));
+      }
+    }
+    if (phase === 'warn') {
+      // cracks spreading across the roof, grit trickling down, and the spot it will hit lit on the floor
+      g.lineStyle(1, 0xf0e2ff, 0.7);
+      for (let i = 0; i < 3; i++) g.lineBetween(h.x, h.y, h.x + (i - 1) * 10 + Math.sin(tick + i) * 2, h.y - 4 + (i % 2) * 3);
+      for (let i = 0; i < 6; i++) {
+        const life = ((tick + i * 9) % 30) / 30;
+        g.fillStyle(0x8a7a70, 1 - life).fillRect(h.x + ((i * 7) % 11) - 5, h.y + 6 + life * h.h * 0.5, 2, 2);
+      }
+      const floor = h.y + h.h;
+      ga.fillStyle(0xc898f6, 0.3 + 0.18 * Math.sin(tick * 0.6)).fillEllipse(h.x, floor - 1, h.w * 1.8, 8);
+      g.fillStyle(0x000000, 0.25).fillEllipse(h.x, floor + 1, h.w * 1.2, 5); // its shadow on the floor
+      g.lineStyle(1, 0xc898f6, 0.3).strokeRect(h.x - h.w / 2, h.y, h.w, h.h);
     }
   }
 

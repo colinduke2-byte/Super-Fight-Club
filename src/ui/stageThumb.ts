@@ -75,6 +75,17 @@ export function stageThumb(scene: Phaser.Scene, stage: StageData, W = 480, H = 2
   });
   for (const h of stage.hazards ?? []) {
     const cx = ox + h.x * sc;
+    if (h.kind === 'stalactite') {
+      // a crystal spike hanging over the spot it falls on
+      const ty = oy + h.y * sc;
+      g.fillStyle = 'rgba(200,152,246,0.95)';
+      g.beginPath();
+      g.moveTo(cx - 5, Math.max(4, ty));
+      g.lineTo(cx + 5, Math.max(4, ty));
+      g.lineTo(cx, Math.max(4, ty) + 18);
+      g.fill();
+      continue;
+    }
     if (h.kind === 'bolt') {
       g.strokeStyle = 'rgba(220,244,255,0.95)';
       g.lineWidth = 2;
