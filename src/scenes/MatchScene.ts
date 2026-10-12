@@ -35,7 +35,7 @@ import { PlayerTags } from '../ui/PlayerTags';
 import { UltCutIn } from '../ui/UltCutIn';
 import { TargetView } from '../ui/TargetView';
 import { moveListText } from '../game/moveList';
-import { bestTargetTime, formatTicks, recordTargetTime } from '../game/records';
+import { bestTargetTime, formatTicks, recordMatch, recordTargetTime } from '../game/records';
 import { PIXEL_FONT, up } from '../art/pixelFont';
 import { StageView } from '../ui/StageView';
 import { SlashArcs } from '../ui/SlashArcs';
@@ -652,6 +652,15 @@ export class MatchScene extends Phaser.Scene {
         }
         if (this.recorder) session.replay = this.recorder.finish();
         session.lastResult = buildResult(this.slots, this.match.scores, this.world.damageDealt, this.elimAt, this.match.cfg, this.match.winner, this.world.tick, this.fighters.map((f) => f.team), this.match.winnerTeam);
+        // lifetime records for the humans who played (versus and arcade)
+        if (!this.isTargets && (session.mode === 'versus' || session.mode === 'arcade')) {
+          const res = session.lastResult;
+          for (const p of res.players) {
+            if (p.type !== 'human') continue;
+            const won = res.winnerTeam >= 0 ? p.team === res.winnerTeam : p.index === res.winner;
+            recordMatch(p.character, won, p.kos, p.falls);
+          }
+        }
         this.scene.start('Results');
       }
     }

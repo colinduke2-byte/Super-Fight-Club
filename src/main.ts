@@ -9,6 +9,7 @@ import { MatchScene } from './scenes/MatchScene';
 import { ResultsScene } from './scenes/ResultsScene';
 import { LadderMapScene } from './scenes/LadderMapScene';
 import { StoryScene } from './scenes/StoryScene';
+import { RecordsScene } from './scenes/RecordsScene';
 import { SettingsScene } from './scenes/SettingsScene';
 import { ControlsScene } from './scenes/ControlsScene';
 import { session } from './game/session';
@@ -42,7 +43,7 @@ const game = new Phaser.Game({
   fps: { smoothStep: false },
   input: { keyboard: false, gamepad: false, mouse: true, touch: false },
   disableContextMenu: true,
-  scene: [BootScene, TitleScene, ModeSelectScene, VersusSetupScene, CharacterSelectScene, StageSelectScene, MatchScene, ResultsScene, LadderMapScene, StoryScene, SettingsScene, ControlsScene],
+  scene: [BootScene, TitleScene, ModeSelectScene, VersusSetupScene, CharacterSelectScene, StageSelectScene, MatchScene, ResultsScene, LadderMapScene, StoryScene, SettingsScene, ControlsScene, RecordsScene],
 });
 
 function applySize(): void {

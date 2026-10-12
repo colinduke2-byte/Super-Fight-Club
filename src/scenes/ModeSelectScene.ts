@@ -23,6 +23,7 @@ export class ModeSelectScene extends MenuScene {
     'FIGHT 5 ESCALATING OPPONENTS THEN A BOSS.',
     'BREAK TEN TARGETS AGAINST THE CLOCK. BEAT YOUR BEST TIME.',
     'PRACTICE WITH A DUMMY, HITBOXES AND FRAME DATA.',
+    'YOUR WINS, KOS AND BEST TIMES PER FIGHTER.',
     'CONTROLS, AUDIO AND VIDEO.',
     '',
   ];
@@ -39,6 +40,7 @@ export class ModeSelectScene extends MenuScene {
       { label: 'ARCADE LADDER', onConfirm: () => this.start('arcade') },
       { label: 'TARGET SMASH', onConfirm: () => this.start('targets') },
       { label: 'TRAINING', onConfirm: () => this.start('training') },
+      { label: 'RECORDS', onConfirm: () => this.go('Records') },
       { label: 'SETTINGS', onConfirm: () => this.go('Settings', { back: 'ModeSelect' }) },
       {
         label: 'FULLSCREEN',
