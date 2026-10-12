@@ -19,6 +19,8 @@ export class Music {
   private busCtx: AudioContext | null = null;
   private duck = 1;
   private current = '';
+  /** The loop stays silent until this audio time (a jingle is playing). */
+  private holdUntil = 0;
 
   /** Start a track by id (no-op if it is already playing). Waits quietly for the first user gesture. */
   play(id: string): void {
@@ -37,6 +39,28 @@ export class Music {
       window.clearInterval(this.timer);
       this.timer = null;
     }
+  }
+
+  /** One-shot fanfare over a held loop: a rising major flourish for a win, a falling minor one for a loss. */
+  jingle(kind: 'win' | 'lose'): void {
+    const ctx = sfx.context;
+    if (!ctx) return;
+    const bus = this.ensureBus(ctx);
+    bus.gain.value = settings.masterVolume * settings.musicVolume * BASE_GAIN * this.duck;
+    const seq: [number, number][] =
+      kind === 'win'
+        ? [[72, 1], [76, 1], [79, 1], [84, 2], [79, 1], [84, 1], [88, 3], [86, 1], [88, 6]]
+        : [[69, 2], [68, 2], [67, 2], [66, 2], [65, 8]];
+    const stepDur = kind === 'win' ? 0.085 : 0.13;
+    let at = ctx.currentTime + 0.05;
+    for (const [m, len] of seq) {
+      this.osc(ctx, bus, 'square', midiToHz(m), at, stepDur * len * 0.92, 0.5);
+      this.osc(ctx, bus, 'square', midiToHz(m + (kind === 'win' ? 7 : 3)), at, stepDur * len * 0.92, 0.18);
+      this.osc(ctx, bus, 'triangle', midiToHz(m - 24), at, stepDur * len * 0.95, 0.9);
+      if (kind === 'win' && len >= 2) this.noise(ctx, bus, at, 0.12, 0.4, 1200);
+      at += stepDur * len;
+    }
+    this.holdUntil = at + 0.4;
   }
 
   /** Quieten the music (e.g. while paused). */
@@ -64,6 +88,10 @@ export class Music {
       return;
     }
     const stepDur = 60 / t.bpm / 4;
+    if (ctx.currentTime < this.holdUntil) {
+      this.nextTime = this.holdUntil;
+      return;
+    }
     if (this.nextTime < ctx.currentTime) this.nextTime = ctx.currentTime + 0.05;
     while (this.nextTime < ctx.currentTime + LOOKAHEAD) {
       for (const e of stepEvents(t, this.step)) this.voice(ctx, bus, e, this.nextTime, stepDur);
