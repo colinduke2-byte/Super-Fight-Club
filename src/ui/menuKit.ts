@@ -47,6 +47,8 @@ export class MenuList {
   private top = 0;
   private u = 3;
   private width = 160;
+  private rowH = 18;
+  private fontK = 1.5;
 
   constructor(
     private readonly scene: Phaser.Scene,
@@ -69,15 +71,19 @@ export class MenuList {
   }
 
   /** `width` in art pixels: the row is centred on cx. */
-  layout(cx: number, top: number, u: number, width = this.width): void {
+  layout(cx: number, top: number, u: number, width = this.width, bottom?: number): void {
     this.cx = cx;
     this.top = top;
     this.u = u;
     this.width = width;
+    // long menus shrink their rows (and text) to fit above `bottom`
+    const n = Math.max(1, this.items.length);
+    this.rowH = bottom === undefined ? 18 : Math.min(18, (bottom - top) / (n * u));
+    this.fontK = Math.min(1.5, (this.rowH * 0.78) / 7);
     this.items.forEach((_, i) => {
-      const y = top + i * 18 * u;
-      this.labels[i].setScale(u * 1.5).setPosition(cx - (width / 2) * u, y);
-      this.values[i].setScale(u * 1.5).setOrigin(1, 0).setPosition(cx + (width / 2) * u, y);
+      const y = top + i * this.rowH * u;
+      this.labels[i].setScale(u * this.fontK).setPosition(cx - (width / 2) * u, y);
+      this.values[i].setScale(u * this.fontK).setOrigin(1, 0).setPosition(cx + (width / 2) * u, y);
     });
   }
 
@@ -122,6 +128,7 @@ export class MenuList {
   }
 
   update(time: number): void {
+    let worst = 1;
     this.items.forEach((it, i) => {
       const sel = i === this.index;
       const on = this.enabled(i);
@@ -131,7 +138,14 @@ export class MenuList {
       this.labels[i].setTint(!on ? 0x5a5680 : sel ? (pulse ? COLORS.hot : COLORS.title) : COLORS.text);
       const v = it.value ? up(`${sel && it.onLeft ? '< ' : ''}${it.value()}${sel && it.onRight ? ' >' : ''}`) : '';
       this.values[i].setText(v).setTint(!on ? 0x5a5680 : sel ? COLORS.hot : COLORS.accent);
+      if (it.value) worst = Math.max(worst, (label.length + 2 + v.length) * 7 + 10); // fixed-width pixel font, ~7 px per glyph with spacing
     });
+    // one text size for the whole menu: shrunk only when the widest row (label + value) would overflow the menu width
+    const k = Math.min(this.fontK, (this.width * this.u) / (worst * this.u));
+    for (let i = 0; i < this.items.length; i++) {
+      this.labels[i].setScale(this.u * k);
+      this.values[i].setScale(this.u * k);
+    }
   }
 
   destroy(): void {

@@ -32,12 +32,12 @@ export class SettingsScene extends MenuScene {
   protected build(): void {
     this.title = this.add.bitmapText(0, 0, PIXEL_FONT, 'SETTINGS').setOrigin(0.5).setTint(COLORS.title);
     this.ui.add(this.title);
-    const step = (key: 'masterVolume' | 'sfxVolume' | 'musicVolume' | 'deadzone', d: number, lo: number, hi: number) => () => {
+    const step = (key: 'masterVolume' | 'sfxVolume' | 'musicVolume' | 'deadzone' | 'screenShake', d: number, lo: number, hi: number) => () => {
       settings[key] = clamp(Math.round((settings[key] + d) * 100) / 100, lo, hi);
       saveSettings();
       if (key !== 'deadzone') sfx.play('ding', 0.4, 0);
     };
-    const toggle = (key: 'tapJump' | 'showPerf' | 'autoQuality' | 'rumble') => () => {
+    const toggle = (key: 'tapJump' | 'showPerf' | 'autoQuality' | 'rumble' | 'reduceFlashes' | 'killCam') => () => {
       settings[key] = !settings[key];
       saveSettings();
     };
@@ -54,8 +54,11 @@ export class SettingsScene extends MenuScene {
         onConfirm: () => { settings.particleQuality = cycle(QUALITY, settings.particleQuality, 1); saveSettings(); },
       },
       { label: 'FPS COUNTER', value: () => (settings.showPerf ? 'ON' : 'OFF'), onLeft: toggle('showPerf'), onRight: toggle('showPerf'), onConfirm: toggle('showPerf') },
+      { label: 'SCREEN SHAKE', value: () => pct(settings.screenShake), onLeft: step('screenShake', -0.25, 0, 1), onRight: step('screenShake', 0.25, 0, 1) },
+      { label: 'REDUCE FLASHES', value: () => (settings.reduceFlashes ? 'ON' : 'OFF'), onLeft: toggle('reduceFlashes'), onRight: toggle('reduceFlashes'), onConfirm: toggle('reduceFlashes') },
+      { label: 'KILL-CAM SLOW-MO', value: () => (settings.killCam ? 'ON' : 'OFF'), onLeft: toggle('killCam'), onRight: toggle('killCam'), onConfirm: toggle('killCam') },
       { label: 'CONTROLLER RUMBLE', value: () => (settings.rumble ? 'ON' : 'OFF'), onLeft: toggle('rumble'), onRight: toggle('rumble'), onConfirm: toggle('rumble') },
-      { label: 'AUTO PARTICLE QUALITY', value: () => (settings.autoQuality ? 'ON' : 'OFF'), onLeft: toggle('autoQuality'), onRight: toggle('autoQuality'), onConfirm: toggle('autoQuality') },
+      { label: 'AUTO PARTICLES', value: () => (settings.autoQuality ? 'ON' : 'OFF'), onLeft: toggle('autoQuality'), onRight: toggle('autoQuality'), onConfirm: toggle('autoQuality') },
       {
         label: 'FULLSCREEN',
         value: () => (this.scale.isFullscreen ? 'ON' : 'OFF'),
@@ -77,7 +80,7 @@ export class SettingsScene extends MenuScene {
 
   protected override layoutUi(w: number, h: number, u: number): void {
     this.title.setScale(u * 4).setPosition(w / 2, h * 0.12);
-    this.list.layout(w / 2, h * 0.24, u, 150);
+    this.list.layout(w / 2, h * 0.2, u, 190, h - 16 * u);
     this.hint.setScale(u).setPosition(w / 2, h - 10 * u);
   }
 

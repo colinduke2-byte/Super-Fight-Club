@@ -14,6 +14,12 @@ export interface Settings {
   autoQuality: boolean;
   /** Gamepad vibration on hits and KOs. */
   rumble: boolean;
+  /** Strength of screen shake and camera punch, 0..1. */
+  screenShake: number;
+  /** Dims full-screen flashes (lightning, big impact flashes) for photosensitivity. */
+  reduceFlashes: boolean;
+  /** Slow-motion on heavy hits and KOs. */
+  killCam: boolean;
   /** 0..1 master and sound-effect volume. */
   masterVolume: number;
   sfxVolume: number;
@@ -28,6 +34,9 @@ export const DEFAULT_SETTINGS: Settings = {
   showPerf: true,
   autoQuality: true,
   rumble: true,
+  screenShake: 1,
+  reduceFlashes: false,
+  killCam: true,
   masterVolume: 0.7,
   sfxVolume: 1,
   musicVolume: 0.6,

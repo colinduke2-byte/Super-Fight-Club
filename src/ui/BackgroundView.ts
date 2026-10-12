@@ -1,4 +1,5 @@
 import Phaser from 'phaser';
+import { settings } from '../settings';
 
 const SKY = ['#070520', '#0c0928', '#150e3a', '#231552', '#3a1f6a', '#5a2b78', '#8a4488'];
 export interface Backdrop {
@@ -277,7 +278,7 @@ export class BackgroundView {
           const d = time - slot * 5.5 - off;
           if (d > 0 && d < 0.55 && hash(slot * 3 + 4) > 0.2) {
             const fade = d < 0.08 ? 1 : d < 0.18 ? 0.25 : d < 0.28 ? 0.8 : Math.max(0, 1 - d * 1.9);
-            gb.fillStyle(0xcfe8ff, 0.14 * fade);
+            gb.fillStyle(0xcfe8ff, 0.14 * fade * (settings.reduceFlashes ? 0.2 : 1));
             gb.fillRect(0, 0, W, H);
             const bx = W * (0.15 + hash(slot * 3 + 9) * 0.7) - cx * 0.02 * zoom;
             let x = bx;
@@ -403,7 +404,7 @@ export class BackgroundView {
           const d = t - off;
           if (d > 0 && d < 0.35) {
             const a = (d < 0.07 ? 0.2 : d < 0.15 ? 0.04 : d < 0.22 ? 0.16 : 0.05) * (1 - d);
-            gb.fillStyle(0xffb878, a);
+            gb.fillStyle(0xffb878, a * (settings.reduceFlashes ? 0.2 : 1));
             gb.fillRect(0, 0, W, H);
           }
           break;

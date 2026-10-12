@@ -283,9 +283,10 @@ export class MatchScene extends Phaser.Scene {
       world: this.world,
       views: () => this.views,
       pan: (x) => Phaser.Math.Clamp((x - this.cam.cx) / (this.worldCam.width / Math.max(0.1, this.worldCam.zoom) / 2), -1, 1),
-      shake: (n) => (this.shake = Math.max(this.shake, n)),
-      punch: (n) => (this.punch = Math.max(this.punch, n)),
+      shake: (n) => (this.shake = Math.max(this.shake, n * settings.screenShake)),
+      punch: (n) => (this.punch = Math.max(this.punch, n * settings.screenShake)),
       slow: (scale, ticks) => {
+        if (!settings.killCam) return;
         if (this.slowTicks <= 0 || scale < this.timeScale) this.timeScale = scale;
         this.slowTicks = Math.max(this.slowTicks, ticks);
       },
@@ -524,7 +525,7 @@ export class MatchScene extends Phaser.Scene {
     if (this.world.tick === this.lastFxTick) return;
     this.lastFxTick = this.world.tick;
     // data-driven per-character auras, trails and charge effects (see src/fx and <id>.fx.json)
-    updateFighterFx(this.world, this.effects, this.world.tick, (n) => (this.shake = Math.max(this.shake, n)));
+    updateFighterFx(this.world, this.effects, this.world.tick, (n) => (this.shake = Math.max(this.shake, n * settings.screenShake)));
     for (const f of this.fighters) {
       // footwork dust: dash bursts, run puffs, and skid clouds when a fast fighter brakes
       if (f.grounded && f.hitlag === 0) {

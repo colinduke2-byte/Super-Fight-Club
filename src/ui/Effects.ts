@@ -96,9 +96,11 @@ export class Effects {
     const i = this.nextFlash;
     this.nextFlash = (this.nextFlash + 1) % FLASHES;
     const s = this.flashes[i];
+    const soft = settings.reduceFlashes ? 0.35 : 1; // photosensitivity: smaller, dimmer pops
+    power *= soft;
     this.flashScale[i] = 0.5 * power;
     this.flashLife[i] = this.flashMax[i] = 0.18 + 0.03 * power;
-    s.setPosition(x, y).setTint(color).setVisible(true).setActive(true).setScale(this.flashScale[i]).setAlpha(1).setRotation(Math.random() * 0.4 - 0.2);
+    s.setPosition(x, y).setTint(color).setVisible(true).setActive(true).setScale(this.flashScale[i]).setAlpha(soft).setRotation(Math.random() * 0.4 - 0.2);
   }
 
   /** Expanding shockwave ring (world units radius `to`). */
