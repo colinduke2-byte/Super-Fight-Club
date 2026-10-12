@@ -784,3 +784,121 @@ function underside(b: Buf, T: MassTheme, S: Ramp, A: Ramp, A2: Ramp, x0: number,
     }
   }
 }
+
+/** Art px drawn above a pass-through platform's surface (rails, tufts) and below its slab (supports, emitters). */
+export const PLAT_HEAD = 6;
+export const PLAT_TAIL = 16;
+
+/**
+ * A pass-through (or moving) platform as one piece: a slab with a lit top edge in the stage's style and an underside that says
+ * how it floats: hover emitters, thrusters, cloud puffs, or ropes and lanterns. `w`, `h` in world units.
+ */
+export function platformArt(themeId: string | undefined, w: number, h: number, moving: boolean, seed: number): HTMLCanvasElement {
+  const T = THEMES[themeId ?? 'skyline'] ?? THEMES.skyline;
+  const S: Ramp = T.stone.map(hex);
+  const A: Ramp = T.accent.map(hex);
+  const rnd = mulberry32(seed * 131 + 7);
+  const PW = Math.round(w * 2);
+  const PH = Math.max(8, Math.round(h * 2));
+  const W = PW;
+  const H = PLAT_HEAD + PH + PLAT_TAIL;
+  const b = new Buf(W, H);
+  const y0 = PLAT_HEAD;
+  const amber: Ramp = ['#4a2a18', '#8a4f2c', '#d9822b', '#ffb02e', '#ffe08a'].map(hex);
+  const G = moving && T.cap !== 'grass' && T.cap !== 'slate' ? amber : A;
+
+  if (T.cap === 'slate' || (T.cap === 'grass' && moving)) {
+    // cloud slab: a flat top you can stand on, billowing underneath
+    const top = T.cap === 'slate' ? hex('#e8f2ff') : hex('#fff0e0');
+    const mid = T.cap === 'slate' ? hex('#b6c9e2') : hex('#f4c8b8');
+    const low = T.cap === 'slate' ? hex('#6e88ae') : hex('#c48aa0');
+    const n = noise(seed + 9);
+    for (let x = 0; x < W; x++) {
+      const edge = Math.min(x, W - 1 - x);
+      const round = edge < 6 ? Math.round(Math.sqrt(36 - (6 - edge) * (6 - edge)) - 6) : 0; // rounded ends
+      const bottom = y0 + PH + Math.round(n(x / 7, 1) * 9) + round;
+      for (let y = y0 - round * 0 - (edge < 6 ? 0 : 0); y < bottom; y++) {
+        const t = (y - y0) / Math.max(1, bottom - y0);
+        let c = t < 0.15 ? top : t < 0.6 ? mid : low;
+        if (n(x / 3, y / 3) > 0.72 && t > 0.2) c = mix(c, top, 0.35);
+        if (edge < 6 && y < y0 + (6 - edge) / 2) continue;
+        b.set(x, y, c);
+      }
+    }
+    for (let x = 4; x < W - 4; x += 9) b.set(x + Math.floor(rnd() * 4), y0 + 2, T.cap === 'slate' ? A[3] : hex('#ffffff'), T.cap === 'slate');
+    return finish(b, W, H);
+  }
+
+  // slab
+  for (let x = 0; x < W; x++) {
+    for (let ly = 0; ly < PH; ly++) {
+      const y = y0 + ly;
+      let c: RGB;
+      if (T.cap === 'grass') {
+        // wooden planks with a pale top edge
+        const plank = Math.floor(x / 14);
+        const base = mix(hex('#8a5a2c'), hex('#a06a34'), (plank * 37) % 5 / 5);
+        c = ly === 0 ? hex('#e8d6a8') : ly === 1 ? hex('#d49a58') : ly === PH - 1 ? hex('#3a2410') : base;
+        if (x % 14 === 0 && ly > 0) c = hex('#5a3a1c');
+        if (ly === 4 && (x + plank * 3) % 9 === 0) c = hex('#5a3a1c');
+      } else {
+        c = ly === 0 ? S[5] : ly === 1 ? S[4] : ly === PH - 1 ? S[0] : S[2];
+        if (ly === 3) c = (x >> 2) % 3 === 0 ? G[3] : G[1];
+        if (T.cap === 'hazard' && ly >= 4 && ly < PH - 2) c = ((x + ly) >> 2) % 2 === 0 ? (moving ? G[2] : S[3]) : S[0];
+        if (ly >= 4 && ly < PH - 1 && x % 20 === 0) c = S[1];
+      }
+      const em = T.cap !== 'grass' && ly === 3 && (x >> 2) % 3 === 0;
+      const end = x < 2 || x >= W - 2;
+      b.set(x, y, end && ly > 0 ? mix(c, S[0], 0.45) : c, em);
+    }
+  }
+  const bot = y0 + PH;
+  if (T.cap === 'grass') {
+    // rope rail posts above, lanterns and rope loops below
+    for (const x of [3, W - 4]) for (let k = 1; k <= 5; k++) b.set(x, y0 - k, hex('#6a4220'));
+    for (let x = 3; x < W - 3; x++) b.set(x, y0 - 5 + Math.round(Math.sin(((x - 3) / (W - 6)) * Math.PI) * 2), hex('#c8a070'));
+    for (let x = 10; x < W - 6; x += 26) {
+      for (let k = 0; k < 4; k++) b.set(x + 1, bot + k, hex('#6a4a2a'));
+      b.rect(x, bot + 4, 3, 4, A[3], true);
+      b.set(x + 1, bot + 5, A[4], true);
+    }
+    for (let x = 2; x < W - 2; x++) b.set(x, bot + 1 + Math.round(Math.sin(x * 0.25) * 1.5 + 1.5), hex('#8a6a4a'));
+  } else {
+    // hover emitters (or thrusters on moving platforms) at both ends, with a glow falling away
+    const ex = [Math.round(W * 0.18), Math.round(W * 0.82)];
+    if (W > 120) ex.splice(1, 0, Math.round(W / 2));
+    for (const x of ex) {
+      b.rect(x - 5, bot, 10, 3, S[3]);
+      b.rect(x - 4, bot + 3, 8, 2, S[1]);
+      for (let k = 0; k < (moving ? 9 : 6); k++) {
+        const ww = Math.max(1, (moving ? 6 : 6) - k);
+        for (let j = 0; j < ww; j++) b.set(x - Math.floor(ww / 2) + j, bot + 5 + k, k < 2 ? G[4] : k < 4 ? G[3] : G[2], true);
+      }
+    }
+    // a truss under the slab between the emitters
+    for (let x = ex[0]; x < ex[ex.length - 1]; x++) {
+      b.set(x, bot, S[1]);
+      if ((x - ex[0]) % 12 < 6) b.set(x, bot + 1 + ((x - ex[0]) % 12 < 3 ? 0 : 1), S[2]);
+    }
+  }
+  return finish(b, W, H);
+}
+
+function finish(b: Buf, W: number, H: number): HTMLCanvasElement {
+  bloom(b, 3, 0.6);
+  const c = document.createElement('canvas');
+  c.width = W;
+  c.height = H;
+  const g = c.getContext('2d')!;
+  const img = g.createImageData(W, H);
+  for (let i = 0; i < W * H; i++) {
+    const glowA = b.a[i] ? 0 : Math.min(1, (b.glow[i * 3] + b.glow[i * 3 + 1] + b.glow[i * 3 + 2]) / 300);
+    if (!b.a[i] && glowA < 0.04) continue;
+    img.data[i * 4] = clampI(Math.round(b.c[i * 3]), 0, 255);
+    img.data[i * 4 + 1] = clampI(Math.round(b.c[i * 3 + 1]), 0, 255);
+    img.data[i * 4 + 2] = clampI(Math.round(b.c[i * 3 + 2]), 0, 255);
+    img.data[i * 4 + 3] = b.a[i] ? 255 : Math.round(glowA * 120);
+  }
+  g.putImageData(img, 0, 0);
+  return c;
+}

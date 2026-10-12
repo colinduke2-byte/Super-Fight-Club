@@ -1,5 +1,5 @@
 import Phaser from 'phaser';
-import { MASS_HEAD, MASS_OVER, stageMass } from '../art/stageMass';
+import { MASS_HEAD, MASS_OVER, PLAT_HEAD, platformArt, stageMass } from '../art/stageMass';
 import type { StageData } from '../engine/types';
 import { BACKDROPS } from './BackgroundView';
 
@@ -59,7 +59,6 @@ export function stageThumb(scene: Phaser.Scene, stage: StageData, W = 480, H = 2
   const sc = Math.min(W / span, (H * 0.54) / (-y0 + 16));
   const ox = W / 2 - ((x0 + x1) / 2) * sc;
   const oy = H * 0.62;
-  const sfx = theme === 'storm' || theme === 'dawn' ? `-${theme}` : '';
   stage.platforms.forEach((p, index) => {
     if (p.kind === 'solid') {
       const mk = `mass:${stage.id}:${index}:${p.w}x${p.h}`;
@@ -67,11 +66,10 @@ export function stageThumb(scene: Phaser.Scene, stage: StageData, W = 480, H = 2
       const m = src(mk) as HTMLCanvasElement;
       g.drawImage(m, ox + (p.x - MASS_OVER / 2) * sc, oy + (p.y - MASS_HEAD / 2) * sc, m.width * 0.5 * sc, m.height * 0.5 * sc);
     } else {
-      const t = src(`${p.move ? 'tile-move' : 'tile-pass'}${sfx}`) as HTMLCanvasElement | null;
-      if (!t) return;
-      const tw = t.width * 0.5 * sc;
-      const th = Math.max(2, p.h * sc);
-      for (let x = 0; x < p.w * sc; x += tw) g.drawImage(t, 0, 0, Math.min(t.width, ((p.w * sc - x) / tw) * t.width), t.height, ox + p.x * sc + x, oy + p.y * sc, Math.min(tw, p.w * sc - x), th);
+      const pk = `plat:${stage.id}:${index}:${p.w}x${p.h}:${p.move ? 'm' : 'p'}`;
+      if (!scene.textures.exists(pk)) scene.textures.addCanvas(pk, platformArt(theme, p.w, p.h, !!p.move, index + 1));
+      const t = src(pk) as HTMLCanvasElement;
+      g.drawImage(t, ox + p.x * sc, oy + (p.y - PLAT_HEAD / 2) * sc, t.width * 0.5 * sc, t.height * 0.5 * sc);
     }
   });
   for (const h of stage.hazards ?? []) {
