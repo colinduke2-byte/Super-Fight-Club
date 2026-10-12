@@ -8,6 +8,7 @@ import { characterById } from '../characters';
 import { applyLadderResult, type LadderOutcome } from '../game/ladder';
 import { endingCards } from '../game/story';
 import { session } from '../game/session';
+import { STAGES } from '../stages';
 import type { MenuEvent } from '../input/menuInput';
 import { ensurePalette, fighterAnimKey, fighterTextureKey, uiTexK } from '../art/proceduralFighter';
 import { COLORS, MenuList, MenuScene, text, textPx, type MenuItem } from '../ui/menuKit';
@@ -35,6 +36,8 @@ export class ResultsScene extends MenuScene {
   }
 
   protected build(): void {
+    // the results play out in front of the stage you just fought on
+    this.bg.setTheme(STAGES[session.stage]?.background.theme);
     this.rows = [];
     this.plate = this.add.graphics();
     this.ui.add(this.plate);
