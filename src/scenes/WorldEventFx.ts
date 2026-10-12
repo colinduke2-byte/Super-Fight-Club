@@ -137,6 +137,7 @@ export class WorldEventFx {
         e.dust(x, y, 4, 0);
         break;
       case 'doubleJump':
+        if (playRecipe('doubleJump', this.fxContext(f, x, y, mag))) break; // a fighter's own flap / jump burst
         e.burst(x, y - f.h / 2, 8, 40, 0x9af3ff, 0.3, 2);
         break;
       case 'land':

@@ -48,6 +48,52 @@
     "color": 16777215,
     "size": 3
    }
+  ],
+  "doubleJump": [
+   {
+    "op": "ring",
+    "x": -4,
+    "yh": 0.55,
+    "radius": 26,
+    "color": 16777215,
+    "life": 0.3
+   },
+   {
+    "op": "burst",
+    "x": -14,
+    "yh": 0.65,
+    "count": 12,
+    "speed": 80,
+    "color": 16777215,
+    "life": 0.5,
+    "size": 3
+   },
+   {
+    "op": "emit",
+    "x": -18,
+    "yh": 0.7,
+    "jx": 14,
+    "jy": 14,
+    "vy": 26,
+    "jvx": 24,
+    "life": 0.9,
+    "color": 16777215,
+    "size": 2,
+    "additive": false,
+    "gravity": -6
+   },
+   {
+    "op": "emit",
+    "x": -18,
+    "yh": 0.7,
+    "jx": 14,
+    "jy": 14,
+    "vy": 20,
+    "jvx": 24,
+    "life": 0.8,
+    "color": 16769914,
+    "size": 2
+   }
   ]
  },
  "cinematicHit": [
