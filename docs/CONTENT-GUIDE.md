@@ -44,6 +44,13 @@
 `BACKDROPS` in `src/ui/BackgroundView.ts` defines each theme: sky ramp, tints, optional `farTex`/`nearTex` skylines (generated in `src/art/stageTextures.ts`) and `extras`
 (`aurora`, `clouds`, `shooting`, `airships`, `lightning`, `glow`, `embers`, `beams`, `grid`, `motes`), all animated from time only. Tapping down on a pass-through platform drops through it.
 
+Platforms are drawn by `src/art/stageMass.ts` from the same theme id. `THEMES` there picks, per theme, a stone ramp and accent colours, the body
+(`ashlar` masonry or riveted `plate`), the walking cap (`metal`, `tech`, `hazard`, `slate`, `grass`), the recessed panel motif between pillars
+(`window`, `holo`, `vent`, `rune`, `alcove`) and the underside keel (`crystal`, `tech`, `machine`, `shard`, `roots`). `stageMass` draws a solid platform
+(cap overhanging the ledges, cornice, pillars, panels, keel, depth haze and bloom); `platformArt` draws pass-through and moving platforms (hover emitters,
+thrusters, cloud slabs, rope bridges). A new stage only needs a theme id; add a `THEMES` entry for a new look. Stage Select renders a thumbnail from the
+same art (`src/ui/stageThumb.ts`).
+
 ## Character art
 
 Fighters are drawn procedurally. A look with `art: 'hi'` is rendered at full resolution (160px frames) by `src/art/hero/<style>.ts`, chosen by its `build.helmet` style
