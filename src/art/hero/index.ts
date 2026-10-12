@@ -6,6 +6,7 @@ import { drawHalcyon } from './halcyon';
 import { drawNova } from './nova';
 import { drawOverseer } from './overseer';
 import { drawRiptide } from './riptide';
+import { drawObelisk } from './obelisk';
 import { drawVex } from './vex';
 import { Raster } from './raster';
 import { skeleton, type HeroPose, type Skel } from './skeleton';
@@ -26,6 +27,7 @@ const DRAWERS: Partial<Record<PlaceholderLook['build']['helmet'], (r: Raster, k:
   winged: drawHalcyon,
   monolith: drawOverseer,
   fin: drawRiptide,
+  geode: drawObelisk,
 };
 
 /** Render one frame of character `id` into `ctx` (a `size` x `size` canvas), lit but not yet outlined. */
