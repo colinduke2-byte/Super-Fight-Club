@@ -1,10 +1,11 @@
 import Phaser from 'phaser';
 import { BACKDROPS } from './BackgroundView';
+import { MASS_HEAD, MASS_OVER, stageMass } from '../art/stageMass';
 import type { World } from '../engine/world';
 
 interface PlatView {
   index: number;
-  parts: { obj: Phaser.GameObjects.TileSprite; dy: number }[];
+  parts: { obj: Phaser.GameObjects.TileSprite | Phaser.GameObjects.Image; dx: number; dy: number }[];
 }
 
 /** Draws the stage platforms from the sim's Platform objects (moving ones interpolated). Art pixel = 0.5 world units. */
@@ -22,17 +23,17 @@ export class StageView {
         const t = scene.add.tileSprite(p.x, p.y + dy, w, h, key).setOrigin(0, 0).setTileScale(0.5, 0.5);
         t.setTint(sfx ? 0xffffff : tint);
         layer.add(t);
-        parts.push({ obj: t, dy });
+        parts.push({ obj: t, dx: 0, dy });
       };
       if (p.kind === 'solid') {
-        if (p.ledges) {
-          // rocky underside hanging below the main platform
-          const under = scene.add.image(p.x + p.w / 2, p.y + p.h - 3, tex('stage-under')).setOrigin(0.5, 0);
-          under.setScale((p.w / 320) * 0.5).setTint(sfx ? 0xffffff : tint);
-          layer.add(under);
-        }
-        add(tex('tile-stone'), p.w, p.h - 6, 6);
-        add(tex('tile-cap'), p.w, 6, 0);
+        // one designed structure per solid platform (cap, facade, underside), generated once per stage
+        const key = `mass:${world.stage.id}:${index}:${p.w}x${p.h}`;
+        if (!scene.textures.exists(key)) scene.textures.addCanvas(key, stageMass(theme, p.w, p.h, index + 1));
+        const dx = -MASS_OVER / 2;
+        const dy = -MASS_HEAD / 2;
+        const img = scene.add.image(p.x + dx, p.y + dy, key).setOrigin(0, 0).setScale(0.5);
+        layer.add(img);
+        parts.push({ obj: img, dx, dy });
       } else {
         add(tex(p.moving ? 'tile-move' : 'tile-pass'), p.w, p.h, 0);
       }
@@ -46,7 +47,7 @@ export class StageView {
       if (!p.moving) continue;
       const x = p.prevX + (p.x - p.prevX) * alpha;
       const y = p.prevY + (p.y - p.prevY) * alpha;
-      for (const part of v.parts) part.obj.setPosition(x, y + part.dy);
+      for (const part of v.parts) part.obj.setPosition(x + part.dx, y + part.dy);
     }
   }
 }
