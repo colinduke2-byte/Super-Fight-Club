@@ -30,6 +30,7 @@ import { PerfCounter } from '../ui/PerfCounter';
 import { FighterHud } from '../ui/FighterHud';
 import { COLORS, MenuList } from '../ui/menuKit';
 import { KoBlast } from '../ui/KoBlast';
+import { OffscreenBubbles } from '../ui/OffscreenBubbles';
 import { PIXEL_FONT, up } from '../art/pixelFont';
 import { StageView } from '../ui/StageView';
 import { SlashArcs } from '../ui/SlashArcs';
@@ -94,6 +95,7 @@ export class MatchScene extends Phaser.Scene {
   private uiLayer!: Phaser.GameObjects.Layer;
   private worldCam!: Phaser.Cameras.Scene2D.Camera;
   private koBlast!: KoBlast;
+  private bubbles!: OffscreenBubbles;
   private uiCam!: Phaser.Cameras.Scene2D.Camera;
 
   private slots: PlayerSlot[] = [];
@@ -267,6 +269,7 @@ export class MatchScene extends Phaser.Scene {
     this.dimOverlay = this.add.rectangle(0, 0, 10, 10, 0x000010, 1).setOrigin(0, 0).setAlpha(0);
     this.uiLayer.add(this.dimOverlay);
     this.koBlast = new KoBlast(this, this.uiLayer);
+    this.bubbles = new OffscreenBubbles(this, this.uiLayer, this.fighters, this.views, this.fighters.map((f) => (f.team >= 0 ? COLORS.p[f.team] : COLORS.p[f.id % 4])));
     this.fighters.forEach((f, i) => {
       const s = this.slots[i];
       const label = s.boss ? 'BOSS' : this.isTraining ? (i === 0 ? 'YOU' : 'DUMMY') : s.type === 'cpu' ? 'CPU' : `P${i + 1}`;
@@ -683,6 +686,8 @@ export class MatchScene extends Phaser.Scene {
     }
     this.updateClock();
     this.koBlast.update(Math.min(frameMs, 50) / 1000, this.scale.width, this.scale.height);
+    const hu = this.hudUnit(this.scale.height);
+    this.bubbles.update(this.worldCam.worldView, this.scale.width, this.scale.height, hu, this.scale.height - Math.round(8 * this.dpr()) - 40 * hu);
     if (this.bannerPop > 0) this.bannerPop = Math.max(0, this.bannerPop - frameMs / 16.7);
     this.banner.setScale(this.bannerBase * (1 + 0.06 * this.bannerPop));
     if (this.match.over && !this.banner.visible) {
