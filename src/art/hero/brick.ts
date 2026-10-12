@@ -147,13 +147,15 @@ export function drawBrick(r: Raster, k: Skel, look: PlaceholderLook): void {
     r.ellipse(P.dark, el[0], el[1], 10, 9);
     r.ellipse(P.armor, el[0] - 1, el[1] - 1, 8, 7);
     fist(r, P, k.handF, false);
-    // pauldron
-    r.ellipse(P.deep, sx + 1, sy - 6, 20, 14);
-    r.ellipse(P.armor, sx, sy - 7, 18, 12);
-    r.poly(P.plate, [[sx - 14, sy - 12], [sx + 12, sy - 14], [sx + 16, sy - 6], [sx - 12, sy - 4]]);
-    r.rect(P.stripeA, sx - 15, sy + 1, 30, 3);
-    r.rect(P.rivet, sx - 8, sy - 10, 2, 2);
-    r.rect(P.rivet, sx + 6, sy - 11, 2, 2);
+    // pauldron: sits low and outboard so the visor stays readable
+    const px = sx + 5;
+    const py = sy + 1;
+    r.ellipse(P.deep, px + 1, py - 4, 16, 12);
+    r.ellipse(P.armor, px, py - 5, 15, 10);
+    r.poly(P.plate, [[px - 11, py - 10], [px + 9, py - 12], [px + 13, py - 5], [px - 9, py - 3]]);
+    r.rect(P.stripeA, px - 13, py + 2, 26, 3);
+    r.rect(P.rivet, px - 6, py - 8, 2, 2);
+    r.rect(P.rivet, px + 5, py - 9, 2, 2);
   }
 }
 
@@ -162,15 +164,18 @@ type Parts = Record<'armor' | 'plate' | 'dark' | 'deep' | 'steel' | 'steelD' | '
 function fist(r: Raster, P: Parts, h: V2, back: boolean): void {
   const [x, y] = h;
   const base = back ? P.dark : P.armor;
-  r.rect(P.deep, x - 12, y - 11, 25, 22);
-  r.rect(base, x - 11, y - 11, 23, 20);
-  r.rect(back ? P.armor : P.plate, x - 11, y - 11, 23, 5);
-  // fingers curled in
-  for (let i = 0; i < 4; i++) r.rect(P.deep, x - 8 + i * 6, y - 3, 1, 10);
-  r.rect(P.dark, x - 11, y + 5, 23, 4);
-  r.rect(P.accent, x - 11, y + 3, 23, 2);
-  r.rect(P.steel, x - 10, y - 10, 3, 3);
-  r.rect(P.steel, x + 6, y - 10, 3, 3);
+  // armoured gauntlet: cuff, rounded mitt, a row of knuckle plates on the striking face and a thumb guard
+  r.rect(P.deep, x - 9, y - 13, 18, 6);
+  r.rect(P.accent, x - 9, y - 11, 18, 2);
+  r.ellipse(P.deep, x + 1, y + 1, 13, 12);
+  r.ellipse(base, x, y, 12, 11);
+  r.ellipse(back ? P.armor : P.plate, x - 2, y - 4, 8, 5);
+  for (let i = 0; i < 4; i++) {
+    r.ellipse(P.steelD, x + 9, y - 7 + i * 5, 4, 2.6);
+    r.ellipse(P.steel, x + 8.5, y - 7.5 + i * 5, 3, 1.6);
+  }
+  r.ellipse(P.dark, x - 4, y + 6, 6, 4); // thumb
+  r.rect(P.rivet, x - 7, y - 2, 2, 2);
 }
 
 function leg(r: Raster, P: Parts, hip: V2, kn: V2, ankle: V2, back: boolean): void {

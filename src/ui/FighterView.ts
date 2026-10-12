@@ -118,7 +118,9 @@ export class FighterView {
       s.setOrigin(0.5, 0.62).setPosition(s.x, this.y - f.h * 0.5 * f.sizeMul).setRotation(this.spin);
     } else {
       this.spin = 0;
-      s.setOrigin(0.5, 1).setRotation(av.rot);
+      // grounded flinch: rocked back away from the hit, easing upright as hitstun runs out
+      const recoil = f.state === 'hitstun' ? -f.facing * 0.2 * Math.min(1, f.hitstun / 12) : 0;
+      s.setOrigin(0.5, 1).setRotation(av.rot + recoil);
     }
     this.shadow.setPosition(this.x, f.groundPlat ? f.groundPlat.top + 1 : this.y + 1);
 

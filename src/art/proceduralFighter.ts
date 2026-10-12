@@ -84,11 +84,12 @@ function poseFor(anim: string, f: number, frames: number): Pose {
       p.backHand = [-2, -26];
       break;
     case 'hurt':
-      p.lean = -5;
-      p.frontFoot = [9, 4];
+      p.lean = -7;
+      p.crouch = 1;
+      p.frontFoot = [10, 5];
       p.backFoot = [-7, 0];
-      p.frontHand = [10, -8];
-      p.backHand = [-10, -2];
+      p.frontHand = [12, -14];
+      p.backHand = [-12, -8];
       break;
     case 'walk': {
       // gentle stride: shorter steps than the run, upright, arms swinging lightly
@@ -103,12 +104,12 @@ function poseFor(anim: string, f: number, frames: number): Pose {
       break;
     }
     case 'hurtL': // light flinch: a small recoil, still on both feet
-      p.lean = -3;
-      p.crouch = 1;
-      p.frontFoot = [7, 0];
-      p.backFoot = [-6, 0];
-      p.frontHand = [6, -4];
-      p.backHand = [-6, -2];
+      p.lean = -5;
+      p.crouch = 2;
+      p.frontFoot = [8, 0];
+      p.backFoot = [-7, 0];
+      p.frontHand = [9, -10];
+      p.backHand = [-9, -5];
       break;
     case 'hurtU': // launched upward: back arched, arms flung up, legs trailing
       p.lean = -7;
