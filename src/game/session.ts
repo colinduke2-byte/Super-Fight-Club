@@ -26,6 +26,8 @@ export interface MatchRules {
   teams: boolean;
   /** Item drops: 0 off, 1 low, 2 high. */
   items: 0 | 1 | 2;
+  /** Stage hazards (lightning, geysers) on or off: off is the "omega" version of every stage. */
+  hazards: boolean;
 }
 
 export interface PlayerResult {
@@ -51,6 +53,8 @@ export interface MatchResult {
 }
 
 /** What the scenes pass to each other: the lobby choices, the stage, rules, the last result. */
+import type { Replay } from './replay';
+
 export interface Session {
   mode: GameMode;
   players: PlayerSlot[];
@@ -62,12 +66,16 @@ export interface Session {
   arcadeHuman: PlayerSlot | null;
   /** Arcade ladder progress. */
   ladder: LadderState | null;
+  /** The last finished versus match, as inputs (Results offers to watch it). */
+  replay: Replay | null;
+  /** Set by Results: the next Match scene plays `replay` back instead of a live game. */
+  watchReplay: boolean;
 }
 
-export const DEFAULT_RULES: MatchRules = { mode: 'stock', stocks: 3, timeSec: 180, teams: false, items: 0 };
+export const DEFAULT_RULES: MatchRules = { mode: 'stock', stocks: 3, timeSec: 180, teams: false, items: 0, hazards: true };
 
 export function newSession(): Session {
-  return { mode: 'versus', players: [], stage: 'classic', rules: { ...DEFAULT_RULES }, playerCount: 2, lastResult: null, ladder: null, arcadeHuman: null };
+  return { mode: 'versus', players: [], stage: 'classic', rules: { ...DEFAULT_RULES }, playerCount: 2, lastResult: null, ladder: null, arcadeHuman: null, replay: null, watchReplay: false };
 }
 
 export const session: Session = newSession();

@@ -18,6 +18,7 @@ import { menuInput } from '../input/menuInput';
 import type { GamepadDevice } from '../input/gamepad';
 import { PlayerInput } from '../input/playerInput';
 import { saveSettings, settings } from '../settings';
+import { fillReplayInputs, ReplayRecorder, type Replay } from '../game/replay';
 import { STAGES } from '../stages';
 import { sandboxStage } from '../stages/sandbox';
 import { BackgroundView } from '../ui/BackgroundView';
@@ -99,6 +100,9 @@ export class MatchScene extends Phaser.Scene {
   private stageData = sandboxStage;
   private elimAt: number[] = [];
   private endTimer = -1;
+  /** Recording of the live match (versus only) and the replay being watched, if any. */
+  private recorder: ReplayRecorder | null = null;
+  private replay: Replay | null = null;
 
   private lastNow = 0;
   private stepsLastFrame = 0;
@@ -167,26 +171,33 @@ export class MatchScene extends Phaser.Scene {
     this.training = null;
     this.bench = null;
     inputManager.init();
-    this.ensureSession();
-    this.slots = session.players;
-    this.isTraining = session.mode === 'training';
-    const stage = (this.stageData = STAGES[session.stage] ?? sandboxStage);
+    this.replay = session.watchReplay && session.replay ? session.replay : null;
+    session.watchReplay = false;
+    this.recorder = null;
+    if (!this.replay) this.ensureSession();
+    const rep = this.replay;
+    this.slots = rep ? rep.players.map((p, i) => ({ index: i, type: 'cpu' as const, device: null, character: p.character, cpuLevel: 1 as const })) : session.players;
+    this.isTraining = !rep && session.mode === 'training';
+    const rulesNow = rep ? rep.rules : session.rules;
+    const base = STAGES[rep ? rep.stage : session.stage] ?? sandboxStage;
+    const stage = (this.stageData = rulesNow.hazards === false && (rep || session.mode === 'versus') ? { ...base, hazards: undefined } : base);
     this.world = new World(stage);
 
     this.fighters = this.slots.map((s, i) => new Fighter(i, resolveCharacter(s.character)));
     this.humans = this.slots.map((s) => (s.type === 'human' && s.device ? new PlayerInput(s.device) : null));
-    this.controllers = this.slots.map((s, i) => (s.type !== 'cpu' ? new NullController() : s.boss ? new BossController(() => this.match.scores[i].stocks, 1) : this.isTraining && i === 1 ? this.dummy : new CpuController(s.cpuLevel, i + 1)));
+    this.controllers = this.slots.map((s, i) => (rep || s.type !== 'cpu' ? new NullController() : s.boss ? new BossController(() => this.match.scores[i].stocks, 1) : this.isTraining && i === 1 ? this.dummy : new CpuController(s.cpuLevel, i + 1)));
     this.inputs = this.slots.map(() => makeInput());
     this.elimAt = this.slots.map(() => -1);
     for (const f of this.fighters) {
       this.world.addFighter(f);
       this.respawn(f.id);
     }
-    const rules = session.rules;
-    if (rules.teams && this.fighters.length === 4 && !this.isTraining && session.mode === 'versus') this.fighters.forEach((f, i) => (f.team = i < 2 ? 0 : 1));
-    this.world.config.itemRate = this.isTraining || session.mode === 'arcade' ? 0 : rules.items;
+    const rules = rulesNow;
+    if (rules.teams && this.fighters.length === 4 && !this.isTraining && (rep || session.mode === 'versus')) this.fighters.forEach((f, i) => (f.team = i < 2 ? 0 : 1));
+    this.world.config.itemRate = this.isTraining || (!rep && session.mode === 'arcade') ? 0 : rules.items;
     const cfg: MatchConfig = this.isTraining ? TRAINING : { mode: rules.mode, stocks: rules.stocks, timeLimitSec: rules.timeSec, respawnDelay: 70 };
     this.match = new Match(this.world, cfg);
+    if (!rep && !this.isTraining && session.mode === 'versus') this.recorder = new ReplayRecorder(session.stage, rules, this.slots.map((sl) => ({ character: sl.character })), settings.smashMode === 'flick');
     this.match.onRespawn = (f) => this.respawn(f.id, true);
     this.slots.forEach((s, i) => {
       if (s.stocks && !this.isTraining) this.match.scores[i].stocks = s.stocks;
@@ -253,7 +264,8 @@ export class MatchScene extends Phaser.Scene {
     if (!this.isTraining) {
       const lad = session.mode === 'arcade' ? session.ladder : null;
       const fight = lad ? currentFight(lad) : null;
-      this.banner.setText(up(fight ? `FIGHT ${fight.index + 1}\n${fight.title}` : 'FIGHT!')).setVisible(true);
+      const head = this.replay ? 'REPLAY\nESC: EXIT' : fight ? `FIGHT ${fight.index + 1}\n${fight.title}` : 'FIGHT!';
+      this.banner.setText(up(head)).setVisible(true);
       this.introTicks = 110;
     }
     this.pauseMenu = new MenuList(this, this.uiLayer, [
@@ -447,7 +459,12 @@ export class MatchScene extends Phaser.Scene {
   private tick(): void {
     if (this.slowTicks > 0 && --this.slowTicks === 0) this.timeScale = 1;
     let pausePressed = false;
-    for (let i = 0; i < this.slots.length; i++) {
+    const rp = this.replay;
+    if (rp && !fillReplayInputs(rp, this.world.tick, this.inputs)) {
+      this.scene.start('Results'); // recording over: back to the (unchanged) result screen
+      return;
+    }
+    for (let i = 0; i < this.slots.length && !rp; i++) {
       const h = this.humans[i];
       if (h) {
         h.sample(this.inputs[i]);
@@ -456,7 +473,7 @@ export class MatchScene extends Phaser.Scene {
         this.controllers[i].update(this.fighters[i], this.world, this.inputs[i]);
       }
     }
-    this.world.config.smashFlick = settings.smashMode === 'flick';
+    this.world.config.smashFlick = rp ? rp.smashFlick : settings.smashMode === 'flick';
     if (this.training?.running) {
       const i = this.inputs[0];
       i.held = i.pressed = i.released = 0; // the scenario drives the player
@@ -485,6 +502,7 @@ export class MatchScene extends Phaser.Scene {
       this.hit(p, p.x >= d.x ? 1 : -1);
     }
 
+    this.recorder?.record(this.inputs);
     this.world.step(this.inputs);
     inputManager.endTick();
     this.match.step();
@@ -513,6 +531,11 @@ export class MatchScene extends Phaser.Scene {
     if (this.match.over) {
       if (this.endTimer < 0) this.endTimer = END_DELAY;
       else if (--this.endTimer === 0) {
+        if (this.replay) {
+          this.scene.start('Results');
+          return;
+        }
+        if (this.recorder) session.replay = this.recorder.finish();
         session.lastResult = buildResult(this.slots, this.match.scores, this.world.damageDealt, this.elimAt, this.match.cfg, this.match.winner, this.world.tick, this.fighters.map((f) => f.team), this.match.winnerTeam);
         this.scene.start('Results');
       }
@@ -647,6 +670,10 @@ export class MatchScene extends Phaser.Scene {
   }
 
   private onKey(code: string): void {
+    if (this.replay && !this.paused && (code === 'Escape' || code === 'Enter' || code === 'Space')) {
+      this.scene.start('Results');
+      return;
+    }
     if (this.paused) return;
     switch (code) {
       case 'Digit1':

@@ -51,6 +51,9 @@ export class ResultsScene extends MenuScene {
       items.push({ label: outcome === 'gameover' ? 'MAIN MENU' : 'QUIT LADDER', onConfirm: () => this.go('ModeSelect') });
     } else {
       items.push({ label: 'REMATCH', onConfirm: () => this.go('Match') });
+      if (session.mode === 'versus' && session.replay) {
+        items.push({ label: 'WATCH REPLAY', onConfirm: () => { session.watchReplay = true; this.go('Match'); } });
+      }
       if (session.mode === 'versus') items.push({ label: 'STAGE SELECT', onConfirm: () => this.go('StageSelect') });
       items.push({ label: 'CHARACTER SELECT', onConfirm: () => this.go('CharacterSelect') }, { label: 'MAIN MENU', onConfirm: () => this.go('ModeSelect') });
     }
