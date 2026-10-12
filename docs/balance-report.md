@@ -8,36 +8,44 @@ The CPU plays some characters better than others, so read this as a smoke test f
 | pairing | wins |
 |---|---|
 | brick vs vex | 22 - 26 |
-| brick vs nova | 19 - 29 |
-| brick vs gizmo | 21 - 27 |
-| brick vs agni | 31 - 17 |
-| brick vs halcyon | 21 - 27 |
-| brick vs riptide | 21 - 27 |
-| vex vs nova | 21 - 27 |
-| vex vs gizmo | 30 - 18 |
-| vex vs agni | 30 - 18 |
-| vex vs halcyon | 22 - 26 |
-| vex vs riptide | 25 - 22 |
-| nova vs gizmo | 16 - 32 |
-| nova vs agni | 15 - 33 |
-| nova vs halcyon | 24 - 24 |
-| nova vs riptide | 29 - 19 |
-| gizmo vs agni | 22 - 26 |
-| gizmo vs halcyon | 21 - 27 |
-| gizmo vs riptide | 21 - 27 |
-| agni vs halcyon | 29 - 19 |
-| agni vs riptide | 19 - 29 |
-| halcyon vs riptide | 31 - 17 |
+| brick vs nova | 21 - 27 |
+| brick vs gizmo | 25 - 23 |
+| brick vs agni | 36 - 12 |
+| brick vs halcyon | 28 - 20 |
+| brick vs riptide | 19 - 29 |
+| brick vs obelisk | 21 - 27 |
+| vex vs nova | 18 - 30 |
+| vex vs gizmo | 27 - 21 |
+| vex vs agni | 28 - 20 |
+| vex vs halcyon | 23 - 25 |
+| vex vs riptide | 30 - 18 |
+| vex vs obelisk | 25 - 23 |
+| nova vs gizmo | 13 - 35 |
+| nova vs agni | 11 - 37 |
+| nova vs halcyon | 25 - 23 |
+| nova vs riptide | 26 - 22 |
+| nova vs obelisk | 20 - 28 |
+| gizmo vs agni | 24 - 24 |
+| gizmo vs halcyon | 12 - 36 |
+| gizmo vs riptide | 20 - 28 |
+| gizmo vs obelisk | 18 - 30 |
+| agni vs halcyon | 28 - 20 |
+| agni vs riptide | 17 - 31 |
+| agni vs obelisk | 25 - 23 |
+| halcyon vs riptide | 29 - 19 |
+| halcyon vs obelisk | 26 - 22 |
+| riptide vs obelisk | 28 - 18 |
 
 | fighter | win rate | ultimates used per match |
 |---|---|---|
-| brick | 47% | 1.27 |
-| vex | 54% | 1.86 |
-| nova | 49% | 1.89 |
-| gizmo | 49% | 2.02 |
-| agni | 49% | 1.84 |
-| halcyon | 53% | 2.07 |
-| riptide | 49% | 1.78 |
+| brick | 51% | 1.28 |
+| vex | 53% | 1.93 |
+| nova | 45% | 1.92 |
+| gizmo | 46% | 1.99 |
+| agni | 49% | 1.85 |
+| halcyon | 53% | 2.08 |
+| riptide | 52% | 1.80 |
+| obelisk | 51% | 1.87 |
 
-Mean match length: 123 s
+Mean match length: 127 s
 
