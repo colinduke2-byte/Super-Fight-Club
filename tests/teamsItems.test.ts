@@ -105,6 +105,17 @@ describe('items', () => {
     expect(fs[0].outMul).toBeCloseTo(1.3);
   });
 
+  it('the Aegis Core makes the holder shrug off hits for five seconds', () => {
+    const { world, fs, ins } = arena(2);
+    for (let t = 0; t < 130; t++) world.step(ins); // spawn invincibility wears off
+    applyItem(world, 'aegis', 0);
+    expect(fs[0].aegisFrames).toBe(300);
+    expect(fs[0].invuln).toBeGreaterThanOrEqual(300); // combat, hazards and grabs all skip an invincible fighter
+    for (let t = 0; t < 301; t++) world.step(ins);
+    expect(fs[0].aegisFrames).toBe(0);
+    expect(fs[0].invuln).toBe(0);
+  });
+
   it('a fighter walking into an item picks it up', () => {
     const { world, fs, ins } = arena(2);
     world.config.itemRate = 1;

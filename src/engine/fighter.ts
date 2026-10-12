@@ -329,6 +329,8 @@ export class Fighter implements Body {
   team = -1;
   /** Frames of the Overdrive item left (outgoing damage x1.3). */
   boostFrames = 0;
+  /** Aegis Core item: invincible (and shimmering) while this runs. */
+  aegisFrames = 0;
   /** One air dodge per airtime; wall jumps are limited too. */
   airDodgeUsed = false;
   wallJumps = 0;
@@ -462,6 +464,7 @@ export class Fighter implements Body {
     this.dashTimer = 0;
     this.skidding = false;
     this.boostFrames = 0;
+    this.aegisFrames = 0;
     this.airDodgeUsed = false;
     this.wallJumps = 0;
     this.clingFrames = 0;
@@ -922,6 +925,7 @@ export class Fighter implements Body {
     if (this.barrier.frames > 0) this.barrier.frames--;
     if (this.dashCd > 0) this.dashCd--;
     if (this.boostFrames > 0) this.boostFrames--;
+    if (this.aegisFrames > 0) this.aegisFrames--;
     if (this.grabCooldown > 0) this.grabCooldown--;
     if (this.techWindow > 0) this.techWindow--;
     if (this.techLock > 0) this.techLock--;

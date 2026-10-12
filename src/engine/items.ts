@@ -2,8 +2,10 @@ import { hurtRect } from './combat';
 import type { World } from './world';
 
 export const MAX_ITEMS = 4;
-export type ItemKind = 'heal' | 'cell' | 'boost' | 'bomb';
-export const ITEM_KINDS: ItemKind[] = ['heal', 'cell', 'boost', 'bomb'];
+export type ItemKind = 'heal' | 'cell' | 'boost' | 'bomb' | 'aegis';
+export const ITEM_KINDS: ItemKind[] = ['heal', 'cell', 'boost', 'bomb', 'aegis'];
+/** Aegis Core: frames of invincibility. */
+export const AEGIS_FRAMES = 300;
 /** Shock Bomb: picked up and carried, thrown with Attack; bursts on any fighter, on landing, or when the fuse runs out. */
 export const BOMB = { fuse: 150, speed: 6.2, lift: -3.2, upSpeed: -8.5, gravity: 0.32, radius: 30, damage: 14, base: 44, scaling: 0.85, angle: 62, ownerGrace: 14 };
 const LIFE = 720;
@@ -29,12 +31,15 @@ export class Item {
   constructor(readonly index: number) {}
 }
 
-/** Heal -25%, Energy Cell +50 ultimate meter, Overdrive 10 s of +30% outgoing damage. */
+/** Heal -25%, Energy Cell +50 ultimate meter, Overdrive 10 s of +30% outgoing damage, Aegis Core 5 s of invincibility. */
 export function applyItem(world: World, kind: ItemKind, fighterId: number): void {
   const f = world.fighters[fighterId];
   if (kind === 'heal') f.damage = Math.max(0, f.damage - 25);
   else if (kind === 'cell') f.addMeterRaw(50, world);
-  else f.boostFrames = 600;
+  else if (kind === 'aegis') {
+    f.invuln = Math.max(f.invuln, AEGIS_FRAMES);
+    f.aegisFrames = AEGIS_FRAMES;
+  } else f.boostFrames = 600;
 }
 
 /** Deterministic LCG so item drops replay identically. */
@@ -58,7 +63,7 @@ export function stepItems(world: World): void {
       if (slot) {
         const roll = rnd(world);
         slot.active = true;
-        slot.kind = roll < 0.36 ? 'heal' : roll < 0.64 ? 'cell' : roll < 0.8 ? 'boost' : 'bomb';
+        slot.kind = roll < 0.34 ? 'heal' : roll < 0.6 ? 'cell' : roll < 0.76 ? 'boost' : roll < 0.93 ? 'bomb' : 'aegis';
         slot.thrown = false;
         slot.owner = -1;
         slot.x = main.x + 20 + rnd(world) * (main.w - 40);

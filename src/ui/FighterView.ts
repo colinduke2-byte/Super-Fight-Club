@@ -196,7 +196,8 @@ export class FighterView {
     s.setScale(sx * ps, sy * ps);
     // invincibility blink (dodges stay translucent), smash-charge glow
     const dodging = f.state === 'spotdodge' || f.state === 'roll' || f.state === 'airdodge';
-    s.setAlpha(dodging ? 0.4 : f.invuln > 0 && (tick >> 2) % 2 === 0 ? 0.45 : 1);
+    const aegis = f.aegisFrames > 0 && f.invuln > 0;
+    s.setAlpha(dodging ? 0.4 : f.invuln > 0 && !aegis && (tick >> 2) % 2 === 0 ? 0.45 : 1);
     // multiply tints only for cold effects (they should darken); bright effects glow additively over the body
     const st = f.status;
     let glowCol = -1;
@@ -207,7 +208,11 @@ export class FighterView {
     else if (f.hitlag > 0 && f.state === 'hitstun' && (tick & 3) < 2) s.setTintFill(HIT_FLASH[f.lastHitFx] ?? 0xffffff); // impact flash during hit-stop, coloured by the hit's element
     else if (this.baseTint !== undefined) s.setTint(this.baseTint);
     else s.clearTint();
-    if (st.stun > 0) {
+    if (aegis) {
+      // Aegis Core: a prismatic shimmer cycling through the spectrum, flickering out over the last second
+      glowCol = Phaser.Display.Color.HSVToRGB(((tick * 0.02) % 1 + 1) % 1, 0.55, 1).color;
+      glowA = (0.42 + 0.12 * Math.sin(tick * 0.5)) * (f.aegisFrames < 60 && (tick >> 2) % 2 === 0 ? 0.3 : 1);
+    } else if (st.stun > 0) {
       glowCol = 0xffff60;
       glowA = ((tick >> 2) & 1) === 0 ? 0.55 : 0.15;
     } else if (st.burn > 0) {
@@ -220,6 +225,10 @@ export class FighterView {
     } else if (f.chargeFrames > 0 && f.state === 'attack') {
       glowCol = 0xffe9a0;
       glowA = 0.12 + 0.18 * (0.5 + 0.5 * Math.sin(tick * 0.7)) + Math.min(0.15, f.chargeFrames / 300);
+    } else if (f.boostFrames > 0) {
+      // Overdrive: a hot red pulse
+      glowCol = 0xff4a3a;
+      glowA = 0.16 + 0.12 * Math.sin(tick * 0.4);
     } else if (f.data.hud && (f.res[f.data.hud.resource] ?? 0) >= f.data.hud.hotAt) {
       glowCol = 0xffc890;
       glowA = 0.12 + 0.1 * Math.sin(tick * 0.25);

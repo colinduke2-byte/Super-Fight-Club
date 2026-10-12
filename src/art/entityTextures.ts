@@ -42,6 +42,28 @@ export function buildEntityTextures(scene: Phaser.Scene): void {
     add(key, c);
   }
 
+  // Aegis Core 16x16: a prismatic capsule (rainbow bands under a white rim) with a shield glyph
+  {
+    const [c, g] = mk(16, 16);
+    const bands = ['#ff6a8a', '#ffb04a', '#ffe85a', '#6aff9a', '#4ad8ff', '#a07aff'];
+    for (let y = 0; y < 16; y++) {
+      for (let x = 0; x < 16; x++) {
+        const d = Math.hypot(x - 7.5, y - 7.5);
+        if (d > 7.5) continue;
+        px(g, d > 6.3 ? '#1a1030' : d > 5 ? '#ffffff' : bands[Math.min(5, Math.floor((x + y) / 5))], x, y);
+      }
+    }
+    const ink = '#1a1030';
+    px(g, ink, 5, 4, 6, 1);
+    px(g, ink, 5, 5, 1, 4);
+    px(g, ink, 10, 5, 1, 4);
+    px(g, ink, 6, 9, 1, 2);
+    px(g, ink, 9, 9, 1, 2);
+    px(g, ink, 7, 11, 2, 1);
+    px(g, '#ffffff', 7, 6, 2, 3);
+    add('item-aegis', c);
+  }
+
   // shock bomb 16x16: dark shell, glowing cyan band and core, a lit fuse spark on top
   {
     const [c, g] = mk(16, 16);
