@@ -60,7 +60,7 @@ export function fightCard(state: LadderState, fight: LadderFight): StoryCard {
     return { art: 'boss', title: `${n}: ${fight.title}`, lines: wrap(personaOf('overseer').taunt), left: state.player, right: 'overseer' };
   }
   if (fight.kind === 'brawl') {
-    return { art: 'duel', title: `${n}: ${fight.title}`, lines: wrap(`${nameOf(fight.opponents[0].character)} and ${nameOf(fight.opponents[1].character)} step into the ring together. The crowd loves a mess.`), left: state.player, right: fight.opponents[0].character };
+    return { art: 'duel', title: `${n}: ${fight.title}`, lines: wrap(`${fight.opponents.map((o) => nameOf(o.character)).join(fight.opponents.length > 2 ? ', ' : ' and ').replace(/, ([^,]*)$/, ' and $1')} step into the ring together. The crowd loves a mess.`), left: state.player, right: fight.opponents[0].character };
   }
   const mirror = opp.character === state.player;
   const line = mirror ? 'A copy of you, without the doubt. It fights like you do, and it does not hesitate.' : `${nameOf(opp.character)}: "${personaOf(opp.character).taunt}"`;

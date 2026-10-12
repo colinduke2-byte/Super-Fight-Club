@@ -23,7 +23,7 @@ describe('arcade ladder', () => {
       expect(firsts).not.toContain(c.id);
       // with the brawl, a run meets every other roster fighter
       const met = new Set([0, 1, 2, 4].flatMap((i) => l.fights[i].opponents.map((o) => o.character)));
-      expect(met.size).toBe(Math.min(5, CHARACTER_LIST.length - 1));
+      expect(met.size).toBe(Math.min(6, CHARACTER_LIST.length - 1));
       expect(met.has(c.id)).toBe(false);
     });
   }
@@ -36,7 +36,7 @@ describe('arcade ladder', () => {
     expect(s[0]).toMatchObject({ index: 0, type: 'human', stocks: 3 });
     expect(s[1]).toMatchObject({ index: 1, type: 'cpu', boss: true, character: 'overseer', stocks: 2 });
     l.index = 4;
-    expect(slotsForFight(l, human)).toHaveLength(3);
+    expect(slotsForFight(l, human)).toHaveLength(4);
   });
 
   it('wins advance; the boss win makes a champion', () => {

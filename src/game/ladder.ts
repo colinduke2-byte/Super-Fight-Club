@@ -50,6 +50,8 @@ export function buildLadder(player: string, rand: () => number = Math.random): L
   // the brawl brings in whoever is left; a small roster reuses the first two
   const d = others[3] ?? a;
   const e = others[4] ?? b;
+  // a big enough roster sends a third rival into the brawl, so every run still meets everyone
+  const f = others[5];
   const fights: LadderFight[] = [
     { index: 0, title: 'OPENING BOUT', stage: 'classic', kind: 'duel', opponents: [{ character: a, level: 1, stocks: 2 }], playerStocks: 3 },
     { index: 1, title: 'BACK ALLEY', stage: 'ring', kind: 'duel', opponents: [{ character: b, level: 1, stocks: 2 }], playerStocks: 3 },
@@ -57,12 +59,13 @@ export function buildLadder(player: string, rand: () => number = Math.random): L
     { index: 3, title: 'SHADOW MATCH', stage: 'storm', kind: 'duel', opponents: [{ character: player, level: 2, stocks: 3 }], playerStocks: 3 },
     {
       index: 4,
-      title: 'TRIPLE THREAT',
+      title: f ? 'FOUR-WAY BRAWL' : 'TRIPLE THREAT',
       stage: 'skyhold',
       kind: 'brawl',
       opponents: [
         { character: d, level: 3, stocks: 2 },
         { character: e, level: 2, stocks: 2 },
+        ...(f ? [{ character: f, level: 2 as const, stocks: 1 }] : []),
       ],
       playerStocks: 3,
     },

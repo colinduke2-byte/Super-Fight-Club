@@ -8,7 +8,7 @@ import { fightCard, nameOf } from '../game/story';
 import { LEVELS } from '../ai/profiles';
 import type { MenuEvent } from '../input/menuInput';
 import { STAGES } from '../stages';
-import { COLORS, MenuList, MenuScene, text } from '../ui/menuKit';
+import { COLORS, MenuList, MenuScene, text, textPx } from '../ui/menuKit';
 
 /** The ladder: six nodes up a winding path (five fights and the boss), progress, the next opponent and the continues left. */
 export class LadderMapScene extends MenuScene {
@@ -114,6 +114,7 @@ export class LadderMapScene extends MenuScene {
     const opps = f.opponents.map((o) => `${nameOf(o.character)}${o.boss ? '' : ` (${LEVELS[o.level].name})`}`).join(' + ');
     this.info.setText(up(`${f.title}`));
     this.sub.setText(up(`VS ${opps}   ${STAGES[f.stage]?.name ?? ''}`));
+    this.sub.setScale(Math.min(this.u * 1.4, (this.scale.width * 0.94) / Math.max(1, textPx(this.sub))));
     this.cont.setText(up(`FIGHT ${f.index + 1} OF ${l.fights.length}     CONTINUES LEFT: ${l.continuesLeft}`));
     this.list.update(time);
   }

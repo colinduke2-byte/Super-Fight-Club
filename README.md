@@ -44,7 +44,7 @@ player named; re-plugging (or plugging another pad) re-attaches it.
 ## Arcade Ladder and the boss
 
 Pick Arcade Ladder, choose a fighter, and climb six fights: three rivals from the roster (Easy, Easy, Normal), a **mirror match** (on
-Stormspire, in another colourway), a **two-on-one brawl** against the two rivals not met yet (Hard + Normal, on Skyhold Expanse), so a
+Stormspire, in another colourway), a **four-way brawl** against the three rivals not met yet (Hard, Normal, Normal; on Skyhold Expanse), so a
 run faces the whole roster in a shuffled order, then **The Overseer** (`src/characters/overseer.*`), the arena AI's warden body.
 Story cards (pixel-art scenes drawn in code, `src/art/storyArt.ts`, text in `src/game/story.ts`) play before each fight and in
 the ending, with lines specific to your fighter. You get **3 continues**: losing a fight retries it (stocks reset) until they run out
