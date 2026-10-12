@@ -1,6 +1,7 @@
 import type { CharacterBehavior } from '../engine/behavior';
 import { parseMoves, validateReferences, type CharacterJson } from '../engine/moves';
 import type { CharacterData } from '../engine/types';
+import { applyMovePoses } from '../engine/movePoses';
 import { standardAnimations } from './common';
 import movesJson from './overseer.moves.json';
 
@@ -48,16 +49,18 @@ export const overseer: CharacterData = {
   },
   body: { width: 36, height: 54, footHalfWidth: 14 },
   sprite: {
-    frameSize: 128,
-    pixelScale: 0.5,
+    frameSize: 288,
+    pixelScale: 0.25,
+    portrait: [40, 20, 170],
     animations: standardAnimations(['castF', 'castU', 'castD', 'raid']),
     placeholder: {
+      art: 'hi',
       skin: '#ff6a7a',
       armor: '#4a4668',
       armorDark: '#24203c',
       accent: '#ff4a6a',
       outline: '#0a0810',
-      build: { shoulderW: 22, torsoH: 12, legH: 7, headSize: 11, armLen: 9, helmet: 'pointed' },
+      build: { shoulderW: 32, torsoH: 21, legH: 15, headSize: 12, armLen: 16, helmet: 'monolith' },
       weapon: 'piston',
       extras: ['cloak', 'bracer'],
     },
@@ -69,3 +72,5 @@ export const overseer: CharacterData = {
   ultimate: { cost: 100, gainDealt: 0, gainTaken: 0 },
   behavior,
 };
+
+applyMovePoses(overseer); // no poses here: this just drops the animation rows nothing uses

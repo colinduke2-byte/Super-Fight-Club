@@ -152,7 +152,7 @@ export interface PlaceholderLook {
     legH: number;
     headSize: number;
     armLen: number;
-    helmet: 'visor' | 'hood' | 'pointed' | 'dome' | 'band' | 'winged';
+    helmet: 'visor' | 'hood' | 'pointed' | 'dome' | 'band' | 'winged' | 'monolith';
     /** Soft, rounded construction (pot-belly torso, ball joints, domed head) instead of plated blocks. */
     round?: boolean;
   };

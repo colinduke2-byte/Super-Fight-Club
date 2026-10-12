@@ -29,6 +29,7 @@ export class FighterHud {
   private pop = 0;
   private u = 3;
   private texK = 1;
+  private crop: [number, number, number, number] = [6, 0, 40, 40];
 
   constructor(
     scene: Phaser.Scene,
@@ -42,6 +43,7 @@ export class FighterHud {
     this.panel = scene.add.image(0, 0, 'hud-panel').setOrigin(0.5, 1);
     this.accent = scene.add.image(0, 0, 'px').setOrigin(0, 0).setTint(PLAYER_COLORS[index % 4]);
     this.portrait = scene.add.image(0, 0, key, frame).setOrigin(0, 0).setCrop(...portraitCrop(data));
+    this.crop = portraitCrop(data);
     this.texK = portraitK(data);
     this.name = scene.add.bitmapText(0, 0, PIXEL_FONT, up(label)).setTint(PLAYER_COLORS[index % 4]);
     this.percent = scene.add.bitmapText(0, 0, PIXEL_FONT, '0%').setOrigin(0, 0);
@@ -73,7 +75,7 @@ export class FighterHud {
     this.accent.setPosition(left + 4 * u, top + 2 * u).setScale((32 * u) / 4, (1 * u) / 4);
     // 40x40 crop of the idle frame shown at 0.8 => fills the 32x32 well; crop origin offsets the image
     const k = 0.8 * u;
-    this.portrait.setScale(k * this.texK).setPosition(left + 4 * u - 6 * k, top + 4 * u);
+    this.portrait.setScale(k * this.texK).setPosition(left + 4 * u - this.crop[0] * k * this.texK, top + 4 * u - this.crop[1] * k * this.texK);
     this.name.setPosition(left + 41 * u, top + 8 * u).setScale(u);
     this.percent.setPosition(left + 41 * u, top + 16 * u).setScale(u * 2);
     this.sub.setPosition(left + 78 * u, top + 8 * u).setScale(u);

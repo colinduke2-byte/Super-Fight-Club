@@ -1,5 +1,5 @@
 import Phaser from 'phaser';
-import { animFrameIndex, fighterAnimKey, fighterTextureKey } from '../art/proceduralFighter';
+import { animFrameIndex, fighterAnimKey, fighterTextureKey, uiTexK } from '../art/proceduralFighter';
 import { PIXEL_FONT, up } from '../art/pixelFont';
 import { CARD_H, CARD_W, drawStoryArt } from '../art/storyArt';
 import { characterById } from '../characters';
@@ -56,6 +56,7 @@ export class StoryScene extends MenuScene {
     const data = characterById(id);
     if (!data) return null;
     const s = this.add.sprite(0, 0, fighterTextureKey(id), animFrameIndex(data, 'idle', 0)).setOrigin(0.5, 1).setFlipX(flip);
+    s.setData('k', uiTexK(data));
     s.play(fighterAnimKey(id, 'idle'));
     this.ui.add(s);
     return s;
@@ -90,14 +91,14 @@ export class StoryScene extends MenuScene {
     // sprites: art px = s; a 64px frame covers 64*k art pixels
     const base = y + 80 * s;
     if (c.art === 'boss') {
-      this.left?.setScale(s * 0.8 * 0.5).setPosition(x + 34 * s, base + 4 * s);
-      this.right?.setScale(s * 1.3 * 0.5).setPosition(x + 96 * s, base + 4 * s).setFlipX(true);
+      this.left?.setScale(s * 0.8 * ((this.left?.getData('k') as number | undefined) ?? 0.4)).setPosition(x + 34 * s, base + 4 * s);
+      this.right?.setScale(s * 1.3 * ((this.right?.getData('k') as number | undefined) ?? 0.4)).setPosition(x + 96 * s, base + 4 * s).setFlipX(true);
       this.left?.setFlipX(false);
     } else if (c.art === 'duel') {
-      this.left?.setScale(s * 1.05 * 0.5).setPosition(x + 38 * s, base);
-      this.right?.setScale(s * 1.05 * 0.5).setPosition(x + 122 * s, base);
+      this.left?.setScale(s * 1.05 * ((this.left?.getData('k') as number | undefined) ?? 0.4)).setPosition(x + 38 * s, base);
+      this.right?.setScale(s * 1.05 * ((this.right?.getData('k') as number | undefined) ?? 0.4)).setPosition(x + 122 * s, base);
     } else {
-      this.left?.setScale(s * 1.1 * 0.5).setPosition(x + (c.art === 'victory' ? 80 : 58) * s, base - (c.art === 'arena' ? 2 : 0) * s);
+      this.left?.setScale(s * 1.1 * ((this.left?.getData('k') as number | undefined) ?? 0.4)).setPosition(x + (c.art === 'victory' ? 80 : 58) * s, base - (c.art === 'arena' ? 2 : 0) * s);
     }
   }
 

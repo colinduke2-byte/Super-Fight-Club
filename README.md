@@ -3,7 +3,7 @@
 A sci-fi/fantasy platform fighter built with **Phaser 3 + TypeScript (Vite)**. All characters, art and
 audio are original and generated in code. The game runs in the browser.
 
-> **Status: all twelve roadmap phases are built** (see `ROADMAP.md`): five fighters (Brick, Vex, Nova, Gizmo, Agni), three stages,
+> **Status: all twelve roadmap phases are built** (see `ROADMAP.md`), plus polish passes: six fighters (Brick, Vex, Nova, Gizmo, Agni, Halcyon), five stages,
 > Versus for 2-4 (humans on any device + CPUs), Arcade Ladder with story cards and a scripted boss, training mode with frame-data
 > scenarios, rebindable keyboard / gamepad controls, synthesized SFX and chiptune music, CPU AI with three difficulties.
 > What still needs **you**: hands-on play (balance feel), real Xbox / PlayStation / Switch pads, Safari, 120/144 Hz displays and GPU
@@ -71,6 +71,8 @@ stand / shield / jump / jab / CPU 1-3.
 | Skyline Classic | main stage with ledges + three pass-through platforms; purple dusk skyline |
 | Training Ring | one wide flat platform, nothing else; cold cyan void |
 | Reactor Core | short main stage, two moving platforms and a **plasma geyser** in the middle: 1.5 s telegraph, then an eruption every 10 s that hurts (12%) and launches upward. Damage-only: it never KOs by itself |
+| Stormspire | a narrow tower top in a thunderstorm: drifting cloud platforms, a high perch, and **lightning** that strikes the tower top (left, then right; 1.3 s telegraph, 11% and a launch). Rain, distant bolts, slate-and-cloud art |
+| Skyhold Expanse | the **large** stage (blast zones +-900 x 620): a 520-wide bridge deck, two floating islands across gaps, tiers of platforms and a drifting cloud; a golden-hour sky with a sun, god rays, birds and floating islands |
 
 Stages are data (`src/stages/*.ts`: platforms, blast zones, spawns, hazards, `background.theme`, `music`); register a new
 one in `src/stages/index.ts`. Hazards are a pure function of the sim tick (`engine/hazards.ts`), so they stay deterministic.
@@ -112,8 +114,8 @@ just before you hit the floor/wall.
 
 ## Art density
 
-Everything is drawn at one pixel density: **1 art pixel = 0.5 world units** (64px character frames, 32px
-stage tiles, a 5x7 pixel font). Stage/background/HUD art is generated in code (`src/art/`); the camera
+Stage tiles and the UI use one pixel density (**1 art pixel = 0.5 world units**, 32px tiles, a 5x7 pixel font). Fighters are drawn at full
+resolution (**1 art pixel = 0.29 world units**: 160px frames, 240x288 for the spear-carrier) by the hero-art renderer in `src/art/hero/`. Stage/background/HUD art is generated in code (`src/art/`); the camera
 snaps to even zoom levels and whole device pixels so pixels stay crisp. Press `H` to hide the on-screen help.
 
 ## Architecture
@@ -153,6 +155,7 @@ Key design points
 
 ## More mechanics
 
+- **Drop through platforms:** tap Down while standing on a pass-through platform (or Down + Jump). Walking off a stage edge catches the ledge automatically.
 - **Tilts:** hold a direction (no flick) and press Attack for a forward / up / down tilt. A flick or the Smash button is still a smash.
 - **Dash attack:** press Attack while running at full stick.
 - **Air dodge:** Shield in the air (stick picks the direction), once per airtime, invulnerable mid-dodge, then helpless until you land.
@@ -342,6 +345,16 @@ Each special has a variant per level (`neutralB_0..3`, ...), picked when you pre
 | Flare Burst (down) | spends ALL flame: a ground eruption that grows with the level | | | |
 | Solar Beam (ultimate) | spends all flame: a screen-wide beam that gets taller and harder-hitting with the level | | | |
 
+### Halcyon: storm-winged lancer
+
+Weight 98, three air flaps and a **glide** (hold Jump while falling: slower fall, faster drift, up to 80 frames per airtime). A long spear
+whose **tip is the sweet spot** (every spear move lists a stronger tip hitbox before the weaker shaft). Frame data:
+[`docs/frame-data-halcyon.md`](docs/frame-data-halcyon.md). Try her with `?char=halcyon`.
+
+**GALE** (HUD seam, gold sparkles off her wings): builds while airborne (+6/s) and from damage dealt (+0.8 per %), bleeds on the ground.
+Level 1 / 2 at 33 / 66: +3% / +6% speed, and the Javelin upgrades (`neutralB_0..2`): single, piercing, then a three-spear **Tempest Volley** that spends 40 gale.
+Sky Ascent (up special) is her recovery; Falcon Dive (down special) plunges spear-first and bounces on landing; Skewer Dash (side special) is a long lunge.
+
 ## Knockback and hit reactions
 
 - **Knockback** = `(base + damage% x scaling) x moveWeight / targetWeight`; launch speed is `kb x 0.05` (cap 24 px/frame). Launched fighters
@@ -417,7 +430,7 @@ were clearly too strong: ultimate meter gain was roughly halved (about one ultim
 and forward smash are slower. The Phase 15 pass (five fighters) compressed the weights (Brick 106, Vex 104, Nova 100, Agni 96, Gizmo 88
 instead of 125 / 80 / 90 / n/a / 95: weight was by far the strongest lever and made Brick unbeatable and Vex unwinnable), raised Vex's
 damage by 25% and Nova's fire / ice bolts by 25%, and slowed Gizmo's turrets and Mech punches. Hard CPUs now sit at roughly 45-55%
-(Brick 48, Vex 45, Nova 55, Gizmo 48, Agni 54 after the Phase 17 retune; weights are now Brick 114, Vex 106, Nova 100, Agni 92, Gizmo 88). Real balance needs your hands-on feedback.
+(Brick 55, Vex 39, Nova 53, Gizmo 49, Agni 54, Halcyon 49 in the latest Hard-CPU run; weights are now Brick 114, Vex 106, Nova 100, Agni 92, Gizmo 88). Real balance needs your hands-on feedback.
 
 ## Roadmap
 
