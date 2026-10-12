@@ -81,6 +81,9 @@ export class CpuController implements Controller {
   private retreat = 0;
   /** Frames since anybody took damage: a stalled mirror match makes the CPU stop zoning and close in. */
   private stall = 0;
+  /** Showboating: frames until the CPU taunts after scoring a KO (-1 = none pending). */
+  private tauntIn = -1;
+  private wasKo: boolean[] = [];
   /** Decaying per-move usage counts (staleness). */
   private readonly useCount = new Float32Array(16);
   private lastDamageSum = 0;
@@ -111,6 +114,24 @@ export class CpuController implements Controller {
     this.sy = 0;
     this.held = 0;
     for (const k in this.cooldown) if (this.cooldown[k] > 0) this.cooldown[k]--;
+
+    // scored a KO? sometimes celebrate with a taunt once it is safe (nobody close)
+    world.fighters.forEach((f, i) => {
+      const ko = f.state === 'ko';
+      if (ko && !this.wasKo[i] && f.id !== self.id && f.lastHitBy === self.id && this.rnd() < 0.45) this.tauntIn = 40 + Math.floor(this.rnd() * 40);
+      this.wasKo[i] = ko;
+    });
+    if (this.tauntIn > 0) this.tauntIn--;
+    if (this.tauntIn === 0 && self.state === 'idle' && self.grounded && self.meter < (self.data.ultimate?.cost ?? 100)) {
+      const near = world.fighters.some((f) => f.id !== self.id && f.state !== 'ko' && Math.abs(f.x - self.x) < 150 && Math.abs(f.y - self.y) < 100);
+      this.tauntIn = -1;
+      if (!near) {
+        this.held = Button.Ultimate;
+        applyHeld(out, this.held, this.prevHeld);
+        this.prevHeld = this.held;
+        return;
+      }
+    }
 
     if (self.state !== 'ko') {
       let sum = 0;
