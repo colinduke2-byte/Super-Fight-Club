@@ -38,6 +38,15 @@ export class Match {
   winnerTeam = -1;
   /** Called with the fighter that should be placed back on the stage. */
   onRespawn: ((f: Fighter) => void) | null = null;
+  /** Time-mode tie: the tied fighters fight on at 300%, one stock each, everyone else sits out. */
+  suddenDeath = false;
+  /** Fighter ids still in sudden death. */
+  contenders: number[] = [];
+  /** Called once when sudden death starts (after the contenders respawned). */
+  onSuddenDeath: ((ids: number[]) => void) | null = null;
+  /** Sudden death ends in a draw if nobody falls within this many ticks. */
+  static readonly SUDDEN_DEATH_TICKS = 60 * 60;
+  private sdTicks = 0;
 
   constructor(
     private readonly world: World,
@@ -60,6 +69,11 @@ export class Match {
     if (killer >= 0 && killer !== fighter.id) this.scores[killer].kos++;
     else if (this.cfg.mode === 'time') this.scores[fighter.id].kos--; // self-destruct costs a point
     if (!this.training) s.stocks--;
+    if (this.suddenDeath) {
+      s.eliminated = true;
+      s.stocks = 0;
+      return;
+    }
     if (s.stocks <= 0 && this.cfg.mode === 'stock') {
       s.eliminated = true;
       s.stocks = 0;
@@ -79,7 +93,13 @@ export class Match {
         this.onRespawn?.(f);
       }
     }
-    if (this.cfg.mode === 'time') {
+    if (this.suddenDeath) {
+      const alive = this.contenders.filter((i) => !this.scores[i].eliminated);
+      if (alive.length <= 1 || ++this.sdTicks >= Match.SUDDEN_DEATH_TICKS) {
+        this.winner = alive.length === 1 ? alive[0] : -1;
+        this.over = true;
+      }
+    } else if (this.cfg.mode === 'time') {
       if (--this.ticksLeft <= 0) this.finish();
     } else if (this.cfg.mode === 'stock') {
       const alive = this.scores.map((s, i) => (s.eliminated ? -1 : i)).filter((i) => i >= 0);
@@ -124,6 +144,31 @@ export class Match {
         tie = false;
       } else if (pts === best) tie = true;
     });
-    this.winner = tie ? -1 : winner;
+    if (tie) {
+      this.startSuddenDeath(this.scores.map((_, i) => i).filter((i) => this.scores[i].kos - this.scores[i].falls === best));
+      return;
+    }
+    this.winner = winner;
+  }
+
+  /** Tied at the bell: the tied fighters respawn at 300% with one stock; the first to fall loses. */
+  private startSuddenDeath(ids: number[]): void {
+    this.over = false;
+    this.suddenDeath = true;
+    this.contenders = ids;
+    this.sdTicks = 0;
+    this.respawnAt.fill(-1);
+    for (const f of this.world.fighters) {
+      const s = this.scores[f.id];
+      if (!ids.includes(f.id)) {
+        s.eliminated = true;
+        f.setState('ko');
+        continue;
+      }
+      s.stocks = 1;
+      this.onRespawn?.(f);
+      f.damage = 300;
+    }
+    this.onSuddenDeath?.(ids);
   }
 }

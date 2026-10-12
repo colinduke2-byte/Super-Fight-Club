@@ -317,7 +317,25 @@ describe('stocks and KOs', () => {
     expect(match.over).toBe(false);
   });
 
-  it('time mode: most KOs wins, a tie is a draw', () => {
+  it('time mode: a tie goes to sudden death at 300%, first to fall loses', () => {
+    const r = rig();
+    const match = new Match(r.world, { mode: 'time', stocks: 0, timeLimitSec: 1, respawnDelay: 5 });
+    let sd: number[] = [];
+    match.onRespawn = (f) => f.spawn(f.id === 0 ? -20 : 20, -2);
+    match.onSuddenDeath = (ids) => (sd = ids);
+    for (let i = 0; i < 70; i++) match.step();
+    expect(match.over).toBe(false);
+    expect(match.suddenDeath).toBe(true);
+    expect(sd).toEqual([0, 1]);
+    expect(r.a.damage).toBe(300);
+    expect(r.b.damage).toBe(300);
+    match.onKo(r.b, 0);
+    match.step();
+    expect(match.over).toBe(true);
+    expect(match.winner).toBe(0);
+  });
+
+  it('time mode: most KOs wins outright', () => {
     const r = rig();
     const match = new Match(r.world, { mode: 'time', stocks: 0, timeLimitSec: 1, respawnDelay: 5 });
     match.onKo(r.b, 0);

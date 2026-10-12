@@ -164,6 +164,7 @@ Key design points
 - **Taunt:** press Ultimate while the meter is not full.
 - **Team battles:** Versus Setup > Teams (4 players): P1+P2 vs P3+P4, no friendly fire (hits, projectiles, traps), the match ends when a whole team is out; results rank the winning team first.
 - **Items:** Versus Setup > Items (off / low / high): Heart (-25%), Energy Cell (+50 ultimate meter) and Overdrive (10 s of +30% damage) drop onto the stage; the CPU goes for them. Drops use a seeded generator, so they are deterministic.
+- **Timed matches:** an on-screen clock counts down (red for the last ten seconds). A tie at the bell goes to SUDDEN DEATH: the tied fighters respawn at 300% with one stock each and the first to fall loses.
 - **Replays:** after a Versus match, Results > WATCH REPLAY re-runs it from the recorded inputs (the sim is deterministic). ESC/Enter exits. Versus Setup > STAGE HAZARDS turns stage hazards off.
 - **Rumble:** gamepad vibration on hits, pickups and KOs (Chromium / Edge; Settings > Controller rumble).
 Dev shortcut: add `&teams&items=2` to a 4-player `?stage=...&players=4` URL.

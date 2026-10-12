@@ -123,6 +123,9 @@ export class MatchScene extends Phaser.Scene {
   private stepOnce = false;
   private helpOn = true;
   private banner!: Phaser.GameObjects.BitmapText;
+  /** Time-mode clock (top centre); turns into SUDDEN DEATH on a tie. */
+  private clock!: Phaser.GameObjects.BitmapText;
+  private lastClockSec = -1;
   private introTicks = 0;
   private shake = 0;
   /** Brief camera push-in on heavy hits (decays each tick). */
@@ -199,6 +202,12 @@ export class MatchScene extends Phaser.Scene {
     this.match = new Match(this.world, cfg);
     if (!rep && !this.isTraining && session.mode === 'versus') this.recorder = new ReplayRecorder(session.stage, rules, this.slots.map((sl) => ({ character: sl.character })), settings.smashMode === 'flick');
     this.match.onRespawn = (f) => this.respawn(f.id, true);
+    this.match.onSuddenDeath = () => {
+      this.banner.setText('SUDDEN DEATH!').setVisible(true);
+      this.introTicks = 110;
+      sfx.play('boom', 0.8, 0);
+      this.cam.snap();
+    };
     this.slots.forEach((s, i) => {
       if (s.stocks && !this.isTraining) this.match.scores[i].stocks = s.stocks;
     });
@@ -260,7 +269,9 @@ export class MatchScene extends Phaser.Scene {
     this.banner = this.add.bitmapText(0, 0, PIXEL_FONT, '').setOrigin(0.5).setTint(0xffe14a).setVisible(false).setCenterAlign();
     this.pauseOverlay = this.add.rectangle(0, 0, 10, 10, 0x000000, 0.6).setOrigin(0, 0).setVisible(false);
     this.pauseText = this.add.bitmapText(0, 0, PIXEL_FONT, '').setOrigin(0.5).setVisible(false).setCenterAlign();
-    this.uiLayer.add([this.helpText, this.toast, this.banner, this.pauseOverlay, this.pauseText]);
+    this.clock = this.add.bitmapText(0, 0, PIXEL_FONT, '').setOrigin(0.5, 0).setCenterAlign().setVisible(false);
+    this.lastClockSec = -1;
+    this.uiLayer.add([this.helpText, this.toast, this.banner, this.clock, this.pauseOverlay, this.pauseText]);
     if (!this.isTraining) {
       const lad = session.mode === 'arcade' ? session.ladder : null;
       const fight = lad ? currentFight(lad) : null;
@@ -378,6 +389,10 @@ export class MatchScene extends Phaser.Scene {
     session.rules.teams = q.has('teams');
     session.rules.items = Math.min(2, Math.max(0, Number(q.get('items') ?? 0))) as 0 | 1 | 2;
     session.stage = q.get('stage') ?? 'sandbox';
+    if (q.has('time')) {
+      session.rules.mode = 'time'; // ?time=<seconds> plays a timed match
+      session.rules.timeSec = Math.max(5, Number(q.get('time')) || 120);
+    }
     const auto = q.get('auto') !== null; // spectate: every slot is a CPU
     session.players = [{ index: 0, type: auto ? 'cpu' : 'human', device: auto ? null : device, character: id, cpuLevel: 3 }];
     const lvl = Math.min(3, Math.max(1, Number(q.get('cpu') ?? 1))) as 1 | 2 | 3;
@@ -633,9 +648,10 @@ export class MatchScene extends Phaser.Scene {
       this.huds[i].colorIndex = f.data.hud?.colorKey ? (f.res[f.data.hud.colorKey] ?? 0) : 0;
       this.huds[i].update(f.damage, sc.stocks, this.match.training, sc.eliminated, f.meter / (f.data.ultimate?.cost ?? 100), this.world.tick, f.data.hud ? (f.res[f.data.hud.resource] ?? 0) : 0, f.status);
     }
+    this.updateClock();
     if (this.match.over && !this.banner.visible) {
       const w = this.match.winner;
-      const head = this.match.cfg.mode === 'time' ? 'TIME!' : 'GAME!';
+      const head = this.match.cfg.mode === 'time' && !this.match.suddenDeath ? 'TIME!' : 'GAME!';
       const tail = w < 0 ? 'DRAW' : this.match.winnerTeam >= 0 ? `TEAM ${this.match.winnerTeam === 0 ? 'BLUE' : 'RED'} WINS` : session.mode === 'arcade' ? (w === 0 ? 'VICTORY' : 'DEFEATED') : `P${w + 1} WINS`;
       this.banner.setText(up(`${head}\n${tail}`)).setVisible(true);
     }
@@ -794,6 +810,26 @@ export class MatchScene extends Phaser.Scene {
     return Math.max(2, Math.round(h / 360));
   }
 
+  /** MM:SS countdown in time mode: pulses red over the last ten seconds, ticks over the last five. */
+  private updateClock(): void {
+    const m = this.match;
+    if (m.cfg.mode !== 'time' || this.bench) {
+      this.clock.setVisible(false);
+      return;
+    }
+    this.clock.setVisible(true);
+    if (m.suddenDeath) {
+      this.clock.setText('SUDDEN DEATH').setTint(0xff4a5a);
+      return;
+    }
+    const sec = Math.max(0, Math.ceil(m.ticksLeft / 60));
+    this.clock.setText(`${Math.floor(sec / 60)}:${String(sec % 60).padStart(2, '0')}`);
+    const urgent = sec <= 10 && !m.over;
+    this.clock.setTint(urgent ? ((this.world.tick >> 4) & 1 ? 0xff4a5a : 0xffffff) : 0xffffff);
+    if (urgent && sec !== this.lastClockSec && sec > 0 && sec <= 5) sfx.play('ding', 0.5, 0);
+    this.lastClockSec = sec;
+  }
+
   private layout(w: number, h: number): void {
     const m = Math.round(8 * this.dpr());
     const u = this.hudUnit(h);
@@ -810,6 +846,7 @@ export class MatchScene extends Phaser.Scene {
     this.pauseText.setScale(u * 2).setPosition(w / 2, h * 0.3);
     this.pauseMenu.layout(w / 2, h * 0.42, u, 90);
     this.banner.setScale(u * 4).setPosition(w / 2, h * 0.3);
+    this.clock.setScale(u * 2.5).setPosition(w / 2, m);
     const n = this.huds.length;
     this.huds.forEach((hud, i) => hud.layout((w * (i + 1)) / (n + 1), h - m, u));
   }
