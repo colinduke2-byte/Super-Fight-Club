@@ -95,6 +95,12 @@ export class Sfx {
         this.tone(d, 'square', 320, 180, 0.06, 0.1 * k);
         this.noiseBurst(d, 'bandpass', 1400, 500, 0.07, 0.12 * k);
         break;
+      case 'wind':
+        // a rising airy rush with a feathery flutter on top
+        this.noiseBurst(d, 'bandpass', 1200, 4200, 0.13, 0.16 * k);
+        this.noiseBurst(d, 'highpass', 5200, 2600, 0.07, 0.07 * k, 0.03);
+        this.tone(d, 'sine', 900, 1500, 0.09, 0.04 * k);
+        break;
       case 'fire':
         this.noiseBurst(d, 'highpass', 2600, 1200, 0.1, 0.12 * k);
         this.noiseBurst(d, 'lowpass', 900, 300, 0.12, 0.14 * k);
@@ -124,6 +130,11 @@ export class Sfx {
         this.tone(d, 'triangle', 640, 610, 0.18 * h, 0.3 * k);
         this.tone(d, 'square', 980, 940, 0.1, 0.12 * k);
         this.noiseBurst(d, 'bandpass', 3200, 2200, 0.04, 0.25 * k);
+        break;
+      case 'wind':
+        this.tone(d, 'triangle', 1800, 2900, 0.1 * h, 0.2 * k);
+        this.noiseBurst(d, 'highpass', 4800, 2400, 0.12 * h, 0.2 * k);
+        this.tone(d, 'sine', 240, 120, 0.1, 0.18 * k);
         break;
       case 'fire':
         this.noiseBurst(d, 'highpass', 3000, 1800, 0.2 * h, 0.25 * k);

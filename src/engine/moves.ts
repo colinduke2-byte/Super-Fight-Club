@@ -127,6 +127,10 @@ export interface PoseSpec {
   /** Front foot step at the strike. */
   step?: number;
   lift?: number;
+  /** Weapon axis (degrees: 0 forward, -90 up, 90 down) at the three key poses; for spear carriers. */
+  aim?: [number, number, number];
+  /** Wing posture 0..1 at the three key poses; for winged fighters. */
+  wing?: [number, number, number];
   /** custom: three explicit key poses [lean, crouch, frontHand, backHand, frontFoot, backFoot]. */
   keys?: [number, number, [number, number], [number, number], [number, number], [number, number]][];
 }

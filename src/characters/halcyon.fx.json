@@ -1,0 +1,217 @@
+{
+ "sound": "wind",
+ "trail": "#ffe27a",
+ "recipes": {
+  "cast": [
+   {
+    "op": "flash",
+    "x": 22,
+    "y": -18,
+    "power": 0.9,
+    "color": 16769914
+   },
+   {
+    "op": "burst",
+    "x": 22,
+    "y": -18,
+    "count": 8,
+    "speed": 80,
+    "color": 16777215,
+    "life": 0.3,
+    "size": 2
+   }
+  ],
+  "converge": [
+   {
+    "op": "ring",
+    "y": -14,
+    "radius": 56,
+    "color": 16777215,
+    "life": 0.8
+   },
+   {
+    "op": "burst",
+    "y": -14,
+    "count": 34,
+    "speed": 110,
+    "color": 16769914,
+    "life": 0.8,
+    "size": 3
+   },
+   {
+    "op": "emit",
+    "yh": 0.6,
+    "jx": 30,
+    "vy": -40,
+    "jvx": 20,
+    "life": 0.8,
+    "color": 16777215,
+    "size": 3
+   }
+  ]
+ },
+ "cinematicHit": [
+  {
+   "op": "trail",
+   "x": -28,
+   "to": {
+    "x": 30
+   },
+   "color": 16777215,
+   "random": true
+  },
+  {
+   "op": "trail",
+   "x": -24,
+   "to": {
+    "x": 26
+   },
+   "color": 16769914,
+   "random": true
+  },
+  {
+   "op": "burst",
+   "yh": 0.5,
+   "count": 6,
+   "speed": 80,
+   "color": 16777215,
+   "life": 0.4,
+   "size": 2
+  }
+ ],
+ "rules": [
+  {
+   "when": {
+    "states": [
+     "air"
+    ]
+   },
+   "every": 7,
+   "ops": [
+    {
+     "op": "emit",
+     "x": -14,
+     "yh": 0.7,
+     "jx": 16,
+     "jy": 10,
+     "vy": 18,
+     "jvx": 14,
+     "life": 0.7,
+     "color": 16777215,
+     "size": 2,
+     "additive": false,
+     "gravity": -10
+    }
+   ]
+  },
+  {
+   "when": {
+    "res": {
+     "key": "level",
+     "min": 1
+    }
+   },
+   "every": 6,
+   "ops": [
+    {
+     "op": "emit",
+     "x": -12,
+     "yh": 0.65,
+     "jx": 26,
+     "jy": 22,
+     "vy": -24,
+     "life": 0.5,
+     "color": 16769914,
+     "size": 2
+    }
+   ]
+  },
+  {
+   "when": {
+    "res": {
+     "key": "level",
+     "min": 2
+    }
+   },
+   "every": 4,
+   "ops": [
+    {
+     "op": "converge",
+     "radius": [
+      18,
+      34
+     ],
+     "pull": 2.4,
+     "swirl": 1.2,
+     "life": 0.35,
+     "color": 16777215,
+     "size": 2
+    }
+   ]
+  },
+  {
+   "when": {
+    "moves": [
+     "sideB"
+    ],
+    "phase": "active"
+   },
+   "every": 1,
+   "ops": [
+    {
+     "op": "trail",
+     "x": -4,
+     "yh": 0.55,
+     "jy": 12,
+     "to": {
+      "x": -40
+     },
+     "color": 16777215
+    }
+   ]
+  },
+  {
+   "when": {
+    "moves": [
+     "downB"
+    ],
+    "phase": "active"
+   },
+   "every": 1,
+   "ops": [
+    {
+     "op": "trail",
+     "x": -4,
+     "yh": 0.9,
+     "jx": 8,
+     "to": {
+      "x": -4,
+      "y": -46
+     },
+     "color": 16769914,
+     "random": false
+    }
+   ]
+  },
+  {
+   "when": {
+    "moves": [
+     "upB"
+    ],
+    "phase": "active"
+   },
+   "every": 2,
+   "ops": [
+    {
+     "op": "burst",
+     "y": 2,
+     "count": 4,
+     "speed": 60,
+     "color": 16777215,
+     "life": 0.35,
+     "size": 3
+    }
+   ]
+  }
+ ]
+}

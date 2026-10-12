@@ -2,6 +2,7 @@ import type { CharacterData } from '../engine/types';
 import { agni } from './agni';
 import { brick } from './brick';
 import { gizmo } from './gizmo';
+import { halcyon } from './halcyon';
 import { nova } from './nova';
 import { vex } from './vex';
 import { overseer } from './overseer';
@@ -14,6 +15,7 @@ export const CHARACTERS: Record<string, CharacterData> = {
   [nova.id]: nova,
   [gizmo.id]: gizmo,
   [agni.id]: agni,
+  [halcyon.id]: halcyon,
 };
 export const CHARACTER_LIST: CharacterData[] = Object.values(CHARACTERS);
 

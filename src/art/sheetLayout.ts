@@ -28,7 +28,8 @@ export function sheetLayout(data: CharacterData): SheetLayout {
       start[n] = total;
       total += data.sprite.animations[n].frames;
     }
-    const cols = Math.max(1, Math.min(Math.floor(MAX_SHEET / data.sprite.frameSize), Math.ceil(Math.sqrt(total))));
+    const fw = data.sprite.frameWidth ?? data.sprite.frameSize;
+    const cols = Math.max(1, Math.min(Math.floor(MAX_SHEET / fw), Math.ceil(Math.sqrt(total))));
     L = { names, start, total, cols, rows: Math.ceil(total / cols) };
   }
   layouts.set(data, L);
@@ -37,7 +38,7 @@ export function sheetLayout(data: CharacterData): SheetLayout {
 /** Pixel size of a generated sheet (tests guard it against the 4096px texture limit). */
 export function sheetDims(data: CharacterData): { width: number; height: number } {
   const L = sheetLayout(data);
-  return { width: L.cols * data.sprite.frameSize, height: L.rows * data.sprite.frameSize };
+  return { width: L.cols * (data.sprite.frameWidth ?? data.sprite.frameSize), height: L.rows * data.sprite.frameSize };
 }
 /** Sheet frame index for (animation, frame). */
 export function animFrameIndex(data: CharacterData, anim: string, frame: number): number {

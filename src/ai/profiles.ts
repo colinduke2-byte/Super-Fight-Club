@@ -132,6 +132,16 @@ CHARACTER_AI.agni = {
   spacing: 42,
 };
 
+CHARACTER_AI.halcyon = {
+  ...GENERIC,
+  ranged: ['neutralB'],
+  closers: ['sideB'],
+  finishers: ['fsmash', 'usmash', 'fair', 'bair'],
+  recovery: { slot: 'upB', up: 100, out: 55, aim: 'fixed' },
+  ultimateRange: 70,
+  spacing: 52,
+};
+
 export function aiFor(id: string): CharacterAi {
   return CHARACTER_AI[id] ?? GENERIC;
 }

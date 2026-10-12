@@ -2,7 +2,7 @@ import type { PoseSpec } from '../engine/moves';
 
 type V2 = [number, number];
 /** [lean, crouch, frontHand, backHand, frontFoot, backFoot] (same layout as the pose tables in proceduralFighter). */
-export type Key = [number, number, V2, V2, V2, V2];
+export type Key = [number, number, V2, V2, V2, V2, number?, number?];
 
 const FF: V2 = [4, 0];
 const BF: V2 = [-4, 0];
@@ -11,6 +11,19 @@ const BH: V2 = [-2, 0];
 
 /** Build the three key poses (wind-up, strike, recovery) for a pose spec. */
 export function buildKeys(s: PoseSpec): [Key, Key, Key] {
+  const keys = buildBase(s);
+  if (s.aim || s.wing) {
+    return keys.map((k, i) => {
+      const o = [...k] as Key;
+      if (s.aim) o[6] = s.aim[i];
+      if (s.wing) o[7] = s.wing[i];
+      return o;
+    }) as [Key, Key, Key];
+  }
+  return keys;
+}
+
+function buildBase(s: PoseSpec): [Key, Key, Key] {
   const reach = s.reach ?? 14;
   const h = s.h ?? -6;
   const lean = s.lean;
@@ -140,7 +153,7 @@ export function buildKeys(s: PoseSpec): [Key, Key, Key] {
     }
     case 'custom':
       if (!s.keys || s.keys.length !== 3) throw new Error('custom pose spec needs exactly 3 keys');
-      return s.keys as [Key, Key, Key];
+      return s.keys as unknown as [Key, Key, Key];
     default:
       throw new Error(`unknown pose template '${s.t}'`);
   }

@@ -10,11 +10,14 @@ export interface HeroPose {
   backFoot: V2;
   frontHand: V2;
   backHand: V2;
+  aim?: number;
+  wing?: number;
 }
 
 /** Joint positions in full-resolution (128px frame) pixels, derived from a pose. */
 export interface Skel {
-  S: number;
+  W: number;
+  H: number;
   phase: number;
   pose: HeroPose;
   cx: number;
@@ -36,14 +39,26 @@ export interface Skel {
   kneeF: V2;
   kneeB: V2;
   armLen: number;
+  /** Bone length of each arm segment (shoulder-elbow, elbow-hand). */
+  armBone: number;
   legLen: number;
 }
 
-export function skeleton(look: PlaceholderLook, pose: HeroPose, S: number, phase: number): Skel {
+/** Two-bone limb from `a` towards `t` with bone length `l` (the end point is clamped to the reach). */
+export function solveLimb(a: V2, t: V2, l: number, bend: 1 | -1): { mid: V2; end: V2 } {
+  const dx = t[0] - a[0];
+  const dy = t[1] - a[1];
+  const d = Math.hypot(dx, dy) || 1;
+  const m = Math.min(d, l * 2 * 0.999);
+  const end: V2 = [a[0] + (dx / d) * m, a[1] + (dy / d) * m];
+  return { mid: ik(a, end, l, l, bend), end };
+}
+
+export function skeleton(look: PlaceholderLook, pose: HeroPose, W: number, H: number, phase: number): Skel {
   const b = look.build;
   const k = 2; // hi-res pixels per authoring-grid unit
-  const cx = S / 2 - 5 * (S / 64);
-  const base = S - 4;
+  const cx = W / 2 - 5 * (H / 64);
+  const base = H - 4;
   const legH = b.legH * 2 * k - pose.crouch * k;
   const torsoH = b.torsoH * 2 * k;
   const tw = (b.shoulderW - 4) * 2 * k;
@@ -66,20 +81,14 @@ export function skeleton(look: PlaceholderLook, pose: HeroPose, S: number, phase
   // two-bone limbs: fixed bone lengths, so a folded arm / bent leg keeps its size (the end point is clamped to the reach)
   const armL = armLen * 0.52;
   const legL = ((legH - ankle) / 2) * 1.01;
-  const limb = (a: V2, t: V2, l: number, bend: 1 | -1): { mid: V2; end: V2 } => {
-    const dx = t[0] - a[0];
-    const dy = t[1] - a[1];
-    const d = Math.hypot(dx, dy) || 1;
-    const m = Math.min(d, l * 2 * 0.999);
-    const end: V2 = [a[0] + (dx / d) * m, a[1] + (dy / d) * m];
-    return { mid: ik(a, end, l, l, bend), end };
-  };
+  const limb = solveLimb;
   const aF = limb(shF, handF, armL, 1);
   const aB = limb(shB, handB, armL, 1);
   const lF = limb(hipF, [footF[0], footF[1] - ankle], legL, -1);
   const lB = limb(hipB, [footB[0], footB[1] - ankle], legL, -1);
   return {
-    S,
+    W,
+    H,
     phase,
     pose,
     cx,
@@ -101,6 +110,7 @@ export function skeleton(look: PlaceholderLook, pose: HeroPose, S: number, phase
     kneeF: lF.mid,
     kneeB: lB.mid,
     armLen,
+    armBone: armL,
     legLen: legH,
   };
 }

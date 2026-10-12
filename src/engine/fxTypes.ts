@@ -69,8 +69,8 @@ export interface FxRule {
 }
 
 /** Sonic flavour of a fighter's swings and hits. */
-export type SoundStyle = 'plain' | 'heavy' | 'blade' | 'arcane' | 'mech' | 'fire';
-export const SOUND_STYLES: SoundStyle[] = ['plain', 'heavy', 'blade', 'arcane', 'mech', 'fire'];
+export type SoundStyle = 'plain' | 'heavy' | 'blade' | 'arcane' | 'mech' | 'fire' | 'wind';
+export const SOUND_STYLES: SoundStyle[] = ['plain', 'heavy', 'blade', 'arcane', 'mech', 'fire', 'wind'];
 
 export interface CharacterFx {
   /** Swing / hit sound flavour (default 'plain'). */

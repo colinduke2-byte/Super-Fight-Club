@@ -124,6 +124,10 @@ export interface AnimDef {
 export interface SpriteDef {
   /** Square frame size in px (placeholder art is 64; real sheets may differ). */
   frameSize: number;
+  /** Frame width when wider than tall (long-weapon fighters); defaults to `frameSize`. */
+  frameWidth?: number;
+  /** Portrait crop [x, y, size] in frame pixels (menus / HUD); default is derived from the frame size. */
+  portrait?: [number, number, number];
   /** World units per sprite pixel (0.5 = a 64px frame covers 32 world units). Keeps hurtboxes independent of art density. */
   pixelScale: number;
   /** Row order == key order. Sheet layout: one animation per row, frames left to right. */
@@ -147,14 +151,14 @@ export interface PlaceholderLook {
     legH: number;
     headSize: number;
     armLen: number;
-    helmet: 'visor' | 'hood' | 'pointed' | 'dome' | 'band';
+    helmet: 'visor' | 'hood' | 'pointed' | 'dome' | 'band' | 'winged';
     /** Soft, rounded construction (pot-belly torso, ball joints, domed head) instead of plated blocks. */
     round?: boolean;
   };
   /** 'hi' draws the character with the full-resolution renderer (src/art/hero) instead of the 64px block template. */
   art?: 'hi';
   /** What the front hand holds. Default 'piston' (Brick's piston fist). */
-  weapon?: 'piston' | 'blades' | 'staff' | 'wrench' | 'gauntlet';
+  weapon?: 'piston' | 'blades' | 'staff' | 'wrench' | 'gauntlet' | 'spear';
   /** Silhouette accessories: scarf, bracer, cloak, toolbox, grapple. */
   extras?: ('scarf' | 'bracer' | 'cloak' | 'toolbox' | 'grapple' | 'sash')[];
 }
@@ -209,6 +213,8 @@ export interface CharacterData {
   /** Ground dash (double-tap / flick) with an invulnerability window. */
   /** Can jump off walls (the sides of solid platforms) while airborne. */
   wallJump?: boolean;
+  /** Wings: holding Jump while falling slows the fall (`fall` px/frame), speeds up air drift (`speed` x) for at most `max` frames per airtime. */
+  glide?: { fall: number; speed: number; max: number };
   dash?: { speed: number; frames: number; invuln: [number, number]; cooldown: number };
   /** HUD resource bar (Heat, Scrap...): drawn as a glowing seam on the player plate; sprite glows once `hotAt` is reached. */
   hud?: { resource: string; max: number; color: number; hotAt: number; /** Per-element seam colours picked by `res[colorKey]`. */ colors?: number[]; colorKey?: string; /** Tick marks on the seam (level thresholds). */ marks?: number[] };

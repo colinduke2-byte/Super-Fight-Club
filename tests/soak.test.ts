@@ -12,7 +12,7 @@ const ids = Object.keys(CHARACTERS);
 /** Every 4-character lineup from the roster (and rotations of it) brawls as Hard CPUs; nobody may get stuck or produce bad numbers. */
 function lineups(): string[][] {
   const out: string[][] = [];
-  for (let skip = 0; skip < ids.length; skip++) out.push(ids.filter((_, i) => i !== skip));
+  for (let start = 0; start < ids.length; start++) out.push([0, 1, 2, 3].map((k) => ids[(start + k) % ids.length])); // four consecutive fighters, every rotation
   return out;
 }
 

@@ -33,19 +33,19 @@ const hash = (x: number, y: number): number => {
  * lighting (rim light top-left, bounce shade bottom-right, cool shadows / warm highlights), material texture, glow around
  * emissive parts and a selective outline tinted by the colour it borders.
  */
-export function detailPass(ctx: Ctx, size: number, ss: number, look: PlaceholderLook, a: Anchors | null, phase: number, lighting = true): void {
+export function detailPass(ctx: Ctx, w: number, h: number, ss: number, look: PlaceholderLook, a: Anchors | null, phase: number, lighting = true): void {
   if (a && lighting) decorate(ctx, ss, look, a, phase);
 
-  const img = ctx.getImageData(0, 0, size, size);
+  const img = ctx.getImageData(0, 0, w, h);
   const d = img.data;
   const src = new Uint8ClampedArray(d);
-  const op = (x: number, y: number): boolean => x >= 0 && y >= 0 && x < size && y < size && src[(y * size + x) * 4 + 3] > 0;
+  const op = (x: number, y: number): boolean => x >= 0 && y >= 0 && x < w && y < h && src[(y * w + x) * 4 + 3] > 0;
   const accent = rgb(look.accent);
   const glow = bright(accent, 1.55);
   const cool: [number, number, number] = [26, 16, 70];
   const warm: [number, number, number] = [255, 240, 210];
   const outline = rgb(look.outline);
-  const emissive = new Uint8Array(size * size);
+  const emissive = new Uint8Array(w * h);
 
   // depth to the nearest transparent pixel in each direction (capped)
   const CAP = 5;
@@ -55,16 +55,16 @@ export function detailPass(ctx: Ctx, size: number, ss: number, look: Placeholder
     return n;
   };
 
-  for (let y = 0; y < size; y++) {
-    for (let x = 0; x < size; x++) {
-      const i = (y * size + x) * 4;
+  for (let y = 0; y < h; y++) {
+    for (let x = 0; x < w; x++) {
+      const i = (y * w + x) * 4;
       if (src[i + 3] === 0) continue;
       let c: [number, number, number] = [src[i], src[i + 1], src[i + 2]];
       const lum = (c[0] + c[1] + c[2]) / 3;
       const near = (u: [number, number, number]): boolean => Math.abs(c[0] - u[0]) + Math.abs(c[1] - u[1]) + Math.abs(c[2] - u[2]) < 40;
       const isEmissive = near(accent) || near(glow);
       if (isEmissive) {
-        emissive[y * size + x] = 1;
+        emissive[y * w + x] = 1;
         continue;
       }
       if (!lighting) continue;
@@ -73,7 +73,7 @@ export function detailPass(ctx: Ctx, size: number, ss: number, look: Placeholder
       const down = dist(x, y, 0, 1);
       const right = dist(x, y, 1, 0);
       // soft volume: a little lighter toward the top of the sprite, darker toward the feet
-      c = bright(c, 1.08 - (y / size) * 0.2);
+      c = bright(c, 1.08 - (y / h) * 0.2);
       // light from the top-left
       const lit = Math.min(up, left);
       const dark = Math.min(down, right);
@@ -95,29 +95,29 @@ export function detailPass(ctx: Ctx, size: number, ss: number, look: Placeholder
 
   // inner bloom on armour next to emissive pixels
   const R = 3;
-  const bloom = new Float32Array(size * size);
-  for (let y = 0; y < size; y++) {
-    for (let x = 0; x < size; x++) {
-      if (!emissive[y * size + x]) continue;
+  const bloom = new Float32Array(w * h);
+  for (let y = 0; y < h; y++) {
+    for (let x = 0; x < w; x++) {
+      if (!emissive[y * w + x]) continue;
       for (let dy = -R; dy <= R; dy++) {
         for (let dx = -R; dx <= R; dx++) {
           const xx = x + dx;
           const yy = y + dy;
-          if (xx < 0 || yy < 0 || xx >= size || yy >= size) continue;
+          if (xx < 0 || yy < 0 || xx >= w || yy >= h) continue;
           const f = 1 - Math.hypot(dx, dy) / (R + 0.5);
-          if (f > 0) bloom[yy * size + xx] = Math.min(1, bloom[yy * size + xx] + f * 0.22);
+          if (f > 0) bloom[yy * w + xx] = Math.min(1, bloom[yy * w + xx] + f * 0.22);
         }
       }
     }
   }
 
   // selective outline + outer glow
-  for (let y = 0; y < size; y++) {
-    for (let x = 0; x < size; x++) {
-      const i = (y * size + x) * 4;
+  for (let y = 0; y < h; y++) {
+    for (let x = 0; x < w; x++) {
+      const i = (y * w + x) * 4;
       if (src[i + 3] > 0) {
-        const b = bloom[y * size + x];
-        if (b > 0.02 && !emissive[y * size + x]) {
+        const b = bloom[y * w + x];
+        if (b > 0.02 && !emissive[y * w + x]) {
           d[i] = Math.min(255, d[i] + accent[0] * b * 0.5);
           d[i + 1] = Math.min(255, d[i + 1] + accent[1] * b * 0.5);
           d[i + 2] = Math.min(255, d[i + 2] + accent[2] * b * 0.5);
@@ -130,7 +130,7 @@ export function detailPass(ctx: Ctx, size: number, ss: number, look: Placeholder
       let cnt = 0;
       for (const [dx, dy] of [[-1, 0], [1, 0], [0, -1], [0, 1]] as const) {
         if (op(x + dx, y + dy)) {
-          const j = ((y + dy) * size + (x + dx)) * 4;
+          const j = ((y + dy) * w + (x + dx)) * 4;
           sr += src[j];
           sg += src[j + 1];
           sb += src[j + 2];
@@ -145,7 +145,7 @@ export function detailPass(ctx: Ctx, size: number, ss: number, look: Placeholder
         d[i + 2] = c[2];
         d[i + 3] = 255;
       } else {
-        const b = bloom[y * size + x];
+        const b = bloom[y * w + x];
         if (b > 0.05) {
           d[i] = accent[0];
           d[i + 1] = accent[1];

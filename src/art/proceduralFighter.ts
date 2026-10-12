@@ -24,6 +24,10 @@ interface Pose {
   frontHand: V2; // offset from resting hang
   backHand: V2;
   lying?: boolean;
+  /** Weapon axis in degrees (0 = forward, -90 = up, 90 = down) for fighters that carry a long weapon (spears). */
+  aim?: number;
+  /** Wing posture 0 (folded) .. 1 (fully spread) for winged fighters. */
+  wing?: number;
 }
 
 const REST: Pose = { bob: 0, crouch: 0, lean: 0, frontFoot: [4, 0], backFoot: [-4, 0], frontHand: [2, 0], backHand: [-2, 0] };
@@ -152,6 +156,15 @@ function poseFor(anim: string, f: number, frames: number): Pose {
       p.frontHand = [8, -22];
       p.backHand = [-8, -22];
       break;
+    case 'glide': // wings fully spread, body stretched out level, spear trailing
+      p.lean = 8;
+      p.frontFoot = [5, 6];
+      p.backFoot = [-8, 8];
+      p.frontHand = [10, -6];
+      p.backHand = [-4, -4];
+      p.aim = 20;
+      p.wing = 1 + (f % 2 === 0 ? 0 : -0.12);
+      break;
     case 'down':
     case 'ko':
       p.lying = true;
@@ -160,12 +173,19 @@ function poseFor(anim: string, f: number, frames: number): Pose {
       attackPose(anim, f, p, frames);
       break;
   }
+  if (p.wing === undefined) {
+    // winged fighters: folded on the ground, flaring while airborne or hurt
+    const w: Record<string, number> = { idle: 0.1, run: 0.2, walk: 0.15, dash: 0.3, skid: 0.35, crouch: 0.05, jump: [0.9, 0.55, 0.2][f % 3], fall: 0.65, ledge: 0.45, hurt: 0.85, hurtL: 0.5, hurtU: 0.95, hurtD: 0.7, roll: 0.05, held: 0.8, shield: 0.4, dodge: 0.2 };
+    p.wing = w[anim] ?? 0.3;
+  }
   return p;
 }
 
 /** Attack/defence key poses. Frame 0 = wind-up, 1 = active, 2 = recovery (see Fighter.attackPhase). */
 function attackPose(anim: string, f: number, p: Pose, frames = 3): void {
-  const set = (lean: number, crouch: number, fh: V2, bh: V2, ff: V2, bf: V2): void => {
+  const set = (lean: number, crouch: number, fh: V2, bh: V2, ff: V2, bf: V2, aim?: number, wing?: number): void => {
+    if (aim !== undefined) p.aim = aim;
+    if (wing !== undefined) p.wing = wing;
     p.lean = lean;
     p.crouch = crouch;
     p.frontHand = fh;
@@ -173,7 +193,7 @@ function attackPose(anim: string, f: number, p: Pose, frames = 3): void {
     p.frontFoot = ff;
     p.backFoot = bf;
   };
-  const T: Record<string, [number, number, V2, V2, V2, V2][]> = {
+  const T: Record<string, Key[]> = {
     jab: [
       [-2, 0, [-6, -2], [-2, 0], [4, 0], [-4, 0]],
       [-6, 1, [14, -6], [-2, 0], [6, 0], [-5, 0]],
@@ -334,14 +354,15 @@ function attackPose(anim: string, f: number, p: Pose, frames = 3): void {
     // in-between, the strike, follow-through and recovery. Frame 3 is the active pose.
     const mix = (a: number, b: number, t: number): number => Math.round(a + (b - a) * t);
     const mixV = (a: V2, b: V2, t: number): V2 => [mix(a[0], b[0], t), mix(a[1], b[1], t)];
-    const lerp = (a: (typeof row)[number], b: (typeof row)[number], t: number): (typeof row)[number] => [mix(a[0], b[0], t), mix(a[1], b[1], t), mixV(a[2], b[2], t), mixV(a[3], b[3], t), mixV(a[4], b[4], t), mixV(a[5], b[5], t)];
+    const opt = (a: number | undefined, b: number | undefined, t: number): number | undefined => (a === undefined || b === undefined ? (a ?? b) : Math.round((a + (b - a) * t) * 100) / 100);
+    const lerp = (a: (typeof row)[number], b: (typeof row)[number], t: number): (typeof row)[number] => [mix(a[0], b[0], t), mix(a[1], b[1], t), mixV(a[2], b[2], t), mixV(a[3], b[3], t), mixV(a[4], b[4], t), mixV(a[5], b[5], t), opt(a[6], b[6], t), opt(a[7], b[7], t)];
     const [A, B, C] = row;
     const e = [A, lerp(A, B, -0.28), lerp(A, B, 0.62), B, lerp(B, C, 0.5), C][Math.min(f, 5)];
-    set(e[0], e[1], e[2], e[3], e[4], e[5]);
+    set(e[0], e[1], e[2], e[3], e[4], e[5], e[6], e[7]);
     return;
   }
   const e = row[Math.min(f, row.length - 1)];
-  set(e[0], e[1], e[2], e[3], e[4], e[5]);
+  set(e[0], e[1], e[2], e[3], e[4], e[5], e[6], e[7]);
 }
 
 type Ctx = CanvasRenderingContext2D;
@@ -839,6 +860,8 @@ export function uiTexK(data: CharacterData): number {
 /** Crop rectangle of a fighter portrait (the head and shoulders of a 64px frame, scaled to the real frame size). */
 export function portraitCrop(data: CharacterData): [number, number, number, number] {
   const f = data.sprite.frameSize;
+  const pr = data.sprite.portrait;
+  if (pr) return [pr[0], pr[1], pr[2], pr[2]];
   if (f >= 160) return [14 * (f / 160), 36 * (f / 160), 96 * (f / 160), 96 * (f / 160)]; // hero art: head and upper body
   const k = f / 64;
   return [6 * k, 0, 40 * k, 40 * k];
@@ -856,11 +879,12 @@ export function fighterAnimKey(id: string, anim: string): string {
 export function buildPlaceholderSheet(scene: Phaser.Scene, data: CharacterData): void {
   const { sprite } = data;
   const size = sprite.frameSize;
+  const fw = sprite.frameWidth ?? size;
   const L = sheetLayout(data);
   const base = 64; // the poses are authored on a 64px grid; bigger frames are upscaled and then detailed at full resolution
   const ss = size / base;
   const sheet = document.createElement('canvas');
-  sheet.width = L.cols * size;
+  sheet.width = L.cols * fw;
   sheet.height = L.rows * size;
   const sctx = sheet.getContext('2d')!;
   sctx.imageSmoothingEnabled = false;
@@ -872,10 +896,11 @@ export function buildPlaceholderSheet(scene: Phaser.Scene, data: CharacterData):
   // the 64px template is upscaled 2x and detailed at 128px; frames may be larger (hero art), so it is placed bottom-centre
   const legacyS = base * 2;
   const hi = document.createElement('canvas');
-  hi.width = hi.height = hero ? size : legacyS;
+  hi.width = hero ? fw : legacyS;
+  hi.height = hero ? size : legacyS;
   const hctx = hi.getContext('2d', { willReadFrequently: true })!;
   hctx.imageSmoothingEnabled = false;
-  const offX = Math.round((size - legacyS) / 2 + (5 * (size / 64) - 10));
+  const offX = Math.round((fw - legacyS) / 2 + (5 * (size / 64) - 10));
   const offY = size - legacyS - (size - 4 - (legacyS - 2));
 
   moveKeys = {};
@@ -885,12 +910,12 @@ export function buildPlaceholderSheet(scene: Phaser.Scene, data: CharacterData):
     for (let f = 0; f < def.frames; f++) {
       const cell = L.start[name] + f;
       const pose = poseFor(name, f, def.frames);
-      const dx = (cell % L.cols) * size;
+      const dx = (cell % L.cols) * fw;
       const dy = Math.floor(cell / L.cols) * size;
       if (hero) {
-        hctx.clearRect(0, 0, size, size);
-        renderHero(hctx, size, sprite.placeholder, pose, f);
-        detailPass(hctx, size, ss, sprite.placeholder, null, f, false);
+        hctx.clearRect(0, 0, fw, size);
+        renderHero(hctx, fw, size, sprite.placeholder, pose, f);
+        detailPass(hctx, fw, size, ss, sprite.placeholder, null, f, false);
         sctx.drawImage(hi, dx, dy);
         continue;
       }
@@ -902,7 +927,7 @@ export function buildPlaceholderSheet(scene: Phaser.Scene, data: CharacterData):
       } else {
         hctx.clearRect(0, 0, legacyS, legacyS);
         hctx.drawImage(tmp, 0, 0, legacyS, legacyS);
-        detailPass(hctx, legacyS, 2, sprite.placeholder, anchors, f);
+        detailPass(hctx, legacyS, legacyS, 2, sprite.placeholder, anchors, f);
         sctx.drawImage(hi, dx + offX, dy + offY);
       }
     }
@@ -914,10 +939,11 @@ export function buildPlaceholderSheet(scene: Phaser.Scene, data: CharacterData):
 function registerSheet(scene: Phaser.Scene, data: CharacterData, sheet: HTMLCanvasElement): void {
   const key = fighterTextureKey(data.id);
   const size = data.sprite.frameSize;
+  const fw = data.sprite.frameWidth ?? size;
   if (scene.textures.exists(key)) scene.textures.remove(key);
   const tex = scene.textures.addCanvas(key, sheet)!;
   const L = sheetLayout(data);
-  for (let cell = 0; cell < L.total; cell++) tex.add(cell, 0, (cell % L.cols) * size, Math.floor(cell / L.cols) * size, size, size);
+  for (let cell = 0; cell < L.total; cell++) tex.add(cell, 0, (cell % L.cols) * fw, Math.floor(cell / L.cols) * size, fw, size);
   registerAnimations(scene, data);
 }
 

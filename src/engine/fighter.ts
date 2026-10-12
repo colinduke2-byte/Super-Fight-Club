@@ -245,6 +245,8 @@ export class Fighter implements Body {
   moveHit = false;
   /** Outgoing damage multiplier (character mechanics like Heat hook in here). */
   damageMult = 1;
+  /** Permanent speed bonus a character mechanic can set each tick (Halcyon's Gale). */
+  speedBonus = 1;
   /** Outgoing knockback multiplier (Vent scales with Heat, etc.). */
   kbMult = 1;
   /** Hurtbox size multiplier (a giant mech suit is easier to hit); terrain collision is unaffected. */
@@ -324,6 +326,9 @@ export class Fighter implements Body {
   ledgeFrames = 0;
   grabCooldown = 0;
   ledgeGrabs = 0;
+  /** Wings: true while gliding this tick (view picks the glide pose); frames spent gliding this airtime. */
+  gliding = false;
+  glideFrames = 0;
   private climbFromX = 0;
   private climbFromY = 0;
 
@@ -394,6 +399,7 @@ export class Fighter implements Body {
     this.grabbedBy = -1;
     this.lastHitBy = -1;
     this.damageMult = 1;
+    this.speedBonus = 1;
     this.kbMult = 1;
     this.sizeMul = 1;
     this.superArmor = false;
@@ -431,6 +437,7 @@ export class Fighter implements Body {
       case 'tech':
         return pick('roll', 'crouch');
       case 'air':
+        if (this.gliding) return pick('glide', 'fall');
         return this.vy < 0 ? 'jump' : 'fall';
       case 'ledge':
       case 'ledgeClimb':
@@ -604,7 +611,7 @@ export class Fighter implements Body {
   }
 
   get speedMul(): number {
-    return this.status.slow > 0 ? this.slowMul : 1;
+    return (this.status.slow > 0 ? this.slowMul : 1) * this.speedBonus;
   }
 
   /** Ultimate meter gain from dealing damage. */
@@ -935,6 +942,8 @@ export class Fighter implements Body {
     this.coyote = COYOTE_FRAMES;
     this.jumpsLeft = s.doubleJumps;
     this.fastFalling = false;
+    this.glideFrames = 0;
+    this.gliding = false;
     this.ledgeGrabs = 0;
     this.airDodgeUsed = false;
     this.wallJumps = 0;
@@ -1675,8 +1684,17 @@ export class Fighter implements Body {
       this.fastFalling = false;
     }
 
+    // wings: hold Jump while falling to glide
+    const gl = this.data.glide;
+    this.gliding = false;
+    if (gl && !this.helpless && this.vy > gl.fall && (inp.held & Button.Jump) !== 0 && this.glideFrames < gl.max && !this.fastFalling && !this.hover) {
+      this.gliding = true;
+      this.glideFrames++;
+      this.vy = gl.fall;
+    }
+
     // air drift
-    const target = inp.stickX * s.airSpeed * this.speedMul * (this.helpless ? HELPLESS_DRIFT : 1);
+    const target = inp.stickX * s.airSpeed * this.speedMul * (this.helpless ? HELPLESS_DRIFT : 1) * (this.gliding && gl ? gl.speed : 1);
     if (Math.abs(inp.stickX) < 0.05) {
       this.vx = approach(this.vx, 0, s.airFriction);
     } else if (Math.abs(this.vx) > s.airSpeed && Math.sign(this.vx) === Math.sign(target)) {
@@ -1874,6 +1892,7 @@ export class Fighter implements Body {
     this.wallJumps = 0;
     this.clingFrames = 0;
     l.occupant = this.id;
+    this.glideFrames = 0;
     this.ledgeGrabs++;
     this.ledgeFrames = 0;
     this.x = l.x + l.side * (this.hw + 1);

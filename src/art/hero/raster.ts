@@ -27,9 +27,12 @@ export class Raster {
   /** Optional per-pixel colour override (gradients), 0xRRGGBB + 1, or 0 for none. */
   readonly over: Uint32Array;
 
-  constructor(readonly size: number) {
-    this.id = new Uint16Array(size * size);
-    this.over = new Uint32Array(size * size);
+  constructor(
+    readonly w: number,
+    readonly h: number = w,
+  ) {
+    this.id = new Uint16Array(w * h);
+    this.over = new Uint32Array(w * h);
   }
 
   part(color: RGB, o: Omit<PartDef, 'color'> = {}): number {
@@ -40,18 +43,18 @@ export class Raster {
   set(p: number, x: number, y: number): void {
     x = Math.round(x);
     y = Math.round(y);
-    if (x < 0 || y < 0 || x >= this.size || y >= this.size) return;
-    this.id[y * this.size + x] = p;
-    this.over[y * this.size + x] = 0;
+    if (x < 0 || y < 0 || x >= this.w || y >= this.h) return;
+    this.id[y * this.w + x] = p;
+    this.over[y * this.w + x] = 0;
   }
 
   /** Paint with an explicit colour that still belongs to part `p` for lighting purposes. */
   setColor(p: number, c: RGB, x: number, y: number): void {
     x = Math.round(x);
     y = Math.round(y);
-    if (x < 0 || y < 0 || x >= this.size || y >= this.size) return;
-    this.id[y * this.size + x] = p;
-    this.over[y * this.size + x] = ((c[0] & 255) << 16) | ((c[1] & 255) << 8) | (c[2] & 255) | 0x1000000;
+    if (x < 0 || y < 0 || x >= this.w || y >= this.h) return;
+    this.id[y * this.w + x] = p;
+    this.over[y * this.w + x] = ((c[0] & 255) << 16) | ((c[1] & 255) << 8) | (c[2] & 255) | 0x1000000;
   }
 
   rect(p: number, x: number, y: number, w: number, h: number): void {
@@ -128,41 +131,43 @@ export class Raster {
     fn((x, y) => {
       x = Math.round(x);
       y = Math.round(y);
-      if (x < 0 || y < 0 || x >= this.size || y >= this.size) return;
-      if (this.id[y * this.size + x] === onto) this.id[y * this.size + x] = p;
+      if (x < 0 || y < 0 || x >= this.w || y >= this.h) return;
+      if (this.id[y * this.w + x] === onto) this.id[y * this.w + x] = p;
     });
   }
 
-  /** A copy rotated 90 degrees counter-clockwise (head to the left) and moved so its lowest pixel sits on row `baseY` and its middle on column `midX`. */
+  /** A copy rotated 90 degrees counter-clockwise (head to the left), moved so its lowest pixel sits on row `baseY` and its middle on column `midX`. */
   lyingDown(baseY: number, midX: number): Raster {
-    const S = this.size;
-    const out = new Raster(S);
+    const W = this.w;
+    const H = this.h;
+    const out = new Raster(W, H);
     out.parts.length = 0;
     for (const p of this.parts) out.parts.push(p);
-    let minX = S;
+    let minX = W;
     let maxX = 0;
     let maxY = 0;
-    for (let y = 0; y < S; y++) {
-      for (let x = 0; x < S; x++) {
-        if (!this.id[y * S + x]) continue;
-        const nx = y;
-        const ny = S - 1 - x;
-        minX = Math.min(minX, nx);
-        maxX = Math.max(maxX, nx);
-        maxY = Math.max(maxY, ny);
+    // (x, y) -> (y, W - 1 - x) lands in a W x H canvas only when it fits; the figure is far smaller than the frame
+    const nxOf = (y: number): number => y;
+    const nyOf = (x: number): number => W - 1 - x;
+    for (let y = 0; y < H; y++) {
+      for (let x = 0; x < W; x++) {
+        if (!this.id[y * W + x]) continue;
+        minX = Math.min(minX, nxOf(y));
+        maxX = Math.max(maxX, nxOf(y));
+        maxY = Math.max(maxY, nyOf(x));
       }
     }
     const dx = Math.round(midX - (minX + maxX) / 2);
     const dy = baseY - maxY;
-    for (let y = 0; y < S; y++) {
-      for (let x = 0; x < S; x++) {
-        const i = y * S + x;
+    for (let y = 0; y < H; y++) {
+      for (let x = 0; x < W; x++) {
+        const i = y * W + x;
         if (!this.id[i]) continue;
-        const nx = y + dx;
-        const ny = S - 1 - x + dy;
-        if (nx < 0 || ny < 0 || nx >= S || ny >= S) continue;
-        out.id[ny * S + nx] = this.id[i];
-        out.over[ny * S + nx] = this.over[i];
+        const nx = nxOf(y) + dx;
+        const ny = nyOf(x) + dy;
+        if (nx < 0 || ny < 0 || nx >= W || ny >= H) continue;
+        out.id[ny * W + nx] = this.id[i];
+        out.over[ny * W + nx] = this.over[i];
       }
     }
     return out;
@@ -170,14 +175,15 @@ export class Raster {
 
   /** Light every part pixel by its edge distance (see the file comment) and write RGBA into `out` (alpha 255 where painted). */
   shade(out: Uint8ClampedArray): void {
-    const S = this.size;
+    const W = this.w;
+    const H = this.h;
     const id = this.id;
-    const same = (x: number, y: number, p: number): boolean => x >= 0 && y >= 0 && x < S && y < S && id[y * S + x] === p;
+    const same = (x: number, y: number, p: number): boolean => x >= 0 && y >= 0 && x < W && y < H && id[y * W + x] === p;
     const warm: RGB = [255, 242, 214];
     const cool: RGB = [28, 18, 72];
-    for (let y = 0; y < S; y++) {
-      for (let x = 0; x < S; x++) {
-        const i = y * S + x;
+    for (let y = 0; y < H; y++) {
+      for (let x = 0; x < W; x++) {
+        const i = y * W + x;
         const pid = id[i];
         if (pid === 0) continue;
         const part = this.parts[pid];
@@ -193,7 +199,7 @@ export class Raster {
           const lf = same(x - 1, y, pid);
           const dn = same(x, y + 1, pid);
           const rt = same(x + 1, y, pid);
-          const vol = 1.06 - (y / S) * 0.14; // faint top-to-bottom volume
+          const vol = 1.06 - (y / H) * 0.14; // faint top-to-bottom volume
           c = mul(c, vol);
           if (!up || !lf) c = mix(mul(c, part.soft ? 1.12 : 1.3), warm, 0.1);
           else if (ul <= 1 && ((x + y) & 1) === 0) c = mul(c, 1.1);
