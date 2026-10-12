@@ -4,6 +4,7 @@ import { characterById } from '../characters';
 import { CHALLENGES } from '../game/challenges';
 import { clearedChallenges } from '../game/records';
 import { session } from '../game/session';
+import { STAGES } from '../stages';
 import type { MenuEvent } from '../input/menuInput';
 import { COLORS, MenuList, MenuScene, text, textPx } from '../ui/menuKit';
 
@@ -72,7 +73,7 @@ export class ChallengesScene extends MenuScene {
     const ally = c.ally ? `   WITH ${(characterById(c.ally.character)?.name ?? '').toUpperCase()}` : '';
     const by = this.cleared[c.id] ? `   CLEARED WITH ${(characterById(this.cleared[c.id])?.name ?? '').toUpperCase()}` : '';
     this.brief.setText(up(c.brief));
-    this.setup.setText(up(`${who}${ally}   VS ${foes}${by}`));
+    this.setup.setText(up(`${who}${ally}   VS ${foes}   ON ${(STAGES[c.stage]?.name ?? c.stage).toUpperCase()}${by}`));
     this.brief.setScale(Math.min(this.u * 1.3, (w * 0.94) / Math.max(1, textPx(this.brief)))).setPosition(w / 2, h * 0.8);
     this.setup.setScale(Math.min(this.u, (w * 0.94) / Math.max(1, textPx(this.setup)))).setPosition(w / 2, h * 0.86);
   }

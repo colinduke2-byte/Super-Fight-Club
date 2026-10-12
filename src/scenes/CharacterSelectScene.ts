@@ -95,6 +95,7 @@ export class CharacterSelectScene extends MenuScene {
     CHARACTER_LIST.forEach((c) => {
       const img = this.add.image(0, 0, fighterTextureKey(c.id), animFrameIndex(c, 'idle', 0)).setOrigin(0.5, 0.5).setCrop(...portraitCrop(c));
       img.setData('k', portraitK(c));
+      img.setData('crop', portraitCrop(c));
       const name = text(this, this.ui, c.name, COLORS.text).setOrigin(0.5, 0);
       const pips = COLORS.p.slice(0, session.playerCount).map((col) => {
         const p = this.add.image(0, 0, 'px').setTint(col);
@@ -138,11 +139,14 @@ export class CharacterSelectScene extends MenuScene {
       });
     });
     const rn = this.roster.length;
-    const rw = Math.min(w / (rn + 0.5), 60 * u);
+    const rw = Math.min(w / (rn + 0.5), 74 * u);
     this.roster.forEach((r, i) => {
       const cx = w / 2 + (i - (rn - 1) / 2) * rw;
-      r.img.setScale(u * 1.2 * (r.img.getData('k') as number)).setPosition(cx - 6 * 1.2 * u, h * 0.82 - 20 * u);
-      r.name.setScale(Math.min(u * 1.2, (rw * 0.92) / Math.max(1, r.name.width))).setPosition(cx, h * 0.82 + 9 * u);
+      const sc = u * 1.35 * (r.img.getData('k') as number);
+      // centre the cropped portrait (not the whole frame) over the name
+      const cr = r.img.getData('crop') as [number, number, number, number];
+      r.img.setScale(sc).setPosition(cx + (r.img.width / 2 - (cr[0] + cr[2] / 2)) * sc, h * 0.82 + 6 * u + (r.img.height / 2 - (cr[1] + cr[3])) * sc);
+      r.name.setScale(Math.min(u * 1.2, (rw * 0.86) / Math.max(1, r.name.width))).setPosition(cx, h * 0.82 + 9 * u);
       r.pips.forEach((p, k) => p.setScale((3 * u) / 4).setPosition(cx - ((r.pips.length - 1) * 4 * u) / 2 + k * 4 * u, h * 0.82 + 21 * u));
     });
     this.warn.setScale(u * 1.2).setPosition(w / 2, h * 0.93);

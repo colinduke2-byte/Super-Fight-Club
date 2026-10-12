@@ -17,6 +17,7 @@ export class RecordsScene extends MenuScene {
   private hint!: Phaser.GameObjects.BitmapText;
   private confirmReset = false;
   private chal!: Phaser.GameObjects.BitmapText;
+  private plate!: Phaser.GameObjects.Graphics;
 
   constructor() {
     super('Records');
@@ -25,6 +26,8 @@ export class RecordsScene extends MenuScene {
   protected build(): void {
     this.title = this.add.bitmapText(0, 0, PIXEL_FONT, 'RECORDS').setOrigin(0.5).setTint(COLORS.title);
     this.ui.add(this.title);
+    this.plate = this.add.graphics();
+    this.ui.add(this.plate);
     this.head = text(this, this.ui, `${'FIGHTER'.padEnd(10)}${'PLAYED'.padStart(7)}${'WINS'.padStart(6)}${'WIN%'.padStart(6)}${'KOS'.padStart(6)}${'FALLS'.padStart(7)}${'TARGETS'.padStart(10)}${'LAUNCH'.padStart(9)}`, COLORS.dim);
     this.rows = [];
     this.icons = [];
@@ -78,6 +81,17 @@ export class RecordsScene extends MenuScene {
     const x = w / 2 - tw / 2 + 16 * u;
     const rowH = Math.min(18 * u, (h * 0.55) / (this.rows.length + 1));
     this.head.setScale(ts).setPosition(x, h * 0.2);
+    // a plate behind the table with faint stripes on alternate rows, so it reads over the planet and skyline
+    const g = this.plate.clear();
+    const px0 = x - 26 * u;
+    const pw = tw + 34 * u;
+    const py0 = h * 0.2 - 5 * u;
+    const ph = rowH * (this.rows.length + 1) + 6 * u;
+    g.fillStyle(0x07061a, 0.66).fillRect(px0, py0, pw, ph);
+    g.lineStyle(u, 0x3c3478, 0.9).strokeRect(px0 - u / 2, py0 - u / 2, pw + u, ph + u);
+    for (let i = 1; i <= this.rows.length; i += 2) g.fillStyle(0x3c3478, 0.22).fillRect(px0 + u, h * 0.2 + rowH * i - 3 * u, pw - 2 * u, rowH);
+    g.fillStyle(COLORS.title, 0.85);
+    for (const [cx, cy] of [[px0 - u, py0 - u], [px0 + pw - u * 2, py0 - u], [px0 - u, py0 + ph - u * 2], [px0 + pw - u * 2, py0 + ph - u * 2]]) g.fillRect(cx, cy, u * 3, u * 3);
     this.rows.forEach((r, i) => r.setScale(ts).setPosition(x, h * 0.2 + rowH * (i + 1)));
     this.icons.forEach((img, i) => img.setScale(((rowH * 1.1) / 64) * (img.getData('k') as number)).setPosition(x - 12 * u, h * 0.2 + rowH * (i + 1) + rowH * 0.8));
     this.chal.setScale(u * 1.2).setPosition(w / 2, h * 0.2 + rowH * (this.rows.length + 1.5));

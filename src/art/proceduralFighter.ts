@@ -877,7 +877,9 @@ export function portraitCrop(data: CharacterData): [number, number, number, numb
   const f = data.sprite.frameSize;
   const pr = data.sprite.portrait;
   if (pr) return [pr[0], pr[1], pr[2], pr[2]];
-  if (f >= 160) return [14 * (f / 160), 36 * (f / 160), 96 * (f / 160), 96 * (f / 160)]; // hero art: head and upper body
+  // hero art: head and upper body; a wider frame (room for a staff or anchor) keeps the body centred, so shift the crop with it
+  const extra = ((data.sprite.frameWidth ?? f) - f) / 2;
+  if (f >= 160) return [14 * (f / 160) + extra, 36 * (f / 160), 96 * (f / 160), 96 * (f / 160)];
   const k = f / 64;
   return [6 * k, 0, 40 * k, 40 * k];
 }
