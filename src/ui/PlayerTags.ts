@@ -28,11 +28,22 @@ export class PlayerTags {
   update(view: Phaser.Geom.Rectangle, sw: number, sh: number, u: number): void {
     const g = this.g;
     g.clear();
+    const placed: [number, number, number][] = []; // x, y, half-width of tags already drawn this frame
     for (const f of this.fighters) {
       const t = this.texts[f.id];
       const v = this.views[f.id];
       const sx = ((v.x - view.x) / Math.max(1, view.width)) * sw;
-      const sy = ((v.y - f.h * f.sizeMul - (f.data.counter ? 15 : 7) - view.y) / Math.max(1, view.height)) * sh;
+      let sy = ((v.y - f.h * f.sizeMul - (f.data.counter ? 15 : 7) - view.y) / Math.max(1, view.height)) * sh;
+      // stack tags that would overlap (fighters standing close together)
+      const hw = (t.width || 20 * u) / 2 + 3 * u;
+      for (let k = 0; k < placed.length; k++) {
+        const [px, py, phw] = placed[k];
+        if (Math.abs(px - sx) < hw + phw && Math.abs(py - sy) < 11 * u) {
+          sy = py - 11 * u;
+          k = -1; // re-check against everything with the new height
+        }
+      }
+      placed.push([sx, sy, hw]);
       const on = f.state !== 'ko' && sx > 0 && sx < sw && sy > 8 * u && sy < sh;
       t.setVisible(on);
       if (!on) continue;

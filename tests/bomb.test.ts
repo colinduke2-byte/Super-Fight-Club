@@ -90,3 +90,21 @@ describe('Shock Bomb item', () => {
     expect(run()).toBe(run());
   });
 });
+
+describe('soft push', () => {
+  it('grounded fighters standing inside each other drift apart, but never off the stage', () => {
+    const { world, fs, ins } = arena();
+    fs[0].x = 0;
+    fs[1].x = 1;
+    for (let i = 0; i < 40; i++) world.step(ins);
+    expect(Math.abs(fs[1].x - fs[0].x)).toBeGreaterThan((fs[0].hw + fs[1].hw) * 0.7);
+    // at the very edge: the outer one stays on the platform
+    const main = world.platforms[0];
+    fs[0].x = main.right - 2;
+    fs[1].x = main.right - 3;
+    for (let i = 0; i < 40; i++) world.step(ins);
+    expect(fs[0].x).toBeLessThanOrEqual(main.right);
+    expect(fs[1].x).toBeLessThanOrEqual(main.right);
+    expect(fs[0].grounded && fs[1].grounded).toBe(true);
+  });
+});

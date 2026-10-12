@@ -69,6 +69,15 @@ export interface WorldConfig {
 }
 
 /** Holds the stage and fighters and advances them one fixed tick at a time. Deterministic. */
+/** Max soft-push per tick (world units) for overlapping grounded fighters. */
+export const SOFT_PUSH = 0.4;
+
+/** Only fighters going about their business (not attacking, hit, grabbing or dodging) are nudged. */
+const PUSH_STATES = new Set<Fighter['state']>(['idle', 'run', 'dash', 'crouch', 'landing', 'shield', 'jumpsquat']);
+function pushable(f: Fighter): boolean {
+  return f.grounded && f.hitlag === 0 && PUSH_STATES.has(f.state);
+}
+
 export class World {
   readonly platforms: Platform[];
   readonly ledges: Ledge[] = [];
@@ -108,6 +117,31 @@ export class World {
     return !!x && !!y && a !== b && x.team >= 0 && x.team === y.team;
   }
 
+  /**
+   * Grounded fighters standing inside each other drift apart (at most SOFT_PUSH per tick each), so bodies stay readable and
+   * nobody hides inside an opponent. Never pushes anyone off their platform; frozen (hit-stop), grabbed and ledge states are left alone.
+   */
+  private softPush(): void {
+    const fs = this.fighters;
+    for (let i = 0; i < fs.length; i++) {
+      const a = fs[i];
+      if (!pushable(a)) continue;
+      for (let j = i + 1; j < fs.length; j++) {
+        const b = fs[j];
+        if (!pushable(b) || a.groundPlat !== b.groundPlat || !a.groundPlat) continue;
+        const reach = (a.hw * a.sizeMul + b.hw * b.sizeMul) * 0.8;
+        const dx = b.x - a.x;
+        const overlap = reach - Math.abs(dx);
+        if (overlap <= 0) continue;
+        const dir = dx > 0 ? 1 : dx < 0 ? -1 : a.facing; // exactly stacked: split along the first fighter's facing
+        const step = Math.min(overlap / 2, SOFT_PUSH);
+        const p = a.groundPlat;
+        a.x = Math.max(p.x + 1, Math.min(p.right - 1, a.x - dir * step));
+        b.x = Math.max(p.x + 1, Math.min(p.right - 1, b.x + dir * step));
+      }
+    }
+  }
+
   addFighter(f: Fighter): void {
     this.fighters.push(f);
     this.damageDealt.push(0);
@@ -122,6 +156,7 @@ export class World {
     for (let i = 0; i < this.platforms.length; i++) this.platforms[i].update(this.tick);
     for (let i = 0; i < this.fighters.length; i++) this.fighters[i].update(inputs[i], this);
     this.fixGrabs();
+    this.softPush();
     updateEntities(this);
     resolveCombat(this);
     resolveEntityCombat(this);
