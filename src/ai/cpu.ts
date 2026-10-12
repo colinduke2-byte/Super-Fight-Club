@@ -885,7 +885,9 @@ export class CpuController implements Controller {
       // air: drift toward the target, land on something; aerial when it reaches
       this.sx = dist > 20 ? dir : 0;
       // do not follow the target out past the stage edge unless deliberately edge-guarding
-      if (this.mode !== 'edgeguard') {
+      // (unless the target is standing on another platform out there: then crossing the gap is the point)
+      const acrossGap = tgt.grounded && !!tgt.groundPlat && tgt.groundPlat !== this.mainPlatform(world);
+      if (this.mode !== 'edgeguard' && !acrossGap) {
         const main = this.mainPlatform(world);
         if ((this.sx > 0 && self.x > main.right - 6) || (this.sx < 0 && self.x < main.x + 6)) this.sx = 0;
       }
@@ -913,7 +915,33 @@ export class CpuController implements Controller {
     } else if (dist < want * 0.5 && p.smart && tgt.state !== 'shield' && this.rnd() < 0.3) {
       this.sx = -dir * 0.5; // too close: back off a step to regain spacing
     }
+    const wanted = this.sx;
     if (!(downBelow && dist < 160)) this.clampEdge(self);
+    // stopped at our edge while the target stands on another platform within jumping range: jump the gap
+    if (wanted !== 0 && this.sx === 0 && tgt.grounded && tgt.groundPlat && tgt.groundPlat !== self.groundPlat && dist < 300 && Math.abs(dy) < 110 && self.jumpsLeft > 0 && !this.cooldownBusy('gap', 45)) {
+      this.held |= Button.Jump;
+      this.sx = wanted;
+      this.hopTarget = true;
+      return;
+    }
+    // a step or low wall in the way (Sunken Temple's centre tier): hop up onto it instead of running into it forever
+    if (this.sx !== 0 && this.wallAhead(self, world, Math.sign(this.sx)) && !this.cooldownBusy('wallhop', 30)) {
+      this.held |= Button.Jump;
+      this.hopTarget = true;
+    }
+  }
+
+  /** A solid platform face just ahead of a grounded fighter whose top is above its feet but low enough to jump onto. */
+  private wallAhead(self: Fighter, world: World, dir: number): boolean {
+    const half = self.hw;
+    for (const p of world.platforms) {
+      if (p.kind !== 'solid' || p === self.groundPlat) continue;
+      const rise = self.y - p.y; // how far the top sits above our feet
+      if (rise < 4 || rise > 90 || self.y > p.y + p.h + 2) continue;
+      const gap = dir > 0 ? p.x - (self.x + half) : self.x - half - (p.x + p.w);
+      if (gap >= -2 && gap < 16) return true;
+    }
+    return false;
   }
 
   /** Stand at the stage edge nearest the opponent and hit it as it tries to come back. */
