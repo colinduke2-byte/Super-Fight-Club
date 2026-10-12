@@ -701,7 +701,10 @@ export class MatchScene extends Phaser.Scene {
     // an ultimate starting: cut-in banner (once per activation)
     this.fighters.forEach((f, i) => {
       const ult = f.state === 'attack' && f.move?.kind === 'ultimate';
-      if (ult && !this.ultOn[i] && f.move) this.cutIn.play(f.data, f.move.name ?? 'ULTIMATE', f.facing);
+      if (ult && !this.ultOn[i] && f.move) {
+        this.cutIn.play(f.data, f.move.name ?? 'ULTIMATE', f.facing);
+        sfx.play('charge', 0.9, 0);
+      }
       this.ultOn[i] = ult;
     });
     this.cutIn.update(this.paused ? 0 : Math.min(frameMs, 50) / 1000, this.scale.width, this.scale.height, hu);
