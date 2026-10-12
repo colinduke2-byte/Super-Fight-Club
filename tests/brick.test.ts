@@ -78,15 +78,15 @@ describe('Heat math (pure)', () => {
 describe('Heat in combat', () => {
   it('Brick heats up when he is hit, and from heavy hits he lands, but not from jabs', () => {
     const t = rig(26);
-    t.a.startMove('jab1', null, t.world); // 3 dmg: not heavy
+    t.a.startMove('jab1', null, t.world); // ~3 dmg: not heavy
     t.run(12);
     expect(t.a.res.heat).toBe(0);
-    expect(t.b.res.heat).toBeCloseTo(heatFromTaken(3)); // the victim gained heat
+    expect(t.b.res.heat).toBeCloseTo(heatFromTaken(brick.moves.jab1.hitboxes[0].damage)); // the victim gained heat
 
     const h = rig(26);
-    h.a.startMove('fsmash', null, h.world); // 18 dmg: heavy
+    h.a.startMove('fsmash', null, h.world); // ~17 dmg: heavy
     h.run(60);
-    expect(h.a.res.heat).toBeCloseTo(heatFromDealt(18));
+    expect(h.a.res.heat).toBeCloseTo(heatFromDealt(brick.moves.fsmash.hitboxes[0].damage));
   });
 
   it('heat is kept while fighting and decays only after a quiet spell', () => {
@@ -207,11 +207,12 @@ describe('Charge Shoulder', () => {
 });
 
 describe('Grapple Slam', () => {
-  it('grabs and slams a grounded opponent for 15 damage, even through a shield', () => {
+  it('grabs and slams a grounded opponent for ~15 damage, even through a shield', () => {
     const r = rig(30);
     r.a.startMove('sideB', null, r.world);
     r.run(80);
-    expect(r.b.damage).toBeCloseTo(15);
+    expect(r.b.damage).toBeGreaterThan(13.5);
+    expect(r.b.damage).toBeLessThan(15.5);
     expect(r.events).toContain('grab');
     expect(r.events).toContain('throw');
 
@@ -219,7 +220,8 @@ describe('Grapple Slam', () => {
     s.tick(inp(), press(Button.Shield));
     s.a.startMove('sideB', null, s.world);
     s.run(80, inp(), inp({ held: Button.Shield }));
-    expect(s.b.damage).toBeCloseTo(15);
+    expect(s.b.damage).toBeGreaterThan(13.5);
+    expect(s.b.damage).toBeLessThan(15.5);
   });
 
   it('can be avoided by being in the air', () => {

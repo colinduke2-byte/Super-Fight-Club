@@ -76,7 +76,7 @@ describe('hit detection and hitlag', () => {
     }
     expect(r.b.damage).toBe(0);
     r.tick(); // frame startup+1
-    expect(r.b.damage).toBeCloseTo(3);
+    expect(r.b.damage).toBeCloseTo(brick.moves.jab1.hitboxes[0].damage);
     expect(r.a.hitlag).toBeGreaterThan(0);
     expect(r.b.hitlag).toBeGreaterThan(0);
     const frame = r.a.moveFrame;
@@ -88,7 +88,7 @@ describe('hit detection and hitlag', () => {
     const r = rig();
     r.tick(press(Button.Attack));
     r.run(40);
-    expect(r.b.damage).toBeCloseTo(3);
+    expect(r.b.damage).toBeCloseTo(brick.moves.jab1.hitboxes[0].damage);
   });
 
   it('multi-hit moves re-hit on their rehit interval', () => {

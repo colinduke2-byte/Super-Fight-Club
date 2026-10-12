@@ -3,7 +3,7 @@ import { hitboxEnd, hitboxStart, type HitboxDef, type MoveDef } from './moves';
 import type { World } from './world';
 
 /** Damage difference below which two simultaneous hits both land (a trade). */
-export const TRADE_THRESHOLD = 9;
+export const TRADE_THRESHOLD = 8;
 const HITLAG_BASE = 2;
 const HITLAG_PER_DAMAGE = 0.4;
 /** Extra freeze per damage above HEAVY_FREEZE_FROM: light hits stay snappy, heavy hits crunch. */

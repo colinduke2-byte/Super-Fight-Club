@@ -121,6 +121,8 @@ export class CpuController implements Controller {
       this.think(self, world);
     }
 
+    // never flick backwards in the first frames of a special: that would B-reverse it away from the target
+    if (self.state === 'attack' && self.move?.kind === 'special' && self.moveFrame <= 4 && this.sx * self.facing < 0) this.sx = 0;
     out.stickX = this.sx;
     out.stickY = this.sy;
     applyHeld(out, this.held, this.prevHeld);
@@ -270,7 +272,12 @@ export class CpuController implements Controller {
     // hit-confirm cancels: after connecting, route into the next move (combos)
     if (m.cancels && self.moveHit && this.params.smart && tgt && this.rnd() < 0.25 + 0.5 * this.params.punish) this.cancelInput(self, m, tgt);
     // drift toward the target during aerials; recovery specials steer toward the ledge
-    if (self.state === 'attack' && !self.grounded && tgt && m.kind === 'aerial') this.sx = Math.sign(tgt.x - self.x) * 0.6;
+    if (self.state === 'attack' && !self.grounded && tgt && m.kind === 'aerial') {
+      this.sx = Math.sign(tgt.x - self.x) * 0.6;
+      // fast-fall the aerial onto a grounded target (over the stage only): lands sooner, so the follow-up comes faster
+      const main = this.mainPlatform(world);
+      if (this.params.smart && self.vy > 0 && !self.fastFalling && tgt.grounded && tgt.y > self.y && self.x > main.x && self.x < main.right) this.sy = 1;
+    }
     if (this.mode === 'recover' && this.episode) {
       recoveryStep(self, world, aiFor(self.data.id), this.episode, this.rec);
       if (this.rec.steering) {

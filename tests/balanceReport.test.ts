@@ -39,7 +39,7 @@ function duel(a: string, b: string, stage: string, level: CpuLevel, seed: number
   return { winner: match.over ? match.winner : -1, ult, ticks: t };
 }
 
-/** Dev tuning: BALANCE_PATCH='{"vex.stats.weight":90,"brick.moves.usmash.armor.threshold":8}' sets values at runtime; a key ending in * multiplies. */
+/** Dev tuning: BALANCE_PATCH='{"vex.stats.weight":90,"brick.moves.usmash.armor.threshold":8}' sets values at runtime; a key ending in * multiplies; '#' walks an array, '*' every value of an object (e.g. nova.moves.*.hitboxes.#.damage*). */
 function applyPatch(): void {
   const raw = process.env.BALANCE_PATCH;
   if (!raw) return;
@@ -50,6 +50,10 @@ function applyPatch(): void {
       const [head, ...tail] = rest;
       if (head === '#') {
         for (const item of Array.isArray(obj) ? obj : []) expand(item, tail);
+        return;
+      }
+      if (head === '*') {
+        for (const item of Object.values(obj ?? {})) expand(item, tail);
         return;
       }
       if (tail.length === 0) obj[head] = mul ? obj[head] * (val as number) : val;
@@ -76,6 +80,8 @@ describe.skipIf(!process.env.BALANCE)('balance report', () => {
       let table = '| pairing | wins |\n|---|---|\n';
       for (let i = 0; i < ids.length; i++) {
         for (let j = i + 1; j < ids.length; j++) {
+          const focus = process.env.BALANCE_ONLY?.split(','); // e.g. BALANCE_ONLY=nova: only that fighter's pairings
+          if (focus && !focus.includes(ids[i]) && !focus.includes(ids[j])) continue;
           let wa = 0;
           let wb = 0;
           for (const stage of ['classic', 'ring', 'reactor']) {
