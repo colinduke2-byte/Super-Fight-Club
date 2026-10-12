@@ -645,7 +645,7 @@ export class CpuController implements Controller {
 
     // face the target (ground) before committing to anything
     if (grounded && self.facing !== dir && dist > 4 && self.state !== 'dash') {
-      this.sx = dir;
+      this.sx = dir * 0.3; // a light tilt turns around without dashing
     }
 
     if (decide) {
@@ -901,9 +901,10 @@ export class CpuController implements Controller {
       return;
     }
     if (dist > want) {
-      this.sx = dir;
+      // far: dash in; nearly in range: walk the last steps so the spacing is not overshot
+      this.sx = dist - want > 50 ? dir : dir * 0.5;
     } else if (dist < want * 0.5 && p.smart && tgt.state !== 'shield' && this.rnd() < 0.3) {
-      this.sx = -dir; // too close: back off a step to regain spacing
+      this.sx = -dir * 0.5; // too close: back off a step to regain spacing
     }
     if (!(downBelow && dist < 160)) this.clampEdge(self);
   }

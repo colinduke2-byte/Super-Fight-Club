@@ -219,6 +219,14 @@ export class WorldEventFx {
         e.flash(x, y, 2, 0xff5a7a);
         e.burst(x, y, 16, 100, 0xff5a7a, 0.3, 3);
         break;
+      case 'clank':
+        // blades meeting: a bright spark, a ring and a metallic ring-out
+        e.flash(x, y, 2.4, 0xfff6c8);
+        e.ring(x, y, 16 + mag, 0xffffff, 0.25);
+        e.burst(x, y, 18, 150, 0xffe08a, 0.3, 2);
+        this.host.shake(3);
+        sfx.play('clang', Math.min(1, 0.5 + mag / 20), this.host.pan(x));
+        break;
       case 'fastFall':
         // the classic fast-fall glint
         e.flash(x, y, 0.55, 0xffffff);

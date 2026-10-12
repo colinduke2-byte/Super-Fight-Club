@@ -819,6 +819,14 @@ export class Fighter implements Body {
     }
   }
 
+  /** Clank recoil: the current attack is cancelled, a short lag in place, pushed `dir` a little. */
+  rebound(frames: number, dir: number): void {
+    this.endMoveState();
+    this.lagFrames = frames;
+    this.setState('landing');
+    this.vx = dir * 1.6;
+  }
+
   /** Called by the combat system when a hit lands on a shielding fighter. */
   shieldHit(damage: number, breaks: boolean, shieldMult: number, pushDir: number, world: World): void {
     this.shieldHP -= breaks ? SHIELD_MAX : damage * shieldMult;

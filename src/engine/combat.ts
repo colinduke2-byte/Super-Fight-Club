@@ -75,6 +75,67 @@ function canHit(world: World, atk: Fighter, def: Fighter, hb: HitboxDef): boolea
   return true;
 }
 
+/** Frames of recoil when an attack is stopped by a clank. */
+export const REBOUND_FRAMES = 14;
+const rC = [0, 0, 0, 0];
+
+/** First live, hitting (not grab / throw) hitbox of `f`'s move that overlaps rect `r`, else null. */
+function liveBoxOver(f: Fighter, r: number[]): HitboxDef | null {
+  const m = f.move!;
+  for (const hb of m.hitboxes) {
+    if (hb.grab || hb.throw || !hitboxActive(f, m, hb)) continue;
+    hitboxRect(f, hb, rC);
+    if (overlap(rC, r)) return hb;
+  }
+  return null;
+}
+
+/**
+ * Clank: two grounded attacks whose hitboxes meet cancel each other out with a spark (both rebound) unless one is clearly
+ * stronger (TRADE_THRESHOLD), in which case only the weaker one is stopped. Aerials and teammates never clank.
+ */
+function resolveClanks(world: World): void {
+  const fs = world.fighters;
+  for (let i = 0; i < fs.length; i++) {
+    const a = fs[i];
+    if (a.state !== 'attack' || !a.move || !a.grounded || a.hitlag > 0 || a.move.kind === 'grab' || a.move.kind === 'throw') continue;
+    for (let j = i + 1; j < fs.length; j++) {
+      if (!a.move || a.state !== 'attack') break; // a was stopped by an earlier clank this tick
+      const b = fs[j];
+      if (b.state !== 'attack' || !b.move || !b.grounded || b.hitlag > 0 || b.move.kind === 'grab' || b.move.kind === 'throw' || world.allied(a.id, b.id)) continue;
+      if ((a.hitMask[b.id] & 0xff) !== 0 || (b.hitMask[a.id] & 0xff) !== 0) continue; // already connected this move
+      let hbA: HitboxDef | null = null;
+      let hbB: HitboxDef | null = null;
+      for (const hb of b.move.hitboxes) {
+        if (hb.grab || hb.throw || !hitboxActive(b, b.move, hb)) continue;
+        hitboxRect(b, hb, rB);
+        hbA = liveBoxOver(a, rB);
+        if (hbA) {
+          hbB = hb;
+          break;
+        }
+      }
+      if (!hbA || !hbB) continue;
+      const dA = hbA.damage * a.outMul * a.moveStale;
+      const dB = hbB.damage * b.outMul * b.moveStale;
+      const diff = dA - dB;
+      const stopA = diff < TRADE_THRESHOLD;
+      const stopB = -diff < TRADE_THRESHOLD;
+      if (stopA) rebound(a, b);
+      if (stopB) rebound(b, a);
+      a.hitlag = Math.max(a.hitlag, 6);
+      b.hitlag = Math.max(b.hitlag, 6);
+      world.emit('clank', a, (a.x + b.x) / 2, Math.min(a.y, b.y) - Math.min(a.h, b.h) * 0.55, Math.max(dA, dB), stopA && stopB ? 2 : 1);
+    }
+  }
+}
+
+/** The attack is knocked back: the move ends, a short recoil, a little pushback. */
+function rebound(f: Fighter, other: Fighter): void {
+  f.hitMask[other.id] = 0xff; // this attack can no longer hit the fighter it clanked with
+  f.rebound(REBOUND_FRAMES, f.x === other.x ? -f.facing : f.x > other.x ? 1 : -1);
+}
+
 /**
  * Collect every hit that connects this tick, resolve simultaneous-hit trades, then apply them.
  * Deterministic: attackers are processed in id order.
@@ -82,6 +143,7 @@ function canHit(world: World, atk: Fighter, def: Fighter, hb: HitboxDef): boolea
 export function resolveCombat(world: World): void {
   count = 0;
   const fs = world.fighters;
+  resolveClanks(world);
   for (const atk of fs) {
     const m = atk.move;
     if (atk.state !== 'attack' || !m || atk.hitlag > 0) continue;

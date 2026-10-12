@@ -199,3 +199,36 @@ describe('getup options after a missed tech', () => {
     expect(s.f.invuln).toBeGreaterThan(0);
   });
 });
+
+describe('clank', () => {
+  function duel() {
+    const world = new World(sandboxStage);
+    const a = new Fighter(0, agni);
+    const b = new Fighter(1, agni);
+    world.addFighter(a);
+    world.addFighter(b);
+    a.spawn(-20, -2, 1);
+    b.spawn(20, -2, -1);
+    for (let i = 0; i < 40; i++) world.step([inp(), inp()]);
+    a.invuln = b.invuln = 0;
+    const events: string[] = [];
+    world.listener = (t) => events.push(t);
+    return { world, a, b, events };
+  }
+
+  it('two equal grounded attacks meeting cancel out: a clank, both rebound, nobody is hurt', () => {
+    const { world, a, b, events } = duel();
+    // place them so the two forward tilts meet in the middle before either reaches the other's body
+    const reach = Math.max(...a.data.moves.ftilt.hitboxes.map((h) => h.x + h.w / 2));
+    a.x = a.prevX = -reach * 0.9;
+    b.x = b.prevX = reach * 0.9;
+    world.step([inp({ stickX: 0.6, pressed: Button.Attack, held: Button.Attack }), inp({ stickX: -0.6, pressed: Button.Attack, held: Button.Attack })]);
+    for (let i = 0; i < 20 && !events.includes('clank'); i++) world.step([inp(), inp()]);
+    expect(events).toContain('clank');
+    expect(a.damage).toBe(0);
+    expect(b.damage).toBe(0);
+    expect(a.state === 'landing' || a.hitlag > 0).toBe(true);
+    expect(a.move).toBeNull();
+    expect(b.move).toBeNull();
+  });
+});

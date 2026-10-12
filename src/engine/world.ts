@@ -28,6 +28,7 @@ export type WorldEventType =
   | 'throw'
   | 'moveStart'
   | 'trade'
+  | 'clank'
   | 'projectile'
   | 'projectileHit'
   | 'reflect'

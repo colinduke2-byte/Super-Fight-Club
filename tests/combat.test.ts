@@ -118,13 +118,27 @@ describe('hit detection and hitlag', () => {
 });
 
 describe('trades', () => {
-  it('two similar simultaneous hits both land (a trade)', () => {
+  it('two similar simultaneous grounded hits meet blade to blade: a clank, neither lands', () => {
     const r = rig(26);
     r.tick(press(Button.Attack), press(Button.Attack));
     r.run(8);
-    expect(r.events.filter((e) => e === 'trade').length).toBeGreaterThan(0);
-    expect(r.a.damage).toBeGreaterThan(0);
-    expect(r.b.damage).toBeGreaterThan(0);
+    expect(r.events).toContain('clank');
+    expect(r.a.damage).toBe(0);
+    expect(r.b.damage).toBe(0);
+  });
+
+  it('an aerial and a grounded hit landing on each other on the same tick trade (aerials never clank)', () => {
+    const r = rig(26);
+    // a hangs just above the floor mid-nair while b jabs: both connect on the same tick
+    r.a.grounded = false;
+    r.a.groundPlat = null;
+    r.a.y = r.a.prevY = -6;
+    r.a.setState('air');
+    r.a.vy = 0;
+    r.tick(press(Button.Attack), press(Button.Attack));
+    for (let i = 0; i < 10 && !r.events.includes('hit'); i++) r.tick();
+    expect(r.events).not.toContain('clank');
+    expect(r.a.damage + r.b.damage).toBeGreaterThan(0);
   });
 
   it(`a hit ${TRADE_THRESHOLD}+ damage stronger beats the weaker one outright`, () => {
