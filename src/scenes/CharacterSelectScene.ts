@@ -1,5 +1,5 @@
 import Phaser from 'phaser';
-import { animFrameIndex, fighterAnimKey, fighterTextureKey, portraitCrop, uiTexK } from '../art/proceduralFighter';
+import { animFrameIndex, fighterAnimKey, fighterTextureKey, portraitCrop, portraitK, uiTexK } from '../art/proceduralFighter';
 import { PIXEL_FONT } from '../art/pixelFont';
 import { CHARACTER_LIST } from '../characters';
 import { Lobby } from '../game/lobby';
@@ -74,7 +74,7 @@ export class CharacterSelectScene extends MenuScene {
     }
     CHARACTER_LIST.forEach((c) => {
       const img = this.add.image(0, 0, fighterTextureKey(c.id), animFrameIndex(c, 'idle', 0)).setOrigin(0.5, 0.5).setCrop(...portraitCrop(c));
-      img.setData('k', uiTexK(c));
+      img.setData('k', portraitK(c));
       const name = text(this, this.ui, c.name, COLORS.text).setOrigin(0.5, 0);
       const pips = COLORS.p.slice(0, session.playerCount).map((col) => {
         const p = this.add.image(0, 0, 'px').setTint(col);

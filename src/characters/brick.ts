@@ -43,7 +43,7 @@ export const brick: CharacterData = {
   },
   body: { width: 20, height: 28, footHalfWidth: 7 },
   sprite: {
-    frameSize: 128,
+    frameSize: 160,
     pixelScale: 0.29,
     animations: {
       idle: { frames: 4, fps: 5, loop: true },
@@ -90,12 +90,13 @@ export const brick: CharacterData = {
       dodge: { frames: 1, fps: 1, loop: false },
     },
     placeholder: {
+      art: 'hi',
       skin: '#f2c9a0',
       armor: '#4a78c8',
       armorDark: '#2c4a8a',
       accent: '#ffb02e',
       outline: '#10142a',
-      build: { shoulderW: 21, torsoH: 12, legH: 8, headSize: 7, armLen: 9, helmet: 'visor' }, // 32px-grid units; the generator doubles them for the 64px frame
+      build: { shoulderW: 19, torsoH: 12, legH: 9.5, headSize: 7, armLen: 9, helmet: 'visor' }, // 32px-grid units; the generator doubles them for the 64px frame
     },
   },
   moves: parseMoves(movesJson as never, 'brick'),

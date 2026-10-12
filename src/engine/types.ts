@@ -151,6 +151,8 @@ export interface PlaceholderLook {
     /** Soft, rounded construction (pot-belly torso, ball joints, domed head) instead of plated blocks. */
     round?: boolean;
   };
+  /** 'hi' draws the character with the full-resolution renderer (src/art/hero) instead of the 64px block template. */
+  art?: 'hi';
   /** What the front hand holds. Default 'piston' (Brick's piston fist). */
   weapon?: 'piston' | 'blades' | 'staff' | 'wrench' | 'gauntlet';
   /** Silhouette accessories: scarf, bracer, cloak, toolbox, grapple. */

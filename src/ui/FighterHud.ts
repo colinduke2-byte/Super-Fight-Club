@@ -1,5 +1,5 @@
 import Phaser from 'phaser';
-import { fighterTextureKey, animFrameIndex, portraitCrop, uiTexK } from '../art/proceduralFighter';
+import { fighterTextureKey, animFrameIndex, portraitCrop, portraitK } from '../art/proceduralFighter';
 import { PIXEL_FONT, up } from '../art/pixelFont';
 import type { CharacterData } from '../engine/types';
 
@@ -42,7 +42,7 @@ export class FighterHud {
     this.panel = scene.add.image(0, 0, 'hud-panel').setOrigin(0.5, 1);
     this.accent = scene.add.image(0, 0, 'px').setOrigin(0, 0).setTint(PLAYER_COLORS[index % 4]);
     this.portrait = scene.add.image(0, 0, key, frame).setOrigin(0, 0).setCrop(...portraitCrop(data));
-    this.texK = uiTexK(data);
+    this.texK = portraitK(data);
     this.name = scene.add.bitmapText(0, 0, PIXEL_FONT, up(label)).setTint(PLAYER_COLORS[index % 4]);
     this.percent = scene.add.bitmapText(0, 0, PIXEL_FONT, '0%').setOrigin(0, 0);
     this.sub = scene.add.bitmapText(0, 0, PIXEL_FONT, '').setTint(0x9a96d8);

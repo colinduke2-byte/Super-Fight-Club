@@ -2,6 +2,7 @@ import Phaser from 'phaser';
 import type { CharacterData, PlaceholderLook } from '../engine/types';
 import { buildKeys, type Key } from './poseTemplates';
 import { detailPass, type Anchors } from './spriteDetail';
+import { hasHeroArt, renderHero } from './hero';
 
 /**
  * Placeholder pixel-art generator (64x64 frames). Draws every animation frame with canvas rects and
@@ -853,8 +854,14 @@ export function uiTexK(data: CharacterData): number {
 }
 /** Crop rectangle of a fighter portrait (the head and shoulders of a 64px frame, scaled to the real frame size). */
 export function portraitCrop(data: CharacterData): [number, number, number, number] {
-  const k = data.sprite.frameSize / 64;
+  const f = data.sprite.frameSize;
+  if (f >= 160) return [14 * (f / 160), 36 * (f / 160), 96 * (f / 160), 96 * (f / 160)]; // hero art: head and upper body
+  const k = f / 64;
   return [6 * k, 0, 40 * k, 40 * k];
+}
+/** Scale that makes a portrait crop fill a 40-unit well. */
+export function portraitK(data: CharacterData): number {
+  return 40 / portraitCrop(data)[2];
 }
 
 /** Sheet frame index for (animation, frame). */
@@ -885,27 +892,42 @@ export function buildPlaceholderSheet(scene: Phaser.Scene, data: CharacterData):
   const tmp = document.createElement('canvas');
   tmp.width = tmp.height = base;
   const tctx = tmp.getContext('2d', { willReadFrequently: true })!;
+  const hero = hasHeroArt(sprite.placeholder);
+  // the 64px template is upscaled 2x and detailed at 128px; frames may be larger (hero art), so it is placed bottom-centre
+  const legacyS = base * 2;
   const hi = document.createElement('canvas');
-  hi.width = hi.height = size;
+  hi.width = hi.height = hero ? size : legacyS;
   const hctx = hi.getContext('2d', { willReadFrequently: true })!;
   hctx.imageSmoothingEnabled = false;
+  const offX = Math.round((size - legacyS) / 2 + (5 * (size / 64) - 10));
+  const offY = size - legacyS - (size - 4 - (legacyS - 2));
 
   moveKeys = {};
   for (const m of Object.values(data.moves)) if (m.pose) moveKeys[m.anim] = buildKeys(m.pose);
   L.names.forEach((name, row) => {
     const def = sprite.animations[name];
     for (let f = 0; f < def.frames; f++) {
-      tctx.clearRect(0, 0, base, base);
-      const anchors = drawFighterFrame(tctx, base, sprite.placeholder, poseFor(name, f, def.frames), f);
       const col = f + Math.floor(row / L.rowsPer) * L.cols;
+      const pose = poseFor(name, f, def.frames);
+      const dx = col * size;
+      const dy = (row % L.rowsPer) * size;
+      if (hero) {
+        hctx.clearRect(0, 0, size, size);
+        renderHero(hctx, size, sprite.placeholder, pose, f);
+        detailPass(hctx, size, ss, sprite.placeholder, null, f, false);
+        sctx.drawImage(hi, dx, dy);
+        continue;
+      }
+      tctx.clearRect(0, 0, base, base);
+      const anchors = drawFighterFrame(tctx, base, sprite.placeholder, pose, f);
       if (ss === 1) {
         finish(tctx, base, sprite.placeholder.outline);
-        sctx.drawImage(tmp, col * size, (row % L.rowsPer) * size);
+        sctx.drawImage(tmp, dx, dy);
       } else {
-        hctx.clearRect(0, 0, size, size);
-        hctx.drawImage(tmp, 0, 0, size, size);
-        detailPass(hctx, size, ss, sprite.placeholder, anchors, f);
-        sctx.drawImage(hi, col * size, (row % L.rowsPer) * size);
+        hctx.clearRect(0, 0, legacyS, legacyS);
+        hctx.drawImage(tmp, 0, 0, legacyS, legacyS);
+        detailPass(hctx, legacyS, 2, sprite.placeholder, anchors, f);
+        sctx.drawImage(hi, dx + offX, dy + offY);
       }
     }
   });

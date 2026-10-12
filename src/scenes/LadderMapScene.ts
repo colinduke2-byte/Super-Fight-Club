@@ -1,5 +1,5 @@
 import Phaser from 'phaser';
-import { animFrameIndex, fighterTextureKey, portraitCrop, uiTexK } from '../art/proceduralFighter';
+import { animFrameIndex, fighterTextureKey, portraitCrop, portraitK } from '../art/proceduralFighter';
 import { PIXEL_FONT, up } from '../art/pixelFont';
 import { characterById } from '../characters';
 import { currentFight, slotsForFight, type LadderState } from '../game/ladder';
@@ -41,7 +41,7 @@ export class LadderMapScene extends MenuScene {
     this.ladder.fights.forEach((f) => {
       const opp = characterById(f.opponents[0].character)!;
       const img = this.add.image(0, 0, fighterTextureKey(opp.id), animFrameIndex(opp, 'idle', 0)).setOrigin(0.5, 0.5).setCrop(...portraitCrop(opp));
-      img.setData('k', uiTexK(opp));
+      img.setData('k', portraitK(opp));
       const num = this.add.bitmapText(0, 0, PIXEL_FONT, String(f.index + 1)).setOrigin(0.5).setTint(0xffffff);
       this.ui.add([img, num]);
       this.nodes.push({ img, num, x: 0, y: 0, size: 0 });

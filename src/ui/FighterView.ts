@@ -104,7 +104,7 @@ export class FighterView {
     // hitlag: victims shake
     const shake = f.hitlag > 0 && f.state === 'hitstun' ? ((tick & 1) === 0 ? 1.5 : -1.5) : 0;
     // the sprite body is drawn BODY_SHIFT px left of the frame centre (weapon reach); re-centre it on the hurtbox
-    s.setPosition(this.x + shake + f.facing * BODY_SHIFT * f.data.sprite.pixelScale * f.sizeMul, this.y + 1);
+    s.setPosition(this.x + shake + f.facing * BODY_SHIFT * (f.data.sprite.frameSize / 64) * f.data.sprite.pixelScale * f.sizeMul, this.y + 1);
     s.setFlipX(f.facing < 0);
     const av = this.attackView(f);
     // launched victims tumble around their centre, rolls spin the tucked sprite; everything else stands upright on its feet

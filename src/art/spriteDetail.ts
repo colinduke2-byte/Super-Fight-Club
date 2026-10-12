@@ -33,8 +33,8 @@ const hash = (x: number, y: number): number => {
  * lighting (rim light top-left, bounce shade bottom-right, cool shadows / warm highlights), material texture, glow around
  * emissive parts and a selective outline tinted by the colour it borders.
  */
-export function detailPass(ctx: Ctx, size: number, ss: number, look: PlaceholderLook, a: Anchors | null, phase: number): void {
-  if (a) decorate(ctx, ss, look, a, phase);
+export function detailPass(ctx: Ctx, size: number, ss: number, look: PlaceholderLook, a: Anchors | null, phase: number, lighting = true): void {
+  if (a && lighting) decorate(ctx, ss, look, a, phase);
 
   const img = ctx.getImageData(0, 0, size, size);
   const d = img.data;
@@ -67,6 +67,7 @@ export function detailPass(ctx: Ctx, size: number, ss: number, look: Placeholder
         emissive[y * size + x] = 1;
         continue;
       }
+      if (!lighting) continue;
       const up = dist(x, y, 0, -1);
       const left = dist(x, y, -1, 0);
       const down = dist(x, y, 0, 1);

@@ -43,3 +43,10 @@
 
 `BACKDROPS` in `src/ui/BackgroundView.ts` defines each theme: sky ramp, tints, optional `farTex`/`nearTex` skylines (generated in `src/art/stageTextures.ts`) and `extras`
 (`aurora`, `clouds`, `shooting`, `airships`, `lightning`, `glow`, `embers`, `beams`, `grid`, `motes`), all animated from time only. Tapping down on a pass-through platform drops through it.
+
+## Character art
+
+Fighters are drawn procedurally. A look with `art: 'hi'` is rendered at full resolution (160px frames) by `src/art/hero/<style>.ts`, chosen by its `build.helmet` style
+(`visor`, `hood`, `pointed`, `dome`, `band`). A drawer paints parts into a `Raster` (painter's algorithm, no anti-aliasing) from a `Skel` built from the animation pose
+(two-bone IK arms and legs), and `Raster.shade()` lights every part by its own edges. Knocked-down frames are the standing body rotated onto its back.
+Looks without `art` use the older 64px block template, upscaled 2x with a detail pass (`src/art/spriteDetail.ts`).
