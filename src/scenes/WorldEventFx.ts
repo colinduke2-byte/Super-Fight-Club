@@ -166,7 +166,7 @@ export class WorldEventFx {
         break;
       case 'hazardWarn': {
         const hz = this.host.world.stage.hazards?.[mag | 0];
-        e.burst(x, y, 8, 40, hz?.kind === 'bolt' ? 0x9fd8ff : hz?.kind === 'stalactite' ? 0xc898f6 : hz?.style === 'water' ? 0xbff0ff : 0xff8a30, 0.6, 2);
+        e.burst(x, y, 8, 40, hz?.kind === 'bolt' ? 0x9fd8ff : hz?.kind === 'stalactite' ? 0xc898f6 : hz?.kind === 'avalanche' ? 0xf4f8ff : hz?.style === 'water' ? 0xbff0ff : 0xff8a30, 0.6, 2);
         sfx.play('charge', 0.6, 0);
         break;
       }
@@ -179,6 +179,15 @@ export class WorldEventFx {
           this.host.shake(9);
           sfx.play('zap', 1, 0);
           sfx.play('boom', 0.7, 0);
+          break;
+        }
+        if (this.host.world.stage.hazards?.[mag | 0]?.kind === 'avalanche') {
+          // the avalanche breaks loose: a roar, a long rumble and powder bursting off the slope
+          e.burst(x, y - 30, 30, 140, 0xf4f8ff, 0.8, 4);
+          e.dust(x, y, 12, 0);
+          this.host.shake(10);
+          sfx.play('boom', 1, 0);
+          sfx.play('land', 1, 0);
           break;
         }
         if (this.host.world.stage.hazards?.[mag | 0]?.kind === 'stalactite') {

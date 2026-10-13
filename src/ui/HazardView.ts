@@ -1,5 +1,5 @@
 import Phaser from 'phaser';
-import { hazardPhase, stalactiteFall } from '../engine/hazards';
+import { avalancheX, hazardPhase, stalactiteFall } from '../engine/hazards';
 import type { HazardDef } from '../engine/types';
 
 /** Draws stage hazards: a glowing vent while idle, a pulsing telegraph while warning, a bright column while erupting. */
@@ -33,8 +33,51 @@ export class HazardView {
         this.stalactite(g, this.ga, h, phase, tick);
         continue;
       }
+      if (h.kind === 'avalanche') {
+        this.avalanche(g, h, phase, tick);
+        continue;
+      }
       if (h.style === 'water') this.spout(g, this.ga, h, phase, tick);
       else this.geyser(g, this.ga, h, phase, tick);
+    }
+  }
+
+  /** Avalanche: a rumble of loose snow sliding off the slope first, then a rolling wall of snow, chunks and spray. */
+  private avalanche(g: Phaser.GameObjects.Graphics, h: HazardDef, phase: 'idle' | 'warn' | 'active', tick: number): void {
+    const dir = (h.travel ?? 1) >= 0 ? 1 : -1;
+    const jit = (i: number, k: number): number => {
+      const r = Math.sin(i * 12.9898 + k * 78.233) * 43758.5453;
+      return r - Math.floor(r);
+    };
+    if (phase === 'warn') {
+      // snow trickling down from the high side, a few clumps bouncing in
+      for (let i = 0; i < 14; i++) {
+        const life = ((tick + i * 5) % 30) / 30;
+        const sx = h.x - dir * (30 - jit(i, 3) * 40);
+        g.fillStyle(i % 3 ? 0xf4f8ff : 0xc8d8ec, 1 - life * 0.6).fillRect(sx + dir * life * 26, h.y - h.h - 30 + life * (h.h + 26), 2 + (i % 2), 2 + (i % 2));
+      }
+      return;
+    }
+    if (phase !== 'active') return;
+    const p = (tick + (h.offset ?? 0)) % h.period;
+    const cx = avalancheX(h, p)!;
+    const front = cx + (dir * h.w) / 2;
+    // the bulk: stacked rolling lobes, brightest at the crest, with a trail of churned snow behind
+    for (let k = 0; k < 7; k++) {
+      const ox = cx - dir * k * 9;
+      const lobe = h.h * (0.95 - k * 0.11) * (0.92 + 0.08 * Math.sin(tick * 0.6 + k));
+      g.fillStyle(k === 0 ? 0xffffff : k < 3 ? 0xeef4fc : 0xc8d6e8, 1).fillEllipse(ox, h.y - lobe / 2, h.w * 0.9, lobe);
+    }
+    g.fillStyle(0xa8bcd4, 1).fillRect(cx - dir * h.w * 0.9 - (dir < 0 ? 0 : 0), h.y - 6, dir * -h.w * 1.6, 6);
+    // chunks tumbling out of the front and a spray of powder above
+    for (let i = 0; i < 12; i++) {
+      const a = (tick * 0.3 + i * 0.9) % (Math.PI * 2);
+      const rr = 6 + jit(i, Math.floor(tick / 6)) * h.h * 0.5;
+      g.fillStyle(i % 2 ? 0xdce8f6 : 0xffffff, 1).fillRect(front + dir * Math.abs(Math.cos(a)) * 8 - 3, h.y - rr - 4, 5, 5);
+    }
+    for (let i = 0; i < 16; i++) {
+      const life = ((tick + i * 3) % 18) / 18;
+      g.fillStyle(0xffffff, 0.7 * (1 - life)).fillRect(front - dir * jit(i, 1) * h.w + dir * life * 10, h.y - h.h - life * 24 + jit(i, 2) * 10, 2, 2);
     }
   }
 

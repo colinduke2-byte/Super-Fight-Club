@@ -780,6 +780,125 @@ function cloudBank(seed: number, base: string, light: string, shade: string, W =
   return c;
 }
 
+/** Snow-capped mountain peaks: jagged ridgelines, sunlit and shaded faces, snow down the upper slopes; tileable. */
+function peaks(seed: number, rock: string, rockL: string, rockD: string, snow: string, snowS: string, W = 512, H = 192): HTMLCanvasElement {
+  const [c, g] = canvas(W, H);
+  const rnd = mulberry32(seed);
+  const n = 6;
+  for (let i = 0; i < n; i++) {
+    const cx = Math.floor(((i + 0.2 + rnd() * 0.6) / n) * W);
+    const hgt = 90 + Math.floor(rnd() * 90);
+    const half = 60 + Math.floor(rnd() * 50);
+    const snowLine = 0.38 + rnd() * 0.18;
+    wrapX(W, cx, (bx) => {
+      for (let dx = -half; dx <= half; dx++) {
+        // ridge: a triangle with a jagged edge
+        const t = 1 - Math.abs(dx) / half;
+        const top = H - Math.round(hgt * t) + Math.round(Math.sin(dx * 0.7 + i) * 2 + Math.sin(dx * 0.23 + i * 3) * 4);
+        for (let y = Math.max(0, top); y < H; y++) {
+          const depth = (y - top) / Math.max(1, hgt * t + 1);
+          const lit = dx < 0; // light from the left
+          let col = lit ? rockL : rock;
+          if (dx > 0 && dx < half * 0.25 && (dx + y) % 3 === 0) col = rockD;
+          if (depth < snowLine * (0.7 + 0.3 * Math.sin(dx * 0.4 + y * 0.1))) col = lit ? snow : snowS;
+          px(g, col, bx + dx, y);
+        }
+      }
+    });
+  }
+  return c;
+}
+
+/** Shrine woods: snow-laden pines, a red torii gate, a little pagoda with lit windows and stone lanterns; tileable. */
+function shrineWoods(seed: number, pine: string, pineL: string, pineD: string, snow: string, lacquer: string, lacquerD: string, glow: string, W = 512, H = 192): HTMLCanvasElement {
+  const [c, g] = canvas(W, H);
+  const rnd = mulberry32(seed);
+  // ground bank
+  for (let x = 0; x < W; x++) {
+    const top = H - 20 - Math.round(Math.sin(x * 0.03) * 4 + Math.sin(x * 0.11) * 2);
+    px(g, snow, x, top, 1, H - top);
+    px(g, '#c8d8ec', x, top + 3, 1, 2);
+  }
+  // pines
+  for (let i = 0; i < 26; i++) {
+    const cx = Math.floor(rnd() * W);
+    const hgt = 40 + Math.floor(rnd() * 70);
+    const base = H - 18;
+    wrapX(W, cx, (bx) => {
+      px(g, pineD, bx - 1, base - 8, 3, 10);
+      for (let k = 0; k < hgt; k++) {
+        const y = base - 6 - k;
+        const tier = (k % 14) / 14;
+        const ww = Math.max(1, Math.round((1 - k / hgt) * (hgt * 0.32) * (0.55 + 0.45 * (1 - tier))));
+        px(g, pine, bx - ww, y, ww * 2 + 1, 1);
+        px(g, pineL, bx - ww, y, Math.max(1, Math.round(ww * 0.6)), 1);
+        if (tier < 0.12) px(g, snow, bx - ww, y, ww * 2 + 1, 1); // snow on each tier
+      }
+    });
+  }
+  // a torii gate
+  {
+    const gx = Math.floor(W * 0.3);
+    const top = H - 92;
+    px(g, lacquerD, gx, top + 8, 5, 74);
+    px(g, lacquerD, gx + 44, top + 8, 5, 74);
+    px(g, lacquer, gx - 8, top, 66, 6);
+    px(g, snow, gx - 8, top - 2, 66, 2);
+    px(g, lacquer, gx - 2, top + 14, 54, 4);
+    px(g, lacquerD, gx + 22, top + 6, 5, 8);
+  }
+  // a small pagoda
+  {
+    const px0 = Math.floor(W * 0.72);
+    let y = H - 20;
+    for (let tier = 0; tier < 3; tier++) {
+      const w = 40 - tier * 9;
+      const h = 18 - tier * 2;
+      px(g, pineD, px0 - w / 2 + 4, y - h, w - 8, h);
+      for (let k = 0; k < 3; k++) px(g, glow, px0 - w / 2 + 8 + k * ((w - 18) / 2), y - h + 5, 2, 4);
+      // curved roof with snow
+      for (let k = 0; k < 7; k++) px(g, lacquerD, px0 - w / 2 - 6 + k, y - h - 2 - Math.round(k * 0.4), w + 12 - k * 2, 1);
+      px(g, snow, px0 - w / 2 - 6, y - h - 3, w + 12, 1);
+      y -= h + 6;
+    }
+    px(g, lacquerD, px0 - 1, y - 12, 2, 12); // finial
+  }
+  // stone lanterns with a warm glow
+  for (const lx of [Math.floor(W * 0.12), Math.floor(W * 0.55), Math.floor(W * 0.9)]) {
+    px(g, '#5a6070', lx, H - 34, 4, 16);
+    px(g, '#7a8090', lx - 3, H - 40, 10, 6);
+    px(g, glow, lx + 1, H - 38, 2, 2);
+    px(g, snow, lx - 3, H - 42, 10, 2);
+  }
+  return c;
+}
+
+/** Sunset mesas and sea cliffs far below the airship: flat-topped buttes with banded strata; tileable. */
+function mesas(seed: number, rock: string, rockL: string, rockD: string, band: string, W = 512, H = 192): HTMLCanvasElement {
+  const [c, g] = canvas(W, H);
+  const rnd = mulberry32(seed);
+  let x = 0;
+  while (x < W - 10) {
+    const w = 30 + Math.floor(rnd() * 70);
+    const hgt = 40 + Math.floor(rnd() * 90);
+    const cx = x;
+    wrapX(W, cx, (bx) => {
+      for (let k = 0; k < hgt; k++) {
+        const flare = k > hgt * 0.75 ? Math.round((k - hgt * 0.75) * 0.6) : 0; // talus slope at the foot
+        const xx = bx - flare;
+        const ww = w + flare * 2;
+        const y = H - hgt + k;
+        px(g, k % 13 < 2 ? band : rock, xx, y, ww, 1);
+        px(g, rockL, xx, y, 3, 1);
+        px(g, rockD, xx + ww - 3, y, 3, 1);
+      }
+      px(g, rockL, bx, H - hgt - 1, w, 2); // lit top
+    });
+    x += w + 10 + Math.floor(rnd() * 40);
+  }
+  return c;
+}
+
 /** Where the lighthouse lamp sits in the `bg-cove-far` texture (art px), so the backdrop can sweep its beam from it. */
 export const COVE_LAMP = { x: 372, y: 192 - 112 - 31 };
 
@@ -1089,6 +1208,10 @@ export function buildStageTextures(scene: Phaser.Scene): void {
   add('bg-geode-near', geodeCave(57, '#100c16', '#1e1828', '#08060c', ['#2a1650', '#6a34a0', '#a868e0', '#f4e8ff'], 512, 192, true));
   add('bg-cavemist', cloudBank(19, '#3a2458', '#5a3c80', '#22143a', 512, 128));
   add('bg-stormbank', cloudBank(8, '#2e4560', '#5a7a9c', '#16243a', 512, 128));
+  add('bg-peaks-far', peaks(13, '#3a4a68', '#5a6e90', '#24304a', '#e8f2ff', '#a8bcd8', 512, 192));
+  add('bg-shrine-near', shrineWoods(29, '#14283a', '#24405a', '#0a1622', '#e8f2ff', '#b02a30', '#6a1418', '#ffd08a', 512, 192));
+  add('bg-snowbank', cloudBank(23, '#c8d8ec', '#f4f8ff', '#8aa0c0', 512, 128));
+  add('bg-mesas-far', mesas(37, '#8a4a50', '#c87a6a', '#5a2a3a', '#a85a5a', 512, 192));
   add('spark', sparkTex());
   add('ring', ringTex());
   add('bubble', bubbleTex());

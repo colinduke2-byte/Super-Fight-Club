@@ -24,7 +24,7 @@ interface MassTheme {
   accent: string[]; // 5 shades, dark -> bright (emissive)
   alt?: string[]; // second accent
   body: 'ashlar' | 'plate' | 'hull';
-  cap: 'metal' | 'tech' | 'hazard' | 'slate' | 'grass' | 'deck' | 'crystal';
+  cap: 'metal' | 'tech' | 'hazard' | 'slate' | 'grass' | 'deck' | 'crystal' | 'snow';
   panel: 'window' | 'holo' | 'vent' | 'rune' | 'alcove' | 'glyph' | 'porthole' | 'geode';
   under: 'crystal' | 'tech' | 'machine' | 'shard' | 'roots' | 'reef';
   fog: string;
@@ -100,6 +100,28 @@ const THEMES: Record<string, MassTheme> = {
     panel: 'geode',
     under: 'crystal',
     fog: '#120a22',
+  },
+  frost: {
+    // a mountain shrine: blue-grey granite under fresh snow, red-lacquered timber, ice-blue lantern light
+    stone: ['#1a2230', '#283446', '#38485e', '#4c6078', '#667c96', '#8aa0ba'],
+    accent: ['#1c4a6a', '#2e7aa8', '#6ab8e8', '#bfe6ff', '#f0faff'],
+    alt: ['#4a1014', '#8a1e24', '#c8323a', '#e8686a', '#ffc0b8'],
+    body: 'ashlar',
+    cap: 'snow',
+    panel: 'alcove',
+    under: 'shard',
+    fog: '#1c3462',
+  },
+  airship: {
+    // a sky galleon's hull in the sunset: varnished timber, brass trim, lamplit portholes
+    stone: ['#1e1410', '#2e2018', '#443024', '#5e4432', '#7c5c42', '#a07a58'],
+    accent: ['#5a3a10', '#9a6a1c', '#e0a83a', '#ffd870', '#fff4c8'],
+    alt: ['#4a1a2a', '#8a3048', '#d0607a', '#ffa0b0', '#ffe0e8'],
+    body: 'hull',
+    cap: 'deck',
+    panel: 'porthole',
+    under: 'machine',
+    fog: '#4a2a5e',
   },
   dawn: {
     stone: ['#8a6a66', '#a88a82', '#c6aa9c', '#dcc6b2', '#eedcc8', '#fff4e4'],
@@ -479,7 +501,7 @@ function pillar(b: Buf, S: Ramp, A: Ramp, T: MassTheme, x0: number, y0: number, 
 
 function panel(b: Buf, T: MassTheme, S: Ramp, A: Ramp, A2: Ramp, x0: number, y0: number, pw: number, ph: number, rnd: () => number, n: (x: number, y: number) => number): void {
   if (T.panel === 'porthole') {
-    portholes(b, S, A, A2, x0, y0, pw, ph, rnd);
+    portholes(b, S, A, A2, x0, y0, pw, ph, rnd, T.cap === 'deck' && T.body === 'hull' && T.under === 'machine');
     return;
   }
   if (T.panel === 'geode') {
@@ -682,6 +704,28 @@ function panel(b: Buf, T: MassTheme, S: Ramp, A: Ramp, A2: Ramp, x0: number, y0:
       b.rect(lx + 1, ly + 1, 3, 5, A[3], true);
       b.set(lx + 2, ly + 2, A[4], true);
     }
+    if (T.cap === 'snow') {
+      // a shrine: a straw rope along the top with zigzag paper streamers, and icicles hanging from the arch rims
+      for (let x = x0; x < x0 + pw; x++) {
+        const y = y0 - 12 + Math.round(Math.sin(((x - x0) / pw) * Math.PI) * 4);
+        b.set(x, y, hex((x >> 1) % 2 ? '#c8a860' : '#8a7038'));
+        b.set(x, y + 1, hex('#6a5228'));
+      }
+      for (let s = 0; s < Math.max(2, Math.floor(pw / 22)); s++) {
+        const sx = x0 + Math.round(((s + 0.5) / Math.max(2, Math.floor(pw / 22))) * pw);
+        const top = y0 - 10 + Math.round(Math.sin(((sx - x0) / pw) * Math.PI) * 4);
+        for (let k = 0; k < 10; k++) {
+          const off = Math.floor(k / 3) % 2 ? 2 : 0;
+          b.rect(sx + off, top + k, 3, 1, hex(k % 3 === 2 ? '#c8d4e4' : '#f4f8ff'));
+        }
+      }
+      for (let v = 0; v < Math.max(3, Math.floor(pw / 10)); v++) {
+        const x = x0 + Math.floor(rnd() * pw);
+        const len = 3 + Math.floor(rnd() * 8);
+        for (let y = 0; y < len; y++) b.set(x, iy + y, y < len - 2 ? A[3] : A[4], y >= len - 2);
+      }
+      return;
+    }
     // vines spilling down over the facade
     for (let v = 0; v < Math.max(2, Math.floor(pw / 18)); v++) {
       let x = x0 + Math.floor(rnd() * pw);
@@ -733,7 +777,7 @@ function geodes(b: Buf, S: Ramp, A: Ramp, A2: Ramp, x0: number, y0: number, pw: 
 }
 
 /** Brass-rimmed portholes glowing with sea light (one has a fish swimming past), kelp draped down the planks, barnacles. */
-function portholes(b: Buf, S: Ramp, A: Ramp, A2: Ramp, x0: number, y0: number, pw: number, ph: number, rnd: () => number): void {
+function portholes(b: Buf, S: Ramp, A: Ramp, A2: Ramp, x0: number, y0: number, pw: number, ph: number, rnd: () => number, sky = false): void {
   const BRASS: Ramp = ['#3a2a10', '#7a5a20', '#c09a40', '#f0d080', '#fff4c0'].map(hex);
   const KELP: Ramp = ['#0e2a1a', '#1a4a2a', '#2e7040', '#4aa058', '#8ad07a'].map(hex);
   const r = Math.max(6, Math.min(11, Math.floor(ph * 0.22)));
@@ -742,7 +786,7 @@ function portholes(b: Buf, S: Ramp, A: Ramp, A2: Ramp, x0: number, y0: number, p
   const fishIn = Math.floor(rnd() * count);
   for (let i = 0; i < count; i++) {
     const cx = x0 + Math.round(((i + 0.5) / count) * pw);
-    const broken = rnd() > 0.75;
+    const broken = !sky && rnd() > 0.75;
     for (let yy = -r - 2; yy <= r + 2; yy++) for (let xx = -r - 2; xx <= r + 2; xx++) {
       const d = Math.hypot(xx, yy);
       if (d > r + 2) continue;
@@ -763,7 +807,7 @@ function portholes(b: Buf, S: Ramp, A: Ramp, A2: Ramp, x0: number, y0: number, p
       const a = (k / 8) * Math.PI * 2;
       b.set(cx + Math.cos(a) * (r + 1), cy + Math.sin(a) * (r + 1), BRASS[0]);
     }
-    if (i === fishIn && !broken && r >= 7) {
+    if (!sky && i === fishIn && !broken && r >= 7) {
       // a little fish silhouette
       const fx = cx - 2;
       const fy = cy + 1;
@@ -775,6 +819,23 @@ function portholes(b: Buf, S: Ramp, A: Ramp, A2: Ramp, x0: number, y0: number, p
       b.set(fx + 4, fy + 2, A[0], true);
       b.set(fx - 2, fy - 1, A[4], true);
     }
+  }
+  if (sky) {
+    // a sky ship: rigging ropes swag between the portholes, and rows of rivets along the hull bands
+    const ROPE: Ramp = ['#2a1c10', '#5a4024', '#8a6a40', '#c09a68', '#e8d0a0'].map(hex);
+    const sy = y0 + 3;
+    const sag = Math.max(5, Math.floor(ph * 0.14));
+    for (let x = x0 + 2; x < x0 + pw - 2; x++) {
+      const t = ((x - x0) % 40) / 40;
+      const y = sy + Math.round(Math.sin(t * Math.PI) * sag);
+      b.set(x, y, ROPE[(x >> 1) % 2 ? 3 : 2]);
+      b.set(x, y + 1, ROPE[1]);
+    }
+    for (let x = x0 + 4; x < x0 + pw - 2; x += 6) {
+      b.set(x, y0 + ph - 5, BRASS[3]);
+      b.set(x, y0 + ph - 4, BRASS[1]);
+    }
+    return;
   }
   // kelp draped from the gunwale, swaying down the planks
   for (let v = 0; v < Math.max(2, Math.floor(pw / 22)); v++) {
@@ -853,6 +914,16 @@ function cap(b: Buf, T: MassTheme, S: Ramp, A: Ramp, A2: Ramp, y0: number, ch: n
           } else col = M[1];
           break;
         }
+        case 'snow': {
+          // a thick, soft snow cover over a red-lacquered beam, then granite
+          if (ly < 4) col = ly === 0 ? hex('#ffffff') : (x * 11 + ly) % 19 === 0 ? hex('#cfe2f4') : hex('#eef6ff');
+          else if (ly < 6) col = hex('#b8cce4');
+          else if (ly < 9) col = A2[ly === 6 ? 3 : 2];
+          else if (ly === 9) col = A2[0];
+          else col = M[2];
+          em = ly === 0 && (x * 7) % 23 === 0; // glints in the snow
+          break;
+        }
         case 'deck': {
           // deck planks with tarred seams, then a brass-capped gunwale
           const seam = (x + (ly < 6 ? 0 : 23)) % 46 === 0;
@@ -902,6 +973,22 @@ function cap(b: Buf, T: MassTheme, S: Ramp, A: Ramp, A2: Ramp, y0: number, ch: n
     }
     // grass hanging over the lip at the ledges
     for (const x0 of [0, W - 3]) for (let k = 0; k < 6; k++) b.set(x0 + 1, y0 + ch + k, A2[k < 3 ? 2 : 1]);
+  }
+  if (T.cap === 'snow') {
+    // soft drifts heaped on the surface and icicles hanging off the lip
+    for (let x = 2; x < W - 2; x++) {
+      if (rnd() > 0.12) continue;
+      const len = 4 + Math.floor(rnd() * 10);
+      for (let k = 0; k < len; k++) {
+        const hgt = Math.round(Math.sin((k / len) * Math.PI) * 2);
+        for (let j = 1; j <= hgt; j++) b.set(x + k, y0 - j, j === hgt ? hex('#ffffff') : hex('#e4f0fc'));
+      }
+      x += len;
+    }
+    for (let x = 3; x < W - 3; x += 5 + Math.floor(rnd() * 6)) {
+      const len = 2 + Math.floor(rnd() * 6);
+      for (let k = 0; k < len; k++) b.set(x, y0 + ch + k, k === len - 1 ? hex('#ffffff') : hex('#bfe6ff'), k === len - 1);
+    }
   }
   if (T.cap === 'crystal') {
     // crystal clusters poking up through the floor (decor, no collision), a few glowing
@@ -1138,7 +1225,8 @@ export function platformArt(themeId: string | undefined, w: number, h: number, m
   const stoneAltar = T.panel === 'glyph' && moving;
   const deck = T.cap === 'deck';
   if (T.cap === 'crystal') return rockShelf(b, S, A, W, PH, y0, moving, seed);
-  const woody = (T.cap === 'grass' && !stoneAltar) || deck;
+  const snowy = T.cap === 'snow';
+  const woody = (T.cap === 'grass' && !stoneAltar) || deck || snowy;
 
   if (T.cap === 'slate' || (woody && moving && !deck)) {
     // cloud slab: a flat top you can stand on, billowing underneath
@@ -1170,8 +1258,9 @@ export function platformArt(themeId: string | undefined, w: number, h: number, m
       if (woody) {
         // wooden planks with a pale top edge
         const plank = Math.floor(x / 14);
-        const base = deck ? mix(S[3], S[4], (plank * 37) % 5 / 5) : mix(hex('#8a5a2c'), hex('#a06a34'), (plank * 37) % 5 / 5);
-        c = ly === 0 ? (deck ? S[5] : hex('#e8d6a8')) : ly === 1 ? (deck ? hex('#c09a40') : hex('#d49a58')) : ly === PH - 1 ? (deck ? S[0] : hex('#3a2410')) : base;
+        const lacquer = T.alt ? T.alt.map(hex) : A;
+        const base = snowy ? mix(lacquer[1], lacquer[2], (plank * 37) % 5 / 5) : deck ? mix(S[3], S[4], (plank * 37) % 5 / 5) : mix(hex('#8a5a2c'), hex('#a06a34'), (plank * 37) % 5 / 5);
+        c = ly === 0 ? (snowy ? hex('#ffffff') : deck ? S[5] : hex('#e8d6a8')) : ly === 1 ? (snowy ? hex('#e4f0fc') : deck ? hex('#c09a40') : hex('#d49a58')) : ly === PH - 1 ? (snowy ? lacquer[0] : deck ? S[0] : hex('#3a2410')) : base;
         if (x % 14 === 0 && ly > 0) c = hex('#5a3a1c');
         if (ly === 4 && (x + plank * 3) % 9 === 0) c = hex('#5a3a1c');
       } else {

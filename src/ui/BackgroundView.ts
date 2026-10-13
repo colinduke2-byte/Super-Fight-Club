@@ -22,9 +22,11 @@ export interface Backdrop {
   nebulaOn?: boolean;
   /** A band of cloud tops across the bottom of the screen. */
   bankTex?: string;
+  /** The scenery streams past (a moving stage): art px per second at the far layer; nearer layers move faster. */
+  scroll?: number;
 }
 
-export type Extra = 'rain' | 'flash' | 'sun' | 'birds' | 'godrays' | 'shooting' | 'clouds' | 'embers' | 'glow' | 'lightning' | 'beams' | 'grid' | 'motes' | 'aurora' | 'airships' | 'moon' | 'beacon' | 'ceiling' | 'drips';
+export type Extra = 'rain' | 'flash' | 'sun' | 'birds' | 'godrays' | 'shooting' | 'clouds' | 'embers' | 'glow' | 'lightning' | 'beams' | 'grid' | 'motes' | 'aurora' | 'airships' | 'moon' | 'beacon' | 'ceiling' | 'drips' | 'snow';
 
 export const BACKDROPS: Record<string, Backdrop> = {
   skyline: { sky: SKY, planet: true, nebula: 0xffffff, far: 0xffffff, near: 0xffffff, tiles: 0xffffff, extras: ['aurora', 'clouds', 'shooting', 'airships'] },
@@ -107,6 +109,34 @@ export const BACKDROPS: Record<string, Backdrop> = {
     nebulaOn: false,
     extras: ['ceiling', 'drips', 'motes'],
   },
+  frost: {
+    sky: ['#0a1430', '#122248', '#1c3462', '#2e4c7c', '#4a6a96', '#7a92b4', '#c0cce0'],
+    planet: false,
+    nebula: 0x9fd0ff,
+    far: 0xffffff,
+    near: 0xffffff,
+    tiles: 0xe8f2ff,
+    farTex: 'bg-peaks-far',
+    nearTex: 'bg-shrine-near',
+    bankTex: 'bg-snowbank',
+    nebulaOn: false,
+    extras: ['moon', 'aurora', 'snow'],
+  },
+  airship: {
+    sky: ['#1a1030', '#2e1a48', '#4a2a5e', '#7a3e6a', '#b85e6a', '#e8906a', '#ffc88a'],
+    planet: false,
+    nebula: 0xffffff,
+    far: 0xffd8c0,
+    near: 0xffffff,
+    tiles: 0xffe8d8,
+    farTex: 'bg-mesas-far',
+    nearTex: 'bg-islands-near',
+    bankTex: 'bg-cloudsea',
+    stars: false,
+    nebulaOn: false,
+    scroll: 26,
+    extras: ['sun', 'clouds', 'birds', 'flash'],
+  },
   reactor: {
     sky: ['#120404', '#240808', '#3a0e0a', '#5a1a0c', '#8a2c0c', '#c0501a', '#f08a30'],
     planet: false,
@@ -149,6 +179,7 @@ export class BackgroundView {
   private readonly gBack: Phaser.GameObjects.Graphics;
   private readonly gFront: Phaser.GameObjects.Graphics;
   private extras: Extra[] = [];
+  private scroll = 0;
   private sky = SKY;
   private w = 1;
   private h = 1;
@@ -183,6 +214,7 @@ export class BackgroundView {
     this.far.setTexture(b.farTex ?? 'bg-ruins-far');
     this.near.setTexture(b.nearTex ?? 'bg-ruins-near');
     this.extras = b.extras ?? [];
+    this.scroll = b.scroll ?? 0;
     this.clouds.setVisible(this.extras.includes('clouds'));
     this.starsA.setVisible(b.stars !== false);
     this.starsB.setVisible(b.stars !== false);
@@ -268,7 +300,7 @@ export class BackgroundView {
       t.setTileScale(s, s);
       t.setSize(W, 192 * s);
       t.setPosition(0, (baseY - cy * f) * zoom + H / 2 - 192 * s);
-      t.tilePositionX = (cx * f * zoom) / s;
+      t.tilePositionX = (cx * f * zoom) / s + time * this.scroll * (f / 0.12);
     }
 
     if (this.bankOn) {
@@ -276,7 +308,7 @@ export class BackgroundView {
       this.bank.setTileScale(k, k);
       this.bank.setSize(W, 128 * k);
       this.bank.setPosition(0, H - 128 * k * 0.55 + Math.max(0, cy * 0.02 * zoom));
-      this.bank.tilePositionX = (cx * 0.35 * zoom + time * 5 * ps) / k;
+      this.bank.tilePositionX = (cx * 0.35 * zoom + time * (5 + this.scroll * 4) * ps) / k;
     }
 
     this.drawExtras(cx, cy, zoom, time);
@@ -299,8 +331,22 @@ export class BackgroundView {
           this.clouds.setTileScale(k, k);
           this.clouds.setSize(W, 64 * k);
           this.clouds.setPosition(0, H * 0.34 - cy * 0.04 * zoom);
-          this.clouds.tilePositionX = (cx * 0.08 * zoom + time * 7 * ps) / k;
+          this.clouds.tilePositionX = (cx * 0.08 * zoom + time * (7 + this.scroll * 2) * ps) / k;
           this.clouds.setAlpha(0.85);
+          break;
+        }
+        case 'snow': {
+          // big soft flakes drifting down and sideways, two depths, swaying as they fall
+          for (let i = 0; i < 90; i++) {
+            const depth = hash(i * 5 + 3) > 0.55 ? 1 : 0.5;
+            const sp = (0.08 + hash(i * 5 + 1) * 0.07) * (depth + 0.4);
+            const ph = (time * sp + hash(i * 5 + 2)) % 1;
+            const sway = Math.sin(time * (0.8 + hash(i) * 0.6) + i) * 10 * ps * depth;
+            const x = (((hash(i * 5) * (W + 60) + sway - ph * 30 * ps - cx * 0.25 * zoom * depth) % (W + 60)) + (W + 60)) % (W + 60) - 20;
+            const y = ph * (H + 20) - 10;
+            const s = Math.max(1, Math.round(ps * (depth > 0.9 ? 1.6 : 1)));
+            gf.fillStyle(0xffffff, depth > 0.9 ? 0.8 : 0.45).fillRect(x, y, s, s);
+          }
           break;
         }
         case 'rain': {

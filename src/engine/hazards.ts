@@ -31,6 +31,13 @@ export function stalactiteFall(h: HazardDef, p: number): number {
   return k * k; // accelerating
 }
 
+/** Where an avalanche's wave front is (centre x) at phase position `p`; null when it is not rolling. Pure. */
+export function avalancheX(h: HazardDef, p: number): number | null {
+  const start = h.period - h.active;
+  if (p < start) return null;
+  return h.x + (h.travel ?? 0) * ((p - start) / Math.max(1, h.active - 1));
+}
+
 /** Ticks since a stalactite last landed (Infinity before its first landing). */
 function sinceLanding(h: HazardDef, tick: number): number {
   const landP = h.period - h.active + Math.ceil(h.active * STALACTITE_FALL) - 1;
@@ -65,7 +72,16 @@ export function stepHazards(world: World): void {
       if (world.hazardHit[i][f.id] === cycle) continue;
       hurtRect(f, r);
       let hit: boolean;
-      if (h.kind === 'stalactite') {
+      if (h.kind === 'avalanche') {
+        // the rolling wall: anyone it overtakes on the floor is swept along; jump it to stay clear
+        const cx = avalancheX(h, p)!;
+        hit = r[1] < h.y && r[1] + r[3] > h.y - h.h && r[0] < cx + h.w / 2 && r[0] + r[2] > cx - h.w / 2;
+        if (hit) {
+          world.hazardHit[i][f.id] = cycle;
+          f.receiveHit({ damage: h.damage, base: h.base, scaling: h.scaling, angle: h.angle, direction: (h.travel ?? 1) >= 0 ? 1 : -1, hitlag: 8 }, world);
+        }
+        continue;
+      } else if (h.kind === 'stalactite') {
         // the spike: its tip has fallen this far; it hurts along its last 30 units
         const tip = h.y + h.h * stalactiteFall(h, p);
         hit = r[1] < tip && r[1] + r[3] > tip - 30;

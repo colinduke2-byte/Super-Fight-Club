@@ -59,6 +59,23 @@ const SCAPES: Record<string, Scape> = {
     beds: [{ filter: 'lowpass', freq: 120, gain: 0.03, drone: { type: 'sine', hz: 41 } }],
     events: [{ kind: 'chime', every: 10 }],
   },
+  frost: {
+    beds: [
+      { filter: 'bandpass', freq: 900, q: 0.5, gain: 0.03, swell: { period: 6, depth: 0.8 } }, // gusts over the ridge
+      { filter: 'lowpass', freq: 200, gain: 0.025, swell: { period: 13, depth: 0.5 } },
+    ],
+    events: [{ kind: 'chime', every: 6 }],
+  },
+  airship: {
+    beds: [
+      { filter: 'lowpass', freq: 380, gain: 0.06, swell: { period: 5, depth: 0.5 } }, // rushing air past the hull
+      { filter: 'bandpass', freq: 160, q: 0.8, gain: 0.03, drone: { type: 'sawtooth', hz: 48 } }, // the engines
+    ],
+    events: [
+      { kind: 'creak', every: 7 },
+      { kind: 'thunder', every: 12 },
+    ],
+  },
   cavern: {
     beds: [
       { filter: 'lowpass', freq: 140, gain: 0.05, swell: { period: 11, depth: 0.5 } }, // the deep rumble of the rock
