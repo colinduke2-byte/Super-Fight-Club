@@ -1,3 +1,4 @@
+import { paletteCount } from '../art/palettes';
 import { CHARACTER_LIST } from '../characters';
 import { STAGE_LIST } from '../stages';
 import { DEFAULT_RULES, session, type Session } from './session';
@@ -14,7 +15,8 @@ export function startDemo(rand: () => number = Math.random): void {
   }
   const n = rand() < 0.5 ? 2 : 4;
   session.mode = 'versus';
-  session.players = pool.slice(0, n).map((character, index) => ({ index, type: 'cpu', device: null, character, cpuLevel: 3, palette: 0 }));
+  // random outfits too: the attract demo shows off the looks
+  session.players = pool.slice(0, n).map((character, index) => ({ index, type: 'cpu', device: null, character, cpuLevel: 3, palette: Math.floor(rand() * paletteCount(character)) }));
   session.playerCount = n;
   session.rules = { ...DEFAULT_RULES, stocks: 2, items: 1 };
   session.stage = STAGE_LIST[Math.floor(rand() * STAGE_LIST.length)].id;
