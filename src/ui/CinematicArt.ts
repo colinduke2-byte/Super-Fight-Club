@@ -1,5 +1,6 @@
 import Phaser from 'phaser';
 import type { World } from '../engine/world';
+import { settings } from '../settings';
 
 /**
  * Bespoke staging drawn over a cinematic ultimate, keyed by the attacker's id (others just get the generic cut-in, flashes
@@ -22,6 +23,8 @@ export class CinematicArt {
     a.clear();
     const c = world.cinematic;
     if (!c) return;
+    // REDUCE FLASHES: the additive light (beams, blast domes, glints) is drawn at half strength
+    a.setAlpha(settings.reduceFlashes ? 0.45 : 1);
     const total = c.move.cinematic!.frames;
     // frames since the last cinematic hit (big right after a hit, for pulses)
     let since = 99;
