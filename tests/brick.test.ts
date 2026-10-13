@@ -238,12 +238,11 @@ describe('Charge Shoulder', () => {
 });
 
 describe('Grapple Slam', () => {
-  it('grabs and slams a grounded opponent for ~15 damage, even through a shield', () => {
+  it('grabs and slams a grounded opponent for the slam damage, even through a shield', () => {
     const r = rig(30);
     r.a.startMove('sideB', null, r.world);
     r.run(80);
-    expect(r.b.damage).toBeGreaterThan(13.5);
-    expect(r.b.damage).toBeLessThan(15.5);
+    expect(r.b.damage).toBeCloseTo(brick.moves.slam.hitboxes[0].damage, 0);
     expect(r.events).toContain('grab');
     expect(r.events).toContain('throw');
 
@@ -251,8 +250,7 @@ describe('Grapple Slam', () => {
     s.tick(inp(), press(Button.Shield));
     s.a.startMove('sideB', null, s.world);
     s.run(80, inp(), inp({ held: Button.Shield }));
-    expect(s.b.damage).toBeGreaterThan(13.5);
-    expect(s.b.damage).toBeLessThan(15.5);
+    expect(s.b.damage).toBeCloseTo(brick.moves.slam.hitboxes[0].damage, 0);
   });
 
   it('can be avoided by being in the air', () => {
@@ -331,7 +329,7 @@ describe('Tough Guy', () => {
     const r = rig(26);
     r.a.res.heat = 70;
     r.tick();
-    expect(r.a.armorThreshold()).toBeGreaterThanOrEqual(5);
+    expect(r.a.armorThreshold()).toBeGreaterThan(brick.toughness! * 1.8);
   });
 });
 

@@ -12,8 +12,8 @@ validateFx('brick', fx);
 const json = movesJson as unknown as CharacterJson;
 
 /** Tough Guy: hits up to this much damage never flinch Brick (more while Heat is hot). */
-export const TOUGH = 2.6;
-export const TOUGH_HOT = 5;
+export const TOUGH = 2.2;
+export const TOUGH_HOT = 4.5;
 /** Crater Stomp's landing shockwave: speed of the two ground waves. */
 const QUAKE_SPEED = 4.2;
 /** Whirling Jet on the ground: top travel speed while the stick steers it. */

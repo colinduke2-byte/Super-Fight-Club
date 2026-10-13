@@ -146,9 +146,9 @@ describe('trades', () => {
 
   it(`a hit ${TRADE_THRESHOLD}+ damage stronger beats the weaker one outright`, () => {
     const r = rig(26);
-    const dsActive = brick.moves.dsmash.startup + 1; // 13
-    const jabActive = brick.moves.jab1.startup + 1; // 6
-    r.tick(press(Button.Smash, { stickY: 1 })); // a: down smash (12 dmg)
+    const dsActive = brick.moves.fsmash.startup + 1;
+    const jabActive = brick.moves.jab1.startup + 1;
+    r.tick(press(Button.Smash, { stickX: 1 })); // a: forward smash (14 dmg)
     for (let i = 0; i < dsActive - jabActive - 1; i++) r.tick();
     r.tick(inp(), press(Button.Attack)); // b: jab (3 dmg) arriving on the same tick as the smash
     r.run(dsActive + 4);

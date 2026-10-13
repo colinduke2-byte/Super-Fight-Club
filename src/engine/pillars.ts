@@ -109,7 +109,7 @@ function removePillar(world: World, d: Deployable): void {
 /** Struck-pillar shards: fan width between shards (degrees), speed and damage multipliers over a plain shatter. */
 const STRIKE_SPREAD = 8;
 const STRIKE_SPEED = 1.35;
-const STRIKE_DAMAGE = 1.15;
+const STRIKE_DAMAGE = 0.6; // several shards of one spray usually connect
 /** Move kinds whose hits can knock the owner's own pillars over (specials raise and stomp them on their own terms). */
 const STRIKE_KINDS: ReadonlySet<MoveKind> = new Set<MoveKind>(['jab', 'tilt', 'dashAttack', 'smash', 'aerial']);
 const rH = [0, 0, 0, 0];

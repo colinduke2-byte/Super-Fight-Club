@@ -51,7 +51,7 @@ export const obelisk: CharacterData = {
     epilogue: 'Obelisk tore the Super Fight Club down to the bedrock and grew a mountain over the hole. It is quiet now. That is how it likes it.',
   },
   stats: {
-    weight: 96,
+    weight: 90,
     runSpeed: 2.02,
     airSpeed: 1.85,
     groundAccel: 0.24,

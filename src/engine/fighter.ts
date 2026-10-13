@@ -666,11 +666,12 @@ export class Fighter implements Body {
   }
 
   /** Armor threshold active right now, or -1 if none. */
-  armorThreshold(): number {
+  /** Damage a hit may deal without interrupting (-1 = none). `ranged`: projectiles and traps, which Tough Guy does not shrug off. */
+  armorThreshold(ranged = false): number {
     if (this.state === 'ko' || this.state === 'hitstun' || this.state === 'grabbed') return -1;
     if (this.superArmor) return Infinity;
-    // Tough Guy: hits up to `toughness` damage never flinch (a heavy's passive, see CharacterData.toughness)
-    const tough = this.toughness > 0 ? this.toughness : -1;
+    // Tough Guy: melee hits up to `toughness` damage never flinch (a heavy's passive, see CharacterData.toughness)
+    const tough = this.toughness > 0 && !ranged ? this.toughness : -1;
     const m = this.move;
     if (this.state !== 'attack' || !m || !m.armor) return tough;
     if (this.moveFrame < m.armor.from || this.moveFrame > m.armor.to) return tough;

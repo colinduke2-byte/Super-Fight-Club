@@ -300,7 +300,7 @@ export function deliverHit(world: World, d: HitDelivery): void {
   }
 
   // --- armor ---
-  const armor = def.armorThreshold();
+  const armor = def.armorThreshold(d.freezeOwner === false);
   if (armor >= 0 && d.damage <= armor) {
     def.damage += d.damage;
     def.hitlag = Math.round(hl * 0.6);
