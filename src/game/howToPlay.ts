@@ -89,6 +89,18 @@ export const HOW_TO_PLAY: HowToPage[] = [
     demo: ['vex', ['mv_nair', 'mv_bair', 'mv_dair', 'idle']],
   },
   {
+    title: 'PHYSICS',
+    rows: [
+      ['HUMAN CANNONBALL', 'Launch a rival into another: both get hurt.'],
+      ['HEAVY VS LIGHT', 'Heavy bodies plough through light ones.'],
+      ['SPLAT', 'Slamming a wall or floor hard without a tech hurts.'],
+      ['MOMENTUM', 'Run or drift into a hit and it launches farther.'],
+      ['HIT AN ITEM', 'Attacks bat items around. A batted bomb arms.'],
+      ['TRAINING', 'Hits draw the launch path. A cross means a KO.'],
+    ],
+    demo: ['brick', ['run', 'hurt', 'mv_fsmash', 'idle']],
+  },
+  {
     title: 'ITEMS AND STAGES',
     rows: [
       ['HEART', 'Heals 25%.'],
@@ -105,14 +117,14 @@ export const HOW_TO_PLAY: HowToPage[] = [
   {
     title: 'THE FIGHTERS',
     rows: [
-      ['BRICK', 'Heavy. HEAT from hits: armored smashes, Vent to explode.'],
+      ['BRICK', 'Heavy. Light hits do not flinch him; Shield banks a charge.'],
       ['VEX', 'Fast rogue. Blink leaves a marker: special again to recall.'],
       ['NOVA', 'Zoner. Down special cycles fire, ice and lightning spells.'],
-      ['GIZMO', 'Trapper. Turrets and SCRAP; Overclock to upgrade them.'],
+      ['GIZMO', 'Inventor. Hold Jump to hover; catch the Rocket Fist.'],
       ['AGNI', 'All-rounder. FLAME levels up every special as it builds.'],
       ['HALCYON', 'Lancer. Three air flaps, a glide, spear tip sweetspots.'],
       ['RIPTIDE', 'Grappler. Water SOAKS rivals; throws wring it out.'],
-      ['OBELISK', 'Builder. Raises crystal pillars, then shatters them.'],
+      ['OBELISK', 'Builder. Raise pillars, then smash them into rivals.'],
     ],
     demo: ['riptide', ['idle', 'mv_taunt', 'mv_fsmash', 'idle']],
   },

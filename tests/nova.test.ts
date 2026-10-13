@@ -295,3 +295,16 @@ describe('Elemental Convergence', () => {
     expect(r.a.meter).toBeLessThan(100); // spent (only the damage dealt refills a little)
   });
 });
+
+describe('Aether Step', () => {
+  it('bursts on arrival (Farore style): a rival where Nova reappears is launched', () => {
+    const r = rig(60);
+    r.b.spawn(r.a.x, -70, -1); // waiting right where the teleport lands
+    r.b.hover = true;
+    r.b.invuln = 0;
+    r.a.startMove('upB', null, r.world);
+    r.run(20);
+    expect(r.b.damage).toBeGreaterThan(5);
+    expect(r.b.state).toBe('hitstun');
+  });
+});

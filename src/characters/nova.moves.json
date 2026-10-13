@@ -1138,13 +1138,14 @@
     {
      "x": 0,
      "y": 6,
-     "w": 18,
-     "h": 14,
-     "damage": 3.5,
+     "w": 22,
+     "h": 16,
+     "damage": 6.4,
      "angle": 280,
-     "base": 14,
-     "scaling": 0.2,
-     "fx": "burst"
+     "base": 24,
+     "scaling": 0.5,
+     "fx": "meteor",
+     "hitlag": 1.2
     }
    ],
    "pose": {
@@ -1280,18 +1281,18 @@
    "name": "Spell Bolt: Fire",
    "kind": "special",
    "anim": "castF",
-   "startup": 18,
+   "startup": 15,
    "active": 1,
    "recovery": 18,
    "charge": {
-    "frame": 8,
+    "frame": 5,
     "max": 50,
     "damageMult": 1.6,
     "kbMult": 1.2
    },
    "events": [
     {
-     "frame": 18,
+     "frame": 15,
      "action": "projectile",
      "id": "bolt_fire",
      "x": 20,
@@ -1300,7 +1301,7 @@
      "vy": -1.6
     },
     {
-     "frame": 18,
+     "frame": 15,
      "action": "fx",
      "name": "cast"
     }
@@ -1330,18 +1331,18 @@
    "name": "Spell Bolt: Ice",
    "kind": "special",
    "anim": "castF",
-   "startup": 14,
+   "startup": 12,
    "active": 1,
    "recovery": 16,
    "charge": {
-    "frame": 8,
+    "frame": 6,
     "max": 50,
     "damageMult": 1.5,
     "kbMult": 1.2
    },
    "events": [
     {
-     "frame": 14,
+     "frame": 12,
      "action": "projectile",
      "id": "bolt_ice",
      "x": 20,
@@ -1350,7 +1351,7 @@
      "vy": -0.2
     },
     {
-     "frame": 14,
+     "frame": 12,
      "action": "fx",
      "name": "cast"
     }
@@ -1581,15 +1582,15 @@
    "kind": "special",
    "anim": "castU",
    "startup": 10,
-   "active": 1,
-   "recovery": 30,
+   "active": 4,
+   "recovery": 28,
    "helpless": true,
    "gravityScale": 0.25,
    "events": [
     {
      "frame": 10,
      "action": "teleport",
-     "dist": 56,
+     "dist": 70,
      "dir": "up8"
     },
     {
@@ -1610,7 +1611,25 @@
      "mode": "add"
     }
    ],
-   "hitboxes": [],
+   "hitboxes": [
+    {
+     "x": 0,
+     "y": -14,
+     "w": 42,
+     "h": 38,
+     "damage": 7.2,
+     "angle": 72,
+     "base": 44,
+     "scaling": 0.7,
+     "window": [
+      1,
+      4
+     ],
+     "dir": "away",
+     "hitlag": 1.1,
+     "fx": "burst"
+    }
+   ],
    "pose": {
     "keys": [
      [

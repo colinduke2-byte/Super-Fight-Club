@@ -267,8 +267,12 @@ pan with screen position. The audio context starts on the first key press (brows
 
 ### Brick: heavy cyber-knight (complete, Phase 4)
 
-Slow, tanky bruiser: weight 125 (heaviest), run 1.9, air speed 1.3, high gravity, fast fall, one short double
-jump, armored smashes. Weakness: poor recovery, slow starts, and he is easy to combo out of the air.
+Tanky juggernaut (Bowser / Donkey Kong cues): weight 108 (heaviest), run 1.9, air speed 1.45, high gravity, fast fall,
+one double jump, armored smashes, but quick close-range buttons (jab 4, nair 5, a frame-5 up special). Weakness: slow
+smashes, a big target, and he is easy to combo out of the air.
+
+- **Tough Guy:** melee hits of 2.2 damage or less (4.5 while Heat is hot) never flinch Brick: he takes the damage and
+  keeps swinging. Projectiles and traps still interrupt him, so zoners can chip him.
 Full frame data: [`docs/frame-data-brick.md`](docs/frame-data-brick.md) (regenerate with `npm run framedata`).
 
 **HEAT** (glowing seam under his damage percent; his armor also glows and steams when hot)
@@ -285,10 +289,10 @@ Full frame data: [`docs/frame-data-brick.md`](docs/frame-data-brick.md) (regener
 | Piston Slam (fsmash) | slow, huge knockback, armor frames 8-20 |
 | Overhead Crush (usmash) | hits both sides, anti-air |
 | Shockwave Stomp (dsmash) | ground ripple on both sides |
-| Plate Spin / Hammer Fist / Shoulder Bash / Rising Uppercut / Crater Stomp | nair (multi-hit) / fair (meteor) / bair / uair / dair (bounces on landing) |
-| Charge Shoulder (neutral special) | hold Special to charge, then ram; full charge = armor + shield break |
+| Plate Spin / Hammer Fist / Shoulder Bash / Rising Uppercut / Crater Stomp | nair (multi-hit) / fair (meteor) / bair / uair / dair (lands with a shockwave both ways) |
+| Charge Shoulder (neutral special) | hold Special to charge, then ram; full charge = armor + shield break. **Shield mid-charge banks it** (the arm glows); the next one starts from the banked charge, so a full one comes out at once (Giant Punch) |
 | Grapple Slam (side special) | command grab mid-run: unblockable, avoided by jumping, 15 damage, long whiff recovery |
-| Jet Boost (up special) | short thruster, weak recovery, no ledge grab for 16 frames (punishable), helpless after |
+| Whirling Jet (up special) | frame-5 multi-hit spin with a launching finish. In the air it climbs (helpless after); on the ground it starts intangible and travels where the stick steers it, his out-of-shield answer |
 | Vent (down special) | Heat burst, see above |
 | Meltdown (ultimate) | cinematic grab; detonates a huge blast that KOs at low percent |
 
@@ -317,7 +321,7 @@ directions during the start-up; usable once per airtime.
 
 ### Nova: spell-slinging zoner (complete, Phase 6)
 
-Weight 90, floaty with good air drift, one double jump; weak up close (slow, low-damage melee), easy to knock
+Weight 100, floaty with good air drift, one double jump; weak up close (slow, low-damage melee), easy to knock
 off stage. A floating orb companion changes colour with the element. Frame data:
 [`docs/frame-data-nova.md`](docs/frame-data-nova.md). Try her with `?char=nova`.
 
@@ -331,14 +335,19 @@ element changes her neutral and side specials, and tags her smashes / jab finish
 | Lightning | fast zig-zag, pierces and multi-hits, brief stun | stuns | short stun, -8% damage |
 
 Aether Step (up special): a telegraphed float-teleport (10-frame start-up) that can snap to a ledge within 70px,
-then glides; helpless afterwards. Elemental Convergence (ultimate): three beams (fire, ice, lightning)
+then glides; helpless afterwards. It bursts on arrival (Farore's Wind style), launching anyone where Nova reappears. Elemental Convergence (ultimate): three beams (fire, ice, lightning)
 sweep across the screen; the lightning beam is the finisher.
 
 ### Gizmo: tricky tinkerer mech (complete, Phase 7)
 
-Weight 88, medium speed, one double jump, a small low-profile hurtbox, a solid tether recovery. Weak without
-setup; turrets can be destroyed. Frame data: [`docs/frame-data-gizmo.md`](docs/frame-data-gizmo.md).
+Weight 88, medium speed, one double jump, a wall jump, a small low-profile hurtbox, a solid tether recovery (cues: Peach,
+R.O.B.). Weak without setup; turrets can be destroyed. Frame data: [`docs/frame-data-gizmo.md`](docs/frame-data-gizmo.md).
 Try him with `?char=gizmo`.
+
+- **Jet hover:** hold Jump while falling to hang in the air for up to 1.5 s per airtime; aerials thrown from a hover keep
+  hovering (float-cancel pressure), and the CPU hovers to get back to the stage.
+- **Catch the Rocket Fist:** catching the returning fist refunds 1.5 Scrap and overcharges the next one (bigger, faster,
+  7.5 damage).
 
 **SCRAP** (counter above his head, seam on the HUD plate): +0.3 per damage he deals (wrench, fist, turret
 shots) and +3 whenever an enemy breaks one of his turrets. Cap 40.
@@ -353,7 +362,7 @@ shots) and +3 whenever an enemy breaks one of his turrets. Cap 40.
 | Spark Plug / Spin Gear | usmash electric burst (short stun) / dsmash both sides |
 | Aerials | Spinning Gear, Drill Jab (multi-hit), Rocket Kick, Head-Bolt, Hammer Drop (meteor) |
 | Turret Deploy (neutral special) | max 2 turrets that fire slow shots; destroying one pays you Scrap |
-| Rocket Fist (side special) | boomerang fist: hits on the way out and again on the way back |
+| Rocket Fist (side special) | boomerang fist: hits on the way out and again on the way back; catch it for an overcharged follow-up |
 | Grapple Tether (up special) | wide-cone hook: latches ledges / platforms, or grabs an opponent mid-air; helpless if it whiffs |
 | Overclock (down special) | see above |
 | Mega Mech Mode (ultimate) | 8 seconds in a giant suit: 1.7x size, super-armor, +35% damage, mech punch / stomp / missiles |
@@ -405,7 +414,7 @@ fair) and a shark's jaws. His water moves **SOAK** whoever they hit (`src/charac
 
 ### Obelisk: crystal golem, the terrain builder
 
-Weight 96, a light middleweight (well under Brick's 108), quick on its feet, one double jump. A grumpy living obelisk: a tall,
+Weight 90, a light middleweight (well under Brick's 108), quick on its feet, one double jump and a wall jump. A grumpy living obelisk: a tall,
 tapering shaft of granite under an amethyst capstone with one glowing eye-slit, a geode heart glowing through a crack, shards
 of crystal orbiting its head, and arms and legs of separate floating stones held together by crystal light; the arena was
 built over its cave (`src/characters/obelisk.*`, `obeliskPillars.ts`). Its **crystal pillars** are real terrain
@@ -416,7 +425,11 @@ built over its cave (`src/characters/obelisk.*`, `obeliskPillars.ts`). Its **cry
   wall-jumped off; rival shots and attacks chip them down; they sink back when their time runs out.
 - **Shatter:** Obelisk's own shots break its pillars into a fan of five crystal shards, and Bedrock Stomp shatters every
   pillar in range at once. Rock Bottom (back throw) into a pillar slams the rival through it for +35% damage and launch.
-- The CPU raises walls as setups, zones with Shard Volley and stomps a pillar when you stand next to it.
+- **Knock it over:** any of Obelisk's melee hits (jabs, tilts, smashes, aerials) on one of its risen pillars flings the
+  whole pillar as a tight, fast shard spray along the blow's launch angle: build a wall, then smash it into the rival.
+  ftilt and dash attack cancel into Crystal Spire on hit, so the pillar pops the rival up. Pillars are walls to jump off.
+- The CPU raises walls as setups, zones with Shard Volley, stomps a pillar when you stand next to it, and smashes a pillar
+  into you when you stand beyond it.
 
 | Special | |
 |---|---|
