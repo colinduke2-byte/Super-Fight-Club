@@ -787,28 +787,44 @@ function cloudBank(seed: number, base: string, light: string, shade: string, W =
 function peaks(seed: number, rock: string, rockL: string, rockD: string, snow: string, snowS: string, W = 512, H = 192): HTMLCanvasElement {
   const [c, g] = canvas(W, H);
   const rnd = mulberry32(seed);
-  const n = 6;
-  for (let i = 0; i < n; i++) {
-    const cx = Math.floor(((i + 0.2 + rnd() * 0.6) / n) * W);
-    const hgt = 90 + Math.floor(rnd() * 90);
-    const half = 60 + Math.floor(rnd() * 50);
-    const snowLine = 0.38 + rnd() * 0.18;
-    wrapX(W, cx, (bx) => {
-      for (let dx = -half; dx <= half; dx++) {
-        // ridge: a triangle with a jagged edge
-        const t = 1 - Math.abs(dx) / half;
-        const top = H - Math.round(hgt * t) + Math.round(Math.sin(dx * 0.7 + i) * 2 + Math.sin(dx * 0.23 + i * 3) * 4);
-        for (let y = Math.max(0, top); y < H; y++) {
-          const depth = (y - top) / Math.max(1, hgt * t + 1);
-          const lit = dx < 0; // light from the left
-          let col = lit ? rockL : rock;
-          if (dx > 0 && dx < half * 0.25 && (dx + y) % 3 === 0) col = rockD;
-          if (depth < snowLine * (0.7 + 0.3 * Math.sin(dx * 0.4 + y * 0.1))) col = lit ? snow : snowS;
-          px(g, col, bx + dx, y);
-        }
+  const n1 = makeNoise(seed, 64);
+  // a range, not a row: two or three big massifs and some foothills, summed into one jagged ridgeline per layer
+  const ridge = (count: number, minH: number, maxH: number, rough: number, salt: number): number[] => {
+    const ms = Array.from({ length: count }, (_, i) => ({ cx: ((i + 0.15 + rnd() * 0.7) / count) * W, h: minH + rnd() * (maxH - minH), half: 70 + rnd() * 90, skew: (rnd() - 0.5) * 0.6 }));
+    const out: number[] = [];
+    for (let x = 0; x < W; x++) {
+      let top = 0;
+      for (const m of ms) {
+        let dx = x - m.cx;
+        if (dx > W / 2) dx -= W;
+        if (dx < -W / 2) dx += W; // tileable
+        const t = Math.abs(dx) / (m.half * (dx < 0 ? 1 + m.skew : 1 - m.skew));
+        if (t < 1) top = Math.max(top, m.h * Math.pow(1 - t, 1.15));
       }
-    });
-  }
+      // jagged crests: a few octaves of periodic noise (period 64 * 8 = 512 = W, so it still tiles)
+      top += (n1(x / 8, salt) - 0.5) * rough + (n1(x / 2, salt + 5) - 0.5) * rough * 0.35;
+      out.push(Math.round(top));
+    }
+    return out;
+  };
+  const draw = (hs: number[], back: boolean): void => {
+    for (let x = 0; x < W; x++) {
+      const top = H - hs[x];
+      const slope = hs[(x + 1) % W] - hs[(x + W - 1) % W]; // > 0: the face rises to the right, so it faces the light (left)
+      for (let y = Math.max(0, top); y < H; y++) {
+        const depth = y - top;
+        const lit = slope > 0;
+        let col = back ? snowS : lit ? rockL : rock;
+        if (!back && !lit && slope < -3 && (x + y) % 3 === 0) col = rockD; // steep shadowed faces get hatching
+        // snow down to a ragged line, deeper in the gullies
+        const snowDepth = hs[x] * 0.42 + (n1(x / 3, 11) - 0.5) * 22;
+        if (depth < snowDepth && hs[x] > 50) col = back ? snow : lit ? snow : snowS;
+        px(g, col, x, y);
+      }
+    }
+  };
+  draw(ridge(3, 80, 120, 14, 2), true); // a pale distant range behind
+  draw(ridge(3, 110, 178, 22, 7).map((h, x) => Math.max(h, 30 + Math.round(Math.sin((x / W) * Math.PI * 6) * 8))), false);
   return c;
 }
 
