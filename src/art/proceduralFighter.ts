@@ -2,10 +2,11 @@ import Phaser from 'phaser';
 import { ALT_LOOKS } from './palettes';
 import type { CharacterData, PlaceholderLook } from '../engine/types';
 import { buildKeys, type Key } from './poseTemplates';
-import { detailPass, finishHero, type Anchors } from './spriteDetail';
+import { detailPass, finishHeroImage, type Anchors } from './spriteDetail';
 import { animFrameIndex, sheetDims, sheetLayout } from './sheetLayout';
 export { animFrameIndex, sheetDims };
-import { hasHeroArt, renderHero } from './hero';
+import { hasHeroArt, renderHeroImage } from './hero';
+import { addCanvasTexture } from './canvasTexture';
 
 /**
  * Placeholder pixel-art generator (64x64 frames). Draws every animation frame with canvas rects and
@@ -945,10 +946,10 @@ export function buildPlaceholderSheet(scene: Phaser.Scene, data: CharacterData):
       const dx = (cell % L.cols) * fw;
       const dy = Math.floor(cell / L.cols) * size;
       if (hero) {
-        hctx.clearRect(0, 0, fw, size);
-        renderHero(hctx, fw, size, sprite.placeholder, pose, f);
-        finishHero(hctx, fw, size, sprite.placeholder);
-        sctx.drawImage(hi, dx, dy);
+        // render and finish the frame in memory, then write it straight into its sheet cell
+        const img = renderHeroImage(fw, size, sprite.placeholder, pose, f);
+        finishHeroImage(img, sprite.placeholder);
+        sctx.putImageData(img, dx, dy);
         continue;
       }
       tctx.clearRect(0, 0, base, base);
@@ -973,7 +974,7 @@ function registerSheet(scene: Phaser.Scene, data: CharacterData, sheet: HTMLCanv
   const size = data.sprite.frameSize;
   const fw = data.sprite.frameWidth ?? size;
   if (scene.textures.exists(key)) scene.textures.remove(key);
-  const tex = scene.textures.addCanvas(key, sheet)!;
+  const tex = addCanvasTexture(scene, key, sheet)!;
   const L = sheetLayout(data);
   for (let cell = 0; cell < L.total; cell++) tex.add(cell, 0, (cell % L.cols) * fw, Math.floor(cell / L.cols) * size, fw, size);
   registerAnimations(scene, data);

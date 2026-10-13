@@ -1,6 +1,7 @@
 import Phaser from 'phaser';
 import { COVE_LAMP } from '../art/stageTextures';
 import { settings } from '../settings';
+import { addCanvasTexture } from '../art/canvasTexture';
 
 const SKY = ['#070520', '#0c0928', '#150e3a', '#231552', '#3a1f6a', '#5a2b78', '#8a4488'];
 export interface Backdrop {
@@ -259,7 +260,7 @@ export class BackgroundView {
     this.grad?.destroy();
     this.grad = null;
     if (this.scene.textures.exists(key)) this.scene.textures.remove(key);
-    this.scene.textures.addCanvas(key, c);
+    addCanvasTexture(this.scene, key, c);
     this.grad = this.scene.add.image(0, 0, key).setOrigin(0, 0).setScale(ps);
     this.layer.add(this.grad);
     this.layer.sendToBack(this.grad);

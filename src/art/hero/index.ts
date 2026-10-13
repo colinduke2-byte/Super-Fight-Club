@@ -36,6 +36,11 @@ const DRAWERS: Partial<Record<PlaceholderLook['build']['helmet'], (r: Raster, k:
 
 /** Render one frame of character `id` into `ctx` (a `size` x `size` canvas), lit but not yet outlined. */
 export function renderHero(ctx: Ctx, W: number, H: number, look: PlaceholderLook, pose: HeroPose, phase: number): void {
+  ctx.putImageData(renderHeroImage(W, H, look, pose, phase), 0, 0);
+}
+
+/** The same frame as pixels (lit, not yet outlined), without a canvas round trip: the sheet builder finishes it in place. */
+export function renderHeroImage(W: number, H: number, look: PlaceholderLook, pose: HeroPose, phase: number): ImageData {
   let r = new Raster(W, H);
   const lying = !!(pose as HeroPose & { lying?: boolean }).lying;
   const stand: HeroPose = lying ? { bob: 0, crouch: 0, lean: 0, frontFoot: [8, 3], backFoot: [-8, 0], frontHand: [6, -2], backHand: [-8, -2] } : pose;
@@ -43,7 +48,7 @@ export function renderHero(ctx: Ctx, W: number, H: number, look: PlaceholderLook
   DRAWERS[look.build.helmet]?.(r, k, look);
   // knocked down: the same body, laid on its back
   if (lying) r = r.lyingDown(H - 4, W / 2 - 5 * (H / 64));
-  const img = ctx.createImageData(W, H);
+  const img = new ImageData(W, H);
   r.shade(img.data);
-  ctx.putImageData(img, 0, 0);
+  return img;
 }

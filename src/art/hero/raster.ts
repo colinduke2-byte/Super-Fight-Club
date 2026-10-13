@@ -188,7 +188,10 @@ export class Raster {
         if (pid === 0) continue;
         const part = this.parts[pid];
         const ov = this.over[i];
-        let c: RGB = ov ? [(ov >> 16) & 255, (ov >> 8) & 255, ov & 255] : part.color;
+        // plain scalars (the same arithmetic as mul / mix): no arrays per pixel, every frame of every fighter goes through here
+        let r = ov ? (ov >> 16) & 255 : part.color[0];
+        let g = ov ? (ov >> 8) & 255 : part.color[1];
+        let b = ov ? ov & 255 : part.color[2];
         if (!part.emissive && !part.flat) {
           let ul = 0;
           while (ul < 4 && same(x - (ul + 1), y, pid) && same(x, y - (ul + 1), pid)) ul++;
@@ -200,16 +203,46 @@ export class Raster {
           const dn = same(x, y + 1, pid);
           const rt = same(x + 1, y, pid);
           const vol = 1.06 - (y / H) * 0.14; // faint top-to-bottom volume
-          c = mul(c, vol);
-          if (!up || !lf) c = mix(mul(c, part.soft ? 1.12 : 1.3), warm, 0.1);
-          else if (ul <= 1 && ((x + y) & 1) === 0) c = mul(c, 1.1);
-          if (!dn || !rt) c = mix(mul(c, part.soft ? 0.8 : 0.66), cool, 0.2);
-          else if (dr <= 1) c = mix(mul(c, 0.86), cool, 0.08);
-          else if (dr <= 2 && ((x + y) & 1) === 0) c = mul(c, 0.92);
+          r = Math.min(255, r * vol);
+          g = Math.min(255, g * vol);
+          b = Math.min(255, b * vol);
+          if (!up || !lf) {
+            const k = part.soft ? 1.12 : 1.3;
+            r = Math.min(255, r * k);
+            g = Math.min(255, g * k);
+            b = Math.min(255, b * k);
+            r += (warm[0] - r) * 0.1;
+            g += (warm[1] - g) * 0.1;
+            b += (warm[2] - b) * 0.1;
+          } else if (ul <= 1 && ((x + y) & 1) === 0) {
+            r = Math.min(255, r * 1.1);
+            g = Math.min(255, g * 1.1);
+            b = Math.min(255, b * 1.1);
+          }
+          if (!dn || !rt) {
+            const k = part.soft ? 0.8 : 0.66;
+            r = Math.min(255, r * k);
+            g = Math.min(255, g * k);
+            b = Math.min(255, b * k);
+            r += (cool[0] - r) * 0.2;
+            g += (cool[1] - g) * 0.2;
+            b += (cool[2] - b) * 0.2;
+          } else if (dr <= 1) {
+            r = Math.min(255, r * 0.86);
+            g = Math.min(255, g * 0.86);
+            b = Math.min(255, b * 0.86);
+            r += (cool[0] - r) * 0.08;
+            g += (cool[1] - g) * 0.08;
+            b += (cool[2] - b) * 0.08;
+          } else if (dr <= 2 && ((x + y) & 1) === 0) {
+            r = Math.min(255, r * 0.92);
+            g = Math.min(255, g * 0.92);
+            b = Math.min(255, b * 0.92);
+          }
         }
-        out[i * 4] = c[0];
-        out[i * 4 + 1] = c[1];
-        out[i * 4 + 2] = c[2];
+        out[i * 4] = r;
+        out[i * 4 + 1] = g;
+        out[i * 4 + 2] = b;
         out[i * 4 + 3] = 255;
       }
     }

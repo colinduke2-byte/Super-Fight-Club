@@ -1,4 +1,5 @@
 import Phaser from 'phaser';
+import { addCanvasTexture } from './canvasTexture';
 
 function px(g: CanvasRenderingContext2D, c: string, x: number, y: number, w = 1, h = 1): void {
   g.fillStyle = c;
@@ -48,5 +49,5 @@ export function buildHudTextures(scene: Phaser.Scene): void {
     px(g, '#d8d4ff', x, y, 1, 1);
   }
   if (scene.textures.exists('hud-panel')) scene.textures.remove('hud-panel');
-  scene.textures.addCanvas('hud-panel', c);
+  addCanvasTexture(scene, 'hud-panel', c);
 }

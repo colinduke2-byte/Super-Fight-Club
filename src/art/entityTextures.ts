@@ -1,4 +1,5 @@
 import Phaser from 'phaser';
+import { addCanvasTexture } from './canvasTexture';
 
 /**
  * Projectile / deployable textures, drawn in light greys so the data's `look.color` tints them.
@@ -22,7 +23,7 @@ const px = (g: Ctx, c: string, x: number, y: number, w = 1, h = 1): void => {
 export function buildEntityTextures(scene: Phaser.Scene): void {
   const add = (key: string, c: HTMLCanvasElement): void => {
     if (scene.textures.exists(key)) scene.textures.remove(key);
-    scene.textures.addCanvas(key, c);
+    addCanvasTexture(scene, key, c);
   };
 
   // item capsules 16x16: heal (green cross), energy cell (yellow bolt), overdrive (red chevrons)

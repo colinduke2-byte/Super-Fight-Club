@@ -1,4 +1,5 @@
 import Phaser from 'phaser';
+import { addCanvasTexture } from './canvasTexture';
 
 /**
  * All world / background art is generated here at "art pixel" density: 1 art pixel = 0.5 world
@@ -1161,7 +1162,7 @@ function bubbleTex(): HTMLCanvasElement {
 export function buildStageTextures(scene: Phaser.Scene): void {
   const add = (key: string, c: HTMLCanvasElement): void => {
     if (scene.textures.exists(key)) scene.textures.remove(key);
-    scene.textures.addCanvas(key, c);
+    addCanvasTexture(scene, key, c);
   };
   add('tile-stone', stoneTile());
   const SLATE = ['#0e141c', '#18212d', '#243040', '#32425a', '#44587a', '#5a7298'];

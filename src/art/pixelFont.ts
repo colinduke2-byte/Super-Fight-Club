@@ -1,4 +1,5 @@
 import Phaser from 'phaser';
+import { addCanvasTexture } from './canvasTexture';
 
 /**
  * 5x7 pixel font with a baked 1px dark outline, generated in code and registered as the bitmap font
@@ -96,7 +97,7 @@ export function buildPixelFont(scene: Phaser.Scene): void {
     for (let y = 0; y < 7; y++) for (let x = 0; x < 5; x++) if (on(x, y)) g.fillRect(ox + x, oy + y, 1, 1);
   }
   if (scene.textures.exists('pixfont')) scene.textures.remove('pixfont');
-  scene.textures.addCanvas('pixfont', c);
+  addCanvasTexture(scene, 'pixfont', c);
   if (scene.cache.bitmapFont.exists(PIXEL_FONT)) scene.cache.bitmapFont.remove(PIXEL_FONT);
   const entry = Phaser.GameObjects.RetroFont.Parse(scene, {
     image: 'pixfont',

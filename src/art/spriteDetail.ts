@@ -283,10 +283,30 @@ function decorate(ctx: Ctx, ss: number, look: PlaceholderLook, a: Anchors, phase
  */
 export function finishHero(ctx: Ctx, w: number, h: number, look: PlaceholderLook): void {
   const img = ctx.getImageData(0, 0, w, h);
+  finishHeroImage(img, look);
+  ctx.putImageData(img, 0, 0);
+}
+
+let scratchA = new Uint8Array(0);
+let scratchE = new Uint8Array(0);
+let scratchBloom = new Float32Array(0);
+
+/** `finishHero` on pixels already in memory (no getImageData / putImageData). */
+export function finishHeroImage(img: ImageData, look: PlaceholderLook): void {
+  const w = img.width;
+  const h = img.height;
   const d = img.data;
   const n = w * h;
-  const A = new Uint8Array(n); // opaque mask
-  const E = new Uint8Array(n); // emissive mask
+  // scratch masks reused across frames (every frame of every fighter comes through here at boot)
+  if (scratchA.length < n) {
+    scratchA = new Uint8Array(n);
+    scratchE = new Uint8Array(n);
+    scratchBloom = new Float32Array(n);
+  }
+  const A = scratchA; // opaque mask
+  const E = scratchE; // emissive mask
+  A.fill(0, 0, n);
+  E.fill(0, 0, n);
   const accent = rgb(look.accent);
   const glow = bright(accent, 1.55);
   const outline = rgb(look.outline);
@@ -303,7 +323,8 @@ export function finishHero(ctx: Ctx, w: number, h: number, look: PlaceholderLook
   const R = 3;
   const K: number[] = [];
   for (let dy = -R; dy <= R; dy++) for (let dx = -R; dx <= R; dx++) K.push(Math.max(0, 1 - Math.hypot(dx, dy) / (R + 0.5)) * 0.22);
-  const bloom = new Float32Array(n);
+  const bloom = scratchBloom;
+  bloom.fill(0, 0, n);
   for (let y = R; y < h - R; y++) {
     for (let x = R; x < w - R; x++) {
       if (!E[y * w + x]) continue;
@@ -350,5 +371,4 @@ export function finishHero(ctx: Ctx, w: number, h: number, look: PlaceholderLook
       }
     }
   }
-  ctx.putImageData(img, 0, 0);
 }
