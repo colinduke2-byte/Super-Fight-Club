@@ -1612,6 +1612,7 @@
     }
    ],
    "cinematic": {
+    "art": "mountainsWrath",
     "frames": 120,
     "zoom": 0.95,
     "hits": [

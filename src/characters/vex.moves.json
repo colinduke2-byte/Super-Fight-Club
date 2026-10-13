@@ -1716,6 +1716,7 @@
     }
    ],
    "cinematic": {
+    "art": "pirateRaid",
     "frames": 90,
     "zoom": 0.9,
     "hits": [

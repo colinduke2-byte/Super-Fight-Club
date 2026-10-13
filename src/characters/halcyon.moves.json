@@ -3236,6 +3236,7 @@
     }
    ],
    "cinematic": {
+    "art": "judgement",
     "frames": 104,
     "zoom": 0.9,
     "hits": [

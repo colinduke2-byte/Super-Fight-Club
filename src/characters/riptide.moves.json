@@ -1710,6 +1710,7 @@
     }
    ],
    "cinematic": {
+    "art": "maelstrom",
     "frames": 112,
     "zoom": 0.95,
     "hits": [

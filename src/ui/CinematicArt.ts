@@ -28,23 +28,23 @@ export class CinematicArt {
     for (const h of c.move.cinematic!.hits) if (h.frame <= c.frame) since = c.frame - h.frame;
     const v = c.victim;
     const at = c.attacker;
-    switch (at.data.id) {
-      case 'obelisk':
+    switch (c.move.cinematic!.art) {
+      case 'mountainsWrath':
         this.mountainsWrath(c.frame, total, v.x, v.y, v.h, tick);
         break;
-      case 'brick':
+      case 'meltdown':
         this.meltdown(c.frame, total, since, at.x + at.facing * 6, at.y - at.h * 0.55, v.x, v.y - v.h / 2);
         break;
-      case 'vex':
+      case 'pirateRaid':
         this.pirateRaid(c.frame, total, since, v.x, v.y - v.h / 2, c.move.cinematic!.hits.length);
         break;
-      case 'halcyon':
+      case 'judgement':
         this.judgement(c.frame, total, since, v.x, v.y, v.h, tick);
         break;
-      case 'riptide':
+      case 'maelstrom':
         this.maelstrom(c.frame, total, since, v.x, v.y, v.h);
         break;
-      case 'rime':
+      case 'thousandCuts':
         this.thousandCuts(c.frame, total, since, v.x, v.y, v.h);
         break;
     }

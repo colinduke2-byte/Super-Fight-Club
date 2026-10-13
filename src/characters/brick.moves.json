@@ -1467,6 +1467,7 @@
     }
    ],
    "cinematic": {
+    "art": "meltdown",
     "frames": 110,
     "zoom": 1.1,
     "hits": [

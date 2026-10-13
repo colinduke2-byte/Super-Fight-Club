@@ -83,6 +83,8 @@ export interface Cinematic {
   hits: { frame: number; damage: number; hitlag?: number; launch?: boolean; angle?: number; base?: number; scaling?: number }[];
   /** Camera hint for the renderer. */
   zoom?: number;
+  /** Bespoke staging the renderer draws over the cinematic (see CinematicArt), e.g. 'meltdown'. */
+  art?: string;
 }
 
 export type MoveKind = 'jab' | 'tilt' | 'dashAttack' | 'smash' | 'aerial' | 'special' | 'grab' | 'throw' | 'ultimate';
