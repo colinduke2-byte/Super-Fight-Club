@@ -41,6 +41,7 @@ export const riptide: CharacterData = {
   fx,
   name: 'Riptide',
   tagline: 'Cyber-shark grappler. Soak them, then drag them under.',
+  difficulty: 2,
   persona: {
     intro: 'Riptide was bred in the flooded pits under the arena, a gladiator in a shark\'s skin. The tide has risen. So has he.',
     taunt: 'You can swim, right? Doesn\'t matter.',

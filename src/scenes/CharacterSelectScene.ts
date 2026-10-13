@@ -72,7 +72,7 @@ export class CharacterSelectScene extends MenuScene {
         status: text(this, this.ui, '', COLORS.warn),
         frame,
         bars: [],
-        barLabels: ['WGT', 'SPD', 'JMP'].map((t) => text(this, this.ui, t, COLORS.dim)),
+        barLabels: ['WGT', 'SPD', 'JMP', 'DIF'].map((t) => text(this, this.ui, t, COLORS.dim)),
         tagline: text(this, this.ui, '', COLORS.dim).setCenterAlign(),
         barBg: [],
         tex: '',
@@ -86,7 +86,7 @@ export class CharacterSelectScene extends MenuScene {
       };
       this.ui.add([frame, sprite]);
       this.ui.sendToBack(frame);
-      for (let b = 0; b < 3; b++) {
+      for (let b = 0; b < 4; b++) {
         const bg = this.add.image(0, 0, 'px').setOrigin(0, 0).setTint(0x2a2748);
         const fg = this.add.image(0, 0, 'px').setOrigin(0, 0).setTint(col);
         this.ui.add([bg, fg]);
@@ -138,8 +138,8 @@ export class CharacterSelectScene extends MenuScene {
       });
       c.outfit.setOrigin(1, 0).setPosition(cx + (cw * 0.94) / 2 - 5 * u, top + 31 * u).setData('u', u);
       c.bars.forEach((b, k) => {
-        const by = top + 136 * u + k * 6 * u;
-        c.barLabels[k].setScale(u * 0.8).setOrigin(0, 0).setPosition(cx - (cw * 0.94) / 2 + 5 * u, by - 0.5 * u);
+        const by = top + 134 * u + k * 5.6 * u;
+        c.barLabels[k].setScale(u * 0.64).setOrigin(0, 0).setPosition(cx - (cw * 0.94) / 2 + 5 * u, by - 0.5 * u);
         const bx = cx - (cw * 0.94) / 2 + 24 * u;
         c.barW = cw * 0.94 - 32 * u;
         c.barBg[k].setPosition(bx, by).setScale(c.barW / 4, (4 * u) / 4);
@@ -203,7 +203,7 @@ export class CharacterSelectScene extends MenuScene {
       c.status.setScale(this.u * 1.2);
       const limit = this.cardW * 0.86;
       if (c.status.displayWidth > limit) c.status.setScale((this.u * 1.2 * limit) / c.status.displayWidth);
-      const stats = [this.norm(data.stats.weight, 80, 110), this.norm(data.stats.runSpeed, 1.6, 3.3), this.norm(data.stats.jumpHeight, 55, 82)];
+      const stats = [this.norm(data.stats.weight, 80, 110), this.norm(data.stats.runSpeed, 1.6, 3.3), this.norm(data.stats.jumpHeight, 55, 82), (data.difficulty ?? 3) / 5];
       c.bars.forEach((b, k) => b.setVisible(shown).setScale((stats[k] * c.barW) / 4, (4 * u) / 4));
       c.barLabels.forEach((t) => t.setVisible(shown));
       if (shown && c.tagline.getData('src') !== data.id + this.cardW) {

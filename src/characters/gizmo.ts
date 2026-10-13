@@ -109,6 +109,7 @@ export const gizmo: CharacterData = {
   fx,
   name: 'Gizmo',
   tagline: 'Tinkerer mech. Set the trap, spend the scrap.',
+  difficulty: 3,
   persona: {
     intro: 'Gizmo wired the arena\'s first brain on a rainy Tuesday. Now the brain will not let anyone leave, and Gizmo feels responsible.',
     taunt: 'One turret. Two turrets. You are outnumbered.',

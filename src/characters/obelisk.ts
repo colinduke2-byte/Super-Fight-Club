@@ -45,6 +45,7 @@ export const obelisk: CharacterData = {
   fx,
   name: 'Obelisk',
   tagline: 'Crystal golem. Builds walls, then breaks them over your head.',
+  difficulty: 4,
   persona: {
     intro: 'Obelisk slept under the arena for ten thousand years, until someone built a fighting pit on its roof. It has come up to complain.',
     taunt: 'Get out of my cave.',

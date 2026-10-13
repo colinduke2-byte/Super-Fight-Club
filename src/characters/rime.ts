@@ -53,6 +53,7 @@ export const rime: CharacterData = {
   fx,
   name: 'Rime',
   tagline: 'Frost ninja. Faster than the cold can bite.',
+  difficulty: 4,
   persona: {
     intro: 'Rime guarded the Frostfang Shrine for a hundred winters. The arena stole its bell, so the snow came down to fetch it.',
     taunt: 'You will not feel the cut until spring.',

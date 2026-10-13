@@ -229,6 +229,13 @@ export class WorldEventFx {
         e.flash(x, y, 2 + extra * 0.1, 0xffffff);
         e.burst(x, y, 16, 120, 0xffe14a, 0.4, 3);
         this.host.shake(mag > 0 ? 12 : 5);
+        if (mag > 0) {
+          // the finisher: a beat of slow motion, a double shockwave and a boom under the launch
+          this.host.slow(0.3, 26);
+          e.ring(x, y, 110, 0xffffff, 0.8);
+          e.ring(x, y, 70, atk ? parseInt(atk.data.sprite.placeholder.accent.slice(1), 16) : 0xffe14a, 0.7);
+          sfx.play('boom', 1, 0);
+        }
         break;
       }
       case 'cinematicEnd':

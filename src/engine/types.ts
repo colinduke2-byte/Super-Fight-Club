@@ -217,6 +217,8 @@ export interface CharacterData {
   resourceRules?: ResourceRule[];
   name: string;
   tagline: string;
+  /** How hard the fighter is to play well, 1 (pick up and go) .. 5 (expert); shown on character select. */
+  difficulty?: number;
   stats: CharacterStats;
   body: BodyDims;
   sprite: SpriteDef;

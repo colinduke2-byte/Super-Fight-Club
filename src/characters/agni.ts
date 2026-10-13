@@ -40,6 +40,7 @@ export const agni: CharacterData = {
   resourceRules: [{ key: 'flame', max: FLAME_MAX, gainDealt: DEALT_RATE, gainTaken: TAKEN_RATE, decayAfter: DECAY_DELAY, decayRate: DECAY_RATE, levels: { key: 'level', at: [...LEVEL_AT] } }],
   name: 'Agni',
   tagline: 'Fire-god brawler. Build the flame, spend it big.',
+  difficulty: 2,
   persona: {
     intro: 'Agni was a festival bonfire once, lit for a forgotten god. The arena asked who would dare to burn, and the flame stood up.',
     taunt: 'I do not need to win quickly. I only need to burn longer than you.',

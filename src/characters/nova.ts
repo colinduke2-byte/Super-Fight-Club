@@ -69,6 +69,7 @@ export const nova: CharacterData = {
   variants,
   name: 'Nova',
   tagline: 'Spell-slinging zoner. Fire, ice, lightning.',
+  difficulty: 4,
   persona: {
     intro: 'Nova felt her stolen Aether humming from the arena core, loud as a second heartbeat. She follows the sound.',
     taunt: 'The stars said you would come. They laughed.',

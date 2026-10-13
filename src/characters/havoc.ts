@@ -71,6 +71,7 @@ export const havoc: CharacterData = {
   fx,
   name: 'Havoc',
   tagline: 'Gadget soldier. Plant it, steer it, blow it up.',
+  difficulty: 4,
   persona: {
     intro: 'Havoc was sent in to shut the arena down quietly. Quiet is not really his style.',
     taunt: 'Fire in the hole. That means you.',

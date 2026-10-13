@@ -49,6 +49,7 @@ export const halcyon: CharacterData = {
   resourceRules: [{ key: 'gale', max: GALE_MAX, gainDealt: DEALT_RATE, levels: { key: 'level', at: [...LEVEL_AT] } }],
   name: 'Halcyon',
   tagline: 'Storm-winged lancer. Own the sky, strike from the tip.',
+  difficulty: 3,
   persona: {
     intro: 'Halcyon kept the sky-gate until the storm took the sky. The only way back up is the Ladder, one bout at a time.',
     taunt: 'You fight on the ground. I fight where the wind starts.',

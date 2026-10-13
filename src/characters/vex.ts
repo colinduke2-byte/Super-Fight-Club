@@ -60,6 +60,7 @@ export const vex: CharacterData = {
   fx,
   name: 'Vex',
   tagline: 'Space-pirate rogue. Blink, bait, and vanish.',
+  difficulty: 3,
   persona: {
     intro: 'Vex came for the vault beneath the arena. The only door is the Ladder, and the Ladder only opens for winners.',
     taunt: 'Catch me if you can. You cannot.',
