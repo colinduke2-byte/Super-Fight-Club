@@ -12,6 +12,8 @@ const HEAVY_FREEZE_PER_DAMAGE = 0.35;
 const HITLAG_MAX = 28;
 /** Momentum hits: attacker speed (px/frame) toward the victim above MIN carries into the launch at CARRY, up to MAX. */
 const MOMENTUM_MIN = 0.6;
+/** Hit-stop the attacker suffers when its blow lands on a counter. */
+const COUNTER_FREEZE = 16;
 const MOMENTUM_CARRY = 0.5;
 const MOMENTUM_MAX = 2;
 const MAX_CANDIDATES = 16;
@@ -272,6 +274,25 @@ export function deliverHit(world: World, d: HitDelivery): void {
   const hl = Math.round(Math.min(HITLAG_MAX, (d.damage * HITLAG_PER_DAMAGE + HITLAG_BASE + Math.max(0, d.damage - HEAVY_FREEZE_FROM) * HEAVY_FREEZE_PER_DAMAGE) * (hb.hitlag ?? 1)));
   const owner = d.freezeOwner === false ? null : atk;
 
+  // --- counter: a hit into a counter window is absorbed and answered ---
+  const cm = def.move;
+  if (def.state === 'attack' && cm?.counter && def.moveFrame >= cm.counter.from && def.moveFrame <= cm.counter.to && !hb.grab && !hb.throw) {
+    const c = cm.counter;
+    const fromX = def.x;
+    const fromY = def.y;
+    if (c.behind && atk && d.freezeOwner !== false) {
+      // reappear just behind the attacker, facing its back
+      def.x = atk.x - atk.facing * (atk.hw * atk.sizeMul + def.hw + 6);
+      def.y = atk.grounded ? atk.y : def.y;
+      def.facing = atk.facing;
+    } else if (atk) def.facing = atk.x >= def.x ? 1 : -1;
+    if (owner) owner.hitlag = Math.max(owner.hitlag, COUNTER_FREEZE);
+    def.invuln = Math.max(def.invuln, 8);
+    world.emit('counter', def, fromX, fromY - def.h / 2, d.damage, atk?.id ?? -1);
+    def.startMove(c.into, null, world);
+    return;
+  }
+
   // --- perfect shield: a shield raised in the last few frames deflects the hit for free ---
   if (def.state === 'shield' && def.parryFrames > 0 && !hb.unblockable) {
     def.parryCount++;
@@ -310,6 +331,8 @@ export function deliverHit(world: World, d: HitDelivery): void {
     def.gainResourcesTaken(d.damage);
     def.data.behavior?.onHitTaken?.(def, atk, d.damage, world);
     world.emit('armorHit', def, def.x, midY, d.damage, d.damage);
+    // lingering statuses still stick to an armored body (control effects like stun and freeze do not)
+    if (hb.status && (hb.status.type === 'chill' || hb.status.type === 'burn' || hb.status.type === 'soak')) def.applyStatus(hb.status, world);
     if (atk) {
       // the hit still connected: it feeds the attacker's meter, resources and hooks, and counts as landed for cancels
       if (d.freezeOwner !== false) atk.moveLanded = true;

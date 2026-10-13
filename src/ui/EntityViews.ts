@@ -5,7 +5,7 @@ import type { World } from '../engine/world';
 import { pillarCanvas } from '../art/entityTextures';
 
 const SHAPE_TEX: Record<string, string> = { orb: 'proj-orb', bolt: 'proj-bolt', bullet: 'proj-bullet', fist: 'proj-fist', beam: 'proj-beam', shard: 'proj-shard', wave: 'proj-wave' };
-const DEP_TEX: Record<string, string> = { mine: 'dep-mine', turret: 'dep-turret', rune: 'dep-rune', marker: 'dep-marker', whirlpool: 'dep-whirlpool' };
+const DEP_TEX: Record<string, string> = { mine: 'dep-mine', turret: 'dep-turret', rune: 'dep-rune', marker: 'dep-marker', whirlpool: 'dep-whirlpool', icepatch: 'dep-icepatch' };
 
 function color(hex: string): number {
   return parseInt(hex.slice(1), 16);

@@ -946,7 +946,7 @@ export class CpuController implements Controller {
     if (p.smart && self.grounded && !stalled) {
       for (const slot of ai.setups) {
         // a remote trap already out: pressing its slot again would set it off, so leave it to the detonate logic
-        if (ai.detonate?.slot === slot && world.deployables.some((d) => d.active && d.owner === self.id && !!d.def?.trigger)) continue;
+        if (ai.detonate?.slot === slot && hasTrap(world, self.id)) continue;
         if (dist > 70 && dist < 300 && usable(slot) && this.rnd() < 0.25 && !this.cooldownBusy(`s${slot}`, 150)) {
           fire(slot, slot, false);
           return true;
@@ -1061,4 +1061,10 @@ export class CpuController implements Controller {
     }
     return true;
   }
+}
+
+/** Does fighter `id` have a trigger trap (a mine) out? (A plain loop: this runs every think, so no closures.) */
+function hasTrap(world: World, id: number): boolean {
+  for (const d of world.deployables) if (d.active && d.owner === id && d.def?.trigger) return true;
+  return false;
 }

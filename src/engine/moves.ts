@@ -8,7 +8,7 @@
  * y = -16 is roughly chest height).
  */
 
-export type StatusType = 'burn' | 'slow' | 'freeze' | 'stun' | 'soak';
+export type StatusType = 'burn' | 'slow' | 'freeze' | 'stun' | 'soak' | 'chill';
 
 /** A status applied by a hit (or by a move to its own user). */
 export interface StatusApply {
@@ -199,6 +199,11 @@ export interface MoveDef {
   hidden?: boolean;
   /** Cancel windows into other moves (combo routes). */
   cancels?: MoveCancel[];
+  /**
+   * Counter window: a hit landing on move frames [from, to] does nothing; the fighter instead starts `into` (its counter
+   * strike), and with `behind` it first reappears behind a melee attacker. Grabs and throws go straight through.
+   */
+  counter?: { from: number; to: number; into: string; behind?: boolean };
   /** Gate: a resource must be at least this much to start the move (the cost is spent by an event). */
   requires?: { key: string; min: number };
 }
@@ -235,6 +240,8 @@ export interface DeployableDef {
   h: number;
   /** A vortex: rivals within `radius` px (horizontally, near its height) are dragged toward it, up to `strength` px a frame. */
   pull?: { radius: number; strength: number };
+  /** An ice patch: rivals standing on it slide (ice friction); its owner skates on it. */
+  slick?: boolean;
   health: number;
   /** Frames until it expires (0 = permanent). */
   life?: number;
@@ -251,7 +258,7 @@ export interface DeployableDef {
   turret?: { range: number; interval: number; projectile: string; muzzleX: number; muzzleY: number; speed: number };
   /** Granted to the owner when an enemy destroys it. */
   reward?: { key: string; add: number };
-  look: { shape: 'mine' | 'turret' | 'rune' | 'marker' | 'whirlpool' | 'pillar'; color: string };
+  look: { shape: 'mine' | 'turret' | 'rune' | 'marker' | 'whirlpool' | 'pillar' | 'icepatch'; color: string };
   /**
    * A crystal pillar: the deployable raises a temporary solid platform `w` x `h` from its base (x, y = ground). It blocks
    * fighters and projectiles, can be stood on, and sinks back over `sinkFrames` before its `life` runs out.

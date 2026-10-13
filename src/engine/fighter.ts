@@ -85,6 +85,9 @@ export const SOAK_LEVEL = 120;
 export const SOAK_KB_PER_LEVEL = 0.04;
 /** After a freeze ends or shatters, frames during which a new freeze only slows (no freeze-locks). */
 export const FREEZE_IMMUNE = 120;
+/** Frostbite: this many chill stacks freeze the fighter solid for CHILL_FREEZE frames. */
+export const CHILL_MAX = 6;
+export const CHILL_FREEZE = 42;
 /**
  * Hit confirm: a jab / tilt / aerial / dash attack that lands on a fighter (not a shield) keeps only this fraction of
  * its recovery, so strings flow; whiffs and shielded hits keep the full recovery and stay punishable.
@@ -308,6 +311,8 @@ export class Fighter implements Body {
   armorBonus = 0;
   /** Tough Guy: hits dealing at most this much damage do not flinch (0 = off). Reset to `data.toughness` each tick; behaviours may raise it. */
   toughness = 0;
+  /** Standing on a rival's ice patch this tick (set by the world before fighters move): slippery footing. */
+  onIce = false;
   /** Bit per (victim, group) already hit by the current move. */
   readonly hitMask = new Uint16Array(MAX_FIGHTERS);
   readonly rehit = new Int16Array(MAX_FIGHTERS * MAX_GROUPS);
@@ -321,7 +326,8 @@ export class Fighter implements Body {
   /** Ultimate meter 0..cost. */
   meter = 0;
   /** Remaining frames per status effect. */
-  readonly status = { burn: 0, slow: 0, freeze: 0, stun: 0, soak: 0 };
+  /** chill: Frostbite stacks (0..CHILL_MAX), chillT: frames before they melt away. */
+  readonly status = { burn: 0, slow: 0, freeze: 0, stun: 0, soak: 0, chill: 0, chillT: 0 };
   /** Frames left of freeze immunity (see FREEZE_IMMUNE). */
   freezeImmune = 0;
   private slowMul = 1;
@@ -470,7 +476,7 @@ export class Fighter implements Body {
     this.superArmor = false;
     this.armorBonus = 0;
     this.res = { ...(this.data.resources ?? {}) };
-    this.status.burn = this.status.slow = this.status.freeze = this.status.stun = this.status.soak = 0;
+    this.status.burn = this.status.slow = this.status.freeze = this.status.stun = this.status.soak = this.status.chill = this.status.chillT = 0;
     this.freezeImmune = 0;
     this.slowMul = 1;
     this.barrier.frames = 0;
@@ -620,6 +626,7 @@ export class Fighter implements Body {
 
   /** Braking strength on the surface under the feet (ice slides, sticky grips). */
   private surfaceFriction(): number {
+    if (this.onIce) return 0.15;
     switch (this.groundPlat?.def.surface) {
       case 'ice':
         return 0.15;
@@ -632,6 +639,7 @@ export class Fighter implements Body {
 
   /** Acceleration multiplier on the surface under the feet. */
   private surfaceTraction(): number {
+    if (this.onIce) return 0.45;
     switch (this.groundPlat?.def.surface) {
       case 'ice':
         return 0.45;
@@ -749,6 +757,20 @@ export class Fighter implements Body {
         this.vx = this.vy = 0;
         this.setState('frozen');
         break;
+      case 'chill': {
+        // Frostbite: stacks build with each frosty hit; a full set freezes the fighter solid
+        const st = this.status;
+        st.chill += s.value ?? 1;
+        st.chillT = s.frames;
+        if (st.chill >= CHILL_MAX) {
+          st.chill = 0;
+          st.chillT = 0;
+          this.applyStatus({ type: 'freeze', frames: CHILL_FREEZE }, world);
+          return;
+        }
+        world.emit('status', this, this.x, this.y - this.h / 2, st.chill, 7);
+        return;
+      }
       case 'stun':
         this.status.stun = Math.max(this.status.stun, s.frames);
         if (this.state !== 'hitstun') {
@@ -1320,6 +1342,7 @@ export class Fighter implements Body {
     if (st.freeze > 0 && --st.freeze === 0) this.freezeImmune = FREEZE_IMMUNE;
     else if (this.freezeImmune > 0) this.freezeImmune--;
     if (st.stun > 0) st.stun--;
+    if (st.chillT > 0 && --st.chillT === 0) st.chill = 0;
     if (st.soak > 0) {
       st.soak--;
       if (st.soak % 20 === 0 && st.soak > 0) world.emit('status', this, this.x, this.y - this.h / 2, st.soak, 6); // drips

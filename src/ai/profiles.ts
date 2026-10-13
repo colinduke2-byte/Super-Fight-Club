@@ -179,6 +179,20 @@ CHARACTER_AI.obelisk = {
   detonate: { slot: 'downB', range: 120 },
 };
 
+// Rime: hit-and-run frost ninja. Needles at range, Frost Step to close, Substitution against close attacks, Shatter Ascent to recover.
+CHARACTER_AI.rime = {
+  ...GENERIC,
+  ranged: ['neutralB'],
+  closers: ['sideB'],
+  finishers: ['usmash', 'fsmash', 'bair', 'uair'],
+  defensive: 'downB',
+  holds: { neutralB: 18 },
+  recovery: { slot: 'upB', up: 96, out: 96, aim: 'stick8' },
+  ultimateRange: 70,
+  style: 'hitandrun',
+  spacing: 28,
+};
+
 export function aiFor(id: string): CharacterAi {
   return CHARACTER_AI[id] ?? GENERIC;
 }

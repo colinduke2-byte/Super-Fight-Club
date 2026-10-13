@@ -6,6 +6,7 @@ import { halcyon } from './halcyon';
 import { nova } from './nova';
 import { obelisk } from './obelisk';
 import { riptide } from './riptide';
+import { rime } from './rime';
 import { vex } from './vex';
 import { overseer } from './overseer';
 import { makeProtoBase } from './proto';
@@ -20,6 +21,7 @@ export const CHARACTERS: Record<string, CharacterData> = {
   [halcyon.id]: halcyon,
   [riptide.id]: riptide,
   [obelisk.id]: obelisk,
+  [rime.id]: rime,
 };
 export const CHARACTER_LIST: CharacterData[] = Object.values(CHARACTERS);
 

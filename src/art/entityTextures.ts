@@ -237,6 +237,18 @@ export function buildEntityTextures(scene: Phaser.Scene): void {
     px(g, '#ffffff', 18, 6, 4, 2);
     add('dep-whirlpool', c);
   }
+  // ice patch 96x10 (drawn at 0.5 scale: 48x5 world units): a glossy sheet of ice with highlights and a frosted rim
+  {
+    const [c, g] = mk(96, 10);
+    for (let x = 0; x < 96; x++) {
+      const edge = Math.min(x, 95 - x);
+      const top = edge < 6 ? 6 - edge : edge < 10 ? 1 : 0; // tapered ends
+      for (let y = 3 + Math.min(3, top); y < 10; y++) px(g, y === 3 + Math.min(3, top) ? '#ffffff' : y < 6 ? '#dcecf6' : (x + y) % 4 === 0 ? '#a8bcd0' : '#c4d6e6', x, y);
+    }
+    for (const x of [14, 30, 52, 70, 84]) px(g, '#ffffff', x, 5, 6, 1); // glossy streaks
+    for (const x of [8, 40, 62, 90]) px(g, '#ffffff', x, 2, 1, 2); // frost crystals on the rim
+    add('dep-icepatch', c);
+  }
 }
 
 /**

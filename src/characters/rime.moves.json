@@ -1,0 +1,1693 @@
+{
+ "projectiles": {
+  "kunai": {
+   "w": 10,
+   "h": 5,
+   "life": 48,
+   "health": 1,
+   "hit": {
+    "x": 0,
+    "y": 0,
+    "w": 1,
+    "h": 1,
+    "damage": 2.6,
+    "angle": 40,
+    "base": 14,
+    "scaling": 0.2,
+    "hitlag": 0.7,
+    "fx": "slash",
+    "status": {
+     "type": "chill",
+     "frames": 300,
+     "value": 1
+    }
+   },
+   "look": {
+    "shape": "bolt",
+    "color": "#bfeaff",
+    "size": 0.8
+   }
+  }
+ },
+ "deployables": {
+  "icepatch": {
+   "w": 48,
+   "h": 4,
+   "health": 0,
+   "life": 300,
+   "limit": 2,
+   "replaceOldest": true,
+   "gravity": true,
+   "slick": true,
+   "look": {
+    "shape": "icepatch",
+    "color": "#dff3ff"
+   }
+  }
+ },
+ "moves": {
+  "jab1": {
+   "name": "Frost Jab",
+   "kind": "jab",
+   "anim": "jab",
+   "startup": 3,
+   "active": 2,
+   "recovery": 5,
+   "next": {
+    "id": "jab2",
+    "from": 4,
+    "to": 9,
+    "at": 7
+   },
+   "cancels": [
+    {
+     "button": "attack",
+     "into": "ftilt",
+     "from": 3,
+     "dir": "forward"
+    },
+    {
+     "button": "special",
+     "into": "sideB",
+     "from": 3,
+     "dir": "side"
+    },
+    {
+     "button": "jump",
+     "into": "@jump",
+     "from": 3
+    }
+   ],
+   "pose": {
+    "hand": "front",
+    "reach": 14,
+    "h": -6,
+    "lean": 2,
+    "step": 2,
+    "t": "punch"
+   },
+   "view": {
+    "arc": "line",
+    "ghosts": true
+   },
+   "hitboxes": [
+    {
+     "x": 17,
+     "y": -14,
+     "w": 22,
+     "h": 11,
+     "damage": 1.6,
+     "angle": 361,
+     "base": 6,
+     "scaling": 0.1,
+     "minHitstun": 14,
+     "hitlag": 0.7,
+     "fx": "slash"
+    }
+   ]
+  },
+  "jab2": {
+   "name": "Ice Palm",
+   "kind": "jab",
+   "anim": "jab",
+   "startup": 3,
+   "active": 2,
+   "recovery": 5,
+   "next": {
+    "id": "jab3",
+    "from": 4,
+    "to": 9,
+    "at": 7
+   },
+   "cancels": [
+    {
+     "button": "attack",
+     "into": "ftilt",
+     "from": 3,
+     "dir": "forward"
+    },
+    {
+     "button": "jump",
+     "into": "@jump",
+     "from": 3
+    }
+   ],
+   "pose": {
+    "hand": "back",
+    "reach": 15,
+    "h": -8,
+    "lean": 3,
+    "step": 3,
+    "t": "punch"
+   },
+   "view": {
+    "arc": "line"
+   },
+   "hitboxes": [
+    {
+     "x": 18,
+     "y": -14,
+     "w": 22,
+     "h": 11,
+     "damage": 1.6,
+     "angle": 361,
+     "base": 6,
+     "scaling": 0.1,
+     "minHitstun": 14,
+     "hitlag": 0.7,
+     "fx": "slash"
+    }
+   ]
+  },
+  "jab3": {
+   "name": "Snowflake Kick",
+   "kind": "jab",
+   "anim": "jab",
+   "startup": 4,
+   "active": 3,
+   "recovery": 12,
+   "motion": [
+    {
+     "frame": 3,
+     "vx": 1.0
+    }
+   ],
+   "pose": {
+    "reach": 18,
+    "h": -10,
+    "lean": -4,
+    "lift": 6,
+    "t": "kick"
+   },
+   "view": {
+    "stretch": 1.08,
+    "arc": "curve"
+   },
+   "hitboxes": [
+    {
+     "x": 20,
+     "y": -10,
+     "w": 26,
+     "h": 16,
+     "damage": 3.6,
+     "angle": 50,
+     "base": 30,
+     "scaling": 0.45,
+     "status": {
+      "type": "chill",
+      "frames": 300,
+      "value": 1
+     },
+     "fx": "kick"
+    }
+   ]
+  },
+  "ftilt": {
+   "name": "Icicle Fan",
+   "kind": "tilt",
+   "anim": "jab",
+   "startup": 4,
+   "active": 3,
+   "recovery": 10,
+   "cancels": [
+    {
+     "button": "attack",
+     "into": "ftilt",
+     "from": 6,
+     "dir": "forward"
+    },
+    {
+     "button": "jump",
+     "into": "@jump",
+     "from": 5
+    },
+    {
+     "button": "special",
+     "into": "neutralB",
+     "from": 6,
+     "dir": "neutral"
+    }
+   ],
+   "pose": {
+    "hand": "front",
+    "from": [
+     -6,
+     -18
+    ],
+    "to": [
+     22,
+     -6
+    ],
+    "lean": 5,
+    "step": 6,
+    "t": "slash"
+   },
+   "view": {
+    "stretch": 1.08,
+    "ghosts": true
+   },
+   "hitboxes": [
+    {
+     "x": 22,
+     "y": -14,
+     "w": 28,
+     "h": 16,
+     "damage": 4.8,
+     "angle": 48,
+     "base": 22,
+     "scaling": 0.5,
+     "status": {
+      "type": "chill",
+      "frames": 300,
+      "value": 1
+     },
+     "fx": "slash"
+    }
+   ]
+  },
+  "utilt": {
+   "name": "Frost Arc",
+   "kind": "tilt",
+   "anim": "smashU",
+   "startup": 5,
+   "active": 4,
+   "recovery": 11,
+   "cancels": [
+    {
+     "button": "jump",
+     "into": "@jump",
+     "from": 6
+    },
+    {
+     "button": "attack",
+     "into": "utilt",
+     "from": 9,
+     "dir": "up"
+    }
+   ],
+   "pose": {
+    "hand": "front",
+    "from": [
+     16,
+     -2
+    ],
+    "to": [
+     -6,
+     -40
+    ],
+    "lean": -2,
+    "t": "slash"
+   },
+   "view": {
+    "arc": "curve"
+   },
+   "hitboxes": [
+    {
+     "x": 4,
+     "y": -32,
+     "w": 30,
+     "h": 28,
+     "damage": 5.0,
+     "angle": 92,
+     "base": 26,
+     "scaling": 0.55,
+     "status": {
+      "type": "chill",
+      "frames": 300,
+      "value": 1
+     },
+     "fx": "slash"
+    }
+   ]
+  },
+  "dtilt": {
+   "name": "Low Sweep",
+   "kind": "tilt",
+   "anim": "sweep",
+   "startup": 4,
+   "active": 3,
+   "recovery": 9,
+   "cancels": [
+    {
+     "button": "jump",
+     "into": "@jump",
+     "from": 5
+    },
+    {
+     "button": "attack",
+     "into": "utilt",
+     "from": 6,
+     "dir": "up"
+    },
+    {
+     "button": "attack",
+     "into": "ftilt",
+     "from": 6,
+     "dir": "forward"
+    }
+   ],
+   "pose": {
+    "reach": 20,
+    "crouch": 9,
+    "lean": 4,
+    "t": "sweep"
+   },
+   "view": {
+    "arc": "line"
+   },
+   "hitboxes": [
+    {
+     "x": 20,
+     "y": -3,
+     "w": 28,
+     "h": 9,
+     "damage": 4.2,
+     "angle": 78,
+     "base": 24,
+     "scaling": 0.4,
+     "status": {
+      "type": "chill",
+      "frames": 300,
+      "value": 1
+     },
+     "fx": "kick"
+    }
+   ]
+  },
+  "dashAttack": {
+   "name": "Sliding Cut",
+   "kind": "dashAttack",
+   "anim": "shoulder",
+   "startup": 5,
+   "active": 6,
+   "recovery": 14,
+   "motion": [
+    {
+     "frame": 3,
+     "vx": 4.2
+    }
+   ],
+   "cancels": [
+    {
+     "button": "attack",
+     "into": "utilt",
+     "from": 8,
+     "dir": "up"
+    },
+    {
+     "button": "special",
+     "into": "upB",
+     "from": 8,
+     "dir": "up"
+    }
+   ],
+   "pose": {
+    "reach": 20,
+    "crouch": 8,
+    "lean": 10,
+    "step": 10,
+    "t": "sweep"
+   },
+   "view": {
+    "stretch": 1.15,
+    "ghosts": true,
+    "arc": "line"
+   },
+   "hitboxes": [
+    {
+     "x": 18,
+     "y": -6,
+     "w": 30,
+     "h": 14,
+     "damage": 6.0,
+     "angle": 70,
+     "base": 30,
+     "scaling": 0.5,
+     "status": {
+      "type": "chill",
+      "frames": 300,
+      "value": 1
+     },
+     "fx": "slash"
+    }
+   ]
+  },
+  "fsmash": {
+   "name": "Twin Kunai",
+   "kind": "smash",
+   "anim": "smashF",
+   "startup": 11,
+   "active": 6,
+   "recovery": 24,
+   "charge": {
+    "frame": 6,
+    "max": 60,
+    "damageMult": 1.4,
+    "kbMult": 1.2
+   },
+   "motion": [
+    {
+     "frame": 10,
+     "vx": 2.0
+    }
+   ],
+   "pose": {
+    "hand": "front",
+    "from": [
+     -14,
+     -26
+    ],
+    "to": [
+     28,
+     -8
+    ],
+    "lean": 10,
+    "step": 12,
+    "crouch": 2,
+    "t": "slash"
+   },
+   "view": {
+    "stretch": 1.18,
+    "smear": 1.4,
+    "ghosts": true
+   },
+   "hitboxes": [
+    {
+     "x": 22,
+     "y": -14,
+     "w": 28,
+     "h": 16,
+     "damage": 3.0,
+     "angle": 361,
+     "base": 10,
+     "scaling": 0.1,
+     "window": [
+      1,
+      2
+     ],
+     "group": 0,
+     "minHitstun": 12,
+     "fx": "slash"
+    },
+    {
+     "x": 30,
+     "y": -14,
+     "w": 34,
+     "h": 18,
+     "damage": 10.5,
+     "angle": 38,
+     "base": 34,
+     "scaling": 0.95,
+     "window": [
+      4,
+      6
+     ],
+     "group": 1,
+     "status": {
+      "type": "chill",
+      "frames": 300,
+      "value": 2
+     },
+     "hitlag": 1.2,
+     "fx": "slash"
+    }
+   ]
+  },
+  "usmash": {
+   "name": "Icicle Rise",
+   "kind": "smash",
+   "anim": "smashU",
+   "startup": 10,
+   "active": 5,
+   "recovery": 24,
+   "charge": {
+    "frame": 5,
+    "max": 60,
+    "damageMult": 1.4,
+    "kbMult": 1.2
+   },
+   "pose": {
+    "hand": "front",
+    "from": [
+     14,
+     4
+    ],
+    "to": [
+     0,
+     -46
+    ],
+    "lean": -3,
+    "crouch": 4,
+    "t": "slash"
+   },
+   "view": {
+    "stretch": 1.12
+   },
+   "hitboxes": [
+    {
+     "x": 2,
+     "y": -34,
+     "w": 36,
+     "h": 40,
+     "damage": 12.0,
+     "angle": 88,
+     "base": 34,
+     "scaling": 0.9,
+     "status": {
+      "type": "chill",
+      "frames": 300,
+      "value": 2
+     },
+     "hitlag": 1.2,
+     "fx": "slash"
+    }
+   ]
+  },
+  "dsmash": {
+   "name": "Whirlwind",
+   "kind": "smash",
+   "anim": "smashD",
+   "startup": 7,
+   "active": 4,
+   "recovery": 22,
+   "charge": {
+    "frame": 4,
+    "max": 60,
+    "damageMult": 1.4,
+    "kbMult": 1.2
+   },
+   "pose": {
+    "reach": 16,
+    "h": 0,
+    "t": "spin"
+   },
+   "view": {
+    "arc": "ring",
+    "ghosts": true
+   },
+   "hitboxes": [
+    {
+     "x": 22,
+     "y": -5,
+     "w": 32,
+     "h": 12,
+     "damage": 9.5,
+     "angle": 361,
+     "base": 30,
+     "scaling": 0.78,
+     "status": {
+      "type": "chill",
+      "frames": 300,
+      "value": 1
+     },
+     "fx": "kick"
+    },
+    {
+     "x": -22,
+     "y": -5,
+     "w": 32,
+     "h": 12,
+     "damage": 9.5,
+     "angle": 361,
+     "base": 30,
+     "scaling": 0.78,
+     "status": {
+      "type": "chill",
+      "frames": 300,
+      "value": 1
+     },
+     "fx": "kick"
+    }
+   ]
+  },
+  "nair": {
+   "name": "Snow Kick",
+   "kind": "aerial",
+   "anim": "aerialN",
+   "startup": 3,
+   "active": 12,
+   "recovery": 8,
+   "landingLag": 6,
+   "autocancel": [
+    [
+     1,
+     2
+    ],
+    [
+     19,
+     23
+    ]
+   ],
+   "cancels": [
+    {
+     "button": "attack",
+     "into": "fair",
+     "from": 5,
+     "dir": "forward",
+     "air": true
+    },
+    {
+     "button": "attack",
+     "into": "uair",
+     "from": 5,
+     "dir": "up",
+     "air": true
+    }
+   ],
+   "pose": {
+    "reach": 17,
+    "h": -8,
+    "lift": 4,
+    "t": "kick"
+   },
+   "view": {
+    "ghosts": true
+   },
+   "hitboxes": [
+    {
+     "x": 10,
+     "y": -12,
+     "w": 30,
+     "h": 24,
+     "damage": 6.4,
+     "angle": 50,
+     "base": 24,
+     "scaling": 0.55,
+     "window": [
+      1,
+      4
+     ],
+     "group": 0,
+     "status": {
+      "type": "chill",
+      "frames": 300,
+      "value": 1
+     },
+     "fx": "kick"
+    },
+    {
+     "x": 10,
+     "y": -12,
+     "w": 28,
+     "h": 22,
+     "damage": 3.8,
+     "angle": 55,
+     "base": 20,
+     "scaling": 0.4,
+     "window": [
+      5,
+      12
+     ],
+     "group": 0,
+     "fx": "kick"
+    }
+   ]
+  },
+  "fair": {
+   "name": "Frost Fan",
+   "kind": "aerial",
+   "anim": "aerialF",
+   "startup": 4,
+   "active": 3,
+   "recovery": 11,
+   "landingLag": 5,
+   "autocancel": [
+    [
+     1,
+     2
+    ],
+    [
+     15,
+     18
+    ]
+   ],
+   "cancels": [
+    {
+     "button": "attack",
+     "into": "fair",
+     "from": 7,
+     "dir": "forward",
+     "air": true
+    },
+    {
+     "button": "attack",
+     "into": "nair",
+     "from": 7,
+     "dir": "neutral",
+     "air": true
+    },
+    {
+     "button": "jump",
+     "into": "@jump",
+     "from": 7
+    }
+   ],
+   "pose": {
+    "hand": "front",
+    "from": [
+     -4,
+     -30
+    ],
+    "to": [
+     22,
+     4
+    ],
+    "lean": 4,
+    "step": 4,
+    "t": "slash"
+   },
+   "view": {
+    "ghosts": true
+   },
+   "hitboxes": [
+    {
+     "x": 22,
+     "y": -14,
+     "w": 28,
+     "h": 20,
+     "damage": 5.2,
+     "angle": 50,
+     "base": 20,
+     "scaling": 0.46,
+     "status": {
+      "type": "chill",
+      "frames": 300,
+      "value": 1
+     },
+     "fx": "slash"
+    }
+   ]
+  },
+  "bair": {
+   "name": "Back Heel",
+   "kind": "aerial",
+   "anim": "aerialB",
+   "startup": 5,
+   "active": 3,
+   "recovery": 10,
+   "landingLag": 7,
+   "autocancel": [
+    [
+     1,
+     3
+    ],
+    [
+     16,
+     18
+    ]
+   ],
+   "pose": {
+    "reach": 20,
+    "h": -10,
+    "lift": 4,
+    "t": "kick"
+   },
+   "view": {
+    "stretch": 1.1
+   },
+   "hitboxes": [
+    {
+     "x": -22,
+     "y": -12,
+     "w": 28,
+     "h": 18,
+     "damage": 8.5,
+     "angle": 140,
+     "base": 30,
+     "scaling": 0.8,
+     "hitlag": 1.15,
+     "fx": "kick"
+    }
+   ]
+  },
+  "uair": {
+   "name": "Spinning Icicles",
+   "kind": "aerial",
+   "anim": "aerialU",
+   "startup": 4,
+   "active": 10,
+   "recovery": 10,
+   "landingLag": 7,
+   "autocancel": [
+    [
+     1,
+     3
+    ],
+    [
+     20,
+     24
+    ]
+   ],
+   "pose": {
+    "reach": 14,
+    "h": -24,
+    "t": "spin"
+   },
+   "view": {
+    "arc": "ring"
+   },
+   "hitboxes": [
+    {
+     "x": 2,
+     "y": -30,
+     "w": 30,
+     "h": 26,
+     "damage": 1.2,
+     "angle": 361,
+     "base": 8,
+     "scaling": 0.1,
+     "window": [
+      1,
+      7
+     ],
+     "group": 0,
+     "rehit": 3,
+     "minHitstun": 8,
+     "hitlag": 0.6,
+     "fx": "slash"
+    },
+    {
+     "x": 2,
+     "y": -32,
+     "w": 32,
+     "h": 28,
+     "damage": 3.5,
+     "angle": 85,
+     "base": 34,
+     "scaling": 0.6,
+     "window": [
+      8,
+      10
+     ],
+     "group": 1,
+     "status": {
+      "type": "chill",
+      "frames": 300,
+      "value": 1
+     },
+     "fx": "slash"
+    }
+   ]
+  },
+  "dair": {
+   "name": "Avalanche Kick",
+   "kind": "aerial",
+   "anim": "aerialD",
+   "startup": 9,
+   "active": 14,
+   "recovery": 10,
+   "landingLag": 10,
+   "autocancel": [
+    [
+     1,
+     3
+    ]
+   ],
+   "motion": [
+    {
+     "frame": 7,
+     "vx": 2.2,
+     "vy": 6.4
+    }
+   ],
+   "pose": {
+    "lift": 16,
+    "reach": 6,
+    "t": "stomp"
+   },
+   "view": {
+    "stretch": 1.1,
+    "ghosts": true
+   },
+   "hitboxes": [
+    {
+     "x": 4,
+     "y": 2,
+     "w": 22,
+     "h": 20,
+     "damage": 7.0,
+     "angle": 280,
+     "base": 20,
+     "scaling": 0.4,
+     "window": [
+      1,
+      4
+     ],
+     "group": 0,
+     "hitlag": 1.2,
+     "fx": "meteor"
+    },
+    {
+     "x": 4,
+     "y": 2,
+     "w": 22,
+     "h": 20,
+     "damage": 5.0,
+     "angle": 60,
+     "base": 26,
+     "scaling": 0.45,
+     "window": [
+      5,
+      14
+     ],
+     "group": 0,
+     "fx": "kick"
+    }
+   ]
+  },
+  "grab": {
+   "name": "Snare",
+   "kind": "grab",
+   "anim": "grab",
+   "startup": 6,
+   "active": 2,
+   "recovery": 18,
+   "hitboxes": [
+    {
+     "x": 20,
+     "y": -14,
+     "w": 24,
+     "h": 18,
+     "damage": 0,
+     "angle": 0,
+     "base": 0,
+     "scaling": 0,
+     "grab": true,
+     "unblockable": true
+    }
+   ]
+  },
+  "fthrow": {
+   "name": "Frost Toss",
+   "kind": "throw",
+   "anim": "throwF",
+   "startup": 7,
+   "active": 1,
+   "recovery": 14,
+   "throwDir": "forward",
+   "hitboxes": [
+    {
+     "x": 18,
+     "y": -14,
+     "w": 40,
+     "h": 34,
+     "damage": 5.5,
+     "angle": 40,
+     "base": 46,
+     "scaling": 0.6,
+     "throw": true
+    }
+   ]
+  },
+  "bthrow": {
+   "name": "Reverse Spin",
+   "kind": "throw",
+   "anim": "throwB",
+   "startup": 8,
+   "active": 1,
+   "recovery": 16,
+   "throwDir": "back",
+   "hitboxes": [
+    {
+     "x": 18,
+     "y": -14,
+     "w": 40,
+     "h": 34,
+     "damage": 7.0,
+     "angle": 135,
+     "base": 48,
+     "scaling": 0.68,
+     "throw": true
+    }
+   ]
+  },
+  "uthrow": {
+   "name": "Updraft",
+   "kind": "throw",
+   "anim": "throwU",
+   "startup": 7,
+   "active": 1,
+   "recovery": 13,
+   "throwDir": "up",
+   "hitboxes": [
+    {
+     "x": 18,
+     "y": -14,
+     "w": 40,
+     "h": 34,
+     "damage": 4.0,
+     "angle": 88,
+     "base": 40,
+     "scaling": 0.34,
+     "throw": true
+    }
+   ]
+  },
+  "dthrow": {
+   "name": "Frozen Floor",
+   "kind": "throw",
+   "anim": "throwD",
+   "startup": 7,
+   "active": 1,
+   "recovery": 14,
+   "throwDir": "down",
+   "hitboxes": [
+    {
+     "x": 18,
+     "y": -14,
+     "w": 40,
+     "h": 34,
+     "damage": 4.5,
+     "angle": 75,
+     "base": 36,
+     "scaling": 0.3,
+     "throw": true,
+     "status": {
+      "type": "chill",
+      "frames": 300,
+      "value": 2
+     }
+    }
+   ]
+  },
+  "neutralB": {
+   "name": "Ice Kunai",
+   "kind": "special",
+   "anim": "castF",
+   "startup": 7,
+   "active": 1,
+   "recovery": 12,
+   "charge": {
+    "frame": 4,
+    "max": 30,
+    "damageMult": 1.0
+   },
+   "events": [
+    {
+     "frame": 7,
+     "action": "projectile",
+     "id": "kunai",
+     "x": 16,
+     "y": -16,
+     "vx": 8.5,
+     "vy": 0,
+     "aim": true
+    },
+    {
+     "frame": 7,
+     "minCharge": 0.5,
+     "action": "projectile",
+     "id": "kunai",
+     "x": 16,
+     "y": -18,
+     "vx": 8.2,
+     "vy": -1.0,
+     "aim": true
+    },
+    {
+     "frame": 7,
+     "minCharge": 0.5,
+     "action": "projectile",
+     "id": "kunai",
+     "x": 16,
+     "y": -14,
+     "vx": 8.2,
+     "vy": 1.0,
+     "aim": true
+    },
+    {
+     "frame": 7,
+     "action": "fx",
+     "name": "kunai"
+    }
+   ],
+   "pose": {
+    "hand": "front",
+    "reach": 20,
+    "h": -12,
+    "lean": 4,
+    "wind": [
+     -10,
+     -10
+    ],
+    "t": "punch"
+   },
+   "view": {
+    "stretch": 1.06,
+    "arc": "none"
+   },
+   "hitboxes": []
+  },
+  "sideB": {
+   "name": "Frost Step",
+   "kind": "special",
+   "anim": "dashS",
+   "startup": 5,
+   "active": 9,
+   "recovery": 13,
+   "motion": [
+    {
+     "frame": 4,
+     "vx": 7.2
+    }
+   ],
+   "events": [
+    {
+     "frame": 5,
+     "action": "deploy",
+     "id": "icepatch",
+     "x": 0,
+     "y": 0
+    },
+    {
+     "frame": 5,
+     "action": "fx",
+     "name": "step"
+    }
+   ],
+   "cancels": [
+    {
+     "button": "attack",
+     "into": "fair",
+     "from": 10,
+     "dir": "forward",
+     "air": true
+    },
+    {
+     "button": "attack",
+     "into": "jab1",
+     "from": 10,
+     "dir": "neutral",
+     "air": false
+    }
+   ],
+   "pose": {
+    "hand": "front",
+    "from": [
+     -16,
+     -14
+    ],
+    "to": [
+     26,
+     -8
+    ],
+    "lean": 12,
+    "step": 12,
+    "t": "slash"
+   },
+   "view": {
+    "stretch": 1.28,
+    "smear": 1.6,
+    "ghosts": true,
+    "arc": "line"
+   },
+   "hitboxes": [
+    {
+     "x": 16,
+     "y": -12,
+     "w": 30,
+     "h": 16,
+     "damage": 6.0,
+     "angle": 40,
+     "base": 32,
+     "scaling": 0.55,
+     "status": {
+      "type": "chill",
+      "frames": 300,
+      "value": 1
+     },
+     "fx": "slash"
+    }
+   ]
+  },
+  "upB": {
+   "name": "Shatter Ascent",
+   "kind": "special",
+   "anim": "castU",
+   "startup": 7,
+   "active": 4,
+   "recovery": 24,
+   "helpless": true,
+   "invuln": [
+    5,
+    9
+   ],
+   "events": [
+    {
+     "frame": 7,
+     "action": "teleport",
+     "dist": 96,
+     "dir": "stick8"
+    },
+    {
+     "frame": 7,
+     "action": "fx",
+     "name": "shatter"
+    },
+    {
+     "frame": 9,
+     "action": "ledgeSnap",
+     "range": 100
+    }
+   ],
+   "pose": {
+    "t": "custom",
+    "keys": [
+     [
+      -2,
+      6,
+      [
+       4,
+       6
+      ],
+      [
+       -4,
+       6
+      ],
+      [
+       6,
+       0
+      ],
+      [
+       -6,
+       0
+      ]
+     ],
+     [
+      -1,
+      0,
+      [
+       4,
+       -44
+      ],
+      [
+       -4,
+       -42
+      ],
+      [
+       3,
+       5
+      ],
+      [
+       -3,
+       5
+      ]
+     ],
+     [
+      0,
+      0,
+      [
+       4,
+       -32
+      ],
+      [
+       -4,
+       -30
+      ],
+      [
+       3,
+       2
+      ],
+      [
+       -3,
+       2
+      ]
+     ]
+    ]
+   },
+   "view": {
+    "stretch": 1.2,
+    "ghosts": true,
+    "arc": "none"
+   },
+   "hitboxes": [
+    {
+     "x": 0,
+     "y": -14,
+     "w": 40,
+     "h": 36,
+     "damage": 6.0,
+     "angle": 80,
+     "base": 40,
+     "scaling": 0.62,
+     "window": [
+      1,
+      4
+     ],
+     "status": {
+      "type": "chill",
+      "frames": 300,
+      "value": 1
+     },
+     "dir": "away",
+     "fx": "slash"
+    }
+   ]
+  },
+  "downB": {
+   "name": "Substitution",
+   "kind": "special",
+   "anim": "castD",
+   "startup": 3,
+   "active": 24,
+   "recovery": 18,
+   "counter": {
+    "from": 4,
+    "to": 26,
+    "into": "counterStrike",
+    "behind": true
+   },
+   "events": [
+    {
+     "frame": 3,
+     "action": "fx",
+     "name": "stance"
+    }
+   ],
+   "pose": {
+    "t": "custom",
+    "keys": [
+     [
+      0,
+      2,
+      [
+       6,
+       -10
+      ],
+      [
+       -2,
+       -10
+      ],
+      [
+       6,
+       0
+      ],
+      [
+       -6,
+       0
+      ]
+     ],
+     [
+      -2,
+      4,
+      [
+       4,
+       -16
+      ],
+      [
+       2,
+       -14
+      ],
+      [
+       7,
+       0
+      ],
+      [
+       -7,
+       0
+      ]
+     ],
+     [
+      -1,
+      3,
+      [
+       5,
+       -12
+      ],
+      [
+       0,
+       -12
+      ],
+      [
+       6,
+       0
+      ],
+      [
+       -6,
+       0
+      ]
+     ]
+    ]
+   },
+   "view": {
+    "arc": "none",
+    "smear": 0.3
+   },
+   "hitboxes": []
+  },
+  "counterStrike": {
+   "name": "Substitution Strike",
+   "kind": "special",
+   "anim": "dashS",
+   "startup": 2,
+   "active": 3,
+   "recovery": 16,
+   "hidden": true,
+   "invuln": [
+    1,
+    3
+   ],
+   "pose": {
+    "hand": "front",
+    "from": [
+     -16,
+     -20
+    ],
+    "to": [
+     28,
+     -4
+    ],
+    "lean": 12,
+    "step": 10,
+    "t": "slash"
+   },
+   "view": {
+    "stretch": 1.25,
+    "smear": 1.6,
+    "ghosts": true,
+    "arc": "line"
+   },
+   "hitboxes": [
+    {
+     "x": 20,
+     "y": -12,
+     "w": 34,
+     "h": 20,
+     "damage": 10.0,
+     "angle": 40,
+     "base": 52,
+     "scaling": 0.8,
+     "status": {
+      "type": "chill",
+      "frames": 300,
+      "value": 2
+     },
+     "hitlag": 1.3,
+     "fx": "slash"
+    }
+   ]
+  },
+  "ultimate": {
+   "name": "Thousand Cuts",
+   "kind": "ultimate",
+   "anim": "raid",
+   "startup": 6,
+   "active": 3,
+   "recovery": 36,
+   "invuln": [
+    1,
+    9
+   ],
+   "events": [
+    {
+     "frame": 2,
+     "action": "fx",
+     "name": "cutsStart"
+    }
+   ],
+   "cinematic": {
+    "frames": 100,
+    "zoom": 0.9,
+    "hits": [
+     {
+      "frame": 12,
+      "damage": 2.0
+     },
+     {
+      "frame": 18,
+      "damage": 2.0
+     },
+     {
+      "frame": 24,
+      "damage": 2.0
+     },
+     {
+      "frame": 30,
+      "damage": 2.0
+     },
+     {
+      "frame": 36,
+      "damage": 2.0
+     },
+     {
+      "frame": 42,
+      "damage": 2.0
+     },
+     {
+      "frame": 48,
+      "damage": 2.0
+     },
+     {
+      "frame": 54,
+      "damage": 2.0
+     },
+     {
+      "frame": 60,
+      "damage": 2.0
+     },
+     {
+      "frame": 66,
+      "damage": 2.0
+     },
+     {
+      "frame": 72,
+      "damage": 2.0
+     },
+     {
+      "frame": 78,
+      "damage": 2.0
+     },
+     {
+      "frame": 100,
+      "damage": 12,
+      "launch": true,
+      "angle": 60,
+      "base": 120,
+      "scaling": 0.95
+     }
+    ]
+   },
+   "pose": {
+    "hand": "front",
+    "from": [
+     -18,
+     -26
+    ],
+    "to": [
+     28,
+     -4
+    ],
+    "lean": 13,
+    "step": 14,
+    "crouch": 3,
+    "t": "slash"
+   },
+   "view": {
+    "stretch": 1.3,
+    "smear": 1.7,
+    "ghosts": true
+   },
+   "hitboxes": [
+    {
+     "x": 28,
+     "y": -14,
+     "w": 46,
+     "h": 32,
+     "damage": 0,
+     "angle": 0,
+     "base": 0,
+     "scaling": 0,
+     "grab": true,
+     "unblockable": true,
+     "cinematic": true
+    }
+   ]
+  },
+  "taunt": {
+   "name": "Taunt",
+   "kind": "jab",
+   "anim": "idle",
+   "startup": 6,
+   "active": 1,
+   "recovery": 44,
+   "hidden": true,
+   "events": [
+    {
+     "frame": 7,
+     "action": "fx",
+     "name": "taunt"
+    }
+   ],
+   "pose": {
+    "t": "custom",
+    "keys": [
+     [
+      0,
+      1,
+      [
+       6,
+       -8
+      ],
+      [
+       -4,
+       -6
+      ],
+      [
+       6,
+       0
+      ],
+      [
+       -6,
+       0
+      ]
+     ],
+     [
+      2,
+      3,
+      [
+       10,
+       -22
+      ],
+      [
+       8,
+       -22
+      ],
+      [
+       6,
+       0
+      ],
+      [
+       -6,
+       0
+      ]
+     ],
+     [
+      1,
+      2,
+      [
+       8,
+       -18
+      ],
+      [
+       6,
+       -18
+      ],
+      [
+       6,
+       0
+      ],
+      [
+       -6,
+       0
+      ]
+     ]
+    ]
+   },
+   "view": {
+    "arc": "none",
+    "smear": 0.4
+   },
+   "hitboxes": []
+  }
+ }
+}

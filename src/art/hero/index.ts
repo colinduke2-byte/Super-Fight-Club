@@ -7,6 +7,7 @@ import { drawNova } from './nova';
 import { drawOverseer } from './overseer';
 import { drawRiptide } from './riptide';
 import { drawObelisk } from './obelisk';
+import { drawRime } from './rime';
 import { drawVex } from './vex';
 import { Raster } from './raster';
 import { skeleton, type HeroPose, type Skel } from './skeleton';
@@ -28,6 +29,7 @@ const DRAWERS: Partial<Record<PlaceholderLook['build']['helmet'], (r: Raster, k:
   monolith: drawOverseer,
   fin: drawRiptide,
   geode: drawObelisk,
+  kasa: drawRime,
 };
 
 /** Render one frame of character `id` into `ctx` (a `size` x `size` canvas), lit but not yet outlined. */

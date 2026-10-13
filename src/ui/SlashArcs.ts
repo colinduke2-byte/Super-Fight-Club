@@ -9,7 +9,7 @@ const r4 = [0, 0, 0, 0];
 const N = 14;
 
 /** Trail looks. A character picks one with `fx.slash`; otherwise its sound style decides (heavy = sparks, blade = blade, ...). */
-export type SlashStyle = 'plain' | 'fire' | 'water' | 'spark' | 'blade' | 'arcane' | 'volt' | 'gale' | 'crystal';
+export type SlashStyle = 'plain' | 'fire' | 'water' | 'spark' | 'blade' | 'arcane' | 'volt' | 'gale' | 'crystal' | 'frost';
 const BY_SOUND: Record<string, SlashStyle> = { heavy: 'spark', blade: 'blade', arcane: 'arcane', mech: 'volt', wind: 'gale', fire: 'fire', water: 'water', stone: 'crystal' };
 
 type Layers = readonly (readonly [number, number, number])[];
@@ -21,9 +21,10 @@ const FIXED: Partial<Record<SlashStyle, Layers>> = {
   volt: [[1.55, 0x1a6aff, 0.34], [1, 0x5fe8ff, 0.72], [0.45, 0xffffff, 0.95]],
   gale: [[1.55, 0xffd35a, 0.28], [1, 0xe8f0ff, 0.6], [0.45, 0xffffff, 0.95]],
   crystal: [[1.6, 0x5a2a9a, 0.34], [1.05, 0xa868e0, 0.72], [0.5, 0xf0e2ff, 0.95]],
+  frost: [[1.5, 0x2a6ab0, 0.3], [0.95, 0x8fd8ff, 0.7], [0.42, 0xffffff, 0.98]],
 };
 /** Width of the band per style (blades are razor thin, sparks chunky). */
-const WIDTH: Partial<Record<SlashStyle, number>> = { blade: 0.62, spark: 1.15, gale: 0.9, crystal: 1.1 };
+const WIDTH: Partial<Record<SlashStyle, number>> = { blade: 0.62, spark: 1.15, gale: 0.9, crystal: 1.1, frost: 0.7 };
 
 export function slashStyle(f: Fighter): SlashStyle {
   const fx = f.data.fx;
@@ -232,6 +233,20 @@ function decorate(g: Phaser.GameObjects.Graphics, style: SlashStyle, pts: Deco[]
         g.fillTriangle(x, y - s, x - s * 0.7, y, x, y + s);
       });
       glint(g, hx, hy, 6 * fade, 0xf0e2ff, 0.95 * fade);
+      break;
+    case 'frost':
+      // a razor-thin cut that leaves a trail of snow: tiny flakes drifting off the edge and icy glints at the tip
+      pts.forEach((p, i) => {
+        if ((i + (tick >> 1)) % 3) return;
+        const d = 2 + ((i * 5) % 7) * (1.3 - fade * 0.5);
+        const x = p.x + p.nx * d - fade * 2;
+        const y = p.y + p.ny * d + (1 - fade) * 4;
+        const s = 0.9 + p.t * 1.1;
+        g.fillStyle(i % 2 ? 0xbfeaff : 0xffffff, 0.85 * fade);
+        g.fillRect(x - s, y - 0.4, s * 2, 0.8);
+        g.fillRect(x - 0.4, y - s, 0.8, s * 2);
+      });
+      glint(g, hx, hy, 7 * fade, 0xffffff, fade);
       break;
     default:
       break;

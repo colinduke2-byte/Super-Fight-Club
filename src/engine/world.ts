@@ -61,6 +61,7 @@ export type WorldEventType =
   | 'pillarShatter'
   | 'collide'
   | 'splat'
+  | 'counter'
   | 'pillarCrumble'
   | 'ko';
 /** `extra` meaning: hit/armorHit/shieldHit/pummel = damage dealt; ko = id of the last attacker (-1 none). */
@@ -180,6 +181,7 @@ export class World {
     }
     for (let i = 0; i < this.platforms.length; i++) this.platforms[i].update(this.tick);
     stepPillars(this);
+    this.markIce();
     for (let i = 0; i < this.fighters.length; i++) this.fighters[i].update(inputs[i], this);
     this.fixGrabs();
     this.softPush();
@@ -191,6 +193,21 @@ export class World {
     stepHazards(this);
     stepItems(this);
     stepTargets(this);
+  }
+
+  /** Which grounded fighters stand on a rival's ice patch this tick. */
+  private markIce(): void {
+    for (const f of this.fighters) {
+      f.onIce = false;
+      if (!f.grounded) continue;
+      for (const d of this.deployables) {
+        if (!d.active || !d.def?.slick || d.owner === f.id || this.allied(d.owner, f.id)) continue;
+        if (Math.abs(f.x - d.x) <= d.def.w / 2 && Math.abs(f.y - d.y) < 4) {
+          f.onIce = true;
+          break;
+        }
+      }
+    }
   }
 
   // ---- projectiles / deployables -------------------------------------------------------------
@@ -354,7 +371,7 @@ export class World {
       mix(f.meter);
       mix(f.state.length);
       for (const k of Object.keys(f.res)) mix(f.res[k]);
-      mix(f.status.burn + f.status.slow * 7 + f.status.freeze * 13 + f.status.stun * 17 + f.status.soak * 19 + f.freezeImmune * 23);
+      mix(f.status.burn + f.status.slow * 7 + f.status.freeze * 13 + f.status.stun * 17 + f.status.soak * 19 + f.freezeImmune * 23 + f.status.chill * 29);
     }
     for (const it of this.items) {
       if (!it.active) continue;

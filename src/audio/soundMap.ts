@@ -68,6 +68,8 @@ export function soundFor(type: WorldEventType, mag: number, extra: number): Soun
       return { name: 'boom', intensity: clamp(0.5 + extra / 20, 0.5, 1) };
     case 'deployableDestroyed':
       return { name: 'break', intensity: 0.7 };
+    case 'counter':
+      return { name: 'parry', intensity: 1 };
     case 'splat':
       // slammed into the scenery: a crunch that grows with the impact
       return { name: 'hitHeavy', intensity: clamp(0.4 + mag / 18, 0.4, 0.95) };

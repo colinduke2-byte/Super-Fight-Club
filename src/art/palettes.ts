@@ -43,6 +43,11 @@ export const ALT_LOOKS: Record<string, AltLook[]> = {
     { armor: '#3ac87a', armorDark: '#2a3a30', accent: '#b0ffd0' }, // emerald on basalt
     { armor: '#3a3a4e', armorDark: '#141418', accent: '#ff7a3a' }, // obsidian with ember veins
   ],
+  rime: [
+    { armor: '#c84a6a', armorDark: '#4a1428', accent: '#ffd0e0' }, // cherry blossom
+    { armor: '#3a3a4a', armorDark: '#121218', accent: '#7affe0' }, // midnight
+    { armor: '#e8eef6', armorDark: '#6a7a90', accent: '#7ab8ff' }, // snowfield white
+  ],
   halcyon: [
     { armor: '#4a4a62', armorDark: '#1c1c2a', accent: '#ff5a5a' },
     { armor: '#6fcf98', armorDark: '#24704e', accent: '#fff0a0' },

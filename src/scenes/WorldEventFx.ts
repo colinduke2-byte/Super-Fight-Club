@@ -76,6 +76,16 @@ export class WorldEventFx {
         e.flash(x, y, 2.4, 0xffe9a8);
         this.host.shake(5);
         break;
+      case 'counter': {
+        // a counter: the struck body was a decoy; it bursts where it stood and the counterer strikes from behind
+        const ice = f.data.fx?.slash === 'frost';
+        e.flash(x, y, 2.6, 0xffffff);
+        e.ring(x, y, 30, ice ? 0xbfeaff : 0xfff0c0, 0.3);
+        e.burst(x, y, 24, 150, ice ? 0xbfeaff : 0xffe08a, 0.45, 3);
+        this.host.shake(5);
+        this.host.views()[f.id]?.afterimage(x, y + f.h / 2, ice ? 0x9fe0ff : 0xffffff, 16);
+        break;
+      }
       case 'splat': {
         // a hard slam into the scenery: a crack of light, a puff of debris and a jolt that grows with the speed
         const k = Math.min(1.4, mag / 10);
@@ -115,6 +125,12 @@ export class WorldEventFx {
         e.flash(x, y, 1.2, 0xffffff);
         break;
       case 'status': {
+        if (extra === 7) {
+          // Frostbite: frost crystals cling on, more with every stack
+          e.burst(x, y, 4 + (mag | 0) * 2, 40 + mag * 6, 0xbfeaff, 0.4, 2);
+          e.burst(x, y, 3, 30, 0xffffff, 0.3, 2);
+          break;
+        }
         if (extra === 6) {
           // soaked: a couple of drops falling off
           e.burst(x, y + 4, 2, 22, 0x6ac8ff, 0.4, 2);

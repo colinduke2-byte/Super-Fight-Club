@@ -67,7 +67,7 @@ const COUNTDOWN = COUNT_STEP * 3 + 40;
 
 /** How each fighter arrives during READY (visual only: the sim is frozen until GO). */
 type Entrance = 'slam' | 'jet' | 'blink' | 'rune' | 'flame' | 'glide' | 'splash' | 'erupt' | 'fade';
-const ENTRANCES: Record<string, Entrance> = { brick: 'slam', gizmo: 'jet', vex: 'blink', nova: 'rune', agni: 'flame', halcyon: 'glide', riptide: 'splash', obelisk: 'erupt' };
+const ENTRANCES: Record<string, Entrance> = { brick: 'slam', gizmo: 'jet', vex: 'blink', nova: 'rune', agni: 'flame', halcyon: 'glide', riptide: 'splash', obelisk: 'erupt', rime: 'blink' };
 const TRAINING: MatchConfig = { mode: 'training', stocks: 3, timeLimitSec: 0, respawnDelay: 70 };
 const END_DELAY = 150;
 const HELP_TRAINING = [

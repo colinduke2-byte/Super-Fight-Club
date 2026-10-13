@@ -180,7 +180,7 @@ describe('CPU matches', () => {
         expect(r.match.over, `${a} v ${b}`).toBe(true);
       }
     }
-  });
+  }, 120000);
 
   it('CPUs cross terrain: hop the Sunken Temple centre tier and jump gaps between Skyhold islands', () => {
     expect(play(['brick', 'vex'], [2, 2], 'temple', 30000).match.over, 'temple tier').toBe(true);
