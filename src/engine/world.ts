@@ -5,6 +5,7 @@ import type { MoveDef } from './moves';
 import { GRAB_DISTANCE, type Fighter } from './fighter';
 import { stepHazards } from './hazards';
 import { stepPillars } from './pillars';
+import { stepCollisions } from './physics';
 import { Item, MAX_ITEMS, stepItems } from './items';
 import { stepTargets, type Target } from './targets';
 import { Ledge, Platform } from './platform';
@@ -57,6 +58,7 @@ export type WorldEventType =
   | 'itemBoom'
   | 'hazardFire'
   | 'pillarShatter'
+  | 'collide'
   | 'pillarCrumble'
   | 'ko';
 /** `extra` meaning: hit/armorHit/shieldHit/pummel = damage dealt; ko = id of the last attacker (-1 none). */
@@ -179,6 +181,7 @@ export class World {
     for (let i = 0; i < this.fighters.length; i++) this.fighters[i].update(inputs[i], this);
     this.fixGrabs();
     this.softPush();
+    stepCollisions(this);
     updateEntities(this);
     resolveCombat(this);
     resolveEntityCombat(this);

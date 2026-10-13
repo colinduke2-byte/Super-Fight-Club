@@ -248,6 +248,8 @@ export class Fighter implements Body {
   techWindow = 0;
   techLock = 0;
   lastHitBy = -1;
+  /** Human projectiles: fighters this one has already crashed into during the current launch (bit per id). */
+  collideMask = 0;
   /** Carrying a Shock Bomb item: the next Attack throws it. */
   heldBomb = false;
   /** Frames left in which a freshly raised shield is a perfect shield. */
@@ -846,6 +848,7 @@ export class Fighter implements Body {
     this.techWindow = 0;
     this.techLock = 0;
     this.diDone = false;
+    this.collideMask = 0;
     this.sdiCount = 0;
     this.fastFalling = false;
     this.ledgeGrabs = 0;

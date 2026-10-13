@@ -76,6 +76,17 @@ export class WorldEventFx {
         e.flash(x, y, 2.4, 0xffe9a8);
         this.host.shake(5);
         break;
+      case 'collide': {
+        // human projectile: a starburst where the bodies meet, a shockwave ring and a jolt scaled by the speed
+        const k = Math.min(1.6, mag / 9);
+        e.flash(x, y, 2.2 + k, 0xffffff);
+        e.ring(x, y, 22 + mag * 3, 0xfff0c0, 0.32);
+        e.burst(x, y, Math.round(14 + mag * 2), 90 + mag * 12, 0xffe08a, 0.45, 3);
+        e.burst(x, y, 8, 60, 0xffffff, 0.3, 2);
+        this.host.shake(Math.min(12, 4 + mag));
+        sfx.play('boom', Math.min(1, 0.4 + mag / 20), this.host.pan(x));
+        break;
+      }
       case 'pillarShatter':
         // a crystal pillar bursts: purple shards, a white crack of light and a jolt (mag = -height)
         e.burst(x, y, 26, 160, 0xc898f6, 0.5, 3);
