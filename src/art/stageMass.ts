@@ -1431,6 +1431,9 @@ export function platformArt(themeId: string | undefined, w: number, h: number, m
   if (T.cap === 'crystal') return rockShelf(b, S, A, W, PH, y0, moving, seed);
   const snowy = T.cap === 'snow';
   const woody = (T.cap === 'grass' && !stoneAltar) || deck || snowy;
+  // static ledges dressed per stage: mossy stone in the temple, marble at dawn, driftwood on the wreck
+  const dress = moving || snowy ? null : T.panel === 'glyph' ? 'moss' : T.panel === 'alcove' && T.cap === 'grass' ? 'marble' : T.under === 'reef' ? 'drift' : null;
+  if (dress === 'moss' || dress === 'marble') return ledge(b, T, S, A, W, PH, y0, dress, seed);
 
   if (T.cap === 'slate' || (woody && moving && !deck)) {
     // cloud slab: a flat top you can stand on, billowing underneath
@@ -1493,6 +1496,28 @@ export function platformArt(themeId: string | undefined, w: number, h: number, m
     for (let x = 6; x < W - 6; x += 17) for (let k = 0; k < 6 + (x % 5); k++) b.set(x + (k % 4 < 2 ? 0 : 1), bot + k, hex('#2e7040'));
     return finish(b, W, H);
   }
+  if (dress === 'drift') {
+    // driftwood: kelp trailing from the planks, barnacles, one lamp
+    const KELP: Ramp = ['#0e2a1a', '#1a4a2a', '#2e7040', '#4aa058', '#8ad07a'].map(hex);
+    for (let x = 3; x < W - 3; x += 5 + Math.floor(rnd() * 6)) {
+      const len = 4 + Math.floor(rnd() * 12);
+      let xx = x;
+      for (let k = 0; k < len; k++) {
+        b.set(xx, bot + k, KELP[k < len * 0.4 ? 1 : k < len * 0.8 ? 2 : 3]);
+        if (rnd() > 0.7) xx += rnd() > 0.5 ? 1 : -1;
+      }
+    }
+    for (let i = 0; i < W / 10; i++) {
+      const x = 2 + Math.floor(rnd() * (W - 4));
+      b.set(x, y0 + PH - 2, S[5]);
+      b.set(x + 1, y0 + PH - 2, S[4]);
+    }
+    const lx = Math.round(W / 2);
+    for (let k = 0; k < 4; k++) b.set(lx + 1, bot + k, hex('#6a4a2a'));
+    b.rect(lx, bot + 4, 3, 4, A[3], true);
+    b.set(lx + 1, bot + 5, A[4], true);
+    return finish(b, W, H);
+  }
   if (woody) {
     // rope rail posts above, lanterns and rope loops below
     for (const x of [3, W - 4]) for (let k = 1; k <= 5; k++) b.set(x, y0 - k, hex('#6a4220'));
@@ -1519,6 +1544,60 @@ export function platformArt(themeId: string | undefined, w: number, h: number, m
     for (let x = ex[0]; x < ex[ex.length - 1]; x++) {
       b.set(x, bot, S[1]);
       if ((x - ex[0]) % 12 < 6) b.set(x, bot + 1 + ((x - ex[0]) % 12 < 3 ? 0 : 1), S[2]);
+    }
+  }
+  return finish(b, W, H);
+}
+
+/**
+ * A stone ledge: 'moss' (temple) is a carved slab furred with moss along its top, vines and roots hanging below;
+ * 'marble' (dawn) is pale dressed stone with a gold inlay band and a gilded finial under each end.
+ */
+function ledge(b: Buf, T: MassTheme, S: Ramp, A: Ramp, W: number, PH: number, y0: number, dress: 'moss' | 'marble', seed: number): HTMLCanvasElement {
+  const n = noise(seed + 17);
+  const rnd = mulberry32(seed * 53 + 11);
+  const G2: Ramp = (T.alt ?? T.accent).map(hex);
+  const H = b.h;
+  for (let x = 0; x < W; x++) {
+    const end = Math.min(x, W - 1 - x);
+    for (let ly = 0; ly < PH; ly++) {
+      if (end < 2 && ly > PH - 3) continue; // chamfered corners underneath
+      let k = ly === 0 ? 5 : ly === 1 ? 4 : ly >= PH - 1 ? 1 : 3;
+      if (dress === 'moss' && n(x / 3, ly / 2) > 0.7 && ly > 1) k -= 1;
+      if (dress === 'marble' && (x + ly * 2) % 23 === 0 && ly > 1) k = 2; // veining
+      if (ly > 1 && ly < PH - 1 && x % (dress === 'moss' ? 22 : 30) === 0) k = 1; // block joints
+      let c = S[clampI(k, 0, 5)];
+      if (dress === 'marble' && ly === 3) c = (x >> 2) % 4 === 0 ? A[3] : A[2]; // gold inlay
+      if (end < 1) c = mix(c, S[0], 0.4);
+      b.set(x, y0 + ly, c, dress === 'marble' && ly === 3 && (x >> 2) % 4 === 0);
+    }
+  }
+  const bot = y0 + PH;
+  if (dress === 'moss') {
+    // a furred moss cap spilling over the front edge, then vines and roots hanging below
+    for (let x = 0; x < W; x++) {
+      const tuft = n(x / 2.5, 7) > 0.55 ? 1 : 0;
+      b.set(x, y0 - tuft, G2[3]);
+      b.set(x, y0 + 1, G2[2]);
+      if (n(x / 4, 3) > 0.5) b.set(x, y0 + 2, G2[1]);
+    }
+    for (let x = 4; x < W - 4; x += 4 + Math.floor(rnd() * 7)) {
+      const len = 3 + Math.floor(rnd() * 14);
+      let xx = x;
+      for (let k = 0; k < len && bot + k < H; k++) {
+        b.set(xx, bot + k, k < len * 0.5 ? G2[1] : G2[2]);
+        if (k === len - 1 && rnd() > 0.6) b.set(xx, bot + k, A[3], true); // a little glowing flower
+        if (rnd() > 0.75) xx += rnd() > 0.5 ? 1 : -1;
+      }
+    }
+  } else {
+    // gilded finials hanging under both ends, a soft glow at their tips
+    for (const x of [6, W - 7]) {
+      for (let k = 0; k < 9 && bot + k < H; k++) {
+        const ww = k < 2 ? 2 : k < 6 ? 1 : 0;
+        for (let j = -ww; j <= ww; j++) b.set(x + j, bot + k, k < 3 ? A[3] : A[2]);
+      }
+      if (bot + 9 < H) b.set(x, bot + 9, A[4], true);
     }
   }
   return finish(b, W, H);
