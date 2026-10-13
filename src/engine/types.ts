@@ -175,6 +175,8 @@ export interface PlaceholderLook {
   art?: 'hi';
   /** What the front hand holds. Default 'piston' (Brick's piston fist). */
   weapon?: 'piston' | 'blades' | 'staff' | 'wrench' | 'gauntlet' | 'spear' | 'anchor';
+  /** Alternate outfit (0 = the fighter's own design): the hero drawers change gear and shape for 1 and 2. */
+  outfit?: number;
   /** Silhouette accessories: scarf, bracer, cloak, toolbox, grapple. */
   extras?: ('scarf' | 'bracer' | 'cloak' | 'toolbox' | 'grapple' | 'sash')[];
 }

@@ -540,6 +540,10 @@ export class MatchScene extends Phaser.Scene {
       const pick = vs?.[i - 1] ?? (q.has('mirror') ? id : ids.filter((c) => c !== id)[(i - 1) % (ids.length - 1)]); // ?mirror: everyone plays the same fighter
       session.players.push({ index: i, type: 'cpu', device: null, character: pick, cpuLevel: lvl });
     }
+    // ?pal=a,b,c,d picks each slot's palette (outfit and colour)
+    q.get('pal')?.split(',').forEach((v, i) => {
+      if (session.players[i]) session.players[i].palette = Math.max(0, Number(v) || 0);
+    });
   }
 
   // ---------------------------------------------------------------------------------------------

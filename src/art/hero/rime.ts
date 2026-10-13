@@ -46,9 +46,33 @@ export function drawRime(r: Raster, k: Skel, look: PlaceholderLook): void {
   const run = k.pose.lean > 2;
   const air = k.pose.frontHand[1] < -8;
   const sw = (i: number, a = 2): number => Math.sin(k.phase * 1.3 + i * 0.8) * a;
+  // outfits: 1 = Kitsune (fox mask, ears, a long ponytail, no hat), 2 = Yeti (shaggy fur hood, fur mantle and boots)
+  const o = look.outfit ?? 0;
+  const fur: RGB = mix(armor, [250, 252, 255], 0.35);
+  const F = { fur: r.part(fur, { soft: true }), furD: r.part(mul(fur, 0.78), { soft: true }), furDeep: r.part(mul(fur, 0.55), { soft: true }), mask: r.part([246, 244, 238]), maskMark: r.part(accent, { flat: true }) };
+  /** A tuft of fur: a few short strands fanning from (x, y). */
+  const tuft = (x: number, y: number, dir: number, len: number, i: number): void => {
+    for (let s = -1; s <= 1; s++) r.seg(s === 0 ? F.fur : F.furD, x, y, x + dir * len * 0.5 + s * 2 + sw(i + s, 0.6), y + len, 2.2, 1);
+  };
+
+  if (o === 1) {
+    // ---- a long white ponytail, tied high and streaming back ----
+    const hx = k.head.x;
+    const hy = k.head.y + 3;
+    let px = hx + 2;
+    let py = hy + 1;
+    const flow = run ? -0.2 : air ? -0.8 : 0.6;
+    for (let i = 0; i < 9; i++) {
+      const x = px - 4.2;
+      const y = py + flow * 2.4 + sw(i + 3, 0.8 + i * 0.25);
+      r.seg(i % 3 === 2 ? P.wrapL : P.frost, px, py, x, y, 7 - i * 0.55, 6 - i * 0.55);
+      px = x;
+      py = y;
+    }
+  }
 
   // ---- long scarf streaming from the neck (behind everything) ----
-  {
+  if (o !== 2) {
     const nx = T.x + 9;
     const ny = T.y + 1;
     const flow = run ? 0 : air ? -0.9 : 0.5;
@@ -76,7 +100,7 @@ export function drawRime(r: Raster, k: Skel, look: PlaceholderLook): void {
   }
 
   // ---- back leg ----
-  leg(r, P, k.hipB, k.kneeB, k.ankleB, true);
+  leg(r, P, k.hipB, k.kneeB, k.ankleB, true, o === 2 ? F.furD : -1);
 
   // ---- vest tails behind the hips ----
   r.poly(P.vest, [[T.x + 1, T.y + T.h - 6], [T.x + 12, T.y + T.h - 6], [T.x + 6 + sw(1), T.y + T.h + 16], [T.x - 5 + sw(2), T.y + T.h + 18]]);
@@ -115,10 +139,45 @@ export function drawRime(r: Raster, k: Skel, look: PlaceholderLook): void {
   }
 
   // ---- front leg ----
-  leg(r, P, k.hipF, k.kneeF, k.ankleF, false);
+  leg(r, P, k.hipF, k.kneeF, k.ankleF, false, o === 2 ? F.fur : -1);
 
-  // ---- head: mask, glowing eyes, white hair, the kasa ----
-  {
+  if (o === 1) {
+    // ---- head: hair tied back, a white fox mask with red markings and tall ears ----
+    const hx = k.head.x;
+    const hy = k.head.y + 3;
+    const hs = k.head.s;
+    r.rect(P.deep, hx + 6, T.y - 5, hs - 10, 8); // neck
+    r.ellipse(P.frost, hx + hs / 2 + 1, hy + hs / 2, hs / 2 + 2, hs / 2 + 1); // hair
+    r.ellipse(P.sash, hx + 1, hy + 2, 3, 3); // the tie
+    // mask: rounded brow, a pointed muzzle forward
+    r.poly(F.mask, [[hx + 4, hy + 1], [hx + hs + 2, hy], [hx + hs + 9, hy + hs / 2 + 3], [hx + hs + 1, hy + hs + 1], [hx + 6, hy + hs + 1], [hx + 3, hy + hs / 2]]);
+    // ears
+    r.poly(F.mask, [[hx + 5, hy + 2], [hx + 7, hy - 11], [hx + 12, hy + 1]]);
+    r.poly(F.mask, [[hx + hs - 4, hy + 1], [hx + hs, hy - 12], [hx + hs + 4, hy + 2]]);
+    r.poly(F.maskMark, [[hx + 7, hy], [hx + 7.6, hy - 7], [hx + 10, hy]]);
+    r.poly(F.maskMark, [[hx + hs - 2, hy], [hx + hs, hy - 8], [hx + hs + 2, hy + 1]]);
+    // markings: swept brows, cheek flicks, a black nose tip; the eye slit glows through
+    r.seg(F.maskMark, hx + hs - 9, hy + 6, hx + hs + 1, hy + 4, 1.6, 1);
+    r.seg(F.maskMark, hx + hs - 4, hy + hs - 3, hx + hs + 4, hy + hs - 6, 1.4, 1);
+    r.ellipse(P.seam, hx + hs + 8, hy + hs / 2 + 3, 1.6, 1.4);
+    r.rect(P.glow, hx + hs - 7, hy + hs / 2 - 2, 6, 2);
+  } else if (o === 2) {
+    // ---- head: a shaggy fur hood framing a dark mask and glowing eyes ----
+    const hx = k.head.x;
+    const hy = k.head.y + 3;
+    const hs = k.head.s;
+    r.rect(P.deep, hx + 6, T.y - 5, hs - 10, 8); // neck
+    r.ellipse(F.furD, hx + hs / 2, hy + hs / 2 + 1, hs / 2 + 7, hs / 2 + 6);
+    r.ellipse(F.fur, hx + hs / 2 + 1, hy + hs / 2 - 1, hs / 2 + 6, hs / 2 + 5);
+    for (let i = 0; i < 7; i++) tuft(hx - 5 + i * ((hs + 12) / 6), hy - 6 + Math.abs(i - 3) * 2, i < 3 ? -1 : 1, 4, i);
+    // the face opening, in shadow
+    r.ellipse(P.deep, hx + hs / 2 + 5, hy + hs / 2 + 2, hs / 2 - 1, hs / 2 - 1);
+    r.rect(P.glow, hx + hs - 6, hy + hs / 2, 6, 2);
+    r.rect(P.accent, hx + hs - 11, hy + hs / 2 + 1, 4, 1);
+    // little horns poking out of the hood
+    r.poly(P.ice, [[hx + 2, hy - 2], [hx - 4, hy - 12], [hx + 6, hy - 4]]);
+    r.poly(P.ice, [[hx + hs - 2, hy - 3], [hx + hs + 2, hy - 13], [hx + hs + 4, hy - 2]]);
+  } else {
     const hx = k.head.x;
     const hy = k.head.y + 3;
     const hs = k.head.s;
@@ -160,6 +219,13 @@ export function drawRime(r: Raster, k: Skel, look: PlaceholderLook): void {
     }
   }
 
+  if (o === 2) {
+    // ---- fur mantle across the shoulders ----
+    r.ellipse(F.furD, T.x + T.w / 2, T.y + 3, T.w / 2 + 7, 7);
+    r.ellipse(F.fur, T.x + T.w / 2 + 1, T.y + 2, T.w / 2 + 5, 5.5);
+    for (let i = 0; i < 7; i++) tuft(T.x - 4 + i * ((T.w + 8) / 6), T.y + 5, i < 3 ? -0.4 : 0.4, 5, i + 9);
+  }
+
   // ---- front arm: icicle pauldron, bandaged forearm, kunai ----
   {
     const [sx, sy] = k.shF;
@@ -171,9 +237,19 @@ export function drawRime(r: Raster, k: Skel, look: PlaceholderLook): void {
       r.rect(P.wrapL, el[0] + (k.handF[0] - el[0]) * t - 3, el[1] + (k.handF[1] - el[1]) * t, 6, 1);
     }
     // icicle cluster on the shoulder, swept back and out
-    r.ellipse(P.armor, sx, sy, 7, 5);
-    r.poly(P.ice, [[sx - 4, sy - 2], [sx - 14, sy - 7], [sx - 3, sy + 2]]);
-    r.poly(P.frost, [[sx - 2, sy - 3], [sx - 10, sy - 11], [sx + 1, sy - 3]]);
+    if (o === 2) {
+      r.ellipse(F.fur, sx, sy, 8, 6.5);
+      tuft(sx - 5, sy + 2, -0.5, 5, 20);
+      tuft(sx + 3, sy + 3, 0.5, 5, 21);
+    } else if (o === 1) {
+      // a lacquered shoulder guard with a red cord
+      r.ellipse(P.armor, sx, sy, 7, 5);
+      r.rect(F.maskMark, sx - 6, sy + 2, 12, 1);
+    } else {
+      r.ellipse(P.armor, sx, sy, 7, 5);
+      r.poly(P.ice, [[sx - 4, sy - 2], [sx - 14, sy - 7], [sx - 3, sy + 2]]);
+      r.poly(P.frost, [[sx - 2, sy - 3], [sx - 10, sy - 11], [sx + 1, sy - 3]]);
+    }
     kunai(r, P, el, k.handF);
     r.ellipse(P.deep, k.handF[0], k.handF[1], 3.8, 3.8);
   }
@@ -203,7 +279,7 @@ function kunai(r: Raster, P: Parts, el: V2, hand: V2): void {
   r.ellipse(P.glow, tx, ty, 1.5, 1.5);
 }
 
-function leg(r: Raster, P: Parts, hip: V2, kn: V2, ankle: V2, back: boolean): void {
+function leg(r: Raster, P: Parts, hip: V2, kn: V2, ankle: V2, back: boolean, fur = -1): void {
   const pant = back ? P.deep : P.gi;
   r.seg(pant, hip[0], hip[1], kn[0], kn[1], 12, 10);
   r.seg(pant, kn[0], kn[1], ankle[0], ankle[1], 10, 7);
@@ -220,4 +296,6 @@ function leg(r: Raster, P: Parts, hip: V2, kn: V2, ankle: V2, back: boolean): vo
   r.poly(back ? P.deep : P.dark, [[bx - 6, by - 7], [bx + 6, by - 7], [bx + 7, by - 1], [bx + 14, by + 3], [bx + 14, by + 8], [bx - 7, by + 8]]);
   r.rect(P.seam, bx + 9, by + 2, 1, 6);
   r.rect(back ? P.deep : P.wrap, bx - 7, by - 9, 13, 3);
+  // Yeti: a thick fur cuff over the boot
+  if (fur >= 0) r.ellipse(fur, bx, by - 8, 9, 5);
 }

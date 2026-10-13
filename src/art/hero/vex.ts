@@ -40,9 +40,16 @@ export function drawVex(r: Raster, k: Skel, look: PlaceholderLook): void {
   const run = k.pose.lean > 2;
   const air = k.pose.frontHand[1] < -8;
   const sw = (i: number, a = 2): number => Math.sin(k.phase * 1.25 + i * 0.7) * a;
+  // outfits: 1 = Oni (wild hair, a horned demon mask with fangs), 2 = Cyber (visor helmet, neon circuit lines, no cape)
+  const o = look.outfit ?? 0;
+  const bone = r.part([236, 228, 210]);
+  const boneD = r.part([176, 164, 140]);
+  const oniMask = r.part(mix(accent, [200, 30, 40], 0.55));
+  const hair = r.part(mix(armor, [240, 240, 250], 0.6), { soft: true });
+  const hairD = r.part(mix(armor, [200, 200, 220], 0.35), { soft: true });
 
   // ---- ragged cape (behind everything) ----
-  {
+  if (o !== 2) {
     const top = T.y + 3;
     const x0 = T.x + 6;
     const len = run ? 56 : air ? 64 : 50;
@@ -76,13 +83,15 @@ export function drawVex(r: Raster, k: Skel, look: PlaceholderLook): void {
     for (let i = 0; i < 13; i++) {
       const x = nx - 4 - i * 4.4;
       const y = ny + i * flow * 3 + sw(i, 1.8 + i * 0.22);
-      const w = 9 - i * 0.5;
-      r.seg(i % 4 === 3 ? P.scarfD : P.scarf, px, py, x, y, w, Math.max(2.5, w - 0.6));
+      const w = o === 2 ? 3.4 - i * 0.15 : 9 - i * 0.5;
+      r.seg(o === 2 ? (i % 2 ? P.glow : P.accent) : i % 4 === 3 ? P.scarfD : P.scarf, px, py, x, y, w, Math.max(o === 2 ? 1.4 : 2.5, w - 0.6));
       px = x;
       py = y;
     }
-    r.seg(P.scarfD, px, py, px - 8, py + 4, 3.5, 2);
-    r.seg(P.scarf, px, py, px - 7, py - 3, 3.5, 2);
+    if (o !== 2) {
+      r.seg(P.scarfD, px, py, px - 8, py + 4, 3.5, 2);
+      r.seg(P.scarf, px, py, px - 7, py - 3, 3.5, 2);
+    }
   }
 
   // ---- back arm + dagger ----
@@ -128,11 +137,59 @@ export function drawVex(r: Raster, k: Skel, look: PlaceholderLook): void {
     // tall collar
     r.poly(P.dark, [[x0 + 8, top - 2], [x0 + w - 4, top - 2], [x0 + w - 2, top + 8], [x0 + 6, top + 8]]);
     r.rect(P.mark, x0 + 9, top + 5, w - 14, 1);
+    if (o === 2) {
+      // neon circuit traces over the jacket
+      r.seg(P.glow, x0 + 12, top + 9, x0 + 12, top + 18, 1, 1);
+      r.seg(P.glow, x0 + 12, top + 18, x0 + w - 6, top + 18, 1, 1);
+      r.seg(P.accent, x0 + w - 6, top + 8, x0 + w - 6, top + 18, 1, 1);
+      r.rect(P.glow, x0 + 11, top + 8, 3, 3);
+    }
   }
 
   // ---- front leg ----
   leg(r, P, k.hipF, k.kneeF, k.ankleF, false);
 
+  if (o === 1) {
+    // ---- head: a wild mane of hair and a red oni mask with horns and fangs ----
+    const hx = k.head.x;
+    const hy = k.head.y + 2;
+    const hs = k.head.s;
+    r.rect(P.deep, hx + 6, T.y - 5, hs - 10, 8); // neck
+    // spiky hair swept back
+    for (let i = 0; i < 7; i++) {
+      // fanning from straight back (angle PI) round to straight up
+      const a = Math.PI - 0.15 + i * 0.22;
+      const len = 20 + ((i * 5) % 7) - (i > 4 ? 5 : 0);
+      const bx = hx + hs / 2 - 2;
+      const by = hy + hs / 2 - 1;
+      r.poly(i % 2 ? hairD : hair, [[bx - 4, by - 5], [bx + 4, by + 4], [bx + Math.cos(a) * len + sw(i, 1.4), by + Math.sin(a) * len * 0.85]]);
+    }
+    r.ellipse(hair, hx + hs / 2, hy + hs / 2 - 2, hs / 2 + 1, hs / 2);
+    // the mask: a broad red face with a heavy brow, horns, glowing eyes and a fanged grin
+    r.poly(oniMask, [[hx + 9, hy + 2], [hx + hs + 2, hy + 1], [hx + hs + 6, hy + 9], [hx + hs + 5, hy + hs - 1], [hx + hs, hy + hs + 3], [hx + 11, hy + hs + 2], [hx + 8, hy + hs / 2]]);
+    r.poly(P.deep, [[hx + 11, hy + 6], [hx + hs + 6, hy + 6], [hx + hs + 6, hy + 8], [hx + 12, hy + 9]]); // brow shadow
+    r.ellipse(oniMask, hx + hs + 5, hy + hs / 2 + 2, 2.4, 3); // a hooked nose
+    r.rect(P.glow, hx + hs - 5, hy + 9, 6, 3);
+    r.rect(P.accent, hx + hs - 11, hy + 10, 4, 2);
+    r.rect(P.deep, hx + 10, hy + hs - 6, hs - 4, 4);
+    for (let i = 0; i < 4; i++) r.poly(bone, [[hx + 11 + i * 4, hy + hs - 6], [hx + 14 + i * 4, hy + hs - 6], [hx + 12.5 + i * 4, hy + hs - 3 + (i % 3 === 0 ? 2 : 0)]]);
+    r.poly(bone, [[hx + 8, hy + 2], [hx + 3, hy - 12], [hx + 13, hy + 1]]);
+    r.poly(boneD, [[hx + hs - 2, hy + 1], [hx + hs + 3, hy - 13], [hx + hs + 5, hy + 2]]);
+  } else if (o === 2) {
+    // ---- head: a sleek helmet with a full-width glowing visor and a fin ----
+    const hx = k.head.x;
+    const hy = k.head.y + 2;
+    const hs = k.head.s;
+    r.rect(P.deep, hx + 6, T.y - 5, hs - 10, 8); // neck
+    r.poly(P.dark, [[hx - 4, hy + 4], [hx + 6, hy - 4], [hx - 10, hy - 2]]); // rear fin
+    r.ellipse(P.armor, hx + hs / 2 + 2, hy + hs / 2 + 1, hs / 2 + 4, hs / 2 + 3);
+    r.ellipse(P.light, hx + hs / 2, hy + hs / 2 - 4, hs / 2, hs / 3);
+    r.poly(P.deep, [[hx + 6, hy + 8], [hx + hs + 6, hy + 7], [hx + hs + 6, hy + 15], [hx + 8, hy + 15]]);
+    r.poly(P.accent, [[hx + 8, hy + 9], [hx + hs + 5, hy + 8], [hx + hs + 5, hy + 13], [hx + 9, hy + 13]]);
+    r.rect(P.glow, hx + hs - 4 - ((k.phase * 3) % 10), hy + 9, 4, 3);
+    r.rect(P.seam, hx + 10, hy + hs - 2, hs - 4, 1);
+    r.rect(P.glow, hx + 2, hy + hs / 2 + 4, 3, 1);
+  } else {
   // ---- head: peaked cowl, shadowed face, burning eyes, mask ----
   {
     const hx = k.head.x;
@@ -154,6 +211,7 @@ export function drawVex(r: Raster, k: Skel, look: PlaceholderLook): void {
     r.poly(P.cloth, [[hx + 8, hy + 15], [hx + hs + 3, hy + 15], [hx + hs, hy + hs - 3], [hx + 10, hy + hs]]);
     r.rect(P.mark, hx + 10, hy + 15, hs - 4, 1);
     r.rect(P.seam, hx + 12, hy + 21, hs - 9, 1);
+  }
   }
 
   // ---- front arm: pauldron, sleeve, dagger ----

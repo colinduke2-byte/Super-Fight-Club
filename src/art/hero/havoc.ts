@@ -42,6 +42,10 @@ export function drawHavoc(r: Raster, k: Skel, look: PlaceholderLook): void {
   };
   const T = k.torso;
   const sw = (i: number, a = 1.5): number => Math.sin(k.phase * 1.2 + i) * a;
+  // outfits: 1 = Sniper (boonie hat, ghillie strips, a scoped long rifle), 2 = Commando (beret, shades, bandolier, rolled sleeves)
+  const o = look.outfit ?? 0;
+  const ghillie = [r.part(mix(armor, [70, 90, 40], 0.4), { soft: true }), r.part(mul(mix(armor, [70, 90, 40], 0.4), 0.7), { soft: true }), r.part(mix(fabric, [150, 140, 90], 0.3), { soft: true })];
+  const brass = r.part([214, 170, 70]);
 
   // ---- rifle slung across the back (behind everything) ----
   {
@@ -53,6 +57,20 @@ export function drawHavoc(r: Raster, k: Skel, look: PlaceholderLook): void {
     r.seg(P.gunL, x0 + 6, y0 - 3, x0 + 20, y0 - 10, 2, 2);
     r.seg(P.gun, x0 + 8, y0 - 2, x0 + 10, y0 + 8, 4, 3); // magazine
     r.seg(P.dark, x0 - 4, y0 + 2, x0 + 6, y0 - 2, 7, 6); // stock
+    if (o === 1) {
+      // a long barrel and a scope
+      r.seg(P.gun, x1, y1, x1 + 8, y1 - 7, 3, 2);
+      r.seg(P.dark, x0 + 16, y0 - 12, x0 + 30, y0 - 20, 5, 5);
+      r.ellipse(P.lens, x0 + 31, y0 - 20, 1.6, 1.6);
+    }
+  }
+  if (o === 1) {
+    // ghillie strips hanging off the shoulders and back
+    for (let i = 0; i < 9; i++) {
+      const gx = T.x - 6 + i * ((T.w + 8) / 8);
+      const len = 8 + ((i * 5) % 7);
+      r.seg(ghillie[i % 3], gx, T.y - 1, gx - 3 + sw(i, 1.5), T.y + len, 3, 1.5);
+    }
   }
 
   // ---- backpack radio with a whip antenna ----
@@ -71,7 +89,7 @@ export function drawHavoc(r: Raster, k: Skel, look: PlaceholderLook): void {
   {
     const el = k.elbowB;
     r.seg(P.fabricD, k.shB[0], k.shB[1], el[0], el[1], 10, 9);
-    r.seg(P.fabricD, el[0], el[1], k.handB[0], k.handB[1], 9, 8);
+    r.seg(o === 2 ? P.skin : P.fabricD, el[0], el[1], k.handB[0], k.handB[1], 9, 8);
     r.ellipse(P.glove, k.handB[0], k.handB[1], 4.5, 4.5);
   }
 
@@ -94,10 +112,21 @@ export function drawHavoc(r: Raster, k: Skel, look: PlaceholderLook): void {
       r.rect(P.dark, px, top + h - 15, (w - 8) / 3, 7);
       r.rect(P.seam, px, top + h - 13, (w - 8) / 3, 1);
     }
-    // chest strap with a radio handset and its glowing light
-    r.seg(P.strap, x0 + 3, top + 2, x0 + w - 4, top + h - 8, 3, 3);
-    r.rect(P.dark, x0 + 4, top + 6, 5, 8);
-    r.rect(P.accent, x0 + 5, top + 7, 2, 2);
+    if (o === 2) {
+      // a bandolier of brass rounds across the chest
+      r.seg(P.strap, x0 + w - 3, top + 1, x0 + 2, top + h - 7, 4, 4);
+      for (let i = 1; i < 6; i++) {
+        const t = i / 6;
+        const bx = x0 + w - 3 + (5 - w) * t;
+        const by = top + 1 + (h - 8) * t;
+        r.rect(brass, bx - 1, by - 3, 2, 4);
+      }
+    } else {
+      // chest strap with a radio handset and its glowing light
+      r.seg(P.strap, x0 + 3, top + 2, x0 + w - 4, top + h - 8, 3, 3);
+      r.rect(P.dark, x0 + 4, top + 6, 5, 8);
+      r.rect(P.accent, x0 + 5, top + 7, 2, 2);
+    }
     // belt with grenades
     r.rect(P.strap, x0 + 1, top + h - 6, w - 2, 5);
     r.rect(P.steel, x0 + w / 2 - 2, top + h - 6, 4, 5);
@@ -113,6 +142,15 @@ export function drawHavoc(r: Raster, k: Skel, look: PlaceholderLook): void {
   // ---- front leg ----
   leg(r, P, k.hipF, k.kneeF, k.ankleF, false);
 
+  if (o === 1) {
+    // the ghillie mantle: shaggy strips over the shoulders and down the back
+    for (let i = 0; i < 12; i++) {
+      const gx = T.x - 8 + i * ((T.w + 10) / 11);
+      const len = 7 + ((i * 7) % 6);
+      r.seg(ghillie[i % 3], gx, T.y - 2, gx - 2 + sw(i, 1.2), T.y + len, 3.2, 1.4);
+    }
+  }
+
   // ---- head: combat helmet, goggles on the brim, stubbled jaw ----
   {
     const hx = k.head.x;
@@ -127,6 +165,26 @@ export function drawHavoc(r: Raster, k: Skel, look: PlaceholderLook): void {
     });
     r.rect(P.seam, hx + hs - 6, hy + 12, 6, 2); // eye
     r.rect(P.seam, hx + hs - 7, hy + hs - 3, 7, 1); // mouth
+    if (o === 1) {
+      // boonie hat: a soft crown, a floppy brim, foliage tucked in the band; a scope-squint eye under it
+      // face paint: two dark stripes across the cheek
+      r.seg(ghillie[1], hx + hs - 10, hy + 15, hx + hs + 2, hy + 13, 2, 2);
+      r.seg(ghillie[0], hx + hs - 8, hy + 19, hx + hs + 2, hy + 17, 2, 2);
+      r.ellipse(P.fabric, hx + hs / 2 + 1, hy + 2, hs / 2 + 3, hs / 2 - 1);
+      // a wide floppy brim, drooping at the front and back
+      r.poly(P.fabricD, [[hx - 12, hy + 11], [hx - 6, hy + 6], [hx + hs + 10, hy + 6], [hx + hs + 15, hy + 11], [hx + hs + 10, hy + 12], [hx - 6, hy + 11]]);
+      r.rect(P.strap, hx - 2, hy + 4, hs + 6, 2);
+      for (let i = 0; i < 5; i++) r.seg(ghillie[i % 3], hx - 2 + i * 4, hy + 4, hx - 4 + i * 4 + sw(i), hy - 5, 2.4, 1);
+      r.rect(P.glow, hx + hs - 4, hy + 13, 2, 1);
+    } else if (o === 2) {
+      // beret tilted over the front, a cap badge and dark shades
+      r.ellipse(P.armor, hx + hs / 2 + 3, hy + 2, hs / 2 + 6, hs / 2 - 4);
+      r.ellipse(P.armor, hx + hs + 4, hy + 4, 5, 3);
+      r.rect(P.dark, hx - 2, hy + 6, hs + 6, 2);
+      r.ellipse(P.mark, hx + 2, hy + 3, 2.2, 2.2);
+      r.rect(P.deep, hx + hs - 9, hy + 11, 12, 3);
+      r.rect(P.glow, hx + hs - 4, hy + 11, 2, 1);
+    } else {
     // helmet: a rounded shell with a lip, net strap and the goggles on the brow
     r.ellipse(P.armor, hx + hs / 2 + 1, hy + 4, hs / 2 + 5, hs / 2 - 1);
     r.rect(P.armor, hx - 4, hy + 2, hs + 10, 6);
@@ -139,6 +197,7 @@ export function drawHavoc(r: Raster, k: Skel, look: PlaceholderLook): void {
     r.ellipse(P.dark, hx + hs - 1, hy + 5, 4.5, 3.6);
     r.ellipse(P.lens, hx + hs - 1, hy + 5, 3, 2.3);
     r.ellipse(P.glow, hx + hs, hy + 4, 1, 1);
+    }
   }
 
   // ---- front arm with a combat knife ----
@@ -146,7 +205,8 @@ export function drawHavoc(r: Raster, k: Skel, look: PlaceholderLook): void {
     const [sx, sy] = k.shF;
     const el = k.elbowF;
     r.seg(P.fabric, sx, sy, el[0], el[1], 10, 9);
-    r.seg(P.fabric, el[0], el[1], k.handF[0], k.handF[1], 9, 8);
+    r.seg(o === 2 ? P.skin : P.fabric, el[0], el[1], k.handF[0], k.handF[1], 9, 8);
+    if (o === 2) r.ellipse(P.fabricD, el[0], el[1], 5.5, 5);
     // shoulder pad with a unit patch
     r.ellipse(P.armor, sx, sy - 1, 7, 6);
     r.rect(P.mark, sx - 3, sy - 2, 5, 3);

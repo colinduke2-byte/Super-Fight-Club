@@ -899,7 +899,7 @@ export function ensurePalette(scene: Phaser.Scene, data: CharacterData, palette:
   if (!alt) return data.id;
   const key = skinKey(data.id, palette);
   if (scene.textures.exists(fighterTextureKey(key))) return key;
-  buildPlaceholderSheet(scene, { ...data, id: key, sprite: { ...data.sprite, sheetUrl: undefined, placeholder: { ...data.sprite.placeholder, ...alt } } });
+  buildPlaceholderSheet(scene, { ...data, id: key, sprite: { ...data.sprite, sheetUrl: undefined, placeholder: { ...data.sprite.placeholder, armor: alt.armor, armorDark: alt.armorDark, accent: alt.accent, outfit: alt.outfit ?? 0 } } });
   return key;
 }
 

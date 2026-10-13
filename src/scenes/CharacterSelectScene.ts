@@ -1,6 +1,6 @@
 import Phaser from 'phaser';
 import { animFrameIndex, ensurePalette, fighterAnimKey, fighterTextureKey, portraitCrop, portraitK, uiTexK } from '../art/proceduralFighter';
-import { ALT_LOOKS, paletteCount } from '../art/palettes';
+import { ALT_LOOKS, lookName, paletteCount } from '../art/palettes';
 import { PIXEL_FONT } from '../art/pixelFont';
 import { CHARACTER_LIST } from '../characters';
 import { Lobby } from '../game/lobby';
@@ -26,8 +26,10 @@ interface Card {
   barBg: Phaser.GameObjects.Image[];
   tex: string;
   barW: number;
-  /** Palette swatches (the fighter's own colours first). */
+  /** Palette swatches (the fighter's own colours first): the original outfit on the top row, the alternates below. */
   swatches: Phaser.GameObjects.Image[];
+  /** Outfit and colour name of the chosen palette. */
+  outfit: Phaser.GameObjects.BitmapText;
 }
 
 /** Character select for 1-4 slots: devices join, pick with their own cursor, lock in; CPUs fill the rest. */
@@ -75,7 +77,8 @@ export class CharacterSelectScene extends MenuScene {
         barBg: [],
         tex: '',
         barW: 1,
-        swatches: [0, 1, 2, 3].map(() => {
+        outfit: text(this, this.ui, '', COLORS.dim),
+        swatches: [0, 1, 2, 3, 4, 5, 6, 7].map(() => {
           const sw = this.add.image(0, 0, 'px').setOrigin(0.5);
           this.ui.add(sw);
           return sw;
@@ -128,7 +131,12 @@ export class CharacterSelectScene extends MenuScene {
       c.name.setScale(u * 1.5).setOrigin(0.5, 0).setPosition(cx, top + 92 * u);
       c.status.setScale(u * 1.2).setOrigin(0.5, 0).setPosition(cx, top + 106 * u);
       c.tagline.setScale(u * 0.85).setOrigin(0.5, 0).setPosition(cx, top + 118 * u);
-      c.swatches.forEach((sw, k) => sw.setPosition(cx + (cw * 0.94) / 2 - 8 * u - (3 - k) * 7 * u, top + 72 * u).setData('u', u));
+      // top row: the original outfit's four colours; bottom row: outfit 1 (two colours), a gap, outfit 2 (two colours)
+      c.swatches.forEach((sw, k) => {
+        const col = k < 4 ? k : k < 6 ? k - 4 : k - 3.5;
+        sw.setPosition(cx + (cw * 0.94) / 2 - 8 * u - (3 - col) * 7 * u, top + (k < 4 ? 64 : 72) * u).setData('u', u);
+      });
+      c.outfit.setOrigin(1, 0).setPosition(cx + (cw * 0.94) / 2 - 5 * u, top + 31 * u).setData('u', u);
       c.bars.forEach((b, k) => {
         const by = top + 136 * u + k * 6 * u;
         c.barLabels[k].setScale(u * 0.8).setOrigin(0, 0).setPosition(cx - (cw * 0.94) / 2 + 5 * u, by - 0.5 * u);
@@ -178,6 +186,11 @@ export class CharacterSelectScene extends MenuScene {
         if (!on) return;
         sw.setTint(parseInt(looks[k].armor.slice(1), 16)).setScale(((k === pal ? 6 : 4) * su) / 4).setAlpha(k === pal ? 1 : 0.55);
       });
+      c.outfit.setVisible(slot.kind === 'human').setText(up(lookName(data.id, pal)));
+      const ou = (c.outfit.getData('u') as number) ?? u;
+      c.outfit.setScale(ou * 0.8);
+      const olimit = this.cardW * 0.5;
+      if (c.outfit.displayWidth > olimit) c.outfit.setScale((ou * 0.8 * olimit) / c.outfit.displayWidth);
       const dev = slot.kind === 'human' ? (inputManager.allDevices.find((d) => d.id === slot.deviceId)?.label ?? slot.deviceId ?? '') : slot.kind === 'cpu' ? `CPU LEVEL ${slot.cpuLevel}` : '';
       const teamTag = session.rules.teams && session.playerCount === 4 ? (i < 2 ? ' BLUE' : ' RED') : '';
       c.header.setText(up(`P${i + 1}${teamTag}`));
