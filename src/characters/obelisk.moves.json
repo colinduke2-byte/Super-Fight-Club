@@ -225,14 +225,20 @@
    "name": "Slab Swing",
    "kind": "tilt",
    "anim": "smashF",
-   "startup": 9,
+   "startup": 7,
    "active": 4,
-   "recovery": 14,
+   "recovery": 13,
    "cancels": [
     {
      "button": "grab",
      "into": "grab",
-     "from": 14
+     "from": 12
+    },
+    {
+     "button": "special",
+     "into": "neutralB",
+     "from": 10,
+     "dir": "neutral"
     }
    ],
    "hitboxes": [
@@ -269,12 +275,12 @@
    "name": "Crystal Crown",
    "kind": "tilt",
    "anim": "smashU",
-   "startup": 8,
+   "startup": 7,
    "active": 6,
-   "recovery": 14,
+   "recovery": 13,
    "events": [
     {
-     "frame": 8,
+     "frame": 7,
      "action": "fx",
      "name": "crown"
     }
@@ -283,12 +289,12 @@
     {
      "button": "jump",
      "into": "@jump",
-     "from": 13
+     "from": 12
     },
     {
      "button": "attack",
      "into": "utilt",
-     "from": 14,
+     "from": 13,
      "dir": "up"
     }
    ],
@@ -427,18 +433,18 @@
    "name": "Rockslide Charge",
    "kind": "dashAttack",
    "anim": "shoulder",
-   "startup": 8,
+   "startup": 7,
    "active": 8,
-   "recovery": 20,
+   "recovery": 18,
    "motion": [
     {
-     "frame": 5,
+     "frame": 4,
      "vx": 3.4
     }
    ],
    "events": [
     {
-     "frame": 8,
+     "frame": 7,
      "action": "fx",
      "name": "rubble"
     }
@@ -447,7 +453,13 @@
     {
      "button": "grab",
      "into": "grab",
-     "from": 10
+     "from": 9
+    },
+    {
+     "button": "special",
+     "into": "neutralB",
+     "from": 11,
+     "dir": "neutral"
     }
    ],
    "hitboxes": [
@@ -539,18 +551,18 @@
    "name": "Monolith Punch",
    "kind": "smash",
    "anim": "smashF",
-   "startup": 19,
+   "startup": 17,
    "active": 4,
-   "recovery": 30,
+   "recovery": 28,
    "charge": {
-    "frame": 10,
+    "frame": 8,
     "max": 60,
     "damageMult": 1.4,
     "kbMult": 1.2
    },
    "events": [
     {
-     "frame": 19,
+     "frame": 17,
      "action": "fx",
      "name": "shardburst"
     }
@@ -593,18 +605,18 @@
    "name": "Geode Burst",
    "kind": "smash",
    "anim": "smashU",
-   "startup": 14,
+   "startup": 12,
    "active": 6,
-   "recovery": 30,
+   "recovery": 28,
    "charge": {
-    "frame": 8,
+    "frame": 6,
     "max": 60,
     "damageMult": 1.4,
     "kbMult": 1.2
    },
    "events": [
     {
-     "frame": 14,
+     "frame": 12,
      "action": "fx",
      "name": "spikes"
     }
@@ -712,18 +724,18 @@
    "name": "Fault Line",
    "kind": "smash",
    "anim": "sweep",
-   "startup": 13,
+   "startup": 11,
    "active": 5,
-   "recovery": 28,
+   "recovery": 26,
    "charge": {
-    "frame": 8,
+    "frame": 6,
     "max": 60,
     "damageMult": 1.4,
     "kbMult": 1.2
    },
    "events": [
     {
-     "frame": 13,
+     "frame": 11,
      "action": "fx",
      "name": "quake"
     }
@@ -773,26 +785,33 @@
    "name": "Boulder Spin",
    "kind": "aerial",
    "anim": "aerialN",
-   "startup": 7,
+   "startup": 5,
    "active": 6,
    "recovery": 12,
    "landingLag": 9,
    "autocancel": [
     [
      1,
-     4
+     3
     ],
     [
-     22,
-     26
+     20,
+     23
     ]
    ],
    "cancels": [
     {
      "button": "attack",
      "into": "fair",
-     "from": 9,
+     "from": 7,
      "dir": "forward",
+     "air": true
+    },
+    {
+     "button": "attack",
+     "into": "uair",
+     "from": 8,
+     "dir": "up",
      "air": true
     }
    ],
@@ -885,9 +904,9 @@
    "name": "Hammerfist",
    "kind": "aerial",
    "anim": "aerialF",
-   "startup": 12,
+   "startup": 10,
    "active": 4,
-   "recovery": 18,
+   "recovery": 17,
    "landingLag": 12,
    "autocancel": [
     [
@@ -895,8 +914,8 @@
      3
     ],
     [
-     30,
-     34
+     27,
+     31
     ]
    ],
    "hitboxes": [
@@ -1015,13 +1034,20 @@
    },
    "view": {
     "smear": 1.3
-   }
+   },
+   "cancels": [
+    {
+     "button": "jump",
+     "into": "@jump",
+     "from": 10
+    }
+   ]
   },
   "dair": {
    "name": "Meteor Stomp",
    "kind": "aerial",
    "anim": "aerialD",
-   "startup": 16,
+   "startup": 14,
    "active": 5,
    "recovery": 18,
    "landingLag": 14,
@@ -1031,13 +1057,13 @@
      3
     ],
     [
-     32,
-     38
+     30,
+     36
     ]
    ],
    "events": [
     {
-     "frame": 16,
+     "frame": 14,
      "action": "fx",
      "name": "rubble"
     }
@@ -1265,19 +1291,19 @@
    "name": "Crystal Spire",
    "kind": "special",
    "anim": "castD",
-   "startup": 14,
+   "startup": 11,
    "active": 2,
-   "recovery": 22,
+   "recovery": 20,
    "events": [
     {
-     "frame": 14,
+     "frame": 11,
      "action": "deploy",
      "id": "pillar",
      "x": 38,
      "y": 0
     },
     {
-     "frame": 14,
+     "frame": 11,
      "action": "fx",
      "name": "rubble"
     }

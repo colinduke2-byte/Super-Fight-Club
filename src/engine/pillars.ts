@@ -1,4 +1,6 @@
+import { hitboxActive, hitboxRect } from './combat';
 import type { Deployable } from './entities';
+import type { MoveKind } from './moves';
 import { Platform } from './platform';
 import type { World } from './world';
 
@@ -80,7 +82,16 @@ function removePillar(world: World, d: Deployable): void {
   const owner = world.fighters[d.owner];
   const cx = p.x + p.w / 2;
   const cy = (p.top + d.y) / 2;
-  if (d.shatter && pd?.shards && owner && owner.state !== 'ko') {
+  if (d.shatter && pd?.shards && owner && owner.state !== 'ko' && d.aimAngle >= 0) {
+    // struck by its owner: the whole pillar is flung the way the blow was going, as a tight, fast spray
+    const s = pd.shards;
+    for (let k = 0; k < s.count; k++) {
+      const a = ((d.aimAngle + (k - (s.count - 1) / 2) * STRIKE_SPREAD) * Math.PI) / 180;
+      const sp = s.speed * STRIKE_SPEED * (1 - Math.abs(k - (s.count - 1) / 2) * 0.05);
+      world.spawnProjectile(d.owner, s.projectile, cx, cy - 4 + k * 3, Math.cos(a) * sp * d.aimDir, -Math.sin(a) * sp, STRIKE_DAMAGE);
+    }
+    world.emit('pillarShatter', owner, cx, cy, p.top - d.y, d.owner);
+  } else if (d.shatter && pd?.shards && owner && owner.state !== 'ko') {
     const s = pd.shards;
     for (let k = 0; k < s.count; k++) {
       // a fan from straight up to level on each side, weighted toward the sides
@@ -92,6 +103,42 @@ function removePillar(world: World, d: Deployable): void {
     world.emit('pillarCrumble', owner, cx, d.y, p.top - d.y, d.owner);
   }
   d.shatter = false;
+  d.aimAngle = -1;
+}
+
+/** Struck-pillar shards: fan width between shards (degrees), speed and damage multipliers over a plain shatter. */
+const STRIKE_SPREAD = 8;
+const STRIKE_SPEED = 1.35;
+const STRIKE_DAMAGE = 1.15;
+/** Move kinds whose hits can knock the owner's own pillars over (specials raise and stomp them on their own terms). */
+const STRIKE_KINDS: ReadonlySet<MoveKind> = new Set<MoveKind>(['jab', 'tilt', 'dashAttack', 'smash', 'aerial']);
+const rH = [0, 0, 0, 0];
+
+/**
+ * Smash your own pillars: a live melee hitbox of a pillar's owner touching one of its fully risen pillars shatters it, and
+ * the shards fly the way the blow was going (along the hitbox's launch angle). Build a wall, then knock it into the rival.
+ */
+export function strikePillars(world: World): void {
+  for (const f of world.fighters) {
+    const m = f.move;
+    if (f.state !== 'attack' || !m || f.hitlag > 0 || !STRIKE_KINDS.has(m.kind)) continue;
+    for (const d of world.deployables) {
+      const pd = d.def?.pillar;
+      if (!d.active || d.owner !== f.id || !d.plat || !pd || d.age < pd.riseFrames) continue;
+      const p = d.plat;
+      for (const hb of m.hitboxes) {
+        if (hb.grab || hb.throw || hb.damage <= 0 || !hitboxActive(f, m, hb)) continue;
+        hitboxRect(f, hb, rH);
+        if (rH[0] >= p.right || rH[0] + rH[2] <= p.x || rH[1] >= p.bottom || rH[1] + rH[3] <= p.top) continue;
+        d.aimAngle = hb.angle === 361 ? 40 : hb.angle;
+        d.aimDir = hb.dir === 'away' ? (d.x >= f.x ? 1 : -1) : f.facing;
+        d.shatter = true;
+        d.deactivate();
+        f.hitlag = Math.max(f.hitlag, 6); // a crunch of hit-stop on the blow
+        break;
+      }
+    }
+  }
 }
 
 /** Shatter every pillar `ownerId` has within `range` of x (Bedrock Stomp). Returns how many broke. */

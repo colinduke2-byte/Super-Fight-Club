@@ -67,6 +67,8 @@ export interface CharacterAi {
   spacing: number;
   /** A special that blows up the CPU's own deployables (Obelisk's Bedrock Stomp): used when a rival is next to one in range. */
   detonate?: { slot: string; range: number };
+  /** Knock our own pillar into a rival standing beyond it (Obelisk): smash it when it sits within `reach` px in front. */
+  strike?: { reach: number };
   /** A storable charge special (Brick's Charge Shoulder): wound up fully and banked with Shield when the rival is far away. */
   bank?: { slot: string; key: string; frames: number };
 }
@@ -169,6 +171,7 @@ CHARACTER_AI.obelisk = {
   recovery: { slot: 'upB', up: 90, out: 34, aim: 'fixed' },
   ultimateRange: 70,
   spacing: 44,
+  strike: { reach: 34 },
   detonate: { slot: 'downB', range: 120 },
 };
 

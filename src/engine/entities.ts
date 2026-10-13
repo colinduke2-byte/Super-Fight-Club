@@ -85,6 +85,9 @@ export class Deployable {
   plat: import('./platform').Platform | null = null;
   shatter = false;
   riseMask = 0;
+  /** A pillar its owner struck: the shards fly along this launch angle (degrees, -1 = the usual radial burst) and side. */
+  aimAngle = -1;
+  aimDir: 1 | -1 = 1;
 
   constructor(index: number) {
     this.index = index;
@@ -108,6 +111,8 @@ export class Deployable {
     this.damageMul = 1;
     this.shield = 0;
     this.modFrames = 0;
+    this.shatter = false;
+    this.aimAngle = -1;
   }
 
   deactivate(): void {

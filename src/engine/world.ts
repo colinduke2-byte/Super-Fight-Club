@@ -4,7 +4,7 @@ import { resolveEntityCombat, updateEntities } from './entityCombat';
 import type { MoveDef } from './moves';
 import { GRAB_DISTANCE, type Fighter } from './fighter';
 import { stepHazards } from './hazards';
-import { stepPillars } from './pillars';
+import { stepPillars, strikePillars } from './pillars';
 import { stepCollisions } from './physics';
 import { Item, MAX_ITEMS, stepItems } from './items';
 import { stepTargets, type Target } from './targets';
@@ -186,6 +186,7 @@ export class World {
     stepCollisions(this);
     updateEntities(this);
     resolveCombat(this);
+    strikePillars(this);
     resolveEntityCombat(this);
     stepHazards(this);
     stepItems(this);

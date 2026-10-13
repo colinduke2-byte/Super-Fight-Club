@@ -16,20 +16,19 @@ frame data where it hurts, and routes from one hit into the next.
 - [x] Faster frame data (jab 4, tilts 7-8, nair 5, fair 13, bair 8, uair 7, grab 6), better air drift and double jump.
 
 ## Gizmo: the inventor (cues: R.O.B., Peach, Snake)
-- [ ] **Jet hover** (Peach's float): hold Jump while falling to hover in place for up to 1.5 s per airtime; aerials can
+- [x] **Jet hover** (Peach's float): hold Jump while falling to hover in place for up to 1.5 s per airtime; aerials can
       be thrown while hovering (float-cancel pressure), with a jet flame and a fuel gauge.
-- [ ] **Catchable Rocket Fist** (R.O.B.'s Gyro): catching the returning fist refunds Scrap and lets Gizmo fire again
-      at once; hold to charge a bigger, faster fist.
-- [ ] **Grapple Tether hits**: the claw grabs a rival it touches and reels them in (Ivysaur / King K. Rool), leading
-      into a free follow-up.
-- [ ] Wall jump, faster specials (turret 11, fist 10), a real Drill Jab finisher, a faster wrench smash.
+- [x] **Catchable Rocket Fist** (R.O.B.'s Gyro): catching the returning fist refunds Scrap and overcharges the next
+      one (bigger, faster, harder hitting).
+- [x] **Grapple Claw**: a longer-reaching grab; the up-special tether still grabs rivals it touches (never teammates now).
+- [x] Wall jump, faster specials (turret 11, fist 10), a real Drill Jab finisher, a faster wrench smash.
 
 ## Obelisk: the architect (cues: Steve, Pyra, Banjo's Wonderwing for armor)
-- [ ] **Smash your own pillars**: any of Obelisk's melee hits on its own pillar shatters it into shards flung the way
+- [x] **Smash your own pillars**: any of Obelisk's melee hits on its own pillar shatters it into shards flung the way
       the hit was going. Build a wall, then knock it into the rival's face.
-- [ ] **Pillar parkour**: wall jump (pillars count as walls), and a pillar risen under Obelisk boosts its jump.
-- [ ] **Crystal Spire** comes out faster and bursts up under a rival standing on the spot (a real hit).
-- [ ] Faster normals (ftilt 7, nair 5, fair 10, dash attack 7, smashes 2-3 frames quicker), better air drift.
+- [x] **Pillar parkour**: wall jump (pillars count as walls).
+- [x] **Crystal Spire** comes out faster, and ftilt / dash attack route into it on hit, so the pillar pops the rival up.
+- [x] Faster normals (ftilt 7, nair 5, fair 10, dash attack 7, smashes 2-3 frames quicker), better air drift.
 
 ## The rest of the game
 - [ ] A review pass on every other fighter's slowest options, the CPU (use the new toys), training scenarios,

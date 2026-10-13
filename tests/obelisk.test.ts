@@ -111,3 +111,87 @@ describe('Obelisk', () => {
     expect(slam.pillars).toBe(0);
   });
 });
+
+describe('Obelisk fun pass', () => {
+  it('its own smash knocks a pillar over: the shards fly the way the blow was going', () => {
+    const t = rig(200);
+    t.o.startMove('neutralB', null, t.world);
+    t.run(40);
+    const p = t.pillars()[0];
+    expect(p).toBeDefined();
+    t.o.x = p.x - 30; // right next to it, facing it
+    t.o.facing = 1;
+    t.o.startMove('fsmash', null, t.world);
+    t.run(30);
+    expect(t.pillars()).toHaveLength(0);
+    const shards = t.world.projectiles.filter((s) => s.active && s.owner === 0);
+    expect(shards.length).toBeGreaterThanOrEqual(4);
+    for (const s of shards) expect(s.vx).toBeGreaterThan(3); // all forward, fast
+  });
+
+  it('a back air flings the pillar backwards', () => {
+    const t = rig(200);
+    t.o.startMove('neutralB', null, t.world);
+    t.run(40);
+    const p = t.pillars()[0];
+    t.o.x = p.x + 22;
+    t.o.facing = 1; // the pillar is behind
+    t.o.y = p.plat!.top + 10;
+    t.o.grounded = false;
+    t.o.hover = true;
+    t.o.setState('air');
+    t.o.startMove('bair', null, t.world);
+    t.run(20);
+    const shards = t.world.projectiles.filter((s) => s.active && s.owner === 0);
+    expect(shards.length).toBeGreaterThan(0);
+    for (const s of shards) expect(s.vx).toBeLessThan(0);
+  });
+
+  it('special moves do not knock over its own pillars (Upheaval rides one)', () => {
+    const t = rig(200);
+    t.o.startMove('upB', null, t.world);
+    t.run(12);
+    expect(t.pillars()).toHaveLength(1);
+  });
+
+  it('ftilt routes into Crystal Spire on hit, which pops the rival up', () => {
+    const t = rig(40);
+    t.b.damage = 30;
+    t.o.startMove('ftilt', null, t.world);
+    let spire = false;
+    for (let i = 0; i < 40; i++) {
+      t.world.step([inp({ held: 4, pressed: i === 9 ? 4 : 0 }), inp()]);
+      if (t.o.move?.id === 'neutralB') spire = true;
+    }
+    expect(spire).toBe(true);
+    expect(t.pillars().length).toBe(1);
+  });
+
+  it('can wall jump (pillar parkour)', () => {
+    expect(obelisk.wallJump).toBe(true);
+  });
+});
+
+describe('Obelisk CPU', () => {
+  it('knocks its own pillar into a rival standing beyond it', async () => {
+    const { CpuController } = await import('../src/ai/cpu');
+    let struck = 0;
+    for (let seed = 1; seed <= 4; seed++) {
+      const t = rig(120);
+      t.o.startMove('neutralB', null, t.world);
+      t.run(40);
+      const p = t.pillars()[0];
+      t.o.x = p.x - 24;
+      const cpu = new CpuController(3, seed);
+      const ia = inp();
+      for (let i = 0; i < 120 && t.pillars().length > 0; i++) {
+        Object.assign(ia, makeInput());
+        cpu.update(t.o, t.world, ia);
+        t.world.step([ia, inp()]);
+      }
+      t.run(2); // the shards fly out on the next tick
+      if (t.pillars().length === 0 && t.world.projectiles.some((s) => s.active && s.owner === 0 && s.vx > 3)) struck++;
+    }
+    expect(struck).toBeGreaterThanOrEqual(2);
+  });
+});

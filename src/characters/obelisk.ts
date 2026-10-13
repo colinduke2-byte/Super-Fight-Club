@@ -53,7 +53,7 @@ export const obelisk: CharacterData = {
   stats: {
     weight: 96,
     runSpeed: 2.02,
-    airSpeed: 1.72,
+    airSpeed: 1.85,
     groundAccel: 0.24,
     groundFriction: 0.32,
     airAccel: 0.15,
@@ -68,6 +68,8 @@ export const obelisk: CharacterData = {
     jumpsquatFrames: 4,
   },
   body: { width: 17, height: 30, footHalfWidth: 6 },
+  // pillar parkour: kick off the side of a pillar (or any wall)
+  wallJump: true,
   sprite: {
     frameSize: 176,
     frameWidth: 200,

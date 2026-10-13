@@ -889,6 +889,19 @@ export class CpuController implements Controller {
       this.runPlan(self, world);
     };
     const stalled = this.stall > 420;
+    // knock our own pillar over into a rival standing beyond it (the shards fly the way the smash goes)
+    if (ai.strike && self.grounded && !this.cooldownBusy('strike', 40)) {
+      for (const d of world.deployables) {
+        if (!d.active || d.owner !== self.id || !d.plat || d.age < 12) continue;
+        const ahead = (d.x - self.x) * dir;
+        if (ahead > 0 && ahead < ai.strike.reach && (tgt.x - d.x) * dir > 0 && dist < 240 && Math.abs(dy) < 60 && this.rnd() < 0.5 + 0.4 * p.punish) {
+          this.facingFix(self, tgt);
+          this.startPlan(world, 'strike', Button.Smash, dir, 0);
+          this.runPlan(self, world);
+          return true;
+        }
+      }
+    }
     // bank a full charge while the rival is far away (Giant Punch style), to fire it at once later
     if (ai.bank && p.smart && self.grounded && dist > 200 && (self.res[ai.bank.key] ?? 0) < ai.bank.frames && !this.cooldownBusy('bank', 120) && this.rnd() < 0.5) {
       const hold = ai.bank.frames + 12;
