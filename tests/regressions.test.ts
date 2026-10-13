@@ -76,5 +76,9 @@ describe('stage art', () => {
     const temple = new World(STAGES.temple);
     const tier = temple.platforms.filter((p) => p.kind === 'solid')[1];
     expect(isSeated(tier, STAGES.temple.platforms)).toBe(true);
+    // the Launch runway's segments are one long structure: no keel under each piece
+    const launch = new World(STAGES.launch);
+    const segs = launch.platforms.filter((p) => p.kind === 'solid').slice(1);
+    expect(segs.every((p) => isSeated(p, STAGES.launch.platforms))).toBe(true);
   });
 });
