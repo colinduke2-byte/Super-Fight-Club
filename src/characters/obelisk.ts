@@ -37,7 +37,7 @@ const behavior: CharacterBehavior = {
 };
 
 /**
- * Obelisk: a grumpy crystal golem, the terrain builder. Crystal Spire raises amethyst pillars (walls, platforms, shields
+ * Obelisk: a grumpy living obelisk of granite and amethyst, the terrain builder (a light middleweight). Crystal Spire raises amethyst pillars (walls, platforms, shields
  * against shots); Shard Volley and Bedrock Stomp shatter them into flying shards; Upheaval rides a pillar up to recover.
  */
 export const obelisk: CharacterData = {
@@ -51,23 +51,23 @@ export const obelisk: CharacterData = {
     epilogue: 'Obelisk tore the Super Fight Club down to the bedrock and grew a mountain over the hole. It is quiet now. That is how it likes it.',
   },
   stats: {
-    weight: 104,
-    runSpeed: 1.92,
-    airSpeed: 1.62,
+    weight: 96,
+    runSpeed: 2.02,
+    airSpeed: 1.72,
     groundAccel: 0.24,
     groundFriction: 0.32,
     airAccel: 0.15,
     airFriction: 0.05,
-    gravity: 0.52,
-    fallSpeed: 6.8,
-    fastFallSpeed: 10,
-    jumpHeight: 62,
+    gravity: 0.5,
+    fallSpeed: 6.5,
+    fastFallSpeed: 9.6,
+    jumpHeight: 66,
     shortHopHeight: 28,
-    doubleJumpHeight: 48,
+    doubleJumpHeight: 52,
     doubleJumps: 1,
-    jumpsquatFrames: 5,
+    jumpsquatFrames: 4,
   },
-  body: { width: 22, height: 28, footHalfWidth: 7 },
+  body: { width: 17, height: 30, footHalfWidth: 6 },
   sprite: {
     frameSize: 176,
     frameWidth: 200,
@@ -80,7 +80,7 @@ export const obelisk: CharacterData = {
       armorDark: '#4a3a32',
       accent: '#d8b0ff',
       outline: '#140c1c',
-      build: { shoulderW: 18, torsoH: 13, legH: 7.5, headSize: 7.5, armLen: 9.5, helmet: 'geode' },
+      build: { shoulderW: 14, torsoH: 14, legH: 10.5, headSize: 7, armLen: 11, helmet: 'geode' },
     },
   },
   moves,

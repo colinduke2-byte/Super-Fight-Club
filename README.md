@@ -405,8 +405,10 @@ fair) and a shark's jaws. His water moves **SOAK** whoever they hit (`src/charac
 
 ### Obelisk: crystal golem, the terrain builder
 
-Weight 104, middleweight, one double jump. A grumpy golem of granite with an amethyst spine and a glowing geode heart; the
-arena was built over its cave (`src/characters/obelisk.*`, `obeliskPillars.ts`). Its **crystal pillars** are real terrain
+Weight 96, a light middleweight (well under Brick's 108), quick on its feet, one double jump. A grumpy living obelisk: a tall,
+tapering shaft of granite under an amethyst capstone with one glowing eye-slit, a geode heart glowing through a crack, shards
+of crystal orbiting its head, and arms and legs of separate floating stones held together by crystal light; the arena was
+built over its cave (`src/characters/obelisk.*`, `obeliskPillars.ts`). Its **crystal pillars** are real terrain
 (`src/engine/pillars.ts`): solid platforms that grow out of the ground at run time.
 
 - **Pillars** (two at a time, a third replaces the oldest; 8 s each): they rise out of the ground in 9 frames, lifting anyone
