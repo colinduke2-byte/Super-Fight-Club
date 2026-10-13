@@ -72,6 +72,34 @@
     "color": "#ff9a3a",
     "size": 1.2
    }
+  },
+  "fist_hot": {
+   "w": 20,
+   "h": 18,
+   "life": 90,
+   "pierce": true,
+   "health": 3,
+   "boomerang": {
+    "out": 18,
+    "speed": 6.5
+   },
+   "hit": {
+    "x": 0,
+    "y": 0,
+    "w": 1,
+    "h": 1,
+    "damage": 7.5,
+    "angle": 40,
+    "base": 40,
+    "scaling": 0.62,
+    "hitlag": 1.3,
+    "fx": "blast"
+   },
+   "look": {
+    "shape": "fist",
+    "color": "#ffb02e",
+    "size": 1.55
+   }
   }
  },
  "deployables": {
@@ -223,25 +251,25 @@
    "name": "Wrench Smash",
    "kind": "jab",
    "anim": "smashF",
-   "startup": 8,
+   "startup": 6,
    "active": 3,
-   "recovery": 15,
+   "recovery": 13,
    "cancels": [
     {
      "button": "grab",
      "into": "grab",
-     "from": 9
+     "from": 7
     },
     {
      "button": "special",
      "into": "sideB",
-     "from": 9,
+     "from": 7,
      "dir": "side"
     }
    ],
    "motion": [
     {
-     "frame": 6,
+     "frame": 4,
      "vx": 1.2
     }
    ],
@@ -497,18 +525,18 @@
    "name": "Wrench Swing",
    "kind": "smash",
    "anim": "smashF",
-   "startup": 20,
+   "startup": 16,
    "active": 4,
-   "recovery": 29,
+   "recovery": 27,
    "charge": {
-    "frame": 7,
+    "frame": 3,
     "max": 60,
     "damageMult": 1.4,
     "kbMult": 1.2
    },
    "motion": [
     {
-     "frame": 14,
+     "frame": 10,
      "vx": 1.6
     }
    ],
@@ -758,23 +786,23 @@
    "name": "Drill Jab",
    "kind": "aerial",
    "anim": "aerialF",
-   "startup": 9,
+   "startup": 7,
    "active": 12,
    "recovery": 11,
    "landingLag": 11,
    "autocancel": [
     [
      1,
-     5
+     4
     ],
     [
-     27,
-     31
+     25,
+     29
     ]
    ],
    "motion": [
     {
-     "frame": 8,
+     "frame": 6,
      "vx": 1.0
     }
    ],
@@ -782,14 +810,14 @@
     {
      "button": "attack",
      "into": "bair",
-     "from": 12,
+     "from": 10,
      "dir": "back",
      "air": true
     },
     {
      "button": "attack",
      "into": "dair",
-     "from": 12,
+     "from": 10,
      "dir": "down",
      "air": true
     }
@@ -800,10 +828,10 @@
      "y": -10,
      "w": 30,
      "h": 14,
-     "damage": 3.83,
+     "damage": 5.6,
      "angle": 40,
-     "base": 30,
-     "scaling": 0.4,
+     "base": 38,
+     "scaling": 0.62,
      "window": [
       10,
       12
@@ -943,14 +971,14 @@
    "name": "Hammer Drop",
    "kind": "aerial",
    "anim": "aerialD",
-   "startup": 12,
+   "startup": 10,
    "active": 4,
    "recovery": 16,
    "landingLag": 14,
    "autocancel": [
     [
      1,
-     5
+     4
     ]
    ],
    "hitboxes": [
@@ -991,14 +1019,14 @@
    "name": "Grapple Claw",
    "kind": "grab",
    "anim": "grab",
-   "startup": 7,
+   "startup": 8,
    "active": 2,
-   "recovery": 24,
+   "recovery": 29,
    "hitboxes": [
     {
-     "x": 20,
+     "x": 32,
      "y": -11,
-     "w": 28,
+     "w": 48,
      "h": 18,
      "damage": 0,
      "angle": 0,
@@ -1101,19 +1129,19 @@
    "name": "Turret Deploy",
    "kind": "special",
    "anim": "castD",
-   "startup": 14,
+   "startup": 11,
    "active": 1,
    "recovery": 16,
    "events": [
     {
-     "frame": 12,
+     "frame": 9,
      "action": "deploy",
      "id": "turret",
      "x": 22,
      "y": 0
     },
     {
-     "frame": 12,
+     "frame": 9,
      "action": "fx",
      "name": "place"
     }
@@ -1192,12 +1220,12 @@
    "name": "Rocket Fist",
    "kind": "special",
    "anim": "castF",
-   "startup": 14,
+   "startup": 11,
    "active": 1,
    "recovery": 20,
    "events": [
     {
-     "frame": 12,
+     "frame": 9,
      "action": "projectile",
      "id": "fist",
      "x": 18,
@@ -1206,7 +1234,7 @@
      "vy": 0
     },
     {
-     "frame": 12,
+     "frame": 9,
      "action": "fx",
      "name": "rocket"
     }
@@ -1228,6 +1256,48 @@
     "smear": 1.2,
     "arc": "line"
    }
+  },
+  "sideB_hot": {
+   "name": "Rocket Fist (overcharged)",
+   "kind": "special",
+   "anim": "castF",
+   "startup": 7,
+   "active": 1,
+   "recovery": 20,
+   "events": [
+    {
+     "frame": 5,
+     "action": "projectile",
+     "id": "fist_hot",
+     "x": 18,
+     "y": -12,
+     "vx": 6.8,
+     "vy": 0
+    },
+    {
+     "frame": 5,
+     "action": "fx",
+     "name": "rocketHot"
+    }
+   ],
+   "hitboxes": [],
+   "pose": {
+    "from": [
+     -8,
+     -32
+    ],
+    "reach": 24,
+    "h": -6,
+    "lean": 5,
+    "crouch": 0,
+    "t": "overhead"
+   },
+   "view": {
+    "stretch": 1.12,
+    "smear": 1.2,
+    "arc": "line"
+   },
+   "hidden": true
   },
   "upB": {
    "name": "Grapple Tether",

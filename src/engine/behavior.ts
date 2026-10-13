@@ -35,6 +35,8 @@ export interface CharacterBehavior {
   onSpawn?(f: Fighter): void;
   /** One of f's deployables was destroyed by an enemy attack. */
   onDeployableDestroyed?(f: Fighter, id: string, world: World): void;
+  /** One of f's boomerang projectiles came back and f caught it (f was free to: not in hitstun, grabbed or KO'd). */
+  onProjectileReturn?(f: Fighter, defId: string, world: World): void;
   /**
    * Called when a special input maps to move `id` (neutralB, sideB, ...). Return another move id to run
    * instead (Vex's recall), or null to ignore the press.

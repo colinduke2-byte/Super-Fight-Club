@@ -390,6 +390,9 @@ export class Fighter implements Body {
   /** Wings: true while gliding this tick (view picks the glide pose); frames spent gliding this airtime. */
   gliding = false;
   glideFrames = 0;
+  /** Jet hover (see CharacterData.hover): true while hanging in the air this tick; frames used this airtime. */
+  jetting = false;
+  jetFrames = 0;
   private climbFromX = 0;
   private climbFromY = 0;
 
@@ -1054,6 +1057,8 @@ export class Fighter implements Body {
     this.fastFalling = false;
     this.glideFrames = 0;
     this.gliding = false;
+    this.jetFrames = 0;
+    this.jetting = false;
     this.ledgeGrabs = 0;
     this.airDodgeUsed = false;
     this.wallJumps = 0;
@@ -1584,8 +1589,15 @@ export class Fighter implements Body {
     if (this.moveFrame >= moveTotal(m)) this.finishMove(world);
   }
 
+  /** Jet hover conditions: a hover-capable fighter falling (or at the apex) with Jump held and fuel left this airtime. */
+  private canJet(inp: FighterInput): boolean {
+    const hv = this.data.hover;
+    return !!hv && !this.grounded && !this.helpless && !this.fastFalling && this.vy >= 0 && (inp.held & Button.Jump) !== 0 && this.jetFrames < hv.frames;
+  }
+
   private attackPhysics(m: MoveDef, inp: FighterInput, world: World): void {
     const s = this.stats;
+    this.jetting = false;
     if (this.grounded) {
       this.vx = approach(this.vx, 0, s.groundFriction * this.surfaceFriction() * 0.7);
     } else {
@@ -1596,7 +1608,12 @@ export class Fighter implements Body {
         world.emit('fastFall', this, this.x, this.y - this.h / 2, 0, 0);
       }
       if (this.hover) this.vy = 0;
-      else this.vy += s.gravity * (m.gravityScale ?? 1);
+      else if (m.kind === 'aerial' && this.canJet(inp)) {
+        // aerials thrown from a hover keep hovering (Peach's float-cancel pressure)
+        this.jetting = true;
+        this.jetFrames++;
+        this.vy = 0;
+      } else this.vy += s.gravity * (m.gravityScale ?? 1);
       const cap = this.fastFalling && m.kind === 'aerial' ? s.fastFallSpeed : s.fallSpeed;
       if (this.vy > cap) this.vy = cap;
       const target = inp.stickX * s.airSpeed * 0.8;
@@ -1915,8 +1932,17 @@ export class Fighter implements Body {
       this.vy = gl.fall;
     }
 
+    // jet hover: hold Jump while falling to hang in the air for a while (aerials keep hovering, see attackPhysics)
+    const hv = this.data.hover;
+    this.jetting = false;
+    if (hv && this.canJet(inp)) {
+      this.jetting = true;
+      this.jetFrames++;
+      this.vy = 0;
+    }
+
     // air drift
-    const target = inp.stickX * s.airSpeed * this.speedMul * (this.helpless ? HELPLESS_DRIFT : 1) * (this.gliding && gl ? gl.speed : 1);
+    const target = inp.stickX * s.airSpeed * this.speedMul * (this.helpless ? HELPLESS_DRIFT : 1) * (this.gliding && gl ? gl.speed : 1) * (this.jetting && hv ? hv.drift : 1);
     if (Math.abs(inp.stickX) < 0.05) {
       this.vx = approach(this.vx, 0, s.airFriction);
     } else if (Math.abs(this.vx) > s.airSpeed && Math.sign(this.vx) === Math.sign(target)) {
@@ -2141,6 +2167,7 @@ export class Fighter implements Body {
     this.clingFrames = 0;
     l.occupant = this.id;
     this.glideFrames = 0;
+    this.jetFrames = 0;
     this.ledgeGrabs++;
     this.ledgeFrames = 0;
     this.x = l.x + l.side * (this.hw + 1);

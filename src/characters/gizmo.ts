@@ -13,6 +13,8 @@ validateFx('gizmo', fx);
 
 const json = movesJson as unknown as CharacterJson;
 const MECH_SCALE = 1.7;
+/** Scrap refunded for catching the returning Rocket Fist. */
+const CATCH_SCRAP = 1.5;
 
 /** While Mech mode is on, attacks are swapped for these heavier versions. */
 const MECH_REMAP: Record<string, string> = {
@@ -43,9 +45,19 @@ const behavior: CharacterBehavior = {
     return f.res.mech > 0 ? (MECH_REMAP[id] ?? id) : id;
   },
   chooseMove(f, id, world) {
-    // only one Rocket Fist in flight
-    if (id === 'sideB' && world.projectiles.some((p) => p.active && p.owner === f.id && p.defId === 'fist')) return null;
-    return id;
+    if (id !== 'sideB') return id;
+    // only one Rocket Fist in flight; a caught one comes back out overcharged
+    if (world.projectiles.some((p) => p.active && p.owner === f.id && (p.defId === 'fist' || p.defId === 'fist_hot'))) return null;
+    return f.res.hotFist > 0 ? 'sideB_hot' : 'sideB';
+  },
+  onMoveStart(f, m) {
+    if (m.id === 'sideB_hot') f.res.hotFist = 0;
+  },
+  // catching the returning Rocket Fist (R.O.B.'s Gyro): a little Scrap back, and the next one is overcharged
+  onProjectileReturn(f, defId) {
+    if (defId !== 'fist' && defId !== 'fist_hot') return;
+    f.res.scrap = clampScrap(f.res.scrap + CATCH_SCRAP);
+    if (defId === 'fist') f.res.hotFist = 1;
   },
   onHitDealt(f, _victim, _hb, damage) {
     f.res.scrap = clampScrap(f.res.scrap + scrapFromDamage(damage));
@@ -120,6 +132,9 @@ export const gizmo: CharacterData = {
     jumpsquatFrames: 4,
   },
   body: { width: 16, height: 22, footHalfWidth: 6 },
+  wallJump: true,
+  // jet hover: hold Jump while falling to hang in the air for 1.5 s per airtime
+  hover: { frames: 90, drift: 1.15 },
   sprite: {
     frameSize: 160,
     pixelScale: 0.29,
@@ -139,7 +154,7 @@ export const gizmo: CharacterData = {
   moves,
   projectiles: json.projectiles,
   deployables: json.deployables,
-  resources: { scrap: 0, scrapBar: 0, mech: 0 },
+  resources: { scrap: 0, scrapBar: 0, mech: 0, hotFist: 0 },
   ultimate: { cost: 100, gainDealt: 0.28, gainTaken: 0.4 },
   hud: { resource: 'scrapBar', max: 100, color: 0xffb02e, hotAt: 50 },
   counter: { resource: 'scrap' },

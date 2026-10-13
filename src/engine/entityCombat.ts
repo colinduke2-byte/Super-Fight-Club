@@ -63,6 +63,10 @@ function updateProjectiles(world: World): void {
         const d = Math.hypot(dx, dy) || 1;
         if (d < def.boomerang.speed + 6) {
           p.deactivate();
+          if (owner.state !== 'hitstun' && owner.state !== 'grabbed' && owner.state !== 'ko') {
+            world.emit('fx', owner, p.x, p.y, owner.facing, 0, 'catch');
+            owner.data.behavior?.onProjectileReturn?.(owner, p.defId, world);
+          }
           continue;
         }
         p.vx = (dx / d) * def.boomerang.speed;

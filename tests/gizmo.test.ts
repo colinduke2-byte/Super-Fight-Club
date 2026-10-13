@@ -334,3 +334,71 @@ describe('Mega Mech Mode', () => {
     expect(r.a.hurtH).toBeGreaterThan(gizmo.body.height * 1.5);
   });
 });
+
+describe('Gizmo fun pass', () => {
+  it('jet hover: holding Jump at the top of a jump hangs Gizmo in the air until the fuel runs out', () => {
+    const r = rig(120);
+    r.tick(press(Button.Jump));
+    let hung = 0;
+    let lowest = -Infinity;
+    for (let i = 0; i < 200; i++) {
+      r.tick(inp({ held: Button.Jump }));
+      if (r.a.jetting) hung++;
+      if (i > 30 && i < 100) lowest = Math.max(lowest, r.a.y);
+    }
+    expect(hung).toBe(gizmo.hover!.frames);
+    expect(r.a.grounded).toBe(true); // ran out and came down
+    expect(lowest).toBeLessThan(-20); // stayed up during the hover
+  });
+
+  it('an aerial thrown from a hover keeps hovering', () => {
+    const r = rig(120);
+    r.tick(press(Button.Jump));
+    for (let i = 0; i < 40; i++) r.tick(inp({ held: Button.Jump }));
+    expect(r.a.jetting).toBe(true);
+    const y = r.a.y;
+    r.tick(inp({ held: Button.Jump | Button.Attack, pressed: Button.Attack }));
+    expect(r.a.state).toBe('attack');
+    r.run(12, inp({ held: Button.Jump }));
+    expect(Math.abs(r.a.y - y)).toBeLessThan(1);
+  });
+
+  it('catching the returning Rocket Fist refunds Scrap and overcharges the next one', () => {
+    const r = rig(120);
+    r.b.spawn(-200, -1, 1); // behind Gizmo, out of the fist's way
+    r.a.res.scrap = 0;
+    r.tick(press(Button.Special, { stickX: 1 }));
+    expect(r.a.move?.id).toBe('sideB');
+    let caught = false;
+    r.world.listener = (t, _f, _x, _y, _m, _e, tag) => {
+      if (t === 'fx' && tag === 'catch') caught = true;
+    };
+    for (let i = 0; i < 120 && !caught; i++) r.tick();
+    expect(caught).toBe(true);
+    expect(r.a.res.scrap).toBeGreaterThan(1);
+    expect(r.a.res.hotFist).toBe(1);
+    r.run(10);
+    r.tick(press(Button.Special, { stickX: 1 }));
+    expect(r.a.move?.id).toBe('sideB_hot');
+    r.run(14);
+    expect(r.world.projectiles.some((p) => p.active && p.defId === 'fist_hot')).toBe(true);
+    expect(r.a.res.hotFist).toBe(0);
+  });
+
+  it('can wall jump, and its specials come out quickly', () => {
+    expect(gizmo.wallJump).toBe(true);
+    expect(gizmo.moves.neutralB.startup).toBeLessThanOrEqual(11);
+    expect(gizmo.moves.sideB.startup).toBeLessThanOrEqual(11);
+  });
+
+  it('the grapple tether never grabs a teammate', () => {
+    const r = rig(60);
+    r.a.team = 0;
+    r.b.team = 0;
+    r.b.spawn(r.a.x + 10, -40, -1);
+    r.b.hover = true;
+    r.a.startMove('upB', null, r.world);
+    r.run(10);
+    expect(r.b.state).not.toBe('grabbed');
+  });
+});

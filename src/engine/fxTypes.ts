@@ -55,6 +55,8 @@ export interface FxWhen {
   minSpeed?: number;
   res?: { key: string; min?: number; max?: number };
   charging?: boolean;
+  /** Jet-hovering this tick (CharacterData.hover). */
+  jetting?: boolean;
   /** Smash / special charge fraction at least this (0..1). */
   chargeMin?: number;
   /** Also run during hit-stop (default: skipped). */

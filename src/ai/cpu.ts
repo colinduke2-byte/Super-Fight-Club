@@ -387,6 +387,8 @@ export class CpuController implements Controller {
       this.held |= Button.Jump;
       ep.jumpDelay = 0;
     }
+    // jet hover (Gizmo): once the double jump is spent, hang in the air while drifting back toward the stage
+    if (self.data.hover && !this.rec.special && !self.grounded && self.vy >= 0 && self.jumpsLeft === 0 && self.state === 'air' && this.params.recovery > 0.8) this.held |= Button.Jump;
     if (this.rec.special) {
       this.held |= Button.Special;
       ep.specialPressed = true;

@@ -170,6 +170,7 @@ function whenOk(w: FxWhen | undefined, f: Fighter): boolean {
   if (f.hitlag > 0 && !w.hitlag) return false;
   if (w.states && !w.states.includes(f.state)) return false;
   if (w.charging !== undefined && (f.state === 'attack' && f.chargeFrames > 0) !== w.charging) return false;
+  if (w.jetting !== undefined && f.jetting !== w.jetting) return false;
   const m = f.move;
   if (w.kinds || w.moves || w.phase || w.frames) {
     if (f.state !== 'attack' || !m) return false;
