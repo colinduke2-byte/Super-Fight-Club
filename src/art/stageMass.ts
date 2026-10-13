@@ -16,7 +16,8 @@ export const MASS_HEAD = 8; // art px of headroom above the walking surface (gra
 /** True when solid platform `p` rests on top of another solid one (a tier): it is drawn without a keel. */
 export function isSeated(p: { x: number; y: number; w: number; h: number }, all: ReadonlyArray<{ x: number; y: number; w: number; h: number; kind: string }>): boolean {
   const bottom = p.y + p.h;
-  return all.some((q) => q !== p && q.kind === 'solid' && bottom >= q.y && bottom <= q.y + q.h && p.x >= q.x && p.x + p.w <= q.x + q.w);
+  const same = (q: { x: number; y: number; w: number; h: number }): boolean => q.x === p.x && q.y === p.y && q.w === p.w && q.h === p.h; // the sim's Platform is a copy of its def
+  return all.some((q) => q !== p && !same(q) && q.kind === 'solid' && bottom >= q.y && bottom <= q.y + q.h && p.x >= q.x && p.x + p.w <= q.x + q.w);
 }
 
 interface MassTheme {

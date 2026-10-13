@@ -4,6 +4,8 @@ import { makeInput } from '../src/engine/buttons';
 import { Fighter } from '../src/engine/fighter';
 import { World } from '../src/engine/world';
 import { classicStage } from '../src/stages/classic';
+import { isSeated } from '../src/art/stageMass';
+import { STAGES } from '../src/stages';
 
 /** Bugs found in review: each test pins one fix. */
 function duel(a: string, b: string) {
@@ -60,5 +62,19 @@ describe('regressions', () => {
     t.run(200);
     expect(t.fb.state).not.toBe('grabbed');
     if (!t.fa.grounded && t.fa.state !== 'ko') expect(t.fa.state).not.toBe('idle');
+  });
+});
+
+describe('stage art', () => {
+  it('a main stage keeps its keel: the sim platform copy is not "seated" on its own definition', () => {
+    for (const id of ['classic', 'wreck', 'temple', 'skyhold']) {
+      const world = new World(STAGES[id]);
+      const main = world.platforms.find((p) => p.kind === 'solid')!;
+      expect(isSeated(main, STAGES[id].platforms)).toBe(false);
+    }
+    // a raised tier resting on the main block is still seated
+    const temple = new World(STAGES.temple);
+    const tier = temple.platforms.filter((p) => p.kind === 'solid')[1];
+    expect(isSeated(tier, STAGES.temple.platforms)).toBe(true);
   });
 });
