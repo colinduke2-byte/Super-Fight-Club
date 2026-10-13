@@ -169,7 +169,8 @@ export interface MoveDef {
   /** Aerials: [from,to] move-frame ranges in which landing cancels all lag. */
   autocancel?: [number, number][];
   /** Smashes: hold at `frame` while the button is held, up to `max` frames. */
-  charge?: { frame: number; max: number; damageMult: number; kbMult?: number };
+  /** `store`: a resource key; Shield during the hold banks the charge there and the next use starts from it. */
+  charge?: { frame: number; max: number; damageMult: number; kbMult?: number; store?: string };
   /** Armor window: hits with damage <= threshold do not interrupt (damage still taken). Omit threshold for super armor. */
   armor?: { from: number; to: number; threshold?: number };
   /** Jab chain: pressing Attack during [from,to] starts `id` once the move reaches frame `at`. */
@@ -226,7 +227,7 @@ export interface ProjectileDef {
   boomerang?: { out: number; speed: number };
   /** Keeps this fraction of speed when bouncing off solid floors. 0 = vanishes on contact. */
   bounce?: number;
-  look: { shape: 'orb' | 'bolt' | 'bullet' | 'fist' | 'beam' | 'shard'; color: string; size?: number };
+  look: { shape: 'orb' | 'bolt' | 'bullet' | 'fist' | 'beam' | 'shard' | 'wave'; color: string; size?: number };
 }
 
 export interface DeployableDef {

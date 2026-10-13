@@ -310,7 +310,13 @@ export function deliverHit(world: World, d: HitDelivery): void {
     def.gainResourcesTaken(d.damage);
     def.data.behavior?.onHitTaken?.(def, atk, d.damage, world);
     world.emit('armorHit', def, def.x, midY, d.damage, d.damage);
-    atk?.gainMeter(d.damage, world);
+    if (atk) {
+      // the hit still connected: it feeds the attacker's meter, resources and hooks, and counts as landed for cancels
+      if (d.freezeOwner !== false) atk.moveLanded = true;
+      atk.gainMeter(d.damage, world);
+      atk.gainResourcesDealt(d.damage);
+      atk.data.behavior?.onHitDealt?.(atk, def, hb, d.damage, world);
+    }
     return;
   }
 

@@ -4,32 +4,32 @@
    "name": "Piston Jab 1",
    "kind": "jab",
    "anim": "jab",
-   "startup": 5,
+   "startup": 4,
    "active": 2,
-   "recovery": 8,
+   "recovery": 7,
    "next": {
     "id": "jab2",
-    "from": 6,
-    "to": 12,
-    "at": 12
+    "from": 5,
+    "to": 11,
+    "at": 11
    },
    "cancels": [
     {
      "button": "attack",
      "into": "dtilt",
-     "from": 6,
+     "from": 5,
      "dir": "down"
     },
     {
      "button": "attack",
      "into": "ftilt",
-     "from": 6,
+     "from": 5,
      "dir": "forward"
     },
     {
      "button": "special",
      "into": "neutralB",
-     "from": 6,
+     "from": 5,
      "dir": "neutral"
     }
    ],
@@ -64,26 +64,26 @@
    "name": "Piston Jab 2",
    "kind": "jab",
    "anim": "jabB",
-   "startup": 6,
+   "startup": 5,
    "active": 2,
-   "recovery": 9,
+   "recovery": 8,
    "next": {
     "id": "jab3",
-    "from": 7,
-    "to": 13,
-    "at": 13
+    "from": 6,
+    "to": 12,
+    "at": 12
    },
    "cancels": [
     {
      "button": "attack",
      "into": "ftilt",
-     "from": 7,
+     "from": 6,
      "dir": "forward"
     },
     {
      "button": "smash",
      "into": "fsmash",
-     "from": 7
+     "from": 6
     }
    ],
    "hitboxes": [
@@ -118,7 +118,7 @@
    },
    "motion": [
     {
-     "frame": 5,
+     "frame": 4,
      "vx": 0.8
     }
    ]
@@ -127,24 +127,24 @@
    "name": "Piston Shove",
    "kind": "jab",
    "anim": "smashF",
-   "startup": 8,
+   "startup": 7,
    "active": 3,
-   "recovery": 17,
+   "recovery": 15,
    "cancels": [
     {
      "button": "smash",
      "into": "fsmash",
-     "from": 9
+     "from": 8
     },
     {
      "button": "grab",
      "into": "grab",
-     "from": 9
+     "from": 8
     }
    ],
    "motion": [
     {
-     "frame": 6,
+     "frame": 5,
      "vx": 1.2
     }
    ],
@@ -179,30 +179,30 @@
    "name": "Piston Hook",
    "kind": "tilt",
    "anim": "jab",
-   "startup": 10,
+   "startup": 8,
    "active": 3,
-   "recovery": 16,
+   "recovery": 14,
    "cancels": [
     {
      "button": "smash",
      "into": "fsmash",
-     "from": 7
+     "from": 5
     },
     {
      "button": "attack",
      "into": "utilt",
-     "from": 7,
+     "from": 5,
      "dir": "up"
     },
     {
      "button": "jump",
      "into": "@jump",
-     "from": 8
+     "from": 6
     }
    ],
    "motion": [
     {
-     "frame": 5,
+     "frame": 3,
      "vx": 1.4
     }
    ],
@@ -241,19 +241,19 @@
    "name": "Overhead Swing",
    "kind": "tilt",
    "anim": "smashU",
-   "startup": 9,
+   "startup": 7,
    "active": 4,
-   "recovery": 16,
+   "recovery": 14,
    "cancels": [
     {
      "button": "jump",
      "into": "@jump",
-     "from": 7
+     "from": 5
     },
     {
      "button": "smash",
      "into": "usmash",
-     "from": 8
+     "from": 6
     }
    ],
    "hitboxes": [
@@ -292,20 +292,20 @@
    "name": "Low Sweep Kick",
    "kind": "tilt",
    "anim": "sweep",
-   "startup": 8,
+   "startup": 7,
    "active": 3,
-   "recovery": 12,
+   "recovery": 11,
    "cancels": [
     {
      "button": "attack",
      "into": "ftilt",
-     "from": 6,
+     "from": 5,
      "dir": "forward"
     },
     {
      "button": "jump",
      "into": "@jump",
-     "from": 6
+     "from": 5
     }
    ],
    "hitboxes": [
@@ -334,12 +334,12 @@
    "name": "Shoulder Charge",
    "kind": "dashAttack",
    "anim": "shoulder",
-   "startup": 8,
+   "startup": 7,
    "active": 8,
-   "recovery": 19,
+   "recovery": 18,
    "motion": [
     {
-     "frame": 4,
+     "frame": 3,
      "vx": 3.2
     }
    ],
@@ -347,17 +347,17 @@
     {
      "button": "grab",
      "into": "grab",
-     "from": 9
+     "from": 8
     },
     {
      "button": "smash",
      "into": "fsmash",
-     "from": 9
+     "from": 8
     },
     {
      "button": "attack",
      "into": "utilt",
-     "from": 9,
+     "from": 8,
      "dir": "up"
     }
    ],
@@ -380,23 +380,23 @@
    "name": "Piston Slam",
    "kind": "smash",
    "anim": "smashF",
-   "startup": 23,
+   "startup": 20,
    "active": 3,
-   "recovery": 31,
+   "recovery": 29,
    "charge": {
-    "frame": 6,
+    "frame": 3,
     "max": 60,
     "damageMult": 1.4,
     "kbMult": 1.2
    },
    "armor": {
-    "from": 8,
-    "to": 20,
+    "from": 5,
+    "to": 17,
     "threshold": 12
    },
    "motion": [
     {
-     "frame": 15,
+     "frame": 12,
      "vx": 2.2
     }
    ],
@@ -438,18 +438,18 @@
    "name": "Overhead Crush",
    "kind": "smash",
    "anim": "smashU",
-   "startup": 18,
+   "startup": 15,
    "active": 4,
-   "recovery": 31,
+   "recovery": 28,
    "charge": {
-    "frame": 5,
+    "frame": 2,
     "max": 60,
     "damageMult": 1.4,
     "kbMult": 1.2
    },
    "armor": {
-    "from": 6,
-    "to": 17,
+    "from": 3,
+    "to": 14,
     "threshold": 0
    },
    "hitboxes": [
@@ -555,18 +555,18 @@
    "name": "Shockwave Stomp",
    "kind": "smash",
    "anim": "smashD",
-   "startup": 16,
+   "startup": 13,
    "active": 4,
-   "recovery": 29,
+   "recovery": 27,
    "charge": {
-    "frame": 4,
+    "frame": 1,
     "max": 60,
     "damageMult": 1.4,
     "kbMult": 1.2
    },
    "armor": {
-    "from": 4,
-    "to": 13,
+    "from": 1,
+    "to": 10,
     "threshold": 0
    },
    "hitboxes": [
@@ -610,32 +610,32 @@
    "name": "Plate Spin",
    "kind": "aerial",
    "anim": "aerialN",
-   "startup": 6,
+   "startup": 5,
    "active": 18,
    "recovery": 11,
    "landingLag": 10,
    "autocancel": [
     [
      1,
-     4
+     3
     ],
     [
-     31,
-     35
+     30,
+     34
     ]
    ],
    "cancels": [
     {
      "button": "attack",
      "into": "fair",
-     "from": 8,
+     "from": 7,
      "dir": "forward",
      "air": true
     },
     {
      "button": "attack",
      "into": "uair",
-     "from": 8,
+     "from": 7,
      "dir": "up",
      "air": true
     }
@@ -692,25 +692,25 @@
    "name": "Hammer Fist",
    "kind": "aerial",
    "anim": "aerialF",
-   "startup": 17,
+   "startup": 13,
    "active": 3,
-   "recovery": 22,
-   "landingLag": 18,
+   "recovery": 20,
+   "landingLag": 14,
    "autocancel": [
     [
      1,
-     6
+     5
     ],
     [
-     38,
-     42
+     33,
+     36
     ]
    ],
    "cancels": [
     {
      "button": "attack",
      "into": "bair",
-     "from": 20,
+     "from": 16,
      "dir": "back",
      "air": true
     }
@@ -760,18 +760,18 @@
    "name": "Shoulder Bash",
    "kind": "aerial",
    "anim": "aerialB",
-   "startup": 9,
+   "startup": 8,
    "active": 3,
-   "recovery": 14,
+   "recovery": 13,
    "landingLag": 10,
    "autocancel": [
     [
      1,
-     5
+     4
     ],
     [
-     22,
-     26
+     21,
+     24
     ]
    ],
    "hitboxes": [
@@ -802,23 +802,23 @@
    "name": "Rising Uppercut",
    "kind": "aerial",
    "anim": "aerialU",
-   "startup": 8,
+   "startup": 7,
    "active": 4,
-   "recovery": 16,
+   "recovery": 14,
    "landingLag": 9,
    "autocancel": [
     [
      1,
-     4
+     3
     ],
     [
-     24,
-     28
+     22,
+     25
     ]
    ],
    "motion": [
     {
-     "frame": 8,
+     "frame": 7,
      "vy": -3.2,
      "mode": "set"
     }
@@ -850,15 +850,14 @@
    "name": "Crater Stomp",
    "kind": "aerial",
    "anim": "aerialD",
-   "startup": 16,
+   "startup": 14,
    "active": 5,
-   "recovery": 19,
-   "landingLag": 14,
-   "landBounce": 5.5,
+   "recovery": 18,
+   "landingLag": 12,
    "autocancel": [
     [
      1,
-     5
+     4
     ]
    ],
    "hitboxes": [
@@ -889,9 +888,9 @@
    "name": "Clamp",
    "kind": "grab",
    "anim": "grab",
-   "startup": 7,
+   "startup": 6,
    "active": 2,
-   "recovery": 26,
+   "recovery": 24,
    "hitboxes": [
     {
      "x": 22,
@@ -1003,29 +1002,30 @@
    "name": "Charge Shoulder",
    "kind": "special",
    "anim": "chargeS",
-   "startup": 20,
+   "startup": 16,
    "active": 14,
    "recovery": 22,
    "charge": {
-    "frame": 8,
+    "frame": 4,
     "max": 50,
     "damageMult": 1.5,
-    "kbMult": 1.25
+    "kbMult": 1.25,
+    "store": "punch"
    },
    "armor": {
-    "from": 10,
-    "to": 22,
+    "from": 6,
+    "to": 18,
     "threshold": 0
    },
    "motion": [
     {
-     "frame": 10,
+     "frame": 6,
      "vx": 3.8
     }
    ],
    "events": [
     {
-     "frame": 10,
+     "frame": 6,
      "action": "fx",
      "name": "ram"
     }
@@ -1162,24 +1162,28 @@
    ]
   },
   "upB": {
-   "name": "Jet Boost",
+   "name": "Whirling Jet",
    "kind": "special",
    "anim": "jet",
-   "startup": 12,
-   "active": 20,
-   "recovery": 18,
+   "startup": 5,
+   "active": 30,
+   "recovery": 16,
    "helpless": true,
-   "noLedge": 16,
-   "gravityScale": 0.3,
+   "noLedge": 10,
+   "gravityScale": 0.25,
    "motion": [
     {
-     "frame": 12,
-     "vy": -4.6
+     "frame": 5,
+     "vy": -5.3
+    },
+    {
+     "frame": 20,
+     "vy": -2.6
     }
    ],
    "events": [
     {
-     "frame": 12,
+     "frame": 5,
      "action": "fx",
      "name": "jet"
     }
@@ -1187,92 +1191,132 @@
    "hitboxes": [
     {
      "x": 0,
-     "y": 6,
-     "w": 24,
-     "h": 20,
-     "damage": 2.82,
-     "angle": 75,
-     "base": 24,
-     "scaling": 0.2,
+     "y": -14,
+     "w": 46,
+     "h": 34,
+     "damage": 1.7,
+     "angle": 361,
+     "base": 16,
+     "scaling": 0.05,
      "window": [
       1,
-      14
+      24
      ],
+     "group": 0,
+     "rehit": 4,
      "dir": "away",
+     "minHitstun": 8,
+     "hitlag": 0.6,
      "fx": "punch"
+    },
+    {
+     "x": 0,
+     "y": -16,
+     "w": 50,
+     "h": 38,
+     "damage": 5.2,
+     "angle": 72,
+     "base": 46,
+     "scaling": 0.82,
+     "window": [
+      25,
+      30
+     ],
+     "group": 1,
+     "dir": "away",
+     "hitlag": 1.2,
+     "fx": "heavy"
     }
    ],
    "pose": {
-    "keys": [
-     [
-      -3,
-      6,
-      [
-       4,
-       6
-      ],
-      [
-       -4,
-       6
-      ],
-      [
-       6,
-       0
-      ],
-      [
-       -6,
-       0
-      ]
-     ],
-     [
-      -2,
-      0,
-      [
-       3,
-       -44
-      ],
-      [
-       -2,
-       -42
-      ],
-      [
-       3,
-       5
-      ],
-      [
-       -3,
-       5
-      ]
-     ],
-     [
-      -1,
-      0,
-      [
-       3,
-       -40
-      ],
-      [
-       -2,
-       -38
-      ],
-      [
-       3,
-       3
-      ],
-      [
-       -3,
-       3
-      ]
-     ]
-    ],
-    "t": "custom"
+    "reach": 14,
+    "h": -10,
+    "t": "spin"
    },
    "view": {
-    "stretch": 1.2,
-    "smear": 1.5,
+    "stretch": 1.1,
+    "smear": 1.4,
     "ghosts": true,
-    "arc": "none"
+    "arc": "ring"
    }
+  },
+  "upB_g": {
+   "name": "Whirling Jet",
+   "kind": "special",
+   "anim": "jet",
+   "startup": 5,
+   "active": 26,
+   "recovery": 18,
+   "gravityScale": 1,
+   "motion": [
+    {
+     "frame": 5,
+     "vx": 2.2
+    }
+   ],
+   "events": [
+    {
+     "frame": 5,
+     "action": "fx",
+     "name": "jet"
+    }
+   ],
+   "hitboxes": [
+    {
+     "x": 0,
+     "y": -12,
+     "w": 46,
+     "h": 34,
+     "damage": 1.7,
+     "angle": 361,
+     "base": 16,
+     "scaling": 0.05,
+     "window": [
+      1,
+      20
+     ],
+     "group": 0,
+     "rehit": 4,
+     "dir": "away",
+     "minHitstun": 8,
+     "hitlag": 0.6,
+     "fx": "punch"
+    },
+    {
+     "x": 0,
+     "y": -16,
+     "w": 50,
+     "h": 38,
+     "damage": 5.2,
+     "angle": 60,
+     "base": 44,
+     "scaling": 0.78,
+     "window": [
+      21,
+      26
+     ],
+     "group": 1,
+     "dir": "away",
+     "hitlag": 1.2,
+     "fx": "heavy"
+    }
+   ],
+   "pose": {
+    "reach": 14,
+    "h": -10,
+    "t": "spin"
+   },
+   "view": {
+    "stretch": 1.1,
+    "smear": 1.4,
+    "ghosts": true,
+    "arc": "ring"
+   },
+   "hidden": true,
+   "invuln": [
+    1,
+    6
+   ]
   },
   "downB": {
    "name": "Vent",
@@ -1550,6 +1594,31 @@
    "view": {
     "arc": "none",
     "smear": 0.4
+   }
+  }
+ },
+ "projectiles": {
+  "quake": {
+   "w": 22,
+   "h": 12,
+   "life": 16,
+   "pierce": true,
+   "hit": {
+    "x": 0,
+    "y": 0,
+    "w": 1,
+    "h": 1,
+    "damage": 5.5,
+    "angle": 75,
+    "base": 40,
+    "scaling": 0.55,
+    "hitlag": 1.0,
+    "fx": "heavy"
+   },
+   "look": {
+    "shape": "wave",
+    "color": "#ffb02e",
+    "size": 1.25
    }
   }
  }

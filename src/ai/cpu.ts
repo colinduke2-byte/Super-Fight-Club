@@ -40,6 +40,9 @@ interface Plan {
   stickFrames: number;
   /** Frames to keep the button held for charging. */
   holdFrames: number;
+  /** Press this button at frame `tailAt` of the plan (Shield to bank a charge). */
+  tail?: number;
+  tailAt?: number;
   sawAttack: boolean;
 }
 
@@ -273,6 +276,7 @@ export class CpuController implements Controller {
       this.sy = p.sy;
     } else {
       if (t < p.holdFrames) this.held |= p.btn;
+      if (p.tail && t === p.tailAt) this.held |= p.tail;
       if (t < p.pressFrames + p.stickFrames) {
         this.sx = p.sx2;
         this.sy = p.sy2;
@@ -883,6 +887,13 @@ export class CpuController implements Controller {
       this.runPlan(self, world);
     };
     const stalled = this.stall > 420;
+    // bank a full charge while the rival is far away (Giant Punch style), to fire it at once later
+    if (ai.bank && p.smart && self.grounded && dist > 200 && (self.res[ai.bank.key] ?? 0) < ai.bank.frames && !this.cooldownBusy('bank', 120) && this.rnd() < 0.5) {
+      const hold = ai.bank.frames + 12;
+      this.startPlan(world, 'bank', Button.Special, 0, 0, { holdFrames: hold + 4, tail: Button.Shield, tailAt: hold });
+      this.runPlan(self, world);
+      return true;
+    }
     // blow up our own pillars when a rival is standing next to one (and the pillar is in range of the stomp)
     if (ai.detonate && self.grounded && usable(ai.detonate.slot) && !this.cooldownBusy('det', 60)) {
       const r = ai.detonate.range;

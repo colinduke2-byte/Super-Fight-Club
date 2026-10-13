@@ -51,6 +51,8 @@ const TECH_INVULN = 14;
 const BOUNCE_MIN_SPEED = 3;
 const BOUNCE_FLOOR = 0.7;
 const BOUNCE_WALL = 0.75;
+/** A storable charge held at full releases by itself after this many frames in the move (no infinite stalling). */
+const STORE_HOLD_MAX = 240;
 /** An untech'd slam into a floor, wall or ceiling at least this fast (px/frame) is a splat: it hurts. */
 const SPLAT_MIN_SPEED = 6.5;
 const SPLAT_RATE = 0.9;
@@ -304,6 +306,8 @@ export class Fighter implements Body {
   readonly stick = { x: 0, y: 0 };
   /** Added to armor thresholds (Infinity = super armor). */
   armorBonus = 0;
+  /** Tough Guy: hits dealing at most this much damage do not flinch (0 = off). Reset to `data.toughness` each tick; behaviours may raise it. */
+  toughness = 0;
   /** Bit per (victim, group) already hit by the current move. */
   readonly hitMask = new Uint16Array(MAX_FIGHTERS);
   readonly rehit = new Int16Array(MAX_FIGHTERS * MAX_GROUPS);
@@ -660,12 +664,15 @@ export class Fighter implements Body {
 
   /** Armor threshold active right now, or -1 if none. */
   armorThreshold(): number {
-    if (this.superArmor && this.state !== 'ko' && this.state !== 'hitstun' && this.state !== 'grabbed') return Infinity;
+    if (this.state === 'ko' || this.state === 'hitstun' || this.state === 'grabbed') return -1;
+    if (this.superArmor) return Infinity;
+    // Tough Guy: hits up to `toughness` damage never flinch (a heavy's passive, see CharacterData.toughness)
+    const tough = this.toughness > 0 ? this.toughness : -1;
     const m = this.move;
-    if (this.state !== 'attack' || !m || !m.armor) return -1;
-    if (this.moveFrame < m.armor.from || this.moveFrame > m.armor.to) return -1;
+    if (this.state !== 'attack' || !m || !m.armor) return tough;
+    if (this.moveFrame < m.armor.from || this.moveFrame > m.armor.to) return tough;
     const t = (m.armor.threshold ?? Infinity) + this.armorBonus;
-    return t > 0 ? t : -1; // a threshold of 0 means "armored only when a mechanic grants a bonus"
+    return Math.max(tough, t > 0 ? t : -1); // a threshold of 0 means "armored only when a mechanic grants a bonus"
   }
 
   /** Damage multiplier from smash charge for the current move. */
@@ -952,6 +959,7 @@ export class Fighter implements Body {
     if (this.state !== 'shield' && this.state !== 'shieldstun' && this.shieldHP < SHIELD_MAX) this.shieldHP = Math.min(SHIELD_MAX, this.shieldHP + SHIELD_REGEN);
     this.trackSticks(inp);
     this.tickResources();
+    this.toughness = this.data.toughness ?? 0;
     this.data.behavior?.onTick?.(this, world);
     if (this.state !== 'run' && this.state !== 'idle') {
       this.dashTimer = 0;
@@ -1401,6 +1409,11 @@ export class Fighter implements Body {
     this.move = m;
     this.moveFrame = 0;
     this.chargeFrames = 0;
+    if (m.charge?.store && (this.res[m.charge.store] ?? 0) > 0) {
+      // a stored charge (Giant Punch style): pick up where the last wind-up was banked
+      this.chargeFrames = Math.min(m.charge.max, this.res[m.charge.store]);
+      this.res[m.charge.store] = 0;
+    }
     this.queuedNext = false;
     this.moveHit = false;
     this.moveLanded = false;
@@ -1503,9 +1516,18 @@ export class Fighter implements Body {
       world.emit('dodge', this, this.x, this.y, 0, 0);
     }
 
+    // storable charge: Shield mid-wind-up banks the charge and cancels the move (Giant Punch style)
+    if (m.charge?.store && this.moveFrame === m.charge.frame && this.chargeFrames > 0 && (inp.pressed & Button.Shield) !== 0) {
+      this.res[m.charge.store] = this.chargeFrames;
+      this.endMoveState();
+      this.setState(this.grounded ? 'idle' : 'air');
+      world.emit('fx', this, this.x, this.y - this.h / 2, this.facing, 0, 'store');
+      return;
+    }
     // smash charge: hold on the charge frame while the button is down
-    if (m.charge && this.moveFrame === m.charge.frame && this.chargeFrames < m.charge.max && (inp.held & this.chargeButton) !== 0) {
-      this.chargeFrames++;
+    // (a storable charge keeps holding at full while the button is down, so it can be banked at leisure)
+    if (m.charge && this.moveFrame === m.charge.frame && (this.chargeFrames < m.charge.max || (m.charge.store && this.stateFrame < STORE_HOLD_MAX)) && (inp.held & this.chargeButton) !== 0) {
+      if (this.chargeFrames < m.charge.max) this.chargeFrames++;
       this.attackPhysics(m, inp, world);
       this.integrateAttack(world);
       return;

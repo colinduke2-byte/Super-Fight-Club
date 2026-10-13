@@ -4,7 +4,7 @@ import { MAX_ITEMS } from '../engine/items';
 import type { World } from '../engine/world';
 import { pillarCanvas } from '../art/entityTextures';
 
-const SHAPE_TEX: Record<string, string> = { orb: 'proj-orb', bolt: 'proj-bolt', bullet: 'proj-bullet', fist: 'proj-fist', beam: 'proj-beam', shard: 'proj-shard' };
+const SHAPE_TEX: Record<string, string> = { orb: 'proj-orb', bolt: 'proj-bolt', bullet: 'proj-bullet', fist: 'proj-fist', beam: 'proj-beam', shard: 'proj-shard', wave: 'proj-wave' };
 const DEP_TEX: Record<string, string> = { mine: 'dep-mine', turret: 'dep-turret', rune: 'dep-rune', marker: 'dep-marker', whirlpool: 'dep-whirlpool' };
 
 function color(hex: string): number {
@@ -104,7 +104,7 @@ export class EntityViews {
         s.x += (p.vx < 0 ? -1 : 1) * p.def.w * 0.5;
         s.setOrigin(p.vx < 0 ? 0 : 1, 0.5).setScale(len / 64, (p.def.h / 32) * (1 + 0.06 * Math.sin(tick * 0.5))).setBlendMode(Phaser.BlendModes.ADD);
       } else {
-        s.setOrigin(0.5, 0.5).setBlendMode(Phaser.BlendModes.NORMAL).setScale(base);
+        s.setOrigin(0.5, look.shape === 'wave' ? 0.78 : 0.5).setBlendMode(look.shape === 'wave' ? Phaser.BlendModes.ADD : Phaser.BlendModes.NORMAL).setScale(base);
       }
       // fade out in the last frames of life
       const fade = p.def.life - p.age < 8 ? (p.def.life - p.age) / 8 : 1;

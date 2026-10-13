@@ -122,6 +122,21 @@ export function buildEntityTextures(scene: Phaser.Scene): void {
     px(g, '#ffffff', 2, 3, 12, 1);
     add('proj-shard', c);
   }
+  // ground shockwave 36x22: a crest of force rolling forward (tall, bright front; a low trailing tail) with rubble kicked up
+  {
+    const [c, g] = mk(36, 22);
+    for (let x = 0; x < 36; x++) {
+      const t = x / 35;
+      const top = Math.round(21 - (t < 0.82 ? 4 + 15 * t * t : 16 * (1 - t) / 0.18 * 1.1)); // rises toward the front, drops at the lip
+      for (let y = Math.max(1, top); y < 22; y++) {
+        const depth = (y - top) / Math.max(1, 21 - top);
+        px(g, depth < 0.18 ? '#ffffff' : depth < 0.5 ? '#e0e0ec' : (x + y) % 3 === 0 ? '#7a7a98' : '#a8a8c0', x, y);
+      }
+    }
+    // rubble chips flying off the crest
+    for (const [x, y] of [[26, 3], [30, 1], [21, 6], [33, 5], [17, 9]] as const) px(g, '#c8c8d8', x, y, 2, 2);
+    add('proj-wave', c);
+  }
   // bullet 10x6
   {
     const [c, g] = mk(10, 6);

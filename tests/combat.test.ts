@@ -58,8 +58,11 @@ describe('frame data (brick.moves.json)', () => {
     expect(() => parseMoves({ moves: { x: { name: 'x', kind: 'jab', anim: 'jab', startup: 3, active: 2, recovery: 3, hitboxes: [], next: { id: 'nope', from: 1, to: 2, at: 2 } } } }, 't')).toThrow(/does not exist/);
   });
 
-  it('smash armor covers frames 8-20 as specified', () => {
-    expect(brick.moves.fsmash.armor).toMatchObject({ from: 8, to: 20 });
+  it('smash armor covers the wind-up up to the strike', () => {
+    const m = brick.moves.fsmash;
+    expect(m.armor!.from).toBeLessThanOrEqual(6);
+    expect(m.armor!.to).toBeLessThan(m.startup);
+    expect(m.armor!.to).toBeGreaterThanOrEqual(m.startup - 4);
   });
 });
 
@@ -97,7 +100,7 @@ describe('hit detection and hitlag', () => {
     r.b.spawn(5, -300, -1);
     r.b.vx = r.b.vy = 0;
     let hits = 0;
-    r.world.listener = (t) => { if (t === 'hit') hits++; };
+    r.world.listener = (t) => { if (t === 'hit' || t === 'armorHit') hits++; }; // Brick's Tough Guy shrugs off the light hits
     r.tick(press(Button.Attack));
     for (let i = 0; i < 30; i++) {
       r.b.x = r.a.x + 10; r.b.y = r.a.y; r.b.vx = 0; r.b.vy = 0; r.b.hitlag = 0; r.b.invuln = 0; r.b.setState('air');
@@ -289,12 +292,16 @@ describe('aerials', () => {
     expect(q.a.lagFrames).toBe(0);
   });
 
-  it('dair bounces on landing instead of lagging', () => {
+  it('Crater Stomp lands with a shockwave travelling both ways', () => {
     const r = rig(200);
     r.a.spawn(-145, -90, 1);
     r.tick(press(Button.Attack, { stickY: 0.6 })); // a dair without a fast fall (0.6 is below the fast-fall threshold)
-    for (let i = 0; i < 60 && !r.events.includes('landBounce'); i++) r.tick(inp({ stickY: 0.6 }));
-    expect(r.events).toContain('landBounce');
+    let waves: number[] = [];
+    for (let i = 0; i < 60 && waves.length === 0; i++) {
+      r.tick(inp({ stickY: 0.6 }));
+      waves = r.world.projectiles.filter((p) => p.active && p.defId === 'quake').map((p) => Math.sign(p.vx));
+    }
+    expect(waves.sort()).toEqual([-1, 1]);
   });
 });
 

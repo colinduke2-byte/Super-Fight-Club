@@ -67,6 +67,8 @@ export interface CharacterAi {
   spacing: number;
   /** A special that blows up the CPU's own deployables (Obelisk's Bedrock Stomp): used when a rival is next to one in range. */
   detonate?: { slot: string; range: number };
+  /** A storable charge special (Brick's Charge Shoulder): wound up fully and banked with Shield when the rival is far away. */
+  bank?: { slot: string; key: string; frames: number };
 }
 
 const GENERIC: CharacterAi = {
@@ -87,6 +89,7 @@ export const CHARACTER_AI: Record<string, CharacterAi> = {
     closers: ['neutralB'],
     finishers: ['fsmash', 'usmash', 'fair', 'uair'],
     holds: { neutralB: 26 },
+    bank: { slot: 'neutralB', key: 'punch', frames: 50 },
     recovery: { slot: 'upB', up: 90, out: 70, aim: 'fixed' },
     ultimateRange: 60,
     spacing: 36,

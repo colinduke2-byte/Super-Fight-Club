@@ -72,6 +72,7 @@ export function makeProtoBase(): CharacterData {
     resourceRules: undefined,
     fx: undefined,
     variants: undefined,
+    toughness: undefined,
     id: 'proto',
     name: 'Proto',
     moves,

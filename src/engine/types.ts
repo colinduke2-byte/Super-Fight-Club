@@ -227,6 +227,10 @@ export interface CharacterData {
   /** Ground dash (double-tap / flick) with an invulnerability window. */
   /** Can jump off walls (the sides of solid platforms) while airborne. */
   wallJump?: boolean;
+  /** Tough Guy: hits dealing at most this much damage never flinch (damage is still taken). */
+  toughness?: number;
+  /** Jet hover (Peach-style float): hold Jump while falling to hang in the air for up to `frames` per airtime; aerials keep hovering. */
+  hover?: { frames: number; drift: number };
   /** Wings: holding Jump while falling slows the fall (`fall` px/frame), speeds up air drift (`speed` x) for at most `max` frames per airtime. */
   glide?: { fall: number; speed: number; max: number };
   dash?: { speed: number; frames: number; invuln: [number, number]; cooldown: number };

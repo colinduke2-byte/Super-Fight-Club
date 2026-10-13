@@ -39,7 +39,6 @@ describe('training scenarios', () => {
     expect(sc[0].moveId).toBe('jab1');
     expect(sc.find((s) => s.moveId === 'nair')!.hover).toBe(true);
     expect(sc.find((s) => s.moveId === 'fthrow')!.needsGrab).toBe(true);
-    expect(sc.find((s) => s.moveId === 'dair')!.hover).toBe(false); // bounces on landing, needs real gravity
   });
 
   it('every Brick move runs to completion and every damaging melee move connects with the dummy', () => {
@@ -109,7 +108,7 @@ describe('training scenarios', () => {
     runScenario(world, runner);
     const text = runner.report().join('\n');
     expect(text).toContain('Piston Jab 1');
-    expect(text).toContain('startup 5');
+    expect(text).toContain(`startup ${brick.moves.jab1.startup}`);
     expect(text).toContain('LAST HIT');
   });
 });

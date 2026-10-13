@@ -152,6 +152,66 @@
     "op": "shake",
     "amount": 8
    }
+  ],
+  "store": [
+   {
+    "op": "flash",
+    "x": 10,
+    "yh": 0.55,
+    "power": 1.2,
+    "color": 16756782
+   },
+   {
+    "op": "ring",
+    "x": 10,
+    "yh": 0.55,
+    "radius": 18,
+    "color": 16769162,
+    "life": 0.25
+   },
+   {
+    "op": "burst",
+    "x": 10,
+    "yh": 0.55,
+    "count": 10,
+    "speed": 70,
+    "color": 16756782,
+    "life": 0.3,
+    "size": 2
+   }
+  ],
+  "quake": [
+   {
+    "op": "dust",
+    "count": 14,
+    "dir": 0
+   },
+   {
+    "op": "ring",
+    "y": -2,
+    "radius": 36,
+    "color": 16765066,
+    "life": 0.3
+   },
+   {
+    "op": "flash",
+    "y": -4,
+    "power": 1.6,
+    "color": 16773320
+   },
+   {
+    "op": "burst",
+    "y": -2,
+    "count": 16,
+    "speed": 120,
+    "color": 16756782,
+    "life": 0.35,
+    "size": 3
+   },
+   {
+    "op": "shake",
+    "amount": 5
+   }
   ]
  },
  "cinematicHit": [
@@ -212,11 +272,12 @@
   {
    "when": {
     "moves": [
-     "upB"
+     "upB",
+     "upB_g"
     ],
     "frames": [
-     12,
-     34
+     5,
+     30
     ]
    },
    "ops": [
@@ -350,8 +411,8 @@
      "neutralB"
     ],
     "frames": [
-     20,
-     20
+     16,
+     16
     ]
    },
    "ops": [
@@ -458,8 +519,8 @@
      "upB"
     ],
     "frames": [
-     12,
-     12
+     5,
+     5
     ]
    },
    "ops": [
@@ -603,6 +664,48 @@
     {
      "op": "punch",
      "amount": 0.04
+    }
+   ]
+  },
+  {
+   "when": {
+    "res": {
+     "key": "punch",
+     "min": 50
+    }
+   },
+   "every": 3,
+   "ops": [
+    {
+     "op": "emit",
+     "x": 9,
+     "yh": 0.55,
+     "jx": 4,
+     "jy": 4,
+     "vy": -26,
+     "jvx": 14,
+     "life": 0.35,
+     "color": 16756782,
+     "size": 2
+    }
+   ]
+  },
+  {
+   "when": {
+    "res": {
+     "key": "punch",
+     "min": 50
+    }
+   },
+   "every": 24,
+   "ops": [
+    {
+     "op": "ring",
+     "x": 9,
+     "yh": 0.55,
+     "radius": 10,
+     "color": 16769162,
+     "life": 0.2
     }
    ]
   }

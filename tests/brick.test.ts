@@ -116,7 +116,7 @@ describe('Heat in combat', () => {
     cold.a.res.heat = 20;
     cold.a.startMove('usmash', null, cold.world);
     cold.run(8);
-    expect(cold.a.armorThreshold()).toBe(-1);
+    expect(cold.a.armorThreshold()).toBeLessThan(18); // only Tough Guy
     deliverHit(cold.world, { atk: cold.b, ownerId: 1, def: cold.a, hb, damage: 18, facing: -1, originX: cold.b.x, kbMult: 1 });
     expect(cold.events).not.toContain('armorHit');
     expect(cold.a.state).toBe('hitstun');
@@ -191,7 +191,38 @@ describe('Charge Shoulder', () => {
     none.run(60, inp(), inp({ held: Button.Shield }));
     expect(none.events).not.toContain('shieldBreak');
     expect(none.events).toContain('shieldHit');
-    expect(none.a.armorThreshold()).toBe(-1);
+    expect(none.a.armorThreshold()).toBeLessThan(10); // only Tough Guy
+  });
+
+  it('Shield mid-charge banks the charge; the next one starts from it (Giant Punch)', () => {
+    const r = rig(120);
+    r.tick(press(Button.Special));
+    r.run(40, inp({ held: Button.Special }));
+    expect(r.a.chargeFrames).toBeGreaterThan(30);
+    r.tick(press(Button.Shield));
+    expect(r.a.state).not.toBe('attack');
+    const banked = r.a.res.punch;
+    expect(banked).toBeGreaterThan(30);
+    r.run(30);
+    // fire it from a standstill: the charge picks up where it stopped, no need to hold
+    r.tick(press(Button.Special));
+    expect(r.a.move?.id).toBe('neutralB');
+    expect(r.a.chargeFrames).toBe(banked);
+    expect(r.a.res.punch).toBe(0);
+  });
+
+  it('a fully banked charge comes out at once, armored', () => {
+    const r = rig(40);
+    r.a.res.punch = brick.moves.neutralB.charge!.max;
+    r.tick(press(Button.Special));
+    let armored = false;
+    for (let i = 0; i < 30; i++) {
+      r.tick(inp(), inp({ held: Button.Shield }));
+      if (r.a.armorThreshold() === Infinity) armored = true;
+    }
+    expect(armored).toBe(true);
+    r.run(30, inp(), inp({ held: Button.Shield }));
+    expect(r.events).toContain('shieldBreak');
   });
 
   it('a charged ram hits harder than an uncharged one', () => {
@@ -242,33 +273,65 @@ describe('Grapple Slam', () => {
   });
 });
 
-describe('Jet Boost (weak recovery)', () => {
-  it('rises a modest distance, is helpless afterwards, and cannot grab the ledge in its first frames', () => {
+describe('Whirling Jet', () => {
+  it('in the air: a fast spinning climb that hits several times, then helpless', () => {
     const r = rig(400);
     r.a.spawn(300, -200, -1); // well away from everything
-    r.a.startMove('upB', null, r.world);
+    r.a.grounded = false;
+    r.a.setState('air');
+    r.tick(press(Button.Special, { stickY: -1 }));
+    expect(r.a.move?.id).toBe('upB');
     let top = r.a.y;
     for (let i = 0; i < 120; i++) {
       r.tick();
       top = Math.min(top, r.a.y);
     }
-    const rise = -200 - top;
-    expect(rise).toBeGreaterThan(30);
-    expect(rise).toBeLessThan(brick.stats.jumpHeight); // weaker than a full jump
+    expect(-200 - top).toBeGreaterThan(40);
     expect(r.a.helpless).toBe(true);
-
-    // ledge unavailable during the first frames of the move
-    const l = rig(400);
-    l.a.spawn(170, -4, -1); // hanging distance from the right ledge
-    l.a.startMove('upB', null, l.world);
-    expect(l.a.grabCooldown).toBeGreaterThanOrEqual(brick.moves.upB.noLedge! - 1);
-    l.run(6);
-    expect(l.a.state).not.toBe('ledge');
+    expect(brick.moves.upB.startup).toBeLessThanOrEqual(6);
   });
 
-  it('is punishable: the fighter hovers through a 12-frame start-up', () => {
-    expect(brick.moves.upB.startup).toBeGreaterThanOrEqual(10);
-    expect(brick.moves.upB.noLedge).toBeGreaterThan(10);
+  it('on the ground: an intangible-start spin that travels and leaves Brick free to act', () => {
+    const r = rig(200);
+    const x0 = r.a.x;
+    r.tick(press(Button.Special, { stickY: -1 }));
+    expect(r.a.move?.id).toBe('upB_g');
+    expect(brick.moves.upB_g.invuln![0]).toBe(1);
+    r.run(60);
+    expect(Math.abs(r.a.x - x0)).toBeGreaterThan(20);
+    expect(r.a.grounded).toBe(true);
+    expect(r.a.helpless).toBe(false);
+  });
+
+  it('works out of shield', () => {
+    const r = rig(30);
+    r.run(10, inp({ held: Button.Shield }));
+    expect(r.a.state).toBe('shield');
+    r.tick(inp({ held: Button.Shield | Button.Special, pressed: Button.Special, stickY: -1 }));
+    expect(r.a.move?.id).toBe('upB_g');
+    r.run(30);
+    expect(r.b.damage).toBeGreaterThan(5);
+  });
+});
+
+describe('Tough Guy', () => {
+  it('light hits do not flinch Brick (he still takes the damage); real hits do', () => {
+    const r = rig(26);
+    const jab = { ...brick.moves.jab1.hitboxes[0], damage: 2 };
+    deliverHit(r.world, { atk: r.b, ownerId: 1, def: r.a, hb: jab, damage: 2, facing: -1, originX: r.b.x, kbMult: 1 });
+    expect(r.events).toContain('armorHit');
+    expect(r.a.state).not.toBe('hitstun');
+    expect(r.a.damage).toBeCloseTo(2);
+    const big = brick.moves.ftilt.hitboxes[0];
+    deliverHit(r.world, { atk: r.b, ownerId: 1, def: r.a, hb: big, damage: 8, facing: -1, originX: r.b.x, kbMult: 1 });
+    expect(r.a.state).toBe('hitstun');
+  });
+
+  it('hot Brick shrugs off more', () => {
+    const r = rig(26);
+    r.a.res.heat = 70;
+    r.tick();
+    expect(r.a.armorThreshold()).toBeGreaterThanOrEqual(5);
   });
 });
 
@@ -300,17 +363,38 @@ describe('Brick identity', () => {
     const s = brick.stats;
     expect(s.weight).toBe(108);
     expect(s.runSpeed).toBeLessThan(2.1);
-    expect(s.airSpeed).toBeLessThan(1.5);
+    expect(s.airSpeed).toBeLessThan(1.6);
     expect(s.fallSpeed).toBeGreaterThanOrEqual(8);
     expect(s.gravity).toBeGreaterThanOrEqual(0.6);
     expect(s.doubleJumps).toBe(1);
-    expect(s.doubleJumpHeight).toBeLessThan(s.jumpHeight * 0.7);
+    expect(s.doubleJumpHeight).toBeLessThan(s.jumpHeight * 0.75);
   });
 
-  it('every move in the frame-data table is slow-ish: smashes start up in 12+ frames, fsmash is slowest', () => {
+  it('smashes are slow but armored (fsmash slowest); his quick options are quick', () => {
     const smashes = ['fsmash', 'usmash', 'dsmash'].map((id) => brick.moves[id]);
     for (const m of smashes) expect(m.startup).toBeGreaterThanOrEqual(12);
     expect(brick.moves.fsmash.startup).toBeGreaterThan(brick.moves.usmash.startup);
-    expect(brick.moves.fsmash.armor).toMatchObject({ from: 8, to: 20 });
+    expect(brick.moves.fsmash.armor).toBeDefined();
+    expect(brick.moves.jab1.startup).toBeLessThanOrEqual(4);
+    expect(brick.moves.nair.startup).toBeLessThanOrEqual(5);
+    expect(brick.moves.upB.startup).toBeLessThanOrEqual(6);
+  });
+});
+
+describe('Brick CPU', () => {
+  it('banks a full Charge Shoulder while the rival is far away', async () => {
+    const { CpuController } = await import('../src/ai/cpu');
+    const r = rig(320);
+    const cpu = new CpuController(3, 7);
+    const ia = inp();
+    let banked = 0;
+    for (let i = 0; i < 900 && banked < 50; i++) {
+      Object.assign(ia, makeInput());
+      cpu.update(r.a, r.world, ia);
+      r.b.x = r.a.x + 320 * (r.a.x < 0 ? 1 : -1); // keep the rival out of reach
+      r.tick(ia);
+      banked = Math.max(banked, r.a.res.punch);
+    }
+    expect(banked).toBe(50);
   });
 });

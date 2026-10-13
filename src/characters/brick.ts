@@ -1,5 +1,5 @@
 import type { CharacterBehavior } from '../engine/behavior';
-import { parseMoves, validateReferences } from '../engine/moves';
+import { parseMoves, validateReferences, type CharacterJson } from '../engine/moves';
 import type { CharacterData } from '../engine/types';
 import { applyMovePoses } from '../engine/movePoses';
 import movesJson from './brick.moves.json';
@@ -9,6 +9,15 @@ import { DEALT_RATE, DECAY_DELAY, DECAY_RATE, HEAT_DAMAGE_BONUS, HEAT_MAX, HEAVY
 
 const fx = fxJson as unknown as CharacterFx;
 validateFx('brick', fx);
+const json = movesJson as unknown as CharacterJson;
+
+/** Tough Guy: hits up to this much damage never flinch Brick (more while Heat is hot). */
+export const TOUGH = 2.6;
+export const TOUGH_HOT = 5;
+/** Crater Stomp's landing shockwave: speed of the two ground waves. */
+const QUAKE_SPEED = 4.2;
+/** Whirling Jet on the ground: top travel speed while the stick steers it. */
+const GROUND_SPIN_SPEED = 2.6;
 
 /**
  * Brick: heavy cyber-knight bruiser. Slow and floaty-heavy to move, hard to launch.
@@ -27,21 +36,22 @@ export const brick: CharacterData = {
   stats: {
     weight: 108,
     runSpeed: 1.9,
-    airSpeed: 1.3,
+    airSpeed: 1.45,
     groundAccel: 0.22,
     groundFriction: 0.28,
-    airAccel: 0.12,
+    airAccel: 0.14,
     airFriction: 0.05,
     gravity: 0.62,
     fallSpeed: 8.4,
     fastFallSpeed: 11.8,
     jumpHeight: 76,
     shortHopHeight: 34,
-    doubleJumpHeight: 46,
+    doubleJumpHeight: 54,
     doubleJumps: 1,
     jumpsquatFrames: 5,
   },
   body: { width: 20, height: 28, footHalfWidth: 7 },
+  toughness: TOUGH,
   sprite: {
     frameSize: 160,
     pixelScale: 0.29,
@@ -100,13 +110,14 @@ export const brick: CharacterData = {
     },
   },
   moves: parseMoves(movesJson as never, 'brick'),
-  resources: { heat: 0, quiet: 0, ventDmg: 1, ventKb: 1 },
+  projectiles: json.projectiles,
+  resources: { heat: 0, quiet: 0, ventDmg: 1, ventKb: 1, punch: 0, stomp: 0 },
   resourceRules: [{ key: 'heat', max: HEAT_MAX, gainDealt: DEALT_RATE, minDealt: HEAVY_HIT, gainTaken: TAKEN_RATE, decayAfter: DECAY_DELAY, decayRate: DECAY_RATE }],
   ultimate: { cost: 100, gainDealt: 0.2, gainTaken: 0.35 },
   hud: { resource: 'heat', max: 100, color: 0xff7a2a, hotAt: 50, marks: [50] },
   behavior: undefined as unknown as CharacterBehavior,
 };
-validateReferences(brick.moves, undefined, undefined, 'brick');
+validateReferences(brick.moves, json.projectiles, undefined, 'brick');
 
 /** Heat: see brickHeat.ts for the numbers. State lives in `fighter.res` so it is deterministic and hashed. */
 const heatBehavior: CharacterBehavior = {
@@ -119,6 +130,26 @@ const heatBehavior: CharacterBehavior = {
     f.armorBonus = (smash && hot) || fullShoulder ? Infinity : 0;
     f.damageMult = smash && hot ? HEAT_DAMAGE_BONUS : m?.id === 'downB' ? f.res.ventDmg : 1;
     f.kbMult = m?.id === 'downB' ? f.res.ventKb : 1;
+    if (hot) f.toughness = TOUGH_HOT;
+    // Crater Stomp is live from its first active frame: landing now sends out the shockwave (see onLand)
+    f.res.stomp = m?.id === 'dair' && f.moveFrame > m.startup ? 1 : 0;
+  },
+  onMoveFrame(f, m, frame) {
+    // the ground spin is steerable: it drifts forward, faster in whichever way the stick holds
+    if (m.id === 'upB_g' && frame >= m.startup && frame <= m.startup + m.active) {
+      const steer = Math.abs(f.stick.x) > 0.3 ? f.stick.x : f.facing * 0.5;
+      f.vx = steer * GROUND_SPIN_SPEED;
+    }
+  },
+  chooseMove(f, id) {
+    // Whirling Jet: a travelling spin on the ground (out of shield), a climbing spin in the air
+    return id === 'upB' && f.grounded ? 'upB_g' : id;
+  },
+  onLand(f, _speed, world) {
+    if (f.res.stomp <= 0) return;
+    f.res.stomp = 0;
+    for (const dir of [-1, 1]) world.spawnProjectile(f.id, 'quake', f.x + dir * 12, f.y - 6, dir * QUAKE_SPEED, 0);
+    world.emit('fx', f, f.x, f.y, f.facing, 0, 'quake');
   },
   onMoveStart(f, m) {
     if (m.id === 'downB') {

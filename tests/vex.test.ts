@@ -227,7 +227,7 @@ describe('moves', () => {
     const r = rig(24, brick);
     r.b.hover = true; // keep the victim in place so the chain can be counted
     let hits = 0;
-    r.world.listener = (t, f) => { if (t === 'hit' && f === r.b) hits++; };
+    r.world.listener = (t, f) => { if ((t === 'hit' || t === 'armorHit') && f === r.b) hits++; }; // Brick shrugs the light ones off
     r.tick(press(Button.Attack));
     for (let i = 0; i < 70; i++) {
       r.b.vx = 0;
