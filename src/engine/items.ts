@@ -1,4 +1,4 @@
-import { hurtRect } from './combat';
+import { hitboxActive, hitboxRect, hurtRect } from './combat';
 import type { World } from './world';
 
 export const MAX_ITEMS = 4;
@@ -12,6 +12,19 @@ const LIFE = 720;
 const HALF = 7;
 const GRAVITY = 0.3;
 const MAX_FALL = 3.5;
+/** Knocked items: launch speed from the hit, the fastest fall, floor bounce, wall bounce, ground friction. */
+const KNOCK_MIN = 4;
+const KNOCK_MAX = 11;
+const KNOCK_FALL = 9;
+const ITEM_BOUNCE = 0.45;
+const ITEM_WALL = 0.6;
+const ITEM_FRICTION = 0.82;
+/** A knocked item flying at least this fast bumps the first fighter it meets (not the knocker or their team). */
+const BUMP_SPEED = 3.5;
+const BUMP = { damage: 4, base: 34, scaling: 0.35, angle: 38 };
+/** Frames the knocker cannot catch the item they just hit, and between two knocks of one item. */
+const KNOCK_GRACE = 24;
+const KNOCK_COOLDOWN = 8;
 /** Frames between spawn attempts for each item setting (1 = low, 2 = high). */
 export const ITEM_INTERVAL = [0, 900, 480];
 
@@ -28,6 +41,14 @@ export class Item {
   vx = 0;
   owner = -1;
   fuse = 0;
+  /** Who last knocked this item with an attack (-1 none), and frames left before they may pick it up. */
+  knockedBy = -1;
+  knockGrace = 0;
+  knockCd = 0;
+  /** Frames nobody may pick the item up (it just rebounded off someone). */
+  pickDelay = 0;
+  /** Flight spin (radians), for the view. */
+  spin = 0;
   constructor(readonly index: number) {}
 }
 
@@ -69,6 +90,12 @@ export function stepItems(world: World): void {
         slot.x = main.x + 20 + rnd(world) * (main.w - 40);
         slot.y = main.top - 200;
         slot.vy = 0;
+        slot.vx = 0;
+        slot.spin = 0;
+        slot.knockedBy = -1;
+        slot.knockGrace = 0;
+        slot.knockCd = 0;
+        slot.pickDelay = 0;
         slot.age = 0;
         slot.resting = false;
         world.emit('itemSpawn', world.fighters[0], slot.x, slot.y, ITEM_KINDS.indexOf(slot.kind), 0);
@@ -86,35 +113,18 @@ export function stepItems(world: World): void {
       it.active = false;
       continue;
     }
-    if (!it.resting) {
-      const prev = it.y + HALF;
-      it.vy = Math.min(MAX_FALL, it.vy + GRAVITY);
-      it.y += it.vy;
-      const bottom = it.y + HALF;
-      for (const p of world.platforms) {
-        if (it.x < p.x || it.x > p.right) continue;
-        if (prev <= p.top + 1 && bottom >= p.top) {
-          it.y = p.top - HALF;
-          it.vy = 0;
-          it.resting = true;
-          break;
-        }
-      }
-    } else {
-      // keep riding moving platforms: if nothing is underneath any more, fall again
-      let supported = false;
-      for (const p of world.platforms) {
-        if (it.x >= p.x && it.x <= p.right && Math.abs(it.y + HALF - p.top) < 3) {
-          it.y = p.top - HALF;
-          supported = true;
-        }
-      }
-      if (!supported) it.resting = false;
-    }
+    if (it.knockCd > 0) it.knockCd--;
+    if (it.knockGrace > 0) it.knockGrace--;
+    if (it.pickDelay > 0) it.pickDelay--;
+    if (knockItem(world, it)) continue;
+    moveFree(world, it);
+    if (!it.active) continue;
+    if (bumpFighters(world, it) || it.pickDelay > 0) continue;
     for (const f of world.fighters) {
       if (f.state === 'ko') continue;
       hurtRect(f, r);
       if (it.x + HALF > r[0] && it.x - HALF < r[0] + r[2] && it.y + HALF > r[1] && it.y - HALF < r[1] + r[3]) {
+        if (f.id === it.knockedBy && it.knockGrace > 0) continue; // just batted it away
         if (it.kind === 'bomb') {
           if (f.heldBomb || f.state === 'grabbed') continue; // one at a time
           f.heldBomb = true;
@@ -129,6 +139,131 @@ export function stepItems(world: World): void {
       }
     }
   }
+}
+
+/** Free-item motion: falling, sliding, bouncing off floors and solid walls, riding moving platforms. */
+function moveFree(world: World, it: Item): void {
+  if (it.resting) {
+    // slide to a stop; keep riding moving platforms; if nothing is underneath any more, fall again
+    if (it.vx !== 0) {
+      it.x += it.vx;
+      it.vx *= ITEM_FRICTION;
+      if (Math.abs(it.vx) < 0.05) it.vx = 0;
+      it.spin += it.vx * 0.12;
+      wallBounce(world, it);
+    }
+    let supported = false;
+    for (const p of world.platforms) {
+      if (it.x >= p.x && it.x <= p.right && Math.abs(it.y + HALF - p.top) < 3) {
+        it.y = p.top - HALF;
+        supported = true;
+      }
+    }
+    if (!supported) it.resting = false;
+    return;
+  }
+  const prev = it.y + HALF;
+  it.vy = Math.min(it.knockedBy >= 0 ? KNOCK_FALL : MAX_FALL, it.vy + GRAVITY);
+  it.x += it.vx;
+  it.y += it.vy;
+  it.spin += (it.vx || it.vy * 0.2) * 0.12;
+  if (it.x < world.blast.left || it.x > world.blast.right) {
+    it.active = false;
+    return;
+  }
+  wallBounce(world, it);
+  if (it.vy < 0) return;
+  const bottom = it.y + HALF;
+  for (const p of world.platforms) {
+    if (it.x < p.x || it.x > p.right) continue;
+    if (prev <= p.top + 1 && bottom >= p.top) {
+      it.y = p.top - HALF;
+      if (it.vy > 2.2) {
+        // a hard landing bounces
+        it.vy = -it.vy * ITEM_BOUNCE;
+        it.vx *= 0.75;
+      } else {
+        it.vy = 0;
+        it.resting = true;
+      }
+      break;
+    }
+  }
+}
+
+/** Bounce off the sides of solid platforms. */
+function wallBounce(world: World, it: Item): void {
+  for (const p of world.platforms) {
+    if (p.kind !== 'solid' || it.y + HALF <= p.top + 2 || it.y - HALF >= p.top + p.h) continue;
+    if (it.vx > 0 && it.x + HALF > p.x && it.x - it.vx + HALF <= p.x + 0.01) {
+      it.x = p.x - HALF;
+      it.vx = -it.vx * ITEM_WALL;
+    } else if (it.vx < 0 && it.x - HALF < p.right && it.x - it.vx - HALF >= p.right - 0.01) {
+      it.x = p.right + HALF;
+      it.vx = -it.vx * ITEM_WALL;
+    }
+  }
+}
+
+const rh = [0, 0, 0, 0];
+
+/**
+ * Attacks knock loose items: the first live hitbox to touch an item sends it flying along the hit's angle, faster for
+ * stronger hits. A knocked Shock Bomb arms and flies as if thrown by the hitter.
+ */
+function knockItem(world: World, it: Item): boolean {
+  if (it.knockCd > 0) return false;
+  for (const f of world.fighters) {
+    const m = f.move;
+    if (f.state !== 'attack' || !m || f.hitlag > 0) continue;
+    for (const hb of m.hitboxes) {
+      if (hb.grab || hb.throw || !hitboxActive(f, m, hb)) continue;
+      hitboxRect(f, hb, rh);
+      if (it.x + HALF <= rh[0] || it.x - HALF >= rh[0] + rh[2] || it.y + HALF <= rh[1] || it.y - HALF >= rh[1] + rh[3]) continue;
+      const dir = hb.dir === 'away' ? (it.x >= f.x ? 1 : -1) : f.facing;
+      const ang = ((hb.angle === 361 ? 45 : hb.angle) * Math.PI) / 180;
+      const speed = Math.min(KNOCK_MAX, Math.max(KNOCK_MIN, 2.5 + hb.base * 0.05 + hb.damage * 0.3));
+      it.vx = Math.cos(ang) * speed * dir;
+      it.vy = Math.min(-2, -Math.sin(ang) * speed);
+      it.resting = false;
+      it.knockedBy = f.id;
+      it.knockGrace = KNOCK_GRACE;
+      it.knockCd = KNOCK_COOLDOWN;
+      if (it.kind === 'bomb') {
+        it.thrown = true;
+        it.owner = f.id;
+        it.fuse = BOMB.fuse;
+        it.age = 0;
+      }
+      world.emit('itemKnock', f, it.x, it.y, speed, ITEM_KINDS.indexOf(it.kind));
+      return it.thrown;
+    }
+  }
+  return false;
+}
+
+/** A fast knocked item clips the first rival in its path: a small hit credited to the knocker, then it rebounds. */
+function bumpFighters(world: World, it: Item): boolean {
+  if (it.knockedBy < 0 || it.resting || Math.hypot(it.vx, it.vy) < BUMP_SPEED) return false;
+  for (const f of world.fighters) {
+    if (f.state === 'ko' || f.invuln > 0 || f.state === 'grabbed' || f.id === it.knockedBy || world.allied(it.knockedBy, f.id)) continue;
+    hurtRect(f, r);
+    if (it.x + HALF <= r[0] || it.x - HALF >= r[0] + r[2] || it.y + HALF <= r[1] || it.y - HALF >= r[1] + r[3]) continue;
+    const dir: 1 | -1 = it.vx > 0.2 ? 1 : it.vx < -0.2 ? -1 : f.x >= it.x ? 1 : -1;
+    if (f.state === 'shield' || f.state === 'shieldstun') {
+      f.shieldHit(BUMP.damage, false, 1, dir, world);
+      world.emit('shieldHit', f, f.x, f.y - f.h / 2, f.shieldRadius, BUMP.damage);
+    } else {
+      f.receiveHit({ ...BUMP, direction: dir, hitlag: 5, attackerId: it.knockedBy }, world);
+    }
+    it.vx = -it.vx * 0.35;
+    it.vy = -2.5;
+    it.knockGrace = 0;
+    it.pickDelay = 20;
+    it.knockedBy = -1; // spent: an ordinary falling item again
+    return true;
+  }
+  return false;
 }
 
 /** Throw the bomb `f` is carrying: forward in an arc, straight up, or dropped at the feet (stick up / down). */

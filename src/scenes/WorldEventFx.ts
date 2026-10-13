@@ -330,6 +330,12 @@ export class WorldEventFx {
         sfx.play('ding', 0.8, 0);
         this.host.rumble(f, 0.2, 0.4, 80);
         break;
+      case 'itemKnock':
+        // an attack bats a loose item away: a spark and a clack
+        e.flash(x, y, 1.2, 0xffffff);
+        e.burst(x, y, 8 + Math.round(mag), 60 + mag * 8, 0xfff0b0, 0.3, 2);
+        sfx.play('clang', Math.min(0.8, 0.3 + mag / 16), this.host.pan(x));
+        break;
       case 'itemThrow':
         sfx.play('swing', 0.6, this.host.pan(x));
         break;

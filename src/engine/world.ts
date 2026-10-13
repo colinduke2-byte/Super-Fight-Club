@@ -55,6 +55,7 @@ export type WorldEventType =
   | 'itemSpawn'
   | 'itemPickup'
   | 'itemThrow'
+  | 'itemKnock'
   | 'itemBoom'
   | 'hazardFire'
   | 'pillarShatter'
@@ -353,6 +354,12 @@ export class World {
       mix(f.state.length);
       for (const k of Object.keys(f.res)) mix(f.res[k]);
       mix(f.status.burn + f.status.slow * 7 + f.status.freeze * 13 + f.status.stun * 17 + f.status.soak * 19 + f.freezeImmune * 23);
+    }
+    for (const it of this.items) {
+      if (!it.active) continue;
+      mix(it.x);
+      mix(it.y);
+      mix(it.vx);
     }
     for (const p of this.projectiles) {
       if (!p.active) continue;

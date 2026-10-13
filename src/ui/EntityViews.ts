@@ -81,7 +81,7 @@ export class EntityViews {
         continue;
       }
       const blink = it.age > 600 && (tick >> 2) % 2 === 0;
-      s.setTexture(`item-${it.kind}`).setVisible(!blink).setRotation(0).clearTint().setPosition(it.x, it.y + Math.sin(tick * 0.1 + i) * (it.resting ? 1.2 : 0));
+      s.setTexture(`item-${it.kind}`).setVisible(!blink).setRotation(it.spin).clearTint().setPosition(it.x, it.y + Math.sin(tick * 0.1 + i) * (it.resting && it.vx === 0 ? 1.2 : 0));
     }
     for (let i = 0; i < this.proj.length; i++) {
       const p = w.projectiles[i];
