@@ -80,7 +80,7 @@ export const obelisk: CharacterData = {
       armorDark: '#4a3a32',
       accent: '#d8b0ff',
       outline: '#140c1c',
-      build: { shoulderW: 14, torsoH: 14, legH: 10.5, headSize: 7, armLen: 11, helmet: 'geode' },
+      build: { shoulderW: 14, torsoH: 16, legH: 10.5, headSize: 7.5, armLen: 11, helmet: 'geode' },
     },
   },
   moves,
