@@ -61,6 +61,17 @@ export class Music {
   /** Start a track by id (no-op if it is already playing). Waits quietly for the first user gesture. */
   play(id: string): void {
     if (id === this.current && this.timer !== null) return;
+    // notes of the old track are already scheduled up to the lookahead and long ones ring on: fade its bus out and give
+    // the new track a fresh one so the two never clash
+    const ctx = sfx.context;
+    if (this.bus && ctx && this.busCtx === ctx) {
+      const old = this.bus;
+      old.gain.cancelScheduledValues(ctx.currentTime);
+      old.gain.setValueAtTime(old.gain.value, ctx.currentTime);
+      old.gain.linearRampToValueAtTime(0, ctx.currentTime + 0.06);
+      window.setTimeout(() => old.disconnect(), 400);
+      this.bus = null;
+    }
     this.current = id;
     this.track = TRACKS[id] ?? null;
     this.step = 0;

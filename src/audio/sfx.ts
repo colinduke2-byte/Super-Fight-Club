@@ -22,16 +22,17 @@ export class Sfx {
   arm(target: Window = window): void {
     if (this.armed) return;
     this.armed = true;
+    // the listeners stay: browsers (Safari / iOS above all) suspend or interrupt the context again after backgrounding or a
+    // locked screen, and the next gesture has to resume it
     const unlock = (): void => {
       this.ensure();
-      void this.ctx?.resume();
-      if (this.ctx && this.ctx.state === 'running') {
-        target.removeEventListener('keydown', unlock);
-        target.removeEventListener('pointerdown', unlock);
-      }
+      if (this.ctx && this.ctx.state !== 'running') void this.ctx.resume();
     };
     target.addEventListener('keydown', unlock);
     target.addEventListener('pointerdown', unlock);
+    document.addEventListener('visibilitychange', () => {
+      if (document.visibilityState === 'visible' && this.ctx && this.ctx.state !== 'running') void this.ctx.resume();
+    });
   }
 
   /** The shared context and noise buffer (null until the first user gesture); used by the music player. */

@@ -3,12 +3,12 @@
 A sci-fi/fantasy platform fighter built with **Phaser 3 + TypeScript (Vite)**. All characters, art and
 audio are original and generated in code. The game runs in the browser.
 
-> **Status: all twelve roadmap phases are built** (see `ROADMAP.md`), plus polish passes: seven fighters (Brick, Vex, Nova, Gizmo, Agni, Halcyon, Riptide, Obelisk), eight stages, eleven challenges,
+> **Status: all twelve roadmap phases are built** (see `ROADMAP.md`), plus polish passes: ten fighters (Brick, Vex, Nova, Gizmo, Agni, Halcyon, Riptide, Obelisk, Rime, Havoc) with two alternate outfits each, ten stages, fourteen challenges,
 > Versus for 2-4 (humans on any device + CPUs), Arcade Ladder with story cards and a scripted boss, training mode with frame-data
 > scenarios, rebindable keyboard / gamepad controls, synthesized SFX and chiptune music, CPU AI with three difficulties.
 > What still needs **you**: hands-on play (balance feel), real Xbox / PlayStation / Switch pads, Safari, 120/144 Hz displays and GPU
 > measurements. `?bench=20&stage=reactor&players=4&cpu=3&auto` gives you comparable numbers (see *Performance*).
-> Dev shortcuts: `?char=<id>` training, `?stage=<id>&players=<2-4>&cpu=<1-3>[&auto][&vs=<id>,<id>...]` versus, `?arcade=<char>[&fight=<0-5>]` ladder,
+> Dev shortcuts: `?char=<id>` training, `?stage=<id>&players=<2-4>&cpu=<1-3>[&auto][&vs=<id>,<id>...]` versus, `?arcade=<char>[&fight=<0-8>]` ladder,
 > `?scene=<Key>` any scene, `?bench=<seconds>` benchmark.
 
 ## Run
@@ -33,12 +33,12 @@ alt = Grab (U / Tab: add CPU in the lobby), Start = pad Start. In the character 
 join the next free slot; empty slots are filled with CPUs (a warning says so). Players 3-4 need controllers.
 Settings holds audio, the announcer, stage ambience (surf, rain and thunder, the reactor's hum, birdsong; `src/audio/ambience.ts`), particles, FPS counter, fullscreen, tap-jump, smash mode and deadzone, with a one-line
 explanation of the selected option; **Controls** rebinds both keyboard schemes and both gamepad profiles (saved to localStorage),
-and opened from the pause menu it runs over the paused match and returns to it. **How to Play** is an eight-page guide (the goal,
-moving, attacking, defending, grabs, advanced tech, items and stages, the fighters) with an animated fighter on each page (`src/game/howToPlay.ts`). Menus fade
-between scenes and every list sits on a backing plate with a cursor bar. **Challenges** are ten hand-built scenarios (as a set
+and opened from the pause menu it runs over the paused match and returns to it. **How to Play** is a ten-page guide (the goal,
+moving, attacking, defending, grabs, advanced tech, physics, items and stages, the fighters) with an animated fighter on each page (`src/game/howToPlay.ts`). Menus fade
+between scenes and every list sits on a backing plate with a cursor bar. **Challenges** are fourteen hand-built scenarios (as a set
 fighter or any, against odds, in teams, on a timer, with bombs only...; `src/game/challenges.ts`), each cleared once and ticked off in
-Records. Leave the title screen idle for 25 s and a **demo** match of random CPUs plays; any key returns to the title. During READY every fighter makes an entrance (Brick drops in with a slam, Vex blinks in, Nova materialises in a rune
-circle, Gizmo lands on a jet, Agni rises from flame, Halcyon glides down, Riptide bursts from a splash). A taunt shows
+Records. Leave the title screen idle for 25 s and a **demo** match of random CPUs (in random outfits) plays; any key returns to the title. During READY every fighter makes an entrance (Brick drops in with a slam, Vex blinks in, Nova materialises in a rune
+circle, Gizmo lands on a jet, Agni rises from flame, Halcyon glides down, Riptide bursts from a splash, Obelisk rises out of the ground, Rime blinks in and Havoc slams down). A taunt shows
 the fighter's catchphrase in a speech bubble, the winner taunts on the results screen, and CPUs taunt after scoring a KO. Unplugging a pad mid-match pauses with the
 player named; re-plugging (or plugging another pad) re-attaches it.
 

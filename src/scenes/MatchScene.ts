@@ -228,6 +228,7 @@ export class MatchScene extends Phaser.Scene {
     this.pendingHitDummy = this.pendingHitSelf = this.pendingReset = false;
     this.cinT = 0;
     this.ultT = 0;
+    this.plateX = this.plateY = -1;
     this.countdown = 0;
     this.entranceFx = [];
     this.shake = 0;
@@ -618,8 +619,9 @@ export class MatchScene extends Phaser.Scene {
     for (let i = 0; i < this.slots.length; i++) {
       const s = this.slots[i];
       if (s.type !== 'human' || !s.device || s.device.kind !== 'gamepad' || s.device.connected) continue;
-      const used = new Set(this.slots.map((o) => o.device));
-      const free = inputManager.padList.find((p) => p.connected && !used.has(p));
+      // compare by id: a pad that dropped out and came back may be a new device object for the same controller
+      const used = new Set(this.slots.map((o) => o.device?.id));
+      const free = inputManager.padList.find((p) => p.connected && !used.has(p.id));
       if (free) {
         s.device = free;
         this.humans[i]!.device = free;
@@ -1141,17 +1143,25 @@ export class MatchScene extends Phaser.Scene {
   }
 
   private drawTextPlate(): void {
-    const g = this.textPlate.clear();
     const pad = Math.round(4 * this.dpr());
     let x1 = 0;
     let y1 = 0;
-    for (const t of [this.helpText, this.trainText]) {
+    for (let i = 0; i < 2; i++) {
+      const t = i === 0 ? this.helpText : this.trainText;
       if (!t.visible || !t.text) continue;
       x1 = Math.max(x1, t.x + t.displayWidth);
       y1 = Math.max(y1, t.y + t.displayHeight);
     }
+    // redraw only when the plate's size changes (this runs every frame)
+    if (x1 === this.plateX && y1 === this.plateY) return;
+    this.plateX = x1;
+    this.plateY = y1;
+    const g = this.textPlate.clear();
     if (x1 > 0) g.fillStyle(0x07061a, 0.55).fillRect(0, 0, x1 + pad * 2, y1 + pad);
   }
+
+  private plateX = -1;
+  private plateY = -1;
 
   /** Training readout sits under the help block (or at the top when help is hidden). */
   private placeTrainText(): void {
@@ -1166,8 +1176,13 @@ export class MatchScene extends Phaser.Scene {
   }
 
   /** Each fighter arrives in character during READY: Brick drops in with a slam, Vex blinks in, Riptide bursts out of a splash... */
+  private lastEntranceT = -1;
+
   private runEntrances(): void {
     const t = COUNTDOWN - this.countdown;
+    // continuous trails emit once per countdown tick, not per render frame (the same at 60 and 144 Hz)
+    const fresh = t !== this.lastEntranceT;
+    this.lastEntranceT = t;
     const e = this.effects;
     this.views.forEach((v, i) => {
       const f = this.fighters[i];
@@ -1194,7 +1209,7 @@ export class MatchScene extends Phaser.Scene {
           break;
         case 'jet':
           dy = -((1 - k) ** 2) * 120;
-          if (k > 0 && k < 1) e.burst(f.x, f.y + dy, 1, 30, 0xffa040, 0.2, 2);
+          if (fresh && k > 0 && k < 1) e.burst(f.x, f.y + dy, 1, 30, 0xffa040, 0.2, 2);
           if (arrive) e.dust(f.x, f.y, 6, 0);
           break;
         case 'blink':
@@ -1219,7 +1234,7 @@ export class MatchScene extends Phaser.Scene {
           a = Math.min(1, k * 1.6);
           sy = 0.4 + 0.6 * k;
           if (start) e.flash(f.x, f.y - 6, 1.6, 0xffb040);
-          if (k > 0 && k < 1) e.burst(f.x, f.y - 4, 2, 60, k < 0.5 ? 0xffe08a : 0xff6a20, 0.3, 2);
+          if (fresh && k > 0 && k < 1) e.burst(f.x, f.y - 4, 2, 60, k < 0.5 ? 0xffe08a : 0xff6a20, 0.3, 2);
           if (arrive) e.ring(f.x, f.y - 2, 30, 0xff8a30, 0.3);
           break;
         case 'glide':
@@ -1338,6 +1353,7 @@ export class MatchScene extends Phaser.Scene {
 
   private layout(w: number, h: number): void {
     const m = Math.round(8 * this.dpr());
+    this.plateX = this.plateY = -1; // the text plate is redrawn for the new size
     const u = this.hudUnit(h);
     this.bg.resize(w, h);
     this.perf.layout(w, m);
