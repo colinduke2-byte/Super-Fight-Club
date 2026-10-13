@@ -169,3 +169,24 @@ describe('momentum hits', () => {
     expect(back).toBeCloseTo(still, 5);
   });
 });
+
+describe('launch prediction', () => {
+  it('matches the real flight of an undisturbed launch and calls KOs', async () => {
+    const { predictLaunch } = await import('../src/engine/physics');
+    const t = rig();
+    t.target.spawn(400, -1, 1); // out of the way
+    t.flier.damage = 30;
+    t.flier.receiveHit({ damage: 5, base: 40, scaling: 0.3, angle: 70, direction: 1, hitlag: 0, attackerId: 0 }, t.world);
+    const path: number[] = [];
+    const end = predictLaunch(t.flier, t.world, path, 240, 2);
+    expect(end).toBe('land');
+    t.run(20);
+    // after 20 frames the real fighter sits on the predicted point for frame 20 (index 10), give or take DI-free drift
+    expect(Math.abs(t.flier.x - path[20])).toBeLessThan(3);
+    expect(Math.abs(t.flier.y - t.flier.h / 2 - path[21])).toBeLessThan(3);
+
+    t.flier.damage = 250;
+    t.flier.receiveHit({ damage: 5, base: 120, scaling: 1.2, angle: 50, direction: 1, hitlag: 0, attackerId: 0 }, t.world);
+    expect(predictLaunch(t.flier, t.world, path)).toBe('ko');
+  });
+});

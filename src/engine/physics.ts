@@ -1,4 +1,6 @@
 import { hurtRect } from './combat';
+import { HITSTUN_FALL_GRAVITY, HITSTUN_RISE_GRAVITY } from './fighter';
+import { LAUNCH_DRAG } from './knockback';
 import type { Fighter } from './fighter';
 import type { World } from './world';
 
@@ -83,3 +85,50 @@ function crash(world: World, a: Fighter, b: Fighter, speed: number): void {
   a.hitlag = Math.max(a.hitlag, 5);
   world.emit('collide', a, (a.x + b.x) / 2, (a.y - a.h / 2 + b.y - b.h / 2) / 2, speed, damage);
 }
+
+/**
+ * Predicts where a just-launched fighter flies with no DI, no input and nothing in the way but platform tops: hitstun
+ * physics (launch drag, hitstun gravity), then ordinary falling. Writes x, y pairs (every `step` frames) into `out` and
+ * returns how the flight ends: 'ko' through a blast zone, 'land' on a platform, or 'open' if neither within `frames`.
+ */
+export function predictLaunch(f: Fighter, world: World, out: number[], frames = 240, step = 2): 'ko' | 'land' | 'open' {
+  const s = f.stats;
+  const b = world.blast;
+  let x = f.x;
+  let y = f.y;
+  let vx = f.vx;
+  let vy = f.vy;
+  let stun = f.hitstun;
+  out.length = 0;
+  out.push(x, y - f.h / 2);
+  for (let t = 1; t <= frames; t++) {
+    if (stun > 0) {
+      stun--;
+      vy = Math.min(s.fastFallSpeed, vy + s.gravity * (vy < 0 ? HITSTUN_RISE_GRAVITY : HITSTUN_FALL_GRAVITY));
+      vx = approachZero(vx, LAUNCH_DRAG);
+    } else {
+      vy = Math.min(s.fallSpeed, vy + s.gravity);
+      vx = approachZero(vx, s.airFriction);
+    }
+    const py = y;
+    x += vx;
+    y += vy;
+    if (t % step === 0) out.push(x, y - f.h / 2);
+    if (x < b.left || x > b.right || y - f.h < b.top || y > b.bottom) {
+      out.push(x, y - f.h / 2);
+      return 'ko';
+    }
+    if (vy > 0) {
+      for (const p of world.platforms) {
+        if (x < p.x || x > p.right) continue;
+        if (py <= p.top && y >= p.top) {
+          out.push(x, p.top - f.h / 2);
+          return 'land';
+        }
+      }
+    }
+  }
+  return 'open';
+}
+
+const approachZero = (v: number, d: number): number => (v > d ? v - d : v < -d ? v + d : 0);

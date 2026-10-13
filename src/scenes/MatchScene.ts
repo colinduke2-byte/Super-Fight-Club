@@ -1,3 +1,4 @@
+import { HUMAN_MIN_SPEED } from '../engine/physics';
 import { announcer } from '../audio/announcer';
 import { ensurePalette } from '../art/proceduralFighter';
 import { ALT_LOOKS, assignPalettes } from '../art/palettes';
@@ -8,6 +9,7 @@ import { CinematicArt } from '../ui/CinematicArt';
 import { music } from '../audio/music';
 import { sfx } from '../audio/sfx';
 import { TrainingRunner } from '../engine/training';
+import { LaunchPreview } from '../ui/LaunchPreview';
 import { EntityViews } from '../ui/EntityViews';
 import { Button, makeInput, type FighterInput } from '../engine/buttons';
 import { DEFAULT_CAMERA, MultiTargetCamera, type CamPoint } from '../engine/camera';
@@ -74,6 +76,7 @@ const HELP_TRAINING = [
   '1 DEBUG  2 HIT DUMMY  3 HIT SELF  4 +25%  5 CLEAR  6 DUMMY / CPU  0 RESET',
   '[ ] SELECT MOVE  ENTER RUN IT  M SLOW-MO  N STEP MODE  B STEP',
   'T TAP-JUMP  F FULLSCREEN  H HIDE THIS  ESC PAUSE',
+  'HITS DRAW THE NO-DI LAUNCH PATH: ORANGE = CRASH SPEED, X = KO',
 ];
 const HELP_MATCH = ['ESC / START: PAUSE   1 DEBUG   F FULLSCREEN   H HIDE THIS'];
 
@@ -160,6 +163,7 @@ export class MatchScene extends Phaser.Scene {
   private pendingReset = false;
   private match!: Match;
   private training: TrainingRunner | null = null;
+  private launchPreview: LaunchPreview | null = null;
   private entityViews!: EntityViews;
   private trainText!: Phaser.GameObjects.BitmapText;
   private dimOverlay!: Phaser.GameObjects.Rectangle;
@@ -308,6 +312,7 @@ export class MatchScene extends Phaser.Scene {
     this.slashes = new SlashArcs(this, this.worldLayer);
     this.cinArt = new CinematicArt(this, this.worldLayer);
     if (this.isTraining) this.training = new TrainingRunner(this.world, this.fighters[0], this.fighters[1]);
+    this.launchPreview = this.isTraining ? new LaunchPreview(this, this.worldLayer) : null;
     sfx.arm();
     const track = this.slots.some((s) => s.boss) ? 'boss' : (stage.music ?? 'classic');
     music.play(track);
@@ -445,6 +450,7 @@ export class MatchScene extends Phaser.Scene {
     });
     this.world.listener = (type, f, x, y, mag, extra, tag) => {
       this.training?.onEvent(type, f, x, y, mag, extra);
+      if (type === 'hit' && this.launchPreview) this.launchPreview.show(f, this.world);
       if (type === 'moveStart' && f?.move?.id === 'taunt') this.bubblesSay.say(f.id, performance.now());
       this.eventFx.handle(type, f, x, y, mag, extra, tag);
     };
@@ -790,6 +796,16 @@ export class MatchScene extends Phaser.Scene {
         else if (f.state === 'run' && f.stateFrame % 9 === 4) this.effects.dust(f.x - f.facing * 4, f.y, 1, -f.facing);
         else if (((f.state === 'idle' || f.state === 'landing') && sp > 2.2 || f.skidding) && this.world.tick % 2 === 0) this.effects.dust(f.x, f.y, 2, Math.sign(f.vx));
       }
+      // launch trail: a fighter flying fast enough to crash into others streams smoke, and hot sparks at the top speeds
+      if (f.state === 'hitstun' && f.hitlag === 0 && !f.grounded) {
+        const speed = Math.hypot(f.vx, f.vy);
+        if (speed >= HUMAN_MIN_SPEED) {
+          const cy = f.y - f.h / 2;
+          const k = Math.min(1, (speed - HUMAN_MIN_SPEED) / 8);
+          this.effects.emit(f.x - f.vx * 0.6, cy - f.vy * 0.6, -f.vx * 3 + (this.world.tick % 5) - 2, -f.vy * 3 - 6, 0.45 + k * 0.3, 0xd8d0c8, 3 + k * 3, -20);
+          if (speed > 10 && this.world.tick % 2 === 0) this.effects.emit(f.x, cy, -f.vx * 8, -f.vy * 8, 0.22, 0xffb060, 2, 0, true);
+        }
+      }
     }
   }
 
@@ -860,6 +876,7 @@ export class MatchScene extends Phaser.Scene {
     for (const v of this.views) v.update(alpha, this.world.tick);
     if (this.countdown > 0 && !this.bench) this.runEntrances();
     this.entityViews.update(alpha, this.world.tick);
+    this.launchPreview?.update();
     this.ambientFx();
     this.effects.update(Math.min(frameMs, 50) / 1000);
 
