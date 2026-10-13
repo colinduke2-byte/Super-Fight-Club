@@ -238,7 +238,7 @@ export class CharacterSelectScene extends MenuScene {
     });
     const pads = inputManager.padList.length;
     this.warn.setText(up(l.warning(pads) ?? (l.ready ? 'ALL SET: PRESS CONFIRM AGAIN OR START TO CONTINUE' : '')));
-    this.hint.setText(up('LEFT/RIGHT: PICK   UP/DOWN: COLOR   J / ENTER: JOIN + LOCK   K / ESC: BACK' + (session.mode === 'versus' ? '   U / TAB: ADD CPU' : '')));
+    this.hint.setText(up('LEFT/RIGHT: PICK   UP/DOWN: OUTFIT   J / ENTER: JOIN + LOCK   K / ESC: BACK' + (session.mode === 'versus' ? '   U / TAB: ADD CPU' : '')));
     this.hint.setScale(Math.min(this.u, (this.scale.width * 0.97) / Math.max(1, textPx(this.hint))));
   }
 

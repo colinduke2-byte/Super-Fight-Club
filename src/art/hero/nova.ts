@@ -40,6 +40,9 @@ export function drawNova(r: Raster, k: Skel, look: PlaceholderLook): void {
   const hem = k.base - 2;
   const sway = (i: number): number => Math.sin(k.phase * 1.3 + i * 0.8) * 2.5;
   const run = k.pose.lean > 2;
+  // outfits: 1 = Stargazer (deep hood, a star circlet, a crescent moon on the staff), 2 = Witch (huge crooked hat, patched robe)
+  const o = look.outfit ?? 0;
+  const patch = r.part(mix(armor, [180, 150, 110], 0.45), { flat: true });
 
   // ---- cloak behind everything ----
   {
@@ -115,6 +118,16 @@ export function drawNova(r: Raster, k: Skel, look: PlaceholderLook): void {
       r.rect(P.trim, x0 + 18, top + 12 + i * 6, 6, 1);
       r.rect(P.trim, x0 + 18 + (i & 1) * 3, top + 13 + i * 6, 1, 3);
     }
+    if (o === 2) {
+      // stitched patches on the robe
+      for (const [px, py, pw, ph2] of [[x0 + 2, hem - 22, 9, 8], [x0 + w - 2, hem - 34, 7, 9]] as const) {
+        r.rect(patch, px, py, pw, ph2);
+        for (let i = 0; i < pw; i += 2) {
+          r.rect(P.line, px + i, py - 1, 1, 1);
+          r.rect(P.line, px + i, py + ph2, 1, 1);
+        }
+      }
+    }
   }
 
   // ---- head + hat ----
@@ -123,6 +136,11 @@ export function drawNova(r: Raster, k: Skel, look: PlaceholderLook): void {
     const hy = k.head.y + 2;
     const hs = k.head.s;
     r.rect(P.skin, hx + 6, T.y - 4, hs - 12, 8); // neck
+    if (o === 1) {
+      // the hood's back and sides, behind the face
+      r.ellipse(P.cloakD, hx + hs / 2 - 1, hy + 6, hs / 2 + 8, hs / 2 + 6);
+      r.poly(P.cloakD, [[hx - 8, hy + 6], [hx - 14 - sway(3), hy + hs + 10], [hx + 6, hy + hs + 4]]);
+    }
     // hair wisps under the hat
     r.poly(P.cloak, [[hx - 2, hy + 6], [hx - 12 - sway(3), hy + hs - 2], [hx + 4, hy + hs - 6]]);
     // long silver hair framing the face and falling behind the shoulder
@@ -130,6 +148,28 @@ export function drawNova(r: Raster, k: Skel, look: PlaceholderLook): void {
     r.poly(P.hair, [[hx - 2, hy + 4], [hx + 8, hy + 3], [hx + 9, hy + hs - 4], [hx - 6 - sway(5), hy + hs + 14]]);
     // face
     drawFace(r, { skin: P.skin, skinD: P.skinD, eye: P.eye, pupil: P.eye, line: P.line }, hx + 4, hy + 4, hs, hs - 2, { eyeLit: true, mouth: true });
+    if (o === 1) {
+      // a deep hood pulled up over the hair, and a gold circlet with a star on the brow
+      // the hood's front lip over the brow, open at the face
+      r.poly(P.cloak, [[hx - 7, hy + 4], [hx + 1, hy - 7], [hx + hs / 2 + 2, hy - 9], [hx + hs + 5, hy - 2], [hx + hs + 4, hy + 4], [hx + 2, hy + 4], [hx - 2, hy + hs + 2], [hx - 9, hy + hs]]);
+      r.seg(P.trim, hx + 1, hy + 4, hx + hs + 4, hy + 3, 1, 1);
+      r.rect(P.gold, hx + 3, hy + 6, hs + 2, 2);
+      const sx = hx + hs - 1;
+      const sy = hy + 6;
+      r.poly(P.glow, [[sx, sy - 5], [sx + 1.5, sy - 1.5], [sx + 5, sy], [sx + 1.5, sy + 1.5], [sx, sy + 5], [sx - 1.5, sy + 1.5], [sx - 5, sy], [sx - 1.5, sy - 1.5]]);
+    } else if (o === 2) {
+      // a huge witch's hat: a very wide brim and a tall crooked cone with a patched band and buckle
+      r.ellipse(P.hat, hx + hs / 2 + 2, hy + 3, hs / 2 + 19, 5);
+      r.ellipse(P.hatL, hx + hs / 2, hy + 2, hs / 2 + 16, 3);
+      const bend = Math.sin(k.phase * 0.9) * 2.5;
+      r.poly(P.hat, [[hx - 1, hy + 2], [hx + hs + 6, hy + 2], [hx + hs + 1, hy - 16], [hx + hs - 4, hy - 30], [hx - 12 + bend, hy - 36], [hx - 4 + bend, hy - 30], [hx + 2, hy - 16]]);
+      r.poly(P.hatL, [[hx + 1, hy + 1], [hx + 9, hy + 1], [hx + 4, hy - 16], [hx + 2, hy - 16]]);
+      r.rect(P.cloakD, hx, hy - 4, hs + 5, 5);
+      r.rect(P.gold, hx + hs / 2 - 2, hy - 5, 7, 7);
+      r.rect(P.cloakD, hx + hs / 2, hy - 3, 3, 3);
+      r.rect(patch, hx + hs - 6, hy - 22, 6, 6);
+      r.ellipse(P.accent, hx - 12 + bend, hy - 36, 2.2, 2.2);
+    } else {
     // hat: wide brim, cone with a bend, glowing band and star
     r.ellipse(P.hat, hx + hs / 2 + 2, hy + 3, hs / 2 + 12, 5);
     r.ellipse(P.hatL, hx + hs / 2, hy + 2, hs / 2 + 10, 3);
@@ -139,6 +179,7 @@ export function drawNova(r: Raster, k: Skel, look: PlaceholderLook): void {
     r.rect(P.accent, hx + 2, hy - 3, hs + 3, 3);
     r.ellipse(P.glow, hx + hs / 2 + 2, hy - 2, 2.5, 2.5);
     r.ellipse(P.accent, hx + hs / 2 + 10 + bend, hy - 29, 2.5, 2.5);
+    }
   }
 
   // ---- front arm: sleeve, hand, staff ----
@@ -173,8 +214,22 @@ export function drawNova(r: Raster, k: Skel, look: PlaceholderLook): void {
     for (const t of [0.28, 0.55, 0.82]) r.ellipse(P.gold, bx + (tx - bx) * t, by + (ty - by) * t, 3.5, 3.5);
     const nx = -dy;
     const ny = dx;
-    r.seg(P.gold, tx + nx * 7, ty + ny * 7, tx - dx * 4, ty - dy * 4, 3, 3);
-    r.seg(P.gold, tx - nx * 7, ty - ny * 7, tx - dx * 4, ty - dy * 4, 3, 3);
+    if (o === 1) {
+      // a crescent moon cradling the orb: an arc of gold around its back
+      let px = tx + nx * 10;
+      let py = ty + ny * 10;
+      for (let i = 1; i <= 8; i++) {
+        const a = (i / 8) * Math.PI;
+        const cx = tx - dx * 2 + (nx * Math.cos(a) - dx * Math.sin(a)) * 10;
+        const cy = ty - dy * 2 + (ny * Math.cos(a) - dy * Math.sin(a)) * 10;
+        r.seg(P.gold, px, py, cx, cy, 3.4 - Math.abs(i - 4) * 0.4, 3.4 - Math.abs(i - 4) * 0.4);
+        px = cx;
+        py = cy;
+      }
+    } else {
+      r.seg(P.gold, tx + nx * 7, ty + ny * 7, tx - dx * 4, ty - dy * 4, 3, 3);
+      r.seg(P.gold, tx - nx * 7, ty - ny * 7, tx - dx * 4, ty - dy * 4, 3, 3);
+    }
     const pulse = 0.5 + 0.5 * Math.sin(k.phase * 1.7);
     r.ellipse(P.accent, tx + dx * 3, ty + dy * 3, 8, 8);
     r.ellipse(P.glow, tx + dx * 2, ty + dy * 2, 3.5 + pulse * 1.5, 3.5 + pulse * 1.5);

@@ -10,7 +10,9 @@ import type { Skel } from './skeleton';
  * long legs of floating stone segments on stepped plinth feet. Crystals take `armor`, deep stone `armorDark`, glow `accent`.
  */
 export function drawObelisk(r: Raster, k: Skel, look: PlaceholderLook): void {
-  const stone = col(look.skin);
+  // outfits: 1 = Ancient (a weathered stone capstone with a carved face, moss and vines), 2 = Molten (basalt with magma seams, an obsidian crown)
+  const o = look.outfit ?? 0;
+  const stone = o === 2 ? mix(col(look.skin), [44, 38, 44], 0.78) : o === 1 ? mix(col(look.skin), [150, 140, 116], 0.4) : col(look.skin);
   const crystal = col(look.armor);
   const deepStone = col(look.armorDark);
   const glow = col(look.accent);
@@ -20,7 +22,7 @@ export function drawObelisk(r: Raster, k: Skel, look: PlaceholderLook): void {
     stoneL: r.part(mix(stone, [240, 232, 220], 0.32)),
     stoneD: r.part(mix(stone, deepStone, 0.5)),
     stoneDeep: r.part(mix(stone, deepStone, 0.82)),
-    seam: r.part(mul(mix(stone, deepStone, 0.6), 0.75), { flat: true }),
+    seam: o === 2 ? r.part(mix(glow, [255, 200, 80], 0.3), { emissive: true, flat: true }) : r.part(mul(mix(stone, deepStone, 0.6), 0.75), { flat: true }),
     panel: r.part(mix(stone, deepStone, 0.66)),
     glyph: r.part(mix(glow, crystal, 0.25), { emissive: true, flat: true }),
     crystal: r.part(crystal),
@@ -32,6 +34,8 @@ export function drawObelisk(r: Raster, k: Skel, look: PlaceholderLook): void {
     glow: r.part(glow, { emissive: true }),
     core: r.part(mix(glow, [255, 255, 255], 0.6), { emissive: true }),
   };
+  const moss = r.part([86, 128, 58], { soft: true });
+  const mossL = r.part([132, 170, 80], { soft: true });
   const T = k.torso;
   const ph = k.phase;
   const pulse = 0.5 + 0.5 * Math.sin(ph * 1.3);
@@ -110,6 +114,18 @@ export function drawObelisk(r: Raster, k: Skel, look: PlaceholderLook): void {
       for (let i = 0; i < 6; i++) set(px - 6 - i * 0.7, hy - 4 - i);
     });
     r.poly(P.stoneDeep, [[br[0] - 6, baseY - 1], [br[0], baseY - 6], [br[0], baseY]]);
+    if (o === 1) {
+      // moss on the ledges of the courses, and vines trailing down the faces
+      for (let i = 1; i < 5; i++) {
+        const y = topY + ((baseY - topY) * i) / 5;
+        const x0 = edgeAt(y, -1);
+        const x1 = edgeAt(y, 1);
+        for (let x = x0 + 1; x < x1 - 1; x += 3) if ((x * 7 + i * 5) % 11 < 6) r.ellipse((x + i) % 2 ? moss : mossL, x, y - 1, 2.4, 1.6);
+      }
+      for (const [vx, len] of [[edgeAt(topY + 4, -1) + 3, 30], [cx + 6, 18], [edgeAt(topY + 10, 1) - 3, 24]] as const) {
+        for (let y = 0; y < len; y += 2) r.ellipse(y % 4 ? moss : mossL, vx + Math.sin(y * 0.4 + ph * 0.5) * 1.2, topY + 2 + y, 1.4, 1.4);
+      }
+    }
   }
 
   // ---- front leg ----
@@ -124,6 +140,28 @@ export function drawObelisk(r: Raster, k: Skel, look: PlaceholderLook): void {
     r.rect(P.bronzeD, bx - half, topY + 2, half * 2, 1);
     for (let i = -1; i <= 1; i++) r.rect(P.bronzeD, bx + i * (half * 0.6) - 0.5, collarY + 1, 1, 3);
     const base = collarY;
+    if (o === 1) {
+      // a weathered stone head: a blocky brow, a carved face with two glowing eyes, moss on the crown
+      const top = base - k.head.s * 0.95;
+      r.poly(P.stone, [[bx - half, base], [bx - half + 2, top + 3], [bx - half * 0.3, top], [bx + half * 0.5, top], [bx + half + 1, top + 4], [bx + half, base]]);
+      r.poly(P.stoneD, [[bx - half, base], [bx - half + 2, top + 3], [bx - half * 0.4, top + 2], [bx - half * 0.4, base]]);
+      r.rect(P.stoneL, bx - half * 0.3, top + 1, half * 1.1, 2);
+      const ey = top + (base - top) * 0.45;
+      r.rect(P.stoneDeep, bx - half * 0.25, ey - 3, half * 1.2, 2); // carved brow
+      r.rect(P.glow, bx + half * 0.05, ey, 3, 2);
+      r.rect(P.glow, bx + half * 0.6, ey, 3, 2);
+      r.rect(P.stoneDeep, bx + half * 0.15, ey + 6, half * 0.7, 1); // mouth line
+      for (let x = bx - half + 2; x < bx + half; x += 3) r.ellipse((x | 0) % 2 ? moss : mossL, x, top + 1 + Math.abs(x - bx) * 0.12, 2.6, 2);
+    } else if (o === 2) {
+      // an obsidian crown: a ring of black glass spikes around a molten core with the eye in it
+      const top = base - k.head.s * 0.75;
+      r.poly(P.stoneDeep, [[bx - half, base], [bx - half + 3, top + 4], [bx + half - 3, top + 4], [bx + half, base]]);
+      const spikes: [number, number][] = [[-0.85, 0.7], [-0.45, 1.1], [0, 1.4], [0.45, 1.15], [0.85, 0.75]];
+      for (const [t, hgt] of spikes) prism(r, P, [bx + t * half, top + 6], -Math.PI / 2 + t * 0.35, k.head.s * hgt, 6, false);
+      const ey = top + (base - top) * 0.55;
+      r.poly(P.glow, [[bx - half * 0.3, ey - 1], [bx + half * 0.75, ey], [bx + half * 0.7, ey + 3], [bx - half * 0.3, ey + 2]]);
+      r.rect(P.core, bx + half * 0.3, ey + 0.6, 4, 1.4);
+    } else {
     const tipY = base - k.head.s * 0.95; // a squat pyramidion, not a spire
     const tip: V2 = [bx + 1, tipY];
     // three visible facets: shaded left, mid front, lit right edge
@@ -139,6 +177,7 @@ export function drawObelisk(r: Raster, k: Skel, look: PlaceholderLook): void {
     r.poly(P.crystalDeep, [[bx - half * 0.45, ey - 3], [bx + half * 0.9, ey - 1], [bx + half * 0.82, ey + 5], [bx - half * 0.45, ey + 4]]);
     r.poly(P.glow, [[bx + half * 0.05, ey], [bx + half * 0.72, ey + 1], [bx + half * 0.68, ey + 2.5], [bx + half * 0.05, ey + 2]]);
     r.rect(P.core, bx + half * 0.35, ey + 0.8, 4, 1.2); // the pupil: a hot white glint toward the front
+    }
     // the hovering shoulder clusters: crystal prisms floating over each shoulder, clear of the shaft
     const hover = Math.sin(ph * 1.2) * 1.2;
     cluster(r, P, [k.shB[0] - 4, k.shB[1] - 10 + hover], -1, true);

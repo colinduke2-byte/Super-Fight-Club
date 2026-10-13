@@ -188,7 +188,20 @@ Key design points
 - **Records** (main menu): matches played, wins, win rate, KOs and falls per fighter for human players (versus and arcade), plus Target Smash best times and Launch Contest best distances; RESET RECORDS asks to confirm. Stored in this browser only.
 - **Move list:** Pause > MOVE LIST shows the paused player's moves with their inputs, damage and first active frame.
 - **Launch Contest** (main menu): ten seconds behind a barrier to pile damage on a rival dummy that just stands there, then the barrier drops and you have four seconds to smash it down the Launch Pad runway. The camera rides the flight, posts mark every 25 m, a gold flag marks your best, and the run scores the furthest point reached (`src/game/launch.ts`, stage `src/stages/launch.ts`). Best distances are saved per fighter. Dev shortcut: `?launch=<fighter>`.
-- **Colour palettes:** every fighter has three alternate colourways, re-rendered from the art's palette rather than tinted (`src/art/palettes.ts`). Press Up / Down on character select to pick one; two players on the same fighter are always given different colours.
+- **Outfits and colours:** every fighter has eight looks (`src/art/palettes.ts`): the original outfit in four colours and two alternate outfits in two colours each. Alternate outfits change gear and shape, not just hue (each hero drawer reads `look.outfit`), and everything is re-rendered rather than tinted. Press Up / Down on character select to pick one; the card names the outfit and colour. Two players on the same fighter always get different looks.
+
+  | Fighter | Outfit 1 | Outfit 2 |
+  | --- | --- | --- |
+  | Brick | Siege: horned great helm, spiked pauldron, chain | Diver: brass diving helmet, air tank |
+  | Vex | Oni: wild mane, horned demon mask | Cyber: visor helmet, neon traces, no cape |
+  | Nova | Stargazer: hood, star circlet, crescent staff | Witch: huge crooked hat, patched robe |
+  | Gizmo | Steamworks: top hat, monocle, boiler pack | Astronaut: fishbowl helmet, air pack, flag |
+  | Agni | Inferno: horns, wild blaze, magma cracks | Temple: shaved monk, kasaya, wraps |
+  | Halcyon | Valkyrie: plumed crest, battle cape | Raven: black wings, hood and beak mask |
+  | Riptide | Pirate: tricorn, eyepatch, long coat | Hammerhead: hammer head, heavy plate |
+  | Obelisk | Ancient: carved stone face, moss and vines | Molten: basalt, magma seams, crown of spikes |
+  | Rime | Kitsune: fox mask, ponytail | Yeti: fur hood, mantle and boots |
+  | Havoc | Sniper: boonie hat, ghillie, scoped rifle | Commando: beret, shades, bandolier |
 - **Announcer:** a voice calls the countdown, GAME! / TIME!, sudden death and the winner, using the browser's speech synthesis (no audio files; Settings > Announcer).
 - **Results:** KOs, falls, damage dealt and each fighter's **best combo**; CPUs are named by port (CPU2, CPU3...) when there are several.
 - **Target Smash** (main menu): pick a fighter and break the ten targets on the Target Gauntlet course as fast as you can. Any hit or projectile breaks a target; falling off fails the run. Best times are saved per fighter in this browser (`src/game/records.ts`). Dev shortcut: `?targets=<fighter>`.

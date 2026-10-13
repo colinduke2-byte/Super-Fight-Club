@@ -38,6 +38,13 @@ export function drawAgni(r: Raster, k: Skel, look: PlaceholderLook): void {
   const ph = k.phase;
   const flick = (i: number): number => Math.sin(ph * 2.1 + i * 1.7);
   const run = k.pose.lean > 2;
+  // outfits: 1 = Inferno (demon horns, a wild blaze of hair, magma cracks, flame pauldron), 2 = Temple (bald monk, kasaya robe, big beads, wraps)
+  const o = look.outfit ?? 0;
+  const horn = r.part([206, 186, 156]);
+  const hornL = r.part([150, 124, 100]);
+  const robe = r.part(mix(armor, [255, 200, 120], 0.12), { soft: true });
+  const robeD = r.part(mul(armor, 0.72), { soft: true });
+  const bead = r.part([150, 92, 52]);
 
   // ---- sash tails (behind) ----
   {
@@ -61,7 +68,8 @@ export function drawAgni(r: Raster, k: Skel, look: PlaceholderLook): void {
     const el = k.elbowB;
     r.seg(P.skinD, k.shB[0], k.shB[1], el[0], el[1], 12, 10);
     r.seg(P.skinD, el[0], el[1], k.handB[0], k.handB[1], 10, 9);
-    gauntlet(r, P, k.handB, el, true, ph);
+    if (o === 2) wraps(r, P, k.handB, el, ph);
+    else gauntlet(r, P, k.handB, el, true, ph);
   }
 
   // ---- back leg ----
@@ -91,12 +99,28 @@ export function drawAgni(r: Raster, k: Skel, look: PlaceholderLook): void {
     r.rect(P.ink, x0 + 10, top + 14, 3, 1);
     r.rect(P.ink, x0 + w - 12, top + 8, 4, 1);
     r.rect(P.ink, x0 + w - 12, top + 14, 3, 1);
-    // prayer beads
+    if (o === 1) {
+      // magma cracks splitting the skin, glowing from inside
+      const cracks: [number, number, number, number][] = [[w / 2 + 2, 6, w / 2 - 4, 14], [w / 2 - 4, 14, w / 2 + 1, 22], [w / 2 + 1, 22, w / 2 - 3, h - 12], [w - 8, 10, w - 4, 18], [12, 18, 16, 26]];
+      for (const [ax, ay, bx, by] of cracks) {
+        r.seg(P.flame, x0 + ax, top + ay, x0 + bx, top + by, 2, 1.5);
+        r.seg(P.glow, x0 + ax, top + ay, x0 + bx, top + by, 0.8, 0.8);
+      }
+    }
+    if (o === 2) {
+      // a kasaya robe draped over the back shoulder and across the chest
+      r.poly(robe, [[x0 - 2, top + 2], [x0 + 12, top + 1], [x0 + w + 1, top + h - 12], [x0 + w - 4, top + h - 4], [x0 + 4, top + h - 4], [x0 - 3, top + 10]]);
+      r.poly(robeD, [[x0 - 2, top + 2], [x0 + 6, top + 2], [x0 + 6, top + h - 4], [x0 + 2, top + h - 4], [x0 - 3, top + 10]]);
+      for (let i = 0; i < 3; i++) r.seg(robeD, x0 + 10 + i * 6, top + 4 + i * 4, x0 + w - 10 + i * 2, top + h - 12, 1, 1); // folds
+      r.seg(P.gold, x0 + 12, top + 1, x0 + w + 1, top + h - 12, 1.4, 1.4);
+    }
+    // prayer beads (the monk wears a heavy mala of big wooden beads)
     for (let i = 0; i < 7; i++) {
       const bx = x0 + 6 + i * ((w - 12) / 6);
-      const by = top + 4 + Math.sin((i / 6) * Math.PI) * 9;
-      r.ellipse(P.gold, bx, by, 2.4, 2.4);
+      const by = top + 4 + Math.sin((i / 6) * Math.PI) * (o === 2 ? 12 : 9);
+      r.ellipse(o === 2 ? bead : P.gold, bx, by, o === 2 ? 3.4 : 2.4, o === 2 ? 3.4 : 2.4);
     }
+    if (o === 2) r.ellipse(P.gold, x0 + w / 2, top + 18, 3, 3.6);
     // wide sash with a flame knot
     r.rect(P.pantsD, x0 + 4, top + h - 12, w - 8, 12);
     r.rect(P.sash, x0 + 4, top + h - 12, w - 8, 4);
@@ -114,15 +138,39 @@ export function drawAgni(r: Raster, k: Skel, look: PlaceholderLook): void {
     const hy = k.head.y;
     const hs = k.head.s;
     r.rect(P.skinD, hx + 8, T.y - 4, hs - 14, 8); // neck
-    // flame crest of hair
-    const tongues: [number, number][] = [[2, 18], [8, 26], [14, 20], [19, 28], [24, 16]];
+    // flame crest of hair (Inferno: a taller, wilder blaze; Temple: shaved bald)
+    const tongues: [number, number][] = o === 2 ? [] : o === 1 ? [[-2, 22], [4, 32], [10, 26], [16, 36], [22, 24], [27, 18]] : [[2, 18], [8, 26], [14, 20], [19, 28], [24, 16]];
     tongues.forEach(([ox, hgt], i) => {
       const fl = flick(i) * 3;
       r.poly(P.flame, [[hx + ox, hy + 4], [hx + ox + 5 + fl * 0.3, hy + 4 - hgt - fl], [hx + ox + 10, hy + 4]]);
       r.poly(P.glow, [[hx + ox + 3, hy + 4], [hx + ox + 5 + fl * 0.3, hy + 4 - hgt * 0.6 - fl * 0.6], [hx + ox + 8, hy + 4]]);
     });
+    if (o === 2) {
+      // the shaved scalp's dome, under the face
+      r.ellipse(P.skin, hx + hs / 2, hy + 8, hs / 2 + 1, hs / 2 - 1);
+      r.ellipse(P.skinD, hx + 3, hy + 10, 4, hs / 2 - 4);
+    }
     // face
     drawFace(r, { skin: P.skin, skinD: P.skinD, eye: P.eye, pupil: P.pupil, line: P.deep }, hx, hy + 4, hs, hs - 2, { grim: 1 });
+    if (o === 2) {
+      // a shaved head: a crown of three marks and a glowing urna
+      for (let i = 0; i < 3; i++) r.ellipse(P.ink, hx + hs / 2 - 3 + i * 4, hy + 4, 1, 1);
+      r.ellipse(P.ink, hx + hs - 2, hy + 9, 1.4, 1.4); // a glowing urna
+    } else if (o === 1) {
+      r.poly(P.deep, [[hx - 1, hy + 6], [hx + 8, hy + 3], [hx + 12, hy + hs - 6], [hx + 2, hy + hs - 2]]);
+      // demon horns curling up and back from the brow
+      for (const [bx, s] of [[hx + hs - 4, 1], [hx + 5, 0.8]] as const) {
+        let px = bx;
+        let py = hy + 5;
+        for (let i = 0; i < 5; i++) {
+          const x = px - (i < 2 ? -1 : 3) * s;
+          const y = py - 4.5 * s;
+          r.seg(i < 2 ? horn : hornL, px, py, x, y, (6 - i) * s, (5.2 - i) * s);
+          px = x;
+          py = y;
+        }
+      }
+    } else {
     r.poly(P.deep, [[hx - 1, hy + 6], [hx + 8, hy + 3], [hx + 12, hy + hs - 6], [hx + 2, hy + hs - 2]]); // dark hair at the nape
     // headband with trailing tails
     r.rect(P.light, hx - 1, hy + 2, hs + 2, 5);
@@ -138,6 +186,7 @@ export function drawAgni(r: Raster, k: Skel, look: PlaceholderLook): void {
         py = y;
       }
     }
+    }
   }
 
   // ---- front arm: shoulder wrap, arm, flame gauntlet ----
@@ -146,9 +195,21 @@ export function drawAgni(r: Raster, k: Skel, look: PlaceholderLook): void {
     const el = k.elbowF;
     r.seg(P.skin, sx, sy, el[0], el[1], 13, 11);
     r.seg(P.skin, el[0], el[1], k.handF[0], k.handF[1], 11, 10);
-    r.ellipse(P.pants, sx, sy - 2, 9, 8); // shoulder wrap
-    r.rect(P.sash, sx - 8, sy + 2, 16, 2);
-    gauntlet(r, P, k.handF, el, false, ph);
+    if (o === 1) {
+      // a pauldron of living flame
+      r.ellipse(horn, sx, sy - 2, 9, 7);
+      for (let i = 0; i < 3; i++) {
+        const fl = flick(i + 7) * 2;
+        r.poly(P.flame, [[sx - 8 + i * 6, sy - 4], [sx - 6 + i * 6 + fl * 0.3, sy - 16 - fl - (i === 1 ? 4 : 0)], [sx - 2 + i * 6, sy - 4]]);
+      }
+    } else if (o === 2) {
+      r.ellipse(robe, sx, sy - 1, 8, 7);
+    } else {
+      r.ellipse(P.pants, sx, sy - 2, 9, 8); // shoulder wrap
+      r.rect(P.sash, sx - 8, sy + 2, 16, 2);
+    }
+    if (o === 2) wraps(r, P, k.handF, el, ph);
+    else gauntlet(r, P, k.handF, el, false, ph);
   }
 }
 
@@ -172,6 +233,23 @@ function gauntlet(r: Raster, P: Parts, h: V2, el: V2, back: boolean, ph: number)
   r.poly(P.flame, [[x - 1, y - 8], [x + 3 - f * 0.4, y - 21 + f], [x + 7, y - 8]]);
   r.poly(P.glow, [[x - 4, y - 8], [x - 3 + f * 0.3, y - 14 - f * 0.5], [x - 2, y - 8]]);
   r.poly(P.glow, [[x + 1, y - 8], [x + 3, y - 16 + f * 0.5], [x + 5, y - 8]]);
+}
+
+/** Temple: bare fists bound in cloth wraps, a small flame in the palm. */
+function wraps(r: Raster, P: Parts, h: V2, el: V2, ph: number): void {
+  const [x, y] = h;
+  const mx = el[0] + (h[0] - el[0]) * 0.5;
+  const my = el[1] + (h[1] - el[1]) * 0.5;
+  r.seg(P.wrap, mx, my, x, y, 11, 11);
+  for (let i = 0; i < 3; i++) {
+    const t = 0.2 + i * 0.3;
+    r.rect(P.abs, mx + (x - mx) * t - 5, my + (y - my) * t, 10, 1);
+  }
+  r.ellipse(P.skin, x, y, 7, 6.5);
+  r.rect(P.wrap, x - 6, y - 2, 12, 3);
+  const f = Math.sin(ph * 2.3) * 1.5;
+  r.poly(P.flame, [[x - 3, y - 6], [x + f * 0.4, y - 14 - f], [x + 3, y - 6]]);
+  r.poly(P.glow, [[x - 1.5, y - 6], [x, y - 10 - f * 0.5], [x + 1.5, y - 6]]);
 }
 
 function leg(r: Raster, P: Parts, hip: V2, kn: V2, ankle: V2, back: boolean): void {

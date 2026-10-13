@@ -43,6 +43,12 @@ export function drawRiptide(r: Raster, k: Skel, look: PlaceholderLook): void {
   const ph = k.phase;
   const run = k.pose.lean > 2;
   const sway = (i: number, a = 2): number => Math.sin(ph * 1.25 + i * 0.9) * a;
+  // outfits: 1 = Pirate (tricorn, eyepatch, a long coat with brass buttons), 2 = Hammerhead (a hammer-shaped head, heavy gladiator plate)
+  const o = look.outfit ?? 0;
+  const coat = r.part(armor, { soft: true });
+  const coatD = r.part(mul(armor, 0.7), { soft: true });
+  const black = r.part([30, 26, 32]);
+  const gold = r.part([230, 190, 90]);
 
   // ---- shark tail (behind): sweeps back from the lower spine to a crescent caudal fin ----
   {
@@ -100,6 +106,13 @@ export function drawRiptide(r: Raster, k: Skel, look: PlaceholderLook): void {
     r.rect(P.rivet, bx, by + 3, 1, 1);
   }
 
+  if (o === 1) {
+    // ---- the coat's long tails behind the legs ----
+    const run = k.pose.lean > 2 ? 1 : 0;
+    r.poly(coatD, [[T.x - 1, T.y + T.h - 10], [T.x + 12, T.y + T.h - 10], [T.x + 8 - run * 10 + sway(2, 2), T.y + T.h + 26], [T.x - 10 - run * 16 + sway(3, 3), T.y + T.h + 24]]);
+    r.rect(gold, T.x - 10 - run * 16 + sway(3, 3), T.y + T.h + 23, 16, 1);
+  }
+
   // ---- torso: shark hide, ribbed pale belly, gill slits, harness ----
   {
     const x0 = T.x;
@@ -121,6 +134,18 @@ export function drawRiptide(r: Raster, k: Skel, look: PlaceholderLook): void {
     r.ellipse(P.bronze, x0 + w / 2 + 3, top + h - 6, 4.5, 4);
     r.ellipse(P.accent, x0 + w / 2 + 3, top + h - 6, 1.8, 1.6);
     r.ellipse(P.bronze, x0 + w / 2 + 1, top + h / 2 - 1, 3, 3); // strap ring
+    if (o === 1) {
+      // the coat open over the chest: lapels and a row of brass buttons
+      r.poly(coat, [[x0 - 2, top + 2], [x0 + 8, top + 1], [x0 + w / 2 - 2, top + h - 8], [x0 + 6, top + h - 2], [x0 - 3, top + 11]]);
+      r.poly(coatD, [[x0 + 8, top + 1], [x0 + 14, top + 2], [x0 + w / 2, top + 14], [x0 + w / 2 - 3, top + 18]]);
+      for (let i = 0; i < 3; i++) r.ellipse(gold, x0 + w / 2 - 4, top + 8 + i * 6, 1.6, 1.6);
+    }
+    if (o === 2) {
+      // a heavy plated chest guard over the belly
+      r.poly(P.armor, [[x0 + w / 2 - 4, top + 4], [x0 + w + 3, top + 8], [x0 + w - 2, top + h - 12], [x0 + w / 2 - 2, top + h - 12]]);
+      r.poly(P.light, [[x0 + w / 2 - 2, top + 5], [x0 + w + 1, top + 9], [x0 + w, top + 14], [x0 + w / 2 - 1, top + 12]]);
+      for (let i = 0; i < 3; i++) r.rect(P.rivet, x0 + w / 2 + 1 + i * 5, top + h - 15, 2, 2);
+    }
   }
 
   // ---- front leg ----
@@ -129,10 +154,12 @@ export function drawRiptide(r: Raster, k: Skel, look: PlaceholderLook): void {
   // ---- front pauldron (under the head so the snout overlaps it) ----
   {
     const [sx, sy] = k.shF;
-    r.ellipse(P.dark, sx - 1, sy + 1, 9, 7);
-    r.ellipse(P.armor, sx, sy, 7.5, 5.5);
-    r.ellipse(P.light, sx - 2, sy - 2, 3.5, 2);
-    r.rect(P.bronze, sx - 8, sy + 5, 16, 2);
+    const big = o === 2 ? 1.5 : 1;
+    r.ellipse(o === 1 ? coatD : P.dark, sx - 1, sy + 1, 9 * big, 7 * big);
+    r.ellipse(o === 1 ? coat : P.armor, sx, sy, 7.5 * big, 5.5 * big);
+    r.ellipse(P.light, sx - 2, sy - 2, 3.5 * big, 2 * big);
+    r.rect(o === 1 ? gold : P.bronze, sx - 8 * big, sy + 5 * big, 16 * big, 2);
+    if (o === 2) for (let i = 0; i < 2; i++) r.rect(P.dark, sx - 10, sy + 1 + i * 4, 20, 1); // layered lames
   }
 
   // ---- head: blunt shark snout, glowing eye, toothy jaw, steel brow band, dorsal fin ----
@@ -145,6 +172,14 @@ export function drawRiptide(r: Raster, k: Skel, look: PlaceholderLook): void {
     const fin = Math.sin(ph * 0.9) * 1.2;
     r.poly(P.hideD, [[hx - 2, hy + hs * 0.55], [hx + 2, hy - hs * 0.5 + fin], [hx + 8, hy - hs * 0.62 + fin], [hx + hs * 0.55, hy + 4]]);
     r.poly(P.hide, [[hx + 2, hy + hs * 0.45], [hx + 6, hy - hs * 0.4 + fin], [hx + 9, hy - hs * 0.5 + fin], [hx + hs * 0.5, hy + 5]]);
+    if (o === 2) {
+      // the hammer: a tall flat lobe across the front of the head, an eye at each end
+      const fx = hx + hs + 4;
+      r.poly(P.hideD, [[fx - 6, hy - 9], [fx + 5, hy - 11], [fx + 9, hy - 7], [fx + 8, hy + hs + 6], [fx + 3, hy + hs + 9], [fx - 6, hy + hs + 6]]);
+      r.poly(P.hide, [[fx - 5, hy - 8], [fx + 4, hy - 10], [fx + 7, hy - 6], [fx + 6, hy + hs + 4], [fx - 5, hy + hs + 4]]);
+      r.ellipse(P.eye, fx + 4, hy - 6, 2.2, 2);
+      r.ellipse(P.eye, fx + 3, hy + hs + 4, 2.2, 2);
+    }
     // skull and long snout
     r.poly(P.hide, [[hx - 2, hy + 6], [hx + 4, hy], [hx + hs - 2, hy + 1], [hx + hs + 12, hy + hs * 0.42], [hx + hs + 13, hy + hs * 0.58], [hx + hs + 2, hy + hs * 0.7], [hx + 2, hy + hs - 2]]);
     r.poly(P.hideD, [[hx - 2, hy + 6], [hx + 4, hy + 2], [hx + 6, hy + hs - 3], [hx + 2, hy + hs - 2]]);
@@ -165,6 +200,18 @@ export function drawRiptide(r: Raster, k: Skel, look: PlaceholderLook): void {
     r.poly(P.eye, [[hx + hs * 0.62, hy + hs * 0.42], [hx + hs * 0.86, hy + hs * 0.4], [hx + hs * 0.8, hy + hs * 0.5], [hx + hs * 0.62, hy + hs * 0.5]]);
     // gill marks behind the jaw
     for (let i = 0; i < 2; i++) r.seg(P.gill, hx + 4 + i * 3, hy + hs * 0.55, hx + 3 + i * 3, hy + hs - 3, 1.2, 1);
+    if (o === 1) {
+      // an eyepatch over the eye, its strap round the head, and a tricorn hat with gold trim and a skull
+      r.seg(black, hx - 1, hy + 5, hx + hs * 0.75, hy + hs * 0.44, 1.4, 1.4);
+      r.ellipse(black, hx + hs * 0.74, hy + hs * 0.46, 4, 3.4);
+      const tx = hx + hs / 2;
+      const ty = hy + 2;
+      r.poly(black, [[tx - hs / 2 - 10, ty + 1], [tx - hs / 2 + 2, ty - 12], [tx, ty - 8], [tx + hs / 2 + 2, ty - 13], [tx + hs / 2 + 12, ty + 2], [tx + 2, ty + 4]]);
+      r.poly(gold, [[tx - hs / 2 - 10, ty + 1], [tx + 2, ty + 3], [tx + hs / 2 + 12, ty + 2], [tx + hs / 2 + 11, ty + 3], [tx + 2, ty + 5], [tx - hs / 2 - 10, ty + 2]]);
+      r.ellipse(P.tooth, tx + 1, ty - 5, 2.4, 2.2);
+      r.rect(black, tx, ty - 5, 1, 1);
+      r.rect(black, tx + 2, ty - 5, 1, 1);
+    }
   }
 
   // ---- front arm: pauldron, hide arm, plated gauntlet, anchor ----

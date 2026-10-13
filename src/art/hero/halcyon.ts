@@ -17,9 +17,11 @@ export function drawHalcyon(r: Raster, k: Skel, look: PlaceholderLook): void {
   const gold = col(look.accent);
   const goldL = mix(gold, [255, 250, 220], 0.55);
   const skin = col(look.skin);
-  const azure: RGB = [58, 126, 216];
-  const feather: RGB = [246, 249, 255];
-  const featherU: RGB = [172, 196, 232];
+  // outfits: 1 = Valkyrie (crested helm with a horsehair plume, a cape, braids), 2 = Raven (black wings, hood and beak mask)
+  const o = look.outfit ?? 0;
+  const azure: RGB = o === 2 ? mix(dark, [40, 40, 60], 0.4) : [58, 126, 216];
+  const feather: RGB = o === 2 ? [58, 58, 74] : [246, 249, 255];
+  const featherU: RGB = o === 2 ? [34, 34, 46] : [172, 196, 232];
   const P = {
     armor: r.part(armor),
     light: r.part(mix(armor, [255, 255, 255], 0.35)),
@@ -56,11 +58,22 @@ export function drawHalcyon(r: Raster, k: Skel, look: PlaceholderLook): void {
   const aim = rad(k.pose.aim ?? -78);
   const u: V2 = [Math.cos(aim), Math.sin(aim)];
   const sway = (i: number, a = 2): number => Math.sin(ph * 1.2 + i * 0.8) * a;
+  const plume = r.part(mix(gold, [220, 40, 50], 0.6), { soft: true });
+  const plumeD = r.part(mul(mix(gold, [220, 40, 50], 0.6), 0.7), { soft: true });
+  const beak = r.part(mix(gold, [60, 50, 40], 0.5));
 
   // ---- wings (behind everything): far wing darker, near wing brighter ----
   const root: V2 = [T.x + 10, T.y + 8];
   wing(r, P, [root[0] + 5, root[1] - 3], wingAmt * 0.94, flap * 0.8 + 0.1, true, ph);
   wing(r, P, root, wingAmt, flap, false, ph);
+  if (o === 1) {
+    // a short battle cape from the shoulders, blown back
+    const run = k.pose.lean > 2 ? 1 : 0;
+    const top = T.y + 2;
+    const hem = T.y + T.h + 18;
+    r.poly(plumeD, [[T.x + 2, top], [T.x + 14, top], [T.x + 6 - run * 14 + sway(1, 2), hem], [T.x - 12 - run * 18 + sway(2, 3), hem + 4], [T.x - 4, top + 8]]);
+    r.poly(plume, [[T.x + 4, top], [T.x + 12, top], [T.x + 4 - run * 12 + sway(1, 2), hem - 4], [T.x - 4 - run * 14 + sway(2, 2), hem - 2]]);
+  }
 
   // ---- grips: the front hand holds the spear, the back hand grips along the shaft ----
   const G = k.handF;
@@ -114,11 +127,11 @@ export function drawHalcyon(r: Raster, k: Skel, look: PlaceholderLook): void {
     const hs = k.head.s;
     r.rect(P.skin, hx + 8, T.y - 12, hs - 14, 14); // neck
     r.rect(P.gold, hx + 6, T.y - 2, hs - 10, 3); // gorget ring
-    // ponytail
+    // ponytail (Valkyrie: two braids; Raven: hidden under the hood)
     const run = k.pose.lean > 2 ? 1 : 0;
     let px = hx + 2;
     let py = hy + 8;
-    for (let i = 0; i < 8; i++) {
+    for (let i = 0; i < (o === 2 ? 0 : 8); i++) {
       const x = px - 4 - run * 2;
       const y = py + 2.5 + sway(i, 1.8) - run * 0.6;
       r.seg(i % 3 === 2 ? P.hairD : P.hair, px, py, x, y, 9 - i * 0.7, 8 - i * 0.7);
@@ -127,6 +140,17 @@ export function drawHalcyon(r: Raster, k: Skel, look: PlaceholderLook): void {
     }
     // face
     drawFace(r, { skin: P.skin, skinD: P.skinD, eye: P.sclera, pupil: P.iris, line: P.line }, hx + 6, hy + 6, hs - 4, hs - 6, { grim: 0.5 });
+    if (o === 2) {
+      // Raven: a feathered hood and a long curved beak mask over the face, one eye glinting
+      r.ellipse(P.featherF, hx + hs / 2 + 1, hy + hs / 2 + 1, hs / 2 + 7, hs / 2 + 6);
+      r.ellipse(P.feather, hx + hs / 2 + 2, hy + hs / 2 - 1, hs / 2 + 5, hs / 2 + 4);
+      for (let i = 0; i < 4; i++) featherPoly(r, i % 2 ? P.featherU : P.feather, [hx + 2, hy + 4 + i * 4], [hx - 14 - i * 2 - sway(i, 1.5), hy + 10 + i * 6], 7);
+      r.ellipse(P.deep, hx + hs / 2 + 5, hy + hs / 2 + 2, hs / 2 - 1, hs / 2 - 2);
+      r.poly(beak, [[hx + hs - 4, hy + 8], [hx + hs + 4, hy + 9], [hx + hs + 18, hy + hs + 2], [hx + hs + 2, hy + hs - 2], [hx + hs - 4, hy + hs - 2]]);
+      r.seg(P.goldFlat, hx + hs, hy + 10, hx + hs + 16, hy + hs + 1, 1, 1);
+      r.ellipse(P.eye, hx + hs - 3, hy + 9, 2, 2);
+      r.ellipse(P.glow, hx + hs - 3, hy + 9, 1, 1);
+    } else {
     // helm: dome, cheek guard, gold circlet
     r.poly(P.armor, [[hx + 2, hy + 10], [hx + 6, hy], [hx + hs - 2, hy - 2], [hx + hs + 3, hy + 6], [hx + hs - 4, hy + 8], [hx + 8, hy + 8]]);
     r.poly(P.light, [[hx + 6, hy + 1], [hx + hs - 2, hy - 1], [hx + hs - 4, hy + 3], [hx + 8, hy + 4]]);
@@ -138,6 +162,20 @@ export function drawHalcyon(r: Raster, k: Skel, look: PlaceholderLook): void {
       r.seg(i === 1 ? P.feather : P.featherU, hx + 4, fy, hx - 16 - i * 3 - sway(i, 2), fy - 7 + i * 3, 5, 2);
     }
     r.ellipse(P.glow, hx + hs - 4, hy + 8, 2, 2);
+    if (o === 1) {
+      // a tall crest along the helm and a horsehair plume streaming back from it
+      r.poly(P.gold, [[hx + 2, hy + 2], [hx + hs / 2 + 2, hy - 8], [hx + hs, hy - 2]]);
+      let qx = hx + hs / 2 + 2;
+      let qy = hy - 8;
+      for (let i = 0; i < 9; i++) {
+        const x = qx - 4.2 - run * 1.5;
+        const y = qy + (i < 3 ? -1.2 : 2.4) + sway(i + 4, 1.4);
+        r.seg(i % 3 === 2 ? plumeD : plume, qx, qy, x, y, 8 - i * 0.6, 7 - i * 0.6);
+        qx = x;
+        qy = y;
+      }
+    }
+    }
   }
 
   // ---- the spear ----

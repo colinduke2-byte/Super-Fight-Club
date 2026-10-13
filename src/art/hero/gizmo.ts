@@ -34,7 +34,58 @@ export function drawGizmo(r: Raster, k: Skel, look: PlaceholderLook): void {
   const cx = T.x + T.w / 2;
   const cy = T.y + T.h / 2;
   const blink = k.phase % 2 === 0;
+  // outfits: 1 = Steamworks (top hat with a gear, monocle, a boiler pack with a chimney), 2 = Astronaut (fishbowl helmet, air pack, flag)
+  const o = look.outfit ?? 0;
+  const brass = r.part([214, 168, 74]);
+  const brassD = r.part([150, 108, 44]);
+  const silk = r.part([34, 30, 36]);
+  const silkL = r.part([72, 64, 76]);
+  const steam = r.part([236, 240, 246], { soft: true });
+  const bowl = r.part(mix(accent, [120, 186, 236], 0.88), { soft: true });
+  const bowlL = r.part(mix(accent, [186, 226, 252], 0.9), { soft: true });
+  /** A ring of short segments: a thin outline (bubble glass) around (x, y). */
+  const ring = (part: number, x: number, y: number, rx: number, ry: number, from: number, to: number, w: number): void => {
+    let px = x + Math.cos(from) * rx;
+    let py = y + Math.sin(from) * ry;
+    for (let i = 1; i <= 14; i++) {
+      const a = from + ((to - from) * i) / 14;
+      const nx = x + Math.cos(a) * rx;
+      const ny = y + Math.sin(a) * ry;
+      r.seg(part, px, py, nx, ny, w, w);
+      px = nx;
+      py = ny;
+    }
+  };
 
+  if (o === 1) {
+    // ---- backpack: a brass boiler with a chimney puffing steam ----
+    const bx = T.x - 14;
+    const by = T.y + 2;
+    r.ellipse(brassD, bx + 10, by + 16, 12, 17);
+    r.ellipse(brass, bx + 9, by + 15, 10.5, 15.5);
+    for (let i = 0; i < 3; i++) r.rect(brassD, bx - 1, by + 6 + i * 9, 20, 1);
+    r.ellipse(P.deep, bx + 9, by + 24, 4, 3);
+    r.ellipse(P.accent, bx + 9, by + 24, 2.6, 2);
+    r.rect(silk, bx + 2, by - 16, 6, 18);
+    r.rect(silkL, bx + 1, by - 18, 8, 3);
+    const puff = k.phase % 4;
+    r.ellipse(steam, bx + 4 - puff, by - 23 - puff * 2, 4 + puff * 0.6, 3.5 + puff * 0.5);
+    r.ellipse(steam, bx + 1 - puff, by - 30 - puff * 2, 3, 2.6);
+  } else if (o === 2) {
+    // ---- backpack: an air pack with two tanks and a little flag on a whip ----
+    const bx = T.x - 14;
+    const by = T.y + 2;
+    r.rect(P.deep, bx - 1, by - 1, 22, 32);
+    r.rect(P.light, bx, by, 20, 30);
+    r.ellipse(P.steel, bx + 5, by + 15, 5, 14);
+    r.ellipse(P.steel, bx + 15, by + 15, 5, 14);
+    r.rect(P.stripe, bx, by + 6, 20, 2);
+    r.rect(P.glow, bx + 8, by + 22, 4, 2);
+    r.seg(P.steelD, bx + 2, by, bx - 1, by - 24, 1.4, 1.4);
+    const wave = Math.sin(k.phase * 1.4) * 1.5;
+    r.poly(P.stripe, [[bx - 1, by - 24], [bx - 13, by - 22 + wave], [bx - 12, by - 16 + wave], [bx - 1, by - 18]]);
+    r.rect(P.light, bx - 9, by - 21 + wave, 3, 3);
+  } else {
   // ---- backpack: toolbox with a wrench handle and a grapple arm ----
   {
     const bx = T.x - 14;
@@ -53,6 +104,7 @@ export function drawGizmo(r: Raster, k: Skel, look: PlaceholderLook): void {
     r.seg(P.cable, bx + 4, by + 8, bx - 6, by + 22, 5, 5);
     r.rect(P.steel, bx - 12, by + 20, 12, 8);
     for (const dx of [-11, -6, -1]) r.seg(P.steel, bx + dx, by + 27, bx + dx - 1, by + 36, 2, 2);
+  }
   }
 
   // ---- back arm ----
@@ -100,6 +152,11 @@ export function drawGizmo(r: Raster, k: Skel, look: PlaceholderLook): void {
     const hs = k.head.s;
     const hx = k.head.x + hs / 2;
     const hy = k.head.y + hs / 2 + 3;
+    if (o === 2) {
+      // the fishbowl's glass, behind the head: a pale tinted sphere the head sits inside
+      r.ellipse(bowl, hx, hy - 3, hs / 2 + 9, hs / 2 + 9);
+      r.ellipse(bowlL, hx - 4, hy - 8, hs / 2 + 2, hs / 2 + 1);
+    }
     r.ellipse(P.steelD, hx, hy + hs / 2 - 2, 10, 4); // neck ring
     r.ellipse(P.deep, hx, hy + 1, hs / 2 + 2, hs / 2 - 1);
     r.ellipse(P.armor, hx, hy, hs / 2 + 1, hs / 2 - 2);
@@ -113,10 +170,34 @@ export function drawGizmo(r: Raster, k: Skel, look: PlaceholderLook): void {
     r.ellipse(P.deep, hx + 10, hy + 4, 2, 2);
     r.rect(P.shine, hx + 2, hy - 3, 5, 2);
     r.rect(P.shine, hx + 1, hy, 2, 3);
-    // bolts and the blinking antenna
     r.ellipse(P.steel, hx - hs / 2 + 4, hy + 2, 3, 3);
-    r.seg(P.steelD, hx, hy - hs / 2 + 1, hx + 1, hy - hs / 2 - 10, 3, 3);
-    r.ellipse(blink ? P.glow : P.accent, hx + 1, hy - hs / 2 - 11, 4, 4);
+    if (o === 1) {
+      // a monocle: a brass ring round the lens on a little chain, and a tall top hat with a gear on the band
+      ring(brass, hx + 7, hy + 2, hs / 3 + 2, hs / 3 + 1, 0, Math.PI * 2, 1.6);
+      r.seg(brassD, hx + 7 - hs / 3, hy + 6, hx - 2, hy + hs / 2 + 2, 1, 1);
+      const tx = hx - 1;
+      const ty = hy - hs / 2 + 3;
+      r.ellipse(silk, tx, ty, hs / 2 + 2, 3.5); // brim
+      r.rect(silk, tx - hs / 3, ty - 22, (hs / 3) * 2, 22);
+      r.rect(silkL, tx - hs / 3 + 2, ty - 21, 3, 18);
+      r.ellipse(silk, tx, ty - 22, hs / 3, 2.5);
+      r.rect(P.stripe, tx - hs / 3, ty - 6, (hs / 3) * 2, 3);
+      r.ellipse(brassD, tx + hs / 3 - 2, ty - 5, 4.5, 4.5);
+      r.ellipse(brass, tx + hs / 3 - 2, ty - 5, 3.2, 3.2);
+      r.ellipse(P.deep, tx + hs / 3 - 2, ty - 5, 1.2, 1.2);
+    } else {
+      // the blinking antenna
+      r.seg(P.steelD, hx, hy - hs / 2 + 1, hx + 1, hy - hs / 2 - 10, 3, 3);
+      r.ellipse(blink ? P.glow : P.accent, hx + 1, hy - hs / 2 - 11, 4, 4);
+    }
+    if (o === 2) {
+      // a glass fishbowl over the whole head: a collar ring, a thin rim and two highlight arcs
+      const R = hs / 2 + 9;
+      r.ellipse(P.steelD, hx, hy + hs / 2, R - 4, 4);
+      r.rect(P.stripe, hx - R + 6, hy + hs / 2 - 1, (R - 6) * 2, 1);
+      ring(P.shine, hx, hy - 3, R - 3, R - 3, Math.PI * 1.1, Math.PI * 1.45, 1.4);
+      ring(P.shine, hx, hy - 3, R - 3, R - 3, Math.PI * 1.55, Math.PI * 1.62, 1.4);
+    }
   }
 
   // ---- front arm + wrench ----
