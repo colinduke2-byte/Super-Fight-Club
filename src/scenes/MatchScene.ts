@@ -1355,5 +1355,7 @@ export class MatchScene extends Phaser.Scene {
     this.clock.setScale(u * 2.5).setPosition(w / 2, m);
     const n = this.huds.length;
     this.huds.forEach((hud, i) => hud.layout((w * (i + 1)) / (n + 1), h - m, u));
+    // the camera frames the fighters above the HUD plates instead of letting the floor fight hide behind them
+    this.cam.cfg.bottomInset = n > 0 ? Math.min(0.3, (40 * u + m) / h) : 0;
   }
 }

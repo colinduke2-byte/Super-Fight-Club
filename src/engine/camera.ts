@@ -17,6 +17,8 @@ export interface CameraConfig {
   /** 0..1 smoothing per sim tick (higher = snappier). */
   followRate: number;
   zoomRate: number;
+  /** Fraction of the view height covered by the HUD at the bottom: fighters are framed in the space above it. */
+  bottomInset?: number;
 }
 
 export const DEFAULT_CAMERA: Omit<CameraConfig, 'bounds'> = {
@@ -65,7 +67,9 @@ export class MultiTargetCamera {
     const boxW = maxX - minX + c.padX * 2;
     const boxH = maxY - minY + c.padY * 2;
 
-    let zoom = Math.min(viewW / boxW, viewH / boxH);
+    const inset = Math.max(0, Math.min(0.4, c.bottomInset ?? 0));
+    const usableH = viewH * (1 - inset);
+    let zoom = Math.min(viewW / boxW, usableH / boxH);
     const zMax = viewH / c.minVisibleH;
     const zMin = viewH / c.maxVisibleH;
     zoom = Math.max(zMin, Math.min(zMax, zoom));
@@ -75,7 +79,8 @@ export class MultiTargetCamera {
     const halfW = viewW / zoom / 2;
     const halfH = viewH / zoom / 2;
     let cx = (minX + maxX) / 2;
-    let cy = (minY + maxY) / 2;
+    // centre the fighters in the space above the HUD: the view centre sits half the inset lower
+    let cy = (minY + maxY) / 2 + (inset * viewH) / zoom / 2;
     cx = clampCenter(cx, c.bounds.x + halfW, c.bounds.x + c.bounds.w - halfW, c.bounds.x + c.bounds.w / 2);
     cy = clampCenter(cy, c.bounds.y + halfH, c.bounds.y + c.bounds.h - halfH, c.bounds.y + c.bounds.h / 2);
     out.cx = cx;
