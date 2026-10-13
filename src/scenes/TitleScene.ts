@@ -101,7 +101,10 @@ export class TitleScene extends MenuScene {
     this.prompt.setScale(u * 2);
     const promptY = footerY - this.footer.displayHeight / 2 - 12 * u - this.prompt.displayHeight / 2;
     this.prompt.setPosition(w / 2, promptY);
-    this.names.forEach((n) => n.setScale(u * 1.4));
+    // names fit their slot (the roster keeps growing): no wider than 88% of the space between fighters
+    const widest = Math.max(1, ...this.names.map((n) => n.width / Math.max(0.001, n.scaleX)));
+    const slot = w / (this.names.length + 1);
+    this.names.forEach((n) => n.setScale(Math.min(u * 1.4, (slot * 0.88) / widest)));
     const nameH = this.names[0]?.displayHeight ?? 0;
     const nameY = promptY - this.prompt.displayHeight / 2 - 8 * u - nameH / 2;
     const floorY = nameY - nameH / 2 - 5 * u;

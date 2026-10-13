@@ -57,68 +57,68 @@ about that.
 Every phase ends green (typecheck plus all tests), committed and pushed.
 
 ### Phase 1 — Engine: runtime crystal pillars
-- [ ] A pool of **dynamic platform slots** in `World`: solid blocks a deployable can switch on, raise, sink and
+- [x] A pool of **dynamic platform slots** in `World`: solid blocks a deployable can switch on, raise, sink and
       remove at run time. Inactive slots are skipped everywhere platforms are read: collision, landing, carrying,
       ledges, items, hazards and the CPU's terrain checks.
-- [ ] A `pillar` option on deployables: rise and sink animation, HP, lifetime, "hit while rising", and "shatter into
+- [x] A `pillar` option on deployables: rise and sink animation, HP, lifetime, "hit while rising", and "shatter into
       N shard projectiles".
-- [ ] Projectiles stop on (or chip) solid pillars.
-- [ ] Fighters standing on a pillar ride it as it rises and drop when it crumbles; nobody gets stuck inside one (a
+- [x] Projectiles stop on (or chip) solid pillars.
+- [x] Fighters standing on a pillar ride it as it rises and drop when it crumbles; nobody gets stuck inside one (a
       pillar rising under or into a fighter pushes them up and out).
-- [ ] The world hash includes pillar state, so the game stays deterministic and replays stay in step.
-- [ ] Tests: rise, stand, block, shatter, crumble, the replace-oldest limit, push-out and determinism.
+- [x] The world hash includes pillar state, so the game stays deterministic and replays stay in step.
+- [x] Tests: rise, stand, block, shatter, crumble, the replace-oldest limit, push-out and determinism.
 
 ### Phase 2 — Moveset and data
-- [ ] `src/characters/obelisk.ts`, `obelisk.moves.json` and `obeliskPillars.ts` (behaviour hooks: shatter on Side or
+- [x] `src/characters/obelisk.ts`, `obelisk.moves.json` and `obeliskPillars.ts` (behaviour hooks: shatter on Side or
       Down special, the pillar limit, the back throw's pillar bonus).
-- [ ] The full moveset: jab chain, three tilts, dash attack, three smashes, five aerials, grab, pummel, four throws,
+- [x] The full moveset: jab chain, three tilts, dash attack, three smashes, five aerials, grab, pummel, four throws,
       four specials, ultimate and taunt, all with frame data in line with the roster.
-- [ ] Register Obelisk in `CHARACTERS` / `CHARACTER_LIST`; add a persona (intro, taunt, epilogue) and a tagline.
-- [ ] Tests: move references, the combat-rules suite (every move has hitboxes), and specials doing what they say.
+- [x] Register Obelisk in `CHARACTERS` / `CHARACTER_LIST`; add a persona (intro, taunt, epilogue) and a tagline.
+- [x] Tests: move references, the combat-rules suite (every move has hitboxes), and specials doing what they say.
 
 ### Phase 3 — Model and animation
-- [ ] `src/art/hero/obelisk.ts`: a golem drawer (blocky granite torso, slab shoulders, a crystal spine and back
+- [x] `src/art/hero/obelisk.ts`: a golem drawer (blocky granite torso, slab shoulders, a crystal spine and back
       spikes, a heavy brow with glowing eyes, boulder fists, short pillar legs). Lit like the roster and readable at
       small sizes.
-- [ ] Poses for every state (idle breathing with crystal shimmer, walk and run, jump and fall, shield, hurt, ledge,
+- [x] Poses for every state (idle breathing with crystal shimmer, walk and run, jump and fall, shield, hurt, ledge,
       KO) and per-move poses via `applyMovePoses`, with custom keys where a template is not enough.
-- [ ] Portrait crop, colour palettes (amethyst plus three alternates such as rose quartz, emerald and obsidian), the
+- [x] Portrait crop, colour palettes (amethyst plus three alternates such as rose quartz, emerald and obsidian), the
       title-screen line-up and character select.
-- [ ] Check every animation in the render scripts (all moves, all states, the taunt).
+- [x] Check every animation in the render scripts (all moves, all states, the taunt).
 
 ### Phase 4 — Effects and sound
-- [ ] A `crystal` slash-arc style (faceted shards and glints) and a `stone` sound style (deep thuds and crystal
+- [x] A `crystal` slash-arc style (faceted shards and glints) and a `stone` sound style (deep thuds and crystal
       chimes on hit).
-- [ ] Pillar effects: dust and cracks as it rises, a shimmer while it stands, a burst of shards and a chime when it
+- [x] Pillar effects: dust and cracks as it rises, a shimmer while it stands, a burst of shards and a chime when it
       shatters, rubble when it crumbles.
-- [ ] The cinematic ultimate (cut-in, darkness, encasing crystal, the monolith slam), entrance (bursts up out of the
+- [x] The cinematic ultimate (cut-in, darkness, encasing crystal, the monolith slam), entrance (bursts up out of the
       ground in a spray of rock), victory fanfare and taunt bubble.
 
 ### Phase 5 — CPU AI
-- [ ] `CHARACTER_AI.obelisk`: when to raise walls against zoners, when to shatter pillars at rivals, using Upheaval to
+- [x] `CHARACTER_AI.obelisk`: when to raise walls against zoners, when to shatter pillars at rivals, using Upheaval to
       recover, and keeping out of its own pillars.
-- [ ] Terrain awareness: CPUs (every fighter) treat active pillars as walls and platforms, hop them and don't get
+- [x] Terrain awareness: CPUs (every fighter) treat active pillars as walls and platforms, hop them and don't get
       stuck. Run the full no-stuck scan over every matchup.
 
 ### Phase 6 — Home stage: Amethyst Hollow
-- [ ] New `cavern` theme: backdrop textures (geode walls with crystal clusters in two parallax layers, a dust band),
+- [x] New `cavern` theme: backdrop textures (geode walls with crystal clusters in two parallax layers, a dust band),
       the stage-mass look (granite body, amethyst cap, glowing vein panels, a crystal-cluster underside) and
       pass-through rock shelves.
-- [ ] A `stalactite` hazard kind: a telegraphed crack, a falling spike that hits with a downward launch (no outright
+- [x] A `stalactite` hazard kind: a telegraphed crack, a falling spike that hits with a downward launch (no outright
       KO), and the shatter that leaves a temporary stump (reusing Phase 1's pillar slots).
-- [ ] The stage file, its music track, ambience (drips, rumble, chimes) and Stage Select tags. Add it to the Arcade
+- [x] The stage file, its music track, ambience (drips, rumble, chimes) and Stage Select tags. Add it to the Arcade
       ladder and give it a challenge.
-- [ ] Tests: stage validity and the hazard cycle, plus a no-stuck CPU scan on the stage.
+- [x] Tests: stage validity and the hazard cycle, plus a no-stuck CPU scan on the stage.
 
 ### Phase 7 — Integration and balance
-- [ ] Roster-wide touches:
+- [x] Roster-wide touches:
   - How to Play: a "Fighters" row.
   - The Arcade ladder: an 8-fighter roster means seven rivals, so I'll reshape the brawl or add a fight.
   - Story cards, records, palettes and an "Obelisk" challenge.
   - The README and the frame-data docs.
-- [ ] A balance pass: CPU-vs-CPU win rates across all eight fighters held near 47–54%, with match length in line;
+- [x] A balance pass: CPU-vs-CPU win rates across all eight fighters held near 47–54%, with match length in line;
       regenerate `docs/balance-report.md`.
 
 ### Phase 8 — Verify and ship
-- [ ] Screenshots of Obelisk in every flow (select, match, ultimate, results, arcade, training) and on Amethyst Hollow.
-- [ ] The full test suite and typecheck; commit and push; rebuild the artifact and republish it.
+- [x] Screenshots of Obelisk in every flow (select, match, ultimate, results, arcade, training) and on Amethyst Hollow.
+- [x] The full test suite and typecheck; commit and push; rebuild the artifact and republish it.
