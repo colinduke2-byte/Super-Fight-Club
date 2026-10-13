@@ -305,17 +305,33 @@ export function stageMass(themeId: string | undefined, w: number, h: number, see
 
   // ---- 2. pillars and the recessed panels between them -----------------------------------------------------------
   const PW = BW > 260 ? 18 : 14;
-  const inner = Math.max(0, Math.round(BW / 170) - 1);
-  const pillars: number[] = [X0, X0 + BW - PW];
-  for (let i = 1; i <= inner; i++) pillars.push(Math.round(X0 + (BW - PW) * (i / (inner + 1))));
-  pillars.sort((p, q) => p - q);
+  let baysN = Math.max(1, Math.round(BW / 170));
+  if (baysN >= 2 && baysN % 2 === 0) baysN += BW / baysN > 180 ? 1 : -1; // an odd count, so there is a middle bay
+  const inner = baysN - 1;
+  // bays are not all equal: the middle one is wider, the end ones a little narrower, so the facade has a centre
+  const bays = inner + 1;
+  const weights = Array.from({ length: bays }, (_, i) => {
+    const mid = (bays - 1) / 2;
+    if (bays >= 3 && Math.abs(i - mid) < 0.6) return bays % 2 ? 1.7 : 1.25;
+    return i === 0 || i === bays - 1 ? 0.85 : 1;
+  });
+  const wsum = weights.reduce((a, b2) => a + b2, 0);
+  const pillars: number[] = [X0];
+  let acc = 0;
+  for (let i = 0; i < bays - 1; i++) {
+    acc += weights[i];
+    pillars.push(Math.round(X0 + (BW - PW) * (acc / wsum)));
+  }
+  pillars.push(X0 + BW - PW);
+  const centreBay = bays >= 3 && bays % 2 ? (bays - 1) / 2 : -1;
   const panelTop = bodyTop + CORN + 8;
   const panelBot = Math.min(bodyBot - 10, panelTop + Math.max(36, Math.round(BH * 0.55)));
   for (let i = 0; i + 1 < pillars.length; i++) {
     const px0 = pillars[i] + PW + 6;
     const px1 = pillars[i + 1] - 6;
     if (px1 - px0 < 20) continue;
-    panel(b, T, S, A, A2, px0, panelTop, px1 - px0, panelBot - panelTop, rnd, n2);
+    if (!(i === centreBay && T.panel === 'porthole')) panel(b, T, S, A, A2, px0, panelTop, px1 - px0, panelBot - panelTop, rnd, n2);
+    if (i === centreBay) centrepiece(b, T, S, A, A2, px0, panelTop, px1 - px0, panelBot - panelTop);
   }
   for (const x of pillars) pillar(b, S, A, T, x, bodyTop, PW, bodyBot - bodyTop, panelBot);
 
@@ -440,6 +456,98 @@ function bloom(b: Buf, r: number, k: number): void {
         b.c[i * 3 + 1] = Math.min(255, g1 * 2.2);
         b.c[i * 3 + 2] = Math.min(255, g2 * 2.2);
       }
+    }
+  }
+}
+
+/** The wide middle bay gets one themed landmark over its panel, so a long facade has a focal point. */
+function centrepiece(b: Buf, T: MassTheme, S: Ramp, A: Ramp, A2: Ramp, x0: number, y0: number, pw: number, ph: number): void {
+  const cx = Math.round(x0 + pw / 2);
+  const cy = Math.round(y0 + ph / 2);
+  const disc = (r: number, fill: (d: number, dx: number, dy: number) => RGB | null, em = false): void => {
+    for (let dy = -r; dy <= r; dy++) for (let dx = -r; dx <= r; dx++) {
+      const d = Math.hypot(dx, dy);
+      if (d > r + 0.3) continue;
+      const col = fill(d, dx, dy);
+      if (col) b.set(cx + dx, cy + dy, col, em);
+    }
+  };
+  const r = Math.max(8, Math.min(Math.floor(ph / 2) - 3, 20));
+  switch (T.panel) {
+    case 'window': {
+      // a big neon clock face over the windows
+      disc(r, (d) => (d > r - 2 ? S[4] : d > r - 3 ? A[1] : S[0]));
+      for (let h = 0; h < 12; h++) {
+        const a = (h / 12) * Math.PI * 2;
+        b.set(cx + Math.round(Math.cos(a) * (r - 5)), cy + Math.round(Math.sin(a) * (r - 5)), h % 3 ? A[2] : A2[3], true);
+      }
+      for (let k = 0; k < r - 6; k++) b.set(cx + Math.round(k * 0.5), cy - Math.round(k * 0.85), A[3], true);
+      for (let k = 0; k < r - 9; k++) b.set(cx + k, cy + Math.round(k * 0.25), A2[3], true);
+      b.set(cx, cy, A[4], true);
+      break;
+    }
+    case 'vent': {
+      // a blast door with hazard chevrons and a warning lamp
+      const w = Math.min(pw - 16, 46);
+      const h = ph - 8;
+      const lx = cx - Math.floor(w / 2);
+      const ty = y0 + 4;
+      for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) {
+        const edge = x < 2 || y < 2 || x >= w - 2 || y >= h - 2;
+        const stripe = (y > h - 9 || y < 7) && ((x + y) >> 2) % 2 === 0;
+        b.set(lx + x, ty + y, edge ? S[4] : stripe ? A[3] : x === (w >> 1) ? S[0] : S[2 + ((y >> 3) % 2)]);
+      }
+      disc(4, (d) => (d < 2 ? A2[4] : A2[2]), true);
+      break;
+    }
+    case 'rune':
+    case 'glyph': {
+      // a larger seal ringed with light
+      disc(r, (d) => (d > r - 1.5 ? A[3] : d > r - 3 ? A[1] : null), true);
+      disc(Math.round(r * 0.45), (d) => (d < 2 ? A[4] : A[2]), true);
+      break;
+    }
+    case 'alcove': {
+      // a bronze temple bell hung in the arch on a rope: domed crown, straight waist, flared lip
+      const BR: Ramp = ['#2e1c0c', '#5a3a18', '#8e5e28', '#c89048', '#f4d08a'].map(hex);
+      const H = Math.min(ph - 12, 30);
+      const R = Math.round(H * 0.5);
+      const top = y0 + Math.max(4, Math.round((ph - H) / 2) - 4);
+      for (let y = y0 + 1; y < top + 2; y++) b.set(cx, y, S[0]); // rope
+      b.rect(cx - 2, top, 5, 3, BR[1]); // the hanging loop
+      for (let y = 0; y < H; y++) {
+        const t = y / (H - 1);
+        const half = t < 0.22 ? R * 0.42 * Math.sqrt(Math.max(0, t / 0.22)) + 1 : t < 0.8 ? R * (0.45 + (t - 0.22) * 0.55) : R * (0.77 + (t - 0.8) * 1.15);
+        const hw = Math.round(half);
+        for (let x = -hw; x <= hw; x++) {
+          const u = (x + hw) / (2 * hw + 1); // 0 left .. 1 right; lit from the left
+          let k = u < 0.18 ? 3 : u < 0.5 ? 2 : u < 0.85 ? 1 : 0;
+          if (u > 0.08 && u < 0.14) k = 4; // specular stripe
+          if (y === H - 1 || (t > 0.55 && t < 0.6)) k = Math.max(0, k - 1); // lip and a cast band
+          b.set(cx + x, top + 3 + y, BR[k]);
+        }
+      }
+      for (let x = -2; x <= 2; x++) b.set(cx + x, top + 3 + H, A[3], true); // lantern light pooled under the lip
+      break;
+    }
+    case 'porthole': {
+      // one great round window in the middle bay: a brass rim, sea glow (or sunset) inside, a cross of glazing bars
+      const R2 = Math.max(9, Math.min(Math.floor(ph / 2) - 1, 24));
+      const G = T.under === 'reef' ? A : A2; // sea glow on the wreck, the sunset through the airship's window
+      disc(R2, (d, dx, dy) => {
+        if (d > R2 - 2.2) return dy < 0 ? A[3] : A[1];
+        if (d > R2 - 3.2) return S[0];
+        if (dx === 0 || dy === 0) return S[1];
+        const t = (dy + R2) / (2 * R2);
+        return t < 0.35 ? G[3] : t < 0.7 ? G[2] : G[1];
+      }, false);
+      disc(R2 - 4, (d, dx, dy) => (dx === 0 || dy === 0 ? null : d < R2 - 7 && dx < 0 && dy < 0 && dx + dy < -R2 * 0.6 ? G[4] : null), true);
+      break;
+    }
+    case 'geode':
+    case 'holo':
+    default: {
+      disc(Math.round(r * 0.7), (d) => (d < r * 0.25 ? A[4] : d < r * 0.5 ? A[3] : A[1]), true);
     }
   }
 }
