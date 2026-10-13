@@ -31,6 +31,10 @@ frame data where it hurts, and routes from one hit into the next.
 - [x] Faster normals (ftilt 7, nair 5, fair 10, dash attack 7, smashes 2-3 frames quicker), better air drift.
 
 ## The rest of the game
-- [ ] A review pass on every other fighter's slowest options, the CPU (use the new toys), training scenarios,
-      How to Play pages, move lists and frame-data docs.
-- [ ] Balance report, no-stuck scan, tests, README, artifact.
+- [x] Nova: Aether Step bursts on arrival (Zelda's Farore's Wind), quicker Fire and Ice bolts, Ground Spell is a real
+      meteor, a less floaty fall and a safer forward air (she was being juggled into up smashes).
+- [x] CPU: Brick banks Charge Shoulder and spins out of shield, Gizmo hovers back to the stage, Obelisk smashes its
+      pillars into rivals.
+- [x] How to Play: a Physics page and updated fighter lines; README, frame-data and kill-percent docs regenerated.
+- [x] Balance: 14-seed CPU report holds all eight fighters at 47-54%; a 48-match four-CPU no-stuck scan with items on
+      every stage finished every match.

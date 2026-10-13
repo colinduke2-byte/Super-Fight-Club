@@ -396,3 +396,26 @@ describe('Brick CPU', () => {
     expect(banked).toBe(50);
   });
 });
+
+describe('Brick CPU out of shield', () => {
+  it('answers a rival next to its shield with the ground Whirling Jet', async () => {
+    const { CpuController } = await import('../src/ai/cpu');
+    let spun = false;
+    for (let seed = 1; seed <= 6 && !spun; seed++) {
+      const r = rig(28);
+      const cpu = new CpuController(3, seed);
+      const ia = inp();
+      for (let i = 0; i < 40 && !spun; i++) {
+        if (r.a.state !== 'attack') {
+          r.a.setState('shield'); // holding shield as the rival's move ends
+          r.a.shieldHP = 50;
+        }
+        Object.assign(ia, makeInput());
+        cpu.update(r.a, r.world, ia);
+        r.tick(ia);
+        if (r.a.move?.id === 'upB_g') spun = true;
+      }
+    }
+    expect(spun).toBe(true);
+  });
+});

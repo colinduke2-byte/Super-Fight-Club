@@ -543,6 +543,13 @@ export class CpuController implements Controller {
     const th = this.detectThreat(self, world) ? this.threat : null;
     if (th) this.shieldHold = Math.max(this.shieldHold, 6);
     this.shieldHold--;
+    // a dedicated out-of-shield special (Brick's intangible Whirling Jet) when the rival is right there after its hit
+    const oos = aiFor(self.data.id).oos;
+    if (oos && tgt && this.params.smart && !th && self.state === 'shield' && Math.hypot(tgt.x - self.x, tgt.y - self.y) < 44 && this.rnd() < this.params.punish * 0.35) {
+      this.held |= Button.Special | Button.Shield;
+      this.sy = -1;
+      return;
+    }
     // grab out of shield when the target is right there and its move is spent (or it is shielding too)
     if (tgt && this.params.smart && !th && self.state === 'shield' && Math.hypot(tgt.x - self.x, tgt.y - self.y) < 40 && this.rnd() < this.params.punish * 0.3) {
       this.held |= Button.Grab | Button.Shield;

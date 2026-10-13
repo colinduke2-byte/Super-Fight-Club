@@ -7,45 +7,45 @@ The CPU plays some characters better than others, so read this as a smoke test f
 
 | pairing | wins |
 |---|---|
-| brick vs vex | 44 - 40 |
-| brick vs nova | 41 - 43 |
-| brick vs gizmo | 41 - 43 |
-| brick vs agni | 54 - 30 |
-| brick vs halcyon | 40 - 44 |
-| brick vs riptide | 25 - 59 |
-| brick vs obelisk | 36 - 48 |
-| vex vs nova | 43 - 41 |
-| vex vs gizmo | 46 - 38 |
+| brick vs vex | 35 - 49 |
+| brick vs nova | 28 - 56 |
+| brick vs gizmo | 50 - 34 |
+| brick vs agni | 40 - 44 |
+| brick vs halcyon | 43 - 41 |
+| brick vs riptide | 36 - 48 |
+| brick vs obelisk | 43 - 41 |
+| vex vs nova | 33 - 51 |
+| vex vs gizmo | 50 - 34 |
 | vex vs agni | 53 - 31 |
 | vex vs halcyon | 34 - 50 |
 | vex vs riptide | 57 - 27 |
-| vex vs obelisk | 52 - 32 |
-| nova vs gizmo | 23 - 61 |
-| nova vs agni | 27 - 57 |
-| nova vs halcyon | 47 - 37 |
+| vex vs obelisk | 43 - 41 |
+| nova vs gizmo | 26 - 58 |
+| nova vs agni | 40 - 44 |
+| nova vs halcyon | 51 - 33 |
 | nova vs riptide | 51 - 33 |
-| nova vs obelisk | 39 - 45 |
-| gizmo vs agni | 40 - 44 |
-| gizmo vs halcyon | 34 - 50 |
-| gizmo vs riptide | 38 - 46 |
-| gizmo vs obelisk | 32 - 52 |
+| nova vs obelisk | 32 - 52 |
+| gizmo vs agni | 41 - 43 |
+| gizmo vs halcyon | 43 - 39 |
+| gizmo vs riptide | 37 - 47 |
+| gizmo vs obelisk | 52 - 32 |
 | agni vs halcyon | 59 - 25 |
 | agni vs riptide | 27 - 57 |
-| agni vs obelisk | 32 - 52 |
+| agni vs obelisk | 39 - 45 |
 | halcyon vs riptide | 44 - 39 |
-| halcyon vs obelisk | 49 - 35 |
-| riptide vs obelisk | 51 - 32 |
+| halcyon vs obelisk | 47 - 37 |
+| riptide vs obelisk | 42 - 42 |
 
 | fighter | win rate | ultimates used per match |
 |---|---|---|
-| brick | 48% | 1.21 |
-| vex | 55% | 1.86 |
-| nova | 46% | 1.86 |
-| gizmo | 49% | 1.96 |
-| agni | 48% | 1.82 |
-| halcyon | 51% | 2.03 |
-| riptide | 53% | 1.75 |
-| obelisk | 50% | 1.73 |
+| brick | 47% | 1.34 |
+| vex | 54% | 1.82 |
+| nova | 52% | 1.85 |
+| gizmo | 51% | 2.08 |
+| agni | 49% | 1.84 |
+| halcyon | 48% | 2.03 |
+| riptide | 50% | 1.74 |
+| obelisk | 49% | 1.72 |
 
-Mean match length: 124 s
+Mean match length: 130 s
 

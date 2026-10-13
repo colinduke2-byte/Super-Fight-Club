@@ -956,7 +956,7 @@
    "startup": 11,
    "active": 4,
    "recovery": 16,
-   "landingLag": 13,
+   "landingLag": 8,
    "autocancel": [
     [
      1,
