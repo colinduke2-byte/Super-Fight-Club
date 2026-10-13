@@ -316,6 +316,7 @@ export class MatchScene extends Phaser.Scene {
     this.slots.forEach((s, i) => (s.palette = palettes[i])); // results / rematches show the same colours
     this.skins = this.fighters.map((f, i) => ensurePalette(this, f.data, palettes[i]));
     this.views = this.fighters.map((f, i) => new FighterView(this, this.worldLayer, f, undefined, this.skins[i]));
+    this.views.forEach((v) => (v.platforms = this.world.platforms));
     this.effects = new Effects(this, this.worldLayer);
     this.effects.cap = this.adaptive.cap; // a reduction earlier in the session carries over to rematches
     this.entityViews = new EntityViews(this, this.worldLayer, this.world);

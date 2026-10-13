@@ -2,6 +2,7 @@ import Phaser from 'phaser';
 import { PIXEL_FONT } from '../art/pixelFont';
 import { animFrameIndex, fighterAnimKey, fighterTextureKey } from '../art/proceduralFighter';
 import type { Fighter } from '../engine/fighter';
+import type { Platform } from '../engine/platform';
 import { fighterTrailColor } from '../fx/runner';
 
 /** Pixels the body is drawn left of the frame centre in the procedural sprite sheet (see proceduralFighter). */
@@ -90,7 +91,7 @@ export class FighterView {
     this.trailTint = typeof trail === 'object' ? null : fighterTrailColor(fighter, 0);
     this.accentHex = parseInt(fighter.data.sprite.placeholder.accent.slice(1), 16);
     const key = fighterTextureKey(this.skin);
-    this.shadow = scene.add.image(0, 0, 'px').setTint(0x000000).setAlpha(0.25).setScale(5, 0.7);
+    this.shadow = scene.add.image(0, 0, 'item-glow').setTint(0x000000).setAlpha(0.3);
     this.sprite = scene.add.sprite(0, 0, key, 0).setOrigin(0.5, 1).setScale(fighter.data.sprite.pixelScale);
     if (tint !== undefined) this.sprite.setTint(tint);
     this.bubble = scene.add.image(0, 0, 'bubble').setVisible(false);
@@ -144,7 +145,7 @@ export class FighterView {
 
     const s = this.sprite;
     s.setVisible(f.state !== 'ko');
-    this.shadow.setVisible(f.state !== 'ko' && f.grounded);
+    this.placeShadow(f);
     this.held.setVisible(f.heldBomb && f.state !== 'ko');
     // came back from a KO: light the way down until they land (or the invincibility runs out)
     if (this.wasKo && f.state !== 'ko') this.haloT = 1;
@@ -212,7 +213,7 @@ export class FighterView {
       const recoil = f.state === 'hitstun' ? -f.facing * 0.2 * Math.min(1, f.hitstun / 12) : 0;
       s.setOrigin(0.5, 1).setRotation(av.rot + recoil);
     }
-    this.shadow.setPosition(this.x, f.groundPlat ? f.groundPlat.top + 1 : this.y + 1);
+    this.shadow.setX(this.x);
 
     // squash & stretch
     let sx = 1;
@@ -360,12 +361,39 @@ export class FighterView {
     }
   }
 
+  /** Stage platforms, for the drop shadow under an airborne fighter (set by the scene). */
+  platforms: readonly Platform[] = [];
+  private shadowA = 0.3;
+
+  /**
+   * A soft drop shadow on the surface below: under the feet when grounded, and while airborne on the platform it would
+   * land on, shrinking and fading with height, so you can read where you'll come down.
+   */
+  private placeShadow(f: Fighter): void {
+    let plat: Platform | null = f.grounded ? f.groundPlat : null;
+    if (!plat && f.state !== 'ko') {
+      for (const p of this.platforms) if (f.x >= p.x && f.x <= p.right && p.top >= f.y - 1 && (!plat || p.top < plat.top)) plat = p;
+    }
+    if (!plat || f.state === 'ko') {
+      this.shadow.setVisible(false);
+      return;
+    }
+    const k = Math.max(0, Math.min(1, 1 - (plat.top - f.y) / 180));
+    if (k <= 0) {
+      this.shadow.setVisible(false);
+      return;
+    }
+    const w = f.hw * 2 * f.sizeMul * 1.5 * (0.5 + 0.5 * k);
+    this.shadowA = 0.6 * (0.3 + 0.7 * k);
+    this.shadow.setVisible(true).setScale(w / 32, (w / 32) * 0.28).setY(plat.top + 0.5).setAlpha(this.shadowA);
+  }
+
   /** Spawn a fading copy of the current sprite (afterimage) at a world position. */
   /** Entrance (READY countdown only): shift, fade and stretch the body on top of its pose. */
   entrance(dx: number, dy: number, alpha: number, sy = 1): void {
     const s = this.sprite;
     s.setPosition(s.x + dx, s.y + dy).setAlpha(s.alpha * alpha).setScale(s.scaleX, s.scaleY * sy);
-    this.shadow.setAlpha(0.25 * alpha * (dy < -6 ? 0.5 : 1));
+    this.shadow.setAlpha(this.shadowA * alpha * (dy < -6 ? 0.5 : 1));
   }
 
   afterimage(x: number, y: number, tint = 0xffffff, life = 7): void {
