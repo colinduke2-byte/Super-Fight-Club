@@ -11,6 +11,12 @@ function color(hex: string): number {
   return parseInt(hex.slice(1), 16);
 }
 
+/** A palette's crystal colour, lifted toward white for a bright shard. */
+function lighten(hex: string): string {
+  const n = parseInt(hex.slice(1), 16);
+  return '#' + [(n >> 16) & 255, (n >> 8) & 255, n & 255].map((v) => Math.round(v + (255 - v) * 0.45).toString(16).padStart(2, '0')).join('');
+}
+
 /** Pooled sprites for projectiles, deployables, reflecting barriers and tether lines. */
 export class EntityViews {
   private readonly proj: Phaser.GameObjects.Image[] = [];
@@ -19,6 +25,8 @@ export class EntityViews {
   private readonly barriers: Phaser.GameObjects.Image[] = [];
   private readonly tether: Phaser.GameObjects.Graphics;
   private readonly items: Phaser.GameObjects.Image[] = [];
+  /** Per fighter: the crystal colour of its palette (null = the data's own), for pillars and shards. */
+  private crystal: (string | null)[] = [];
 
   constructor(
     private readonly scene: Phaser.Scene,
@@ -52,6 +60,10 @@ export class EntityViews {
     layer.add(this.tether);
   }
 
+  setCrystals(colors: (string | null)[]): void {
+    this.crystal = colors;
+  }
+
   update(alpha: number, tick: number): void {
     const w = this.world;
     for (let i = 0; i < this.items.length; i++) {
@@ -79,7 +91,8 @@ export class EntityViews {
         continue;
       }
       const look = p.def.look;
-      s.setTexture(SHAPE_TEX[look.shape] ?? 'proj-orb').setVisible(true).setTint(color(look.color));
+      const own = look.shape === 'shard' ? this.crystal[p.owner] : null;
+      s.setTexture(SHAPE_TEX[look.shape] ?? 'proj-orb').setVisible(true).setTint(color(own ? lighten(own) : look.color));
       s.setPosition(p.prevX + (p.x - p.prevX) * alpha, p.prevY + (p.y - p.prevY) * alpha);
       s.setFlipX(p.vx < 0);
       const base = 0.5 * (look.size ?? 1);
@@ -158,8 +171,9 @@ export class EntityViews {
   /** A crystal pillar: its full-height texture, cropped to the part above ground, shimmering as it stands. */
   private drawPillar(s: Phaser.GameObjects.Image, d: import('../engine/entities').Deployable, alpha: number, tick: number): void {
     const def = d.def!;
-    const key = `dep-pillar-${def.w}x${def.h}`;
-    if (!this.scene.textures.exists(key)) this.scene.textures.addCanvas(key, pillarCanvas(def.w, def.h));
+    const hex = this.crystal[d.owner] ?? undefined;
+    const key = `dep-pillar-${def.w}x${def.h}${hex ?? ''}`;
+    if (!this.scene.textures.exists(key)) this.scene.textures.addCanvas(key, pillarCanvas(def.w, def.h, hex));
     const p = d.plat;
     const top = p ? p.prevY + (p.y - p.prevY) * alpha : d.y;
     const shown = Math.max(0, d.y - top);

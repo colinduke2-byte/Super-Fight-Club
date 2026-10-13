@@ -228,11 +228,15 @@ export function buildEntityTextures(scene: Phaser.Scene): void {
  * A crystal pillar `w` x `h` world units (drawn at 2 px per unit): an amethyst column with lit facets, a bright flat top
  * you can stand on, glints and a glowing inner vein, rising out of a jagged granite collar.
  */
-export function pillarCanvas(w: number, h: number): HTMLCanvasElement {
+export function pillarCanvas(w: number, h: number, crystal = '#9a5ad6'): HTMLCanvasElement {
   const W = Math.round(w * 2);
   const H = Math.round(h * 2);
   const [c, g] = mk(W, H);
-  const AM = ['#22103a', '#3e1f66', '#6a34a0', '#9a5ad6', '#c898f6', '#f0e2ff'];
+  // the crystal ramp is built from one colour, so a palette swap recolours its pillars
+  const n = parseInt(crystal.slice(1), 16);
+  const rgb: [number, number, number] = [(n >> 16) & 255, (n >> 8) & 255, n & 255];
+  const hexOf = (k: number, white: number): string => '#' + rgb.map((v) => Math.round(Math.min(255, v * k + (255 - v * k) * white)).toString(16).padStart(2, '0')).join('');
+  const AM = [hexOf(0.22, 0), hexOf(0.4, 0), hexOf(0.68, 0), hexOf(1, 0), hexOf(1, 0.42), hexOf(1, 0.82)];
   const GR = ['#2a2522', '#3e3833', '#585049', '#746a60'];
   for (let y = 0; y < H; y++) {
     const collar = H - 10;
@@ -258,7 +262,7 @@ export function pillarCanvas(w: number, h: number): HTMLCanvasElement {
   // a glowing vein wandering up the middle
   let vx = Math.round(W * 0.42);
   for (let y = H - 14; y > 5; y--) {
-    px(g, '#e8c8ff', vx, y);
+    px(g, AM[5], vx, y);
     if ((y * 7) % 9 === 0) vx += (y * 5) % 2 === 0 ? 1 : -1;
     vx = Math.max(3, Math.min(W - 4, vx));
   }

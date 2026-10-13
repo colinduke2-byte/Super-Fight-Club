@@ -1,6 +1,6 @@
 import { announcer } from '../audio/announcer';
 import { ensurePalette } from '../art/proceduralFighter';
-import { assignPalettes } from '../art/palettes';
+import { ALT_LOOKS, assignPalettes } from '../art/palettes';
 import Phaser from 'phaser';
 import { characterById, CHARACTERS } from '../characters';
 import { ambience } from '../audio/ambience';
@@ -303,6 +303,8 @@ export class MatchScene extends Phaser.Scene {
     this.effects = new Effects(this, this.worldLayer);
     this.effects.cap = this.adaptive.cap; // a reduction earlier in the session carries over to rematches
     this.entityViews = new EntityViews(this, this.worldLayer, this.world);
+    // alternate palettes recolour a fighter's crystal constructs (Obelisk's pillars and shards) too
+    this.entityViews.setCrystals(this.fighters.map((f, i) => (palettes[i] > 0 ? (ALT_LOOKS[f.data.id]?.[palettes[i] - 1]?.armor ?? null) : null)));
     this.slashes = new SlashArcs(this, this.worldLayer);
     this.cinArt = new CinematicArt(this, this.worldLayer);
     if (this.isTraining) this.training = new TrainingRunner(this.world, this.fighters[0], this.fighters[1]);
