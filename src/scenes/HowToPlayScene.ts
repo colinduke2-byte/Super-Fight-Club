@@ -4,7 +4,7 @@ import { PIXEL_FONT, up } from '../art/pixelFont';
 import { CHARACTER_LIST } from '../characters';
 import type { MenuEvent } from '../input/menuInput';
 import { HOW_TO_PLAY } from '../game/howToPlay';
-import { COLORS, MenuScene, text, textPx } from '../ui/menuKit';
+import { COLORS, MenuScene, drawPanel, text, textPx, type MenuBackdrop } from '../ui/menuKit';
 
 /** Paged guide to the controls and mechanics, from the goal of a match to advanced tech. */
 export class HowToPlayScene extends MenuScene {
@@ -59,62 +59,90 @@ export class HowToPlayScene extends MenuScene {
 
   protected override layoutUi(w: number, h: number, u: number): void {
     this.title.setScale(Math.min(u * 4, (w * 0.9) / Math.max(1, textPx(this.title)))).setPosition(w / 2, h * 0.1);
-    this.hint.setScale(Math.min(u, (w * 0.97) / Math.max(1, textPx(this.hint)))).setPosition(w / 2, h - 10 * u);
-    const bw = Math.min(w - 8 * u, 440 * u);
+    const footTop = this.placeFooter(this.hint);
+    const bw = Math.min(w - 12 * u, 520 * u);
     const bx = (w - bw) / 2;
-    const by = h * 0.18;
-    const bh = h - 20 * u - by;
+    const by = this.title.y + this.title.displayHeight / 2 + 8 * u;
+    const bh = footTop - 6 * u - by;
     const roomForDemo = w > h * 1.2;
-    this.box = { x: bx, y: by, w: bw, h: bh, demoX: bx + bw - 60 * u, floorY: by + bh - 8 * u, k: roomForDemo ? 1 : 0 };
+    this.box = { x: bx, y: by, w: bw, h: bh, demoX: bx + bw - 45 * u, floorY: by + bh - 14 * u, k: roomForDemo ? 1 : 0 };
     this.relayoutPage();
   }
 
-  /** Each row: the input on one line, what it does indented below; sized so the longest line fits the text column. */
+  /**
+   * Each row: the input as a heading (larger, gold, with a bullet), what it does in body text directly under it,
+   * left edges aligned. Rows share the panel height evenly with a faint rule between them. Body text uses a
+   * whole-pixel scale when it fits (crisp glyphs), fractional only when it must shrink; headings are 1.5x the body.
+   */
   private relayoutPage(): void {
     if (!this.keys.length) return;
     const u = this.u;
     const { x, y, w, h } = this.box;
     const p = HOW_TO_PLAY[this.page];
-    const demoW = this.box.k ? 120 * u : 0;
-    this.tab.setScale(u * 1.5).setPosition(x + w / 2, y + 9 * u);
-    const widest = Math.max(...p.rows.map((_, i) => Math.max(textPx(this.keys[i]), textPx(this.descs[i]) + 8)));
-    const inner = w - demoW - 16 * u;
+    const demoW = this.box.k ? 90 * u : 0;
+    this.tab.setScale(u * 1.8).setPosition(x + w / 2, y + 11 * u);
+    const tx = x + 16 * u;
+    const inner = w - demoW - 26 * u;
     const rows = p.rows.length;
-    const top = y + 24 * u;
-    const rowH = (y + h - 10 * u - top) / rows;
-    // whole-pixel scale when it fits (crisp glyphs), fractional only when it must shrink
-    const fit = Math.min(inner / widest, (rowH * 0.92) / 17);
-    const s = fit >= u ? u : fit;
+    const top = y + 30 * u;
+    const rowH = (y + h - 14 * u - top) / rows;
+    const widestDesc = Math.max(1, ...p.rows.map((_, i) => textPx(this.descs[i])));
+    const widestKey = Math.max(1, ...p.rows.map((_, i) => textPx(this.keys[i])));
+    // a row is a heading (7 * ks) + gap (4 * bs) + body (7 * bs), with ks = 1.5 * bs
+    const fit = Math.min(inner / widestDesc, (rowH * 0.86) / 21.5);
+    const bs = fit >= u ? u : fit;
+    const ks = Math.min(bs * 1.5, inner / widestKey);
+    const block = 7 * ks + 4 * bs + 7 * bs;
+    this.rowTops = [];
     p.rows.forEach((_, i) => {
-      const ry = top + i * rowH;
-      this.keys[i].setScale(s).setPosition(x + 10 * u, ry);
-      this.descs[i].setScale(s).setPosition(x + 10 * u + 8 * s, ry + 9 * s);
+      const ry = top + i * rowH + Math.max(0, (rowH - block) / 2);
+      this.rowTops.push(top + i * rowH);
+      this.keys[i].setScale(ks).setPosition(tx, ry);
+      this.descs[i].setScale(bs).setPosition(tx, ry + 7 * ks + 4 * bs);
     });
+    this.bullet = { x: x + 7 * u, size: Math.max(3, Math.round(3 * bs)), ks, rowH };
     this.sprite.setVisible(!!this.box.k);
     this.drawPanel();
   }
+
+  private rowTops: number[] = [];
+  private bullet = { x: 0, size: 2, ks: 1, rowH: 0 };
 
   private drawPanel(): void {
     const g = this.panel;
     const u = this.u;
     const { x, y, w, h } = this.box;
+    const p = HOW_TO_PLAY[this.page];
     g.clear();
-    g.fillStyle(0x07061a, 0.84).fillRect(x, y, w, h);
-    g.lineStyle(u, 0x3c3478, 0.9).strokeRect(x - u / 2, y - u / 2, w + u, h + u);
-    g.fillStyle(COLORS.title, 0.85);
-    for (const [cx, cy] of [[x - u, y - u], [x + w - u * 2, y - u], [x - u, y + h - u * 2], [x + w - u * 2, y + h - u * 2]]) g.fillRect(cx, cy, u * 3, u * 3);
-    g.fillStyle(0x3c3478, 0.8).fillRect(x + 6 * u, y + 17 * u, w - 12 * u, u);
+    drawPanel(g, x, y, w, h, u, 0.92);
+    // header band behind the page title
+    g.fillStyle(0x1c1840, 1).fillRect(x + u, y + u, w - 2 * u, 21 * u);
+    g.fillStyle(COLORS.title, 0.7).fillRect(x + 6 * u, y + 22 * u, w - 12 * u, u);
+    // bullets beside each heading and faint rules between rows (text column only)
+    const demoW = this.box.k ? 90 * u : 0;
+    const b = this.bullet;
+    this.rowTops.forEach((ry, i) => {
+      if (i > 0) g.fillStyle(0x2a2550, 0.9).fillRect(x + 8 * u, ry, w - demoW - 16 * u, Math.max(1, u / 2));
+      const key = this.keys[i];
+      if (i < p.rows.length) g.fillStyle(COLORS.hot, 1).fillRect(b.x, key.y + (7 * b.ks - b.size) / 2, b.size, b.size);
+    });
     // page dots
     const n = HOW_TO_PLAY.length;
     for (let i = 0; i < n; i++) {
-      g.fillStyle(i === this.page ? COLORS.hot : 0x5a5680, 1).fillRect(x + w / 2 + (i - (n - 1) / 2) * 6 * u - u, y + h - 5 * u, u * 2, u * 2);
+      g.fillStyle(i === this.page ? COLORS.hot : 0x5a5680, 1).fillRect(x + w / 2 + (i - (n - 1) / 2) * 7 * u - u, y + h - 7 * u, u * 2, u * 2);
     }
     if (this.box.k) {
       const fx = this.box.demoX;
       const fy = this.box.floorY;
+      // the demo stands in its own alcove, split from the text by a vertical rule
+      g.fillStyle(0x2a2550, 0.9).fillRect(x + w - demoW, y + 28 * u, Math.max(1, u / 2), h - 42 * u);
       g.fillStyle(0x2a2450, 0.9).fillEllipse(fx, fy, 40 * u, 7 * u);
       g.fillStyle(COLORS.accent, 0.05).fillEllipse(fx, fy - 26 * u, 56 * u, 70 * u);
     }
+  }
+
+  protected override backdrop(): MenuBackdrop {
+    return { planet: null, tint: 0xd4f4ec };
   }
 
   protected override tick(time: number): void {

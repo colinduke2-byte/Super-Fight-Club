@@ -3,7 +3,7 @@ import { PIXEL_FONT, up } from '../art/pixelFont';
 import { sfx } from '../audio/sfx';
 import type { MenuEvent } from '../input/menuInput';
 import { saveSettings, settings, type ParticleQuality, type SmashMode } from '../settings';
-import { COLORS, MenuList, MenuScene, text, textPx } from '../ui/menuKit';
+import { COLORS, MenuList, MenuScene, text, type MenuBackdrop } from '../ui/menuKit';
 
 const QUALITY: ParticleQuality[] = ['low', 'medium', 'high'];
 const SMASH: SmashMode[] = ['flick', 'button'];
@@ -84,15 +84,19 @@ export class SettingsScene extends MenuScene {
 
   protected override layoutUi(w: number, h: number, u: number): void {
     this.title.setScale(u * 4).setPosition(w / 2, h * 0.12);
-    this.list.layout(w / 2, h * 0.2, u, 190, h - 27 * u);
-    this.hint.setScale(Math.min(u, (w * 0.97) / Math.max(1, textPx(this.hint)))).setPosition(w / 2, h - 10 * u);
+    // the list stops above the footer (description + controls hint) with a clear gap
+    this.list.layout(w / 2, Math.max(h * 0.2, this.title.y + this.title.displayHeight / 2 + 12 * u), u, 190, h - 33 * u);
+    this.placeFooter(this.hint, this.desc);
+  }
+
+  protected override backdrop(): MenuBackdrop {
+    return { planet: { x: 0.88, y: 0.3, k: 0.8 }, tint: 0xd6e4ff };
   }
 
   protected override tick(time: number): void {
     this.list.update(time);
-    const w = this.scale.width;
     this.desc.setText(up(this.list.hint));
-    this.desc.setScale(Math.min(this.u, (w * 0.94) / Math.max(1, textPx(this.desc)))).setPosition(w / 2, this.scale.height - 21 * this.u);
+    this.placeFooter(this.hint, this.desc);
   }
 
   protected onEvent(e: MenuEvent): void {

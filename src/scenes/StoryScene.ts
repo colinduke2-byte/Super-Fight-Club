@@ -8,7 +8,7 @@ import { characterById } from '../characters';
 import { music } from '../audio/music';
 import type { StoryCard } from '../game/story';
 import type { MenuEvent } from '../input/menuInput';
-import { COLORS, MenuScene, text, textPx } from '../ui/menuKit';
+import { COLORS, MenuScene, drawPanel, text, textPx, type MenuBackdrop } from '../ui/menuKit';
 
 const CPS = 38; // typewriter characters per second
 
@@ -28,6 +28,8 @@ export class StoryScene extends MenuScene {
   private left: Phaser.GameObjects.Sprite | null = null;
   private right: Phaser.GameObjects.Sprite | null = null;
   private box = { x: 0, y: 0, s: 3 };
+  /** Plate behind the caption. */
+  private plateBox = { x: 0, y: 0, w: 0, h: 0 };
 
   constructor() {
     super('Story');
@@ -47,7 +49,7 @@ export class StoryScene extends MenuScene {
     this.title = this.add.bitmapText(0, 0, PIXEL_FONT, '').setOrigin(0.5).setTint(COLORS.title);
     this.vs = this.add.bitmapText(0, 0, PIXEL_FONT, 'VS').setOrigin(0.5).setTint(0xffffff).setVisible(false);
     this.ui.add([this.title, this.vs]);
-    this.caption = this.add.bitmapText(0, 0, PIXEL_FONT, '').setOrigin(0.5, 0).setTint(COLORS.text).setCenterAlign();
+    this.caption = this.add.bitmapText(0, 0, PIXEL_FONT, '').setOrigin(0.5, 0).setTint(COLORS.text).setCenterAlign().setLineSpacing(4);
     this.ui.add(this.caption);
     this.hint = text(this, this.ui, 'J / ENTER: CONTINUE   K / ESC: SKIP ALL', COLORS.dim).setOrigin(0.5);
     this.showCard();
@@ -92,8 +94,18 @@ export class StoryScene extends MenuScene {
     const { x, y, s } = this.box;
     const u = this.u;
     const w = this.scale.width;
-    this.title.setScale(u * 2.4).setPosition(w / 2, y - 14 * u);
-    this.caption.setScale(u * 1.6).setPosition(w / 2, y + CARD_H * s + 8 * u);
+    // the title sits clear above the card's double frame, the caption on its own plate below it
+    this.title.setScale(Math.min(u * 2.4, (w * 0.94) / Math.max(1, textPx(this.title))));
+    this.title.setPosition(w / 2, y - 2 * s - 6 * u - (7 * this.title.scaleY) / 2);
+    const capY = y + CARD_H * s + 2 * s + 10 * u;
+    // the plate is sized to the whole caption up front so it does not grow while the text types out
+    this.caption.setText(this.fullText());
+    const capK = Math.min(u * 1.6, (w * 0.9) / Math.max(1, textPx(this.caption)));
+    this.caption.setScale(capK).setPosition(w / 2, capY);
+    const capW = Math.max(CARD_W * s * 0.6, textPx(this.caption) * capK + 16 * u);
+    const capH = this.caption.getTextBounds().local.height * capK + 10 * u;
+    this.plateBox = { x: w / 2 - capW / 2, y: capY - 5 * u, w: capW, h: capH };
+    this.caption.setText('');
     this.vs.setScale(u * 5).setPosition(x + (CARD_W / 2) * s, y + (CARD_H / 2) * s);
     // sprites: art px = s; a 64px frame covers 64*k art pixels
     const base = y + 80 * s;
@@ -116,6 +128,11 @@ export class StoryScene extends MenuScene {
     if (this.cards.length) this.relayoutCard();
   }
 
+  protected override backdrop(): MenuBackdrop {
+    // the card is the picture: no planet peeking out behind its frame
+    return { planet: null };
+  }
+
   protected override tick(time: number): void {
     const c = this.cards[this.index];
     if (!c) return;
@@ -123,6 +140,8 @@ export class StoryScene extends MenuScene {
     drawStoryArt(this.art, c.art, x, y, s, time, 0x4aa3ff, 0xff6a5a);
     const f = this.frame;
     f.clear();
+    const pb = this.plateBox;
+    if (pb.w > 0) drawPanel(f, pb.x, pb.y, pb.w, pb.h, this.u, 0.9);
     f.lineStyle(Math.max(2, s), 0xffd46a, 1).strokeRect(x - s, y - s, CARD_W * s + 2 * s, CARD_H * s + 2 * s);
     f.lineStyle(s, 0x1a1030, 1).strokeRect(x - 2 * s, y - 2 * s, CARD_W * s + 4 * s, CARD_H * s + 4 * s);
     const n = Math.floor(((performance.now() - this.shownAt) / 1000) * CPS);

@@ -11,7 +11,7 @@ import { session } from '../game/session';
 import { STAGES } from '../stages';
 import type { MenuEvent } from '../input/menuInput';
 import { ensurePalette, fighterAnimKey, fighterTextureKey, uiTexK } from '../art/proceduralFighter';
-import { COLORS, MenuList, MenuScene, text, textPx, type MenuItem } from '../ui/menuKit';
+import { COLORS, MenuList, MenuScene, PANEL, drawPanel, text, textPx, type MenuItem } from '../ui/menuKit';
 
 /** After a match: winner banner, per-player stats, and what to do next. */
 export class ResultsScene extends MenuScene {
@@ -158,7 +158,7 @@ export class ResultsScene extends MenuScene {
     // champion on the left, the table and the menu on the right (everything centred when there is no winner)
     const side = this.champ ? w * 0.4 : w * 0.06;
     const tw = Math.max(1, textPx(this.head));
-    const ts = Math.min(u * 1.2, (w - side - 28 * u) / tw);
+    const ts = Math.min(u * 1.2, (w - side - 40 * u) / tw);
     const tx = side + (w - side - tw * ts) / 2;
     this.head.setScale(ts).setPosition(tx, h * 0.27);
     this.rows.forEach((r, i) => r.setScale(ts).setPosition(tx, h * 0.27 + (14 + i * 12) * (ts / 1.2)));
@@ -166,13 +166,13 @@ export class ResultsScene extends MenuScene {
     const top = h * 0.27 - pad;
     const bottom = h * 0.27 + (14 + Math.max(0, this.rows.length - 1) * 12 + 8) * (ts / 1.2) + pad;
     this.plate.clear();
-    this.plate.fillStyle(0x07061a, 0.66).fillRect(tx - pad, top, tw * ts + pad * 2, bottom - top);
-    this.plate.lineStyle(u, 0x3c3478, 0.9).strokeRect(tx - pad, top, tw * ts + pad * 2, bottom - top);
-    this.plate.fillStyle(0x3c3478, 0.9).fillRect(tx, h * 0.27 + 10 * (ts / 1.2), tw * ts, Math.max(1, u / 2));
+    drawPanel(this.plate, tx - pad, top, tw * ts + pad * 2, bottom - top, u, 0.92);
+    this.plate.fillStyle(PANEL.border, 1).fillRect(tx, h * 0.27 + 10 * (ts / 1.2), tw * ts, Math.max(1, u / 2));
     this.list.layout(side + (w - side) / 2, h * 0.56, u, 120);
     if (this.champ) {
-      const s = Math.max(0.6, Math.min(u * 3.2, (h * 0.5) / 64));
-      this.floor = { x: w * 0.2, y: h * 0.78, s };
+      // sized so even a wide fighter (wings, staffs) stays on screen beside the table
+      const s = Math.max(0.6, Math.min(u * 2.6, (h * 0.44) / 64, (w * 0.2) / 56));
+      this.floor = { x: w * 0.23, y: h * 0.76, s };
       this.champ.setScale(s * this.champK).setPosition(this.floor.x, this.floor.y);
       this.champName?.setScale(Math.min(u * 2, (w * 0.36) / Math.max(1, textPx(this.champName)))).setPosition(this.floor.x, this.floor.y + s * 10 + 9 * u);
     }

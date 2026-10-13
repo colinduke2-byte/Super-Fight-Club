@@ -5,7 +5,7 @@ import { CHARACTER_LIST } from '../characters';
 import { inputManager } from '../input/inputManager';
 import type { MenuEvent } from '../input/menuInput';
 import { sfx } from '../audio/sfx';
-import { COLORS, MenuScene, text, textPx } from '../ui/menuKit';
+import { COLORS, MenuScene, text, textPx, type MenuBackdrop } from '../ui/menuKit';
 import { PIXEL_FONT } from '../art/pixelFont';
 
 /** Title screen: logo, the roster standing under spotlights with nameplates, "press any button". */
@@ -101,23 +101,29 @@ export class TitleScene extends MenuScene {
     this.prompt.setScale(u * 2);
     const promptY = footerY - this.footer.displayHeight / 2 - 12 * u - this.prompt.displayHeight / 2;
     this.prompt.setPosition(w / 2, promptY);
-    // names fit their slot (the roster keeps growing): no wider than 88% of the space between fighters
-    const widest = Math.max(1, ...this.names.map((n) => n.width / Math.max(0.001, n.scaleX)));
-    const slot = w / (this.names.length + 1);
-    this.names.forEach((n) => n.setScale(Math.min(u * 1.4, (slot * 0.88) / widest)));
-    const nameH = this.names[0]?.displayHeight ?? 0;
-    const nameY = promptY - this.prompt.displayHeight / 2 - 8 * u - nameH / 2;
-    const floorY = nameY - nameH / 2 - 5 * u;
-
-    // roster: scaled to the space between tagline and floor
-    const avail = floorY - y - 6 * u;
-    const spriteScale = Math.max(0.5, Math.min(u * 1.8, avail / 56));
+    // the lineup spans the width inside the margins, one equal slot per fighter
     const n = this.sprites.length;
+    // a wider side margin than the text's: the end fighters' arms and props stay on screen
+    const slot = (w - margin * 3.5) / Math.max(1, n);
+    const x0 = margin * 1.75;
+    // names fit their slot (the roster keeps growing) and always keep a clear gap to the next nameplate
+    const widest = Math.max(1, ...this.names.map((t) => textPx(t)));
+    // plate padding (6u) plus at least 8u of clear space between neighbouring plates
+    const nameS = Math.min(u * 1.2, (slot - 14 * u) / widest);
+    this.names.forEach((t) => t.setScale(nameS));
+    const nameH = 7 * nameS;
+    const plateH = nameH + 4 * u;
+    const nameY = promptY - this.prompt.displayHeight / 2 - 10 * u - plateH / 2;
+    const floorY = nameY - plateH / 2 - 4 * u;
+
+    // roster: scaled to the space between tagline and floor, and to the slot so neighbours only just overlap
+    const avail = floorY - y - 6 * u;
+    const spriteScale = Math.max(0.5, Math.min(u * 1.8, avail / 56, slot / 38));
     this.baseY = [];
     const st = this.stage;
     st.clear();
     for (let i = 0; i < n; i++) {
-      const x = (w * (i + 1)) / (n + 1);
+      const x = x0 + slot * (i + 0.5);
       const col = parseInt(CHARACTER_LIST[i].sprite.placeholder.accent.slice(1), 16);
       this.sprites[i].setScale(spriteScale * uiTexK(CHARACTER_LIST[i])).setPosition(x, floorY);
       this.baseY.push(floorY);
@@ -131,9 +137,18 @@ export class TitleScene extends MenuScene {
       st.fillEllipse(x, floorY, 40 * u, 5 * u);
       st.fillStyle(col, 0.5);
       st.fillRect(x - 16 * u, floorY, 32 * u, u * 0.7);
+      // nameplate: a dark tab with an accent underline, sized to the name
+      const pw = textPx(this.names[i]) * nameS + 6 * u;
+      st.fillStyle(0x0a0820, 0.85).fillRect(x - pw / 2, nameY - plateH / 2, pw, plateH);
+      st.fillStyle(col, 0.9).fillRect(x - pw / 2, nameY + plateH / 2 - u, pw, u);
     }
     st.fillStyle(0xffffff, 0.12);
     st.fillRect(margin, floorY, w - margin * 2, u * 0.5);
+  }
+
+  protected override backdrop(): MenuBackdrop {
+    // rising behind the skyline at the right, clear of the logo and tagline
+    return { planet: { x: 0.88, y: 0.5, k: 0.9 } };
   }
 
   protected override tick(time: number): void {

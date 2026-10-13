@@ -6,7 +6,7 @@ import { clearedChallenges } from '../game/records';
 import { session } from '../game/session';
 import { STAGES } from '../stages';
 import type { MenuEvent } from '../input/menuInput';
-import { COLORS, MenuList, MenuScene, text, textPx } from '../ui/menuKit';
+import { COLORS, MenuList, MenuScene, text, textPx, type MenuBackdrop } from '../ui/menuKit';
 
 /** Ten hand-made scenarios; clearing one (winning the match) ticks it off for good. */
 export class ChallengesScene extends MenuScene {
@@ -32,7 +32,8 @@ export class ChallengesScene extends MenuScene {
         value: () => (this.cleared[c.id] ? 'CLEAR' : '-'),
         onConfirm: () => this.start(c.id),
       })),
-      { label: 'BACK', onConfirm: () => this.go('ModeSelect') },
+      // indented like the numbered rows ("14. ") so BACK lines up with the titles above it
+      { label: '    BACK', onConfirm: () => this.go('ModeSelect') },
     ]);
     if (session.challenge) this.list.index = Math.max(0, CHALLENGES.findIndex((c) => c.id === session.challenge));
     this.count = text(this, this.ui, '', COLORS.good).setOrigin(0.5);
@@ -53,13 +54,17 @@ export class ChallengesScene extends MenuScene {
     this.title.setScale(Math.min(u * 4, (w * 0.9) / Math.max(1, textPx(this.title)))).setPosition(w / 2, h * 0.09);
     this.count.setScale(u * 1.2).setPosition(w / 2, h * 0.17);
     this.list.layout(w / 2, h * 0.22, u, 190, h * 0.72);
-    this.hint.setScale(Math.min(u, (w * 0.97) / Math.max(1, textPx(this.hint)))).setPosition(w / 2, h - 10 * u);
+    this.placeFooter(this.hint);
+  }
+
+  protected override backdrop(w: number, h: number): MenuBackdrop {
+    // off to the left of the list, clear of the title; a warmer, redder sky for the trials
+    return { planet: { x: 0.12, y: w / h > 1.5 ? 0.42 : 0.36, k: 0.75 }, tint: 0xffdcd4 };
   }
 
   protected override tick(time: number): void {
     this.list.update(time);
     const w = this.scale.width;
-    const h = this.scale.height;
     const done = CHALLENGES.filter((c) => this.cleared[c.id]).length;
     this.count.setText(up(`${done} / ${CHALLENGES.length} CLEARED`)).setTint(done === CHALLENGES.length ? COLORS.hot : COLORS.good);
     const c = CHALLENGES[this.list.index];
@@ -74,8 +79,16 @@ export class ChallengesScene extends MenuScene {
     const by = this.cleared[c.id] ? `   CLEARED WITH ${(characterById(this.cleared[c.id])?.name ?? '').toUpperCase()}` : '';
     this.brief.setText(up(c.brief));
     this.setup.setText(up(`${who}${ally}   VS ${foes}   ON ${(STAGES[c.stage]?.name ?? c.stage).toUpperCase()}${by}`));
-    this.brief.setScale(Math.min(this.u * 1.3, (w * 0.94) / Math.max(1, textPx(this.brief)))).setPosition(w / 2, h * 0.8);
-    this.setup.setScale(Math.min(this.u, (w * 0.94) / Math.max(1, textPx(this.setup)))).setPosition(w / 2, h * 0.86);
+    // the brief and its setup line sit centred in the space between the list and the controls hint
+    this.brief.setScale(Math.min(this.u * 1.3, (w * 0.94) / Math.max(1, textPx(this.brief))));
+    this.setup.setScale(Math.min(this.u, (w * 0.94) / Math.max(1, textPx(this.setup))));
+    const gap = 6 * this.u;
+    const block = 7 * this.brief.scaleY + gap + 7 * this.setup.scaleY;
+    const lo = this.list.bottom;
+    const hi = this.hint.y - this.hint.displayHeight / 2;
+    const y0 = lo + Math.max(gap, (hi - lo - block) / 2);
+    this.brief.setPosition(w / 2, y0 + (7 * this.brief.scaleY) / 2);
+    this.setup.setPosition(w / 2, y0 + 7 * this.brief.scaleY + gap + (7 * this.setup.scaleY) / 2);
   }
 
   protected onEvent(e: MenuEvent): void {

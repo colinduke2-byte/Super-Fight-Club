@@ -148,13 +148,16 @@ export class CharacterSelectScene extends MenuScene {
     });
     const rn = this.roster.length;
     const rw = Math.min(w / (rn + 0.5), 74 * u);
+    // one size for every name (measured unscaled, so it does not depend on the last layout), with a gap between neighbours
+    const widest = Math.max(1, ...this.roster.map((r) => textPx(r.name)));
+    const nameS = Math.min(u * 1.2, (rw - 5 * u) / widest);
     this.roster.forEach((r, i) => {
       const cx = w / 2 + (i - (rn - 1) / 2) * rw;
       const sc = u * 1.35 * (r.img.getData('k') as number);
       // centre the cropped portrait (not the whole frame) over the name
       const cr = r.img.getData('crop') as [number, number, number, number];
       r.img.setScale(sc).setPosition(cx + (r.img.width / 2 - (cr[0] + cr[2] / 2)) * sc, h * 0.82 + 6 * u + (r.img.height / 2 - (cr[1] + cr[3])) * sc);
-      r.name.setScale(Math.min(u * 1.2, (rw * 0.86) / Math.max(1, r.name.width))).setPosition(cx, h * 0.82 + 9 * u);
+      r.name.setScale(nameS).setPosition(cx, h * 0.82 + 9 * u);
       r.pips.forEach((p, k) => p.setScale((3 * u) / 4).setPosition(cx - ((r.pips.length - 1) * 4 * u) / 2 + k * 4 * u, h * 0.82 + 21 * u));
     });
     this.warn.setScale(u * 1.2).setPosition(w / 2, h * 0.93);

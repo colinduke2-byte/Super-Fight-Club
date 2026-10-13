@@ -40,11 +40,28 @@ export interface MenuItem {
   hint?: string | (() => string);
 }
 
-/** A vertical list of rows with a highlighted cursor; label on the left, value on the right. */
 /** Unscaled pixel width of a bitmap text (independent of its current scale). */
 export function textPx(t: Phaser.GameObjects.BitmapText): number {
   return t.getTextBounds().local.width;
 }
+
+/** Fill colour, border colour and corner-tick colour shared by every menu panel. */
+export const PANEL = { fill: 0x0a0820, alpha: 0.9, border: 0x3c3478, tick: COLORS.title, stripe: 0x1c1840 };
+
+/**
+ * The one panel style used across the menus: a near-solid plate, a 1-unit border and gold corner ticks.
+ * Drawn into `g` (not cleared), so callers can layer stripes or dividers on top.
+ */
+export function drawPanel(g: Phaser.GameObjects.Graphics, x: number, y: number, w: number, h: number, u: number, alpha = PANEL.alpha): void {
+  g.fillStyle(PANEL.fill, alpha).fillRect(x, y, w, h);
+  // a lighter inner edge at the top reads as a bevel and lifts the plate off the backdrop
+  g.fillStyle(0xffffff, 0.04).fillRect(x, y, w, u);
+  g.lineStyle(u, PANEL.border, 1).strokeRect(x - u / 2, y - u / 2, w + u, h + u);
+  g.fillStyle(PANEL.tick, 0.9);
+  for (const [cx, cy] of [[x - u, y - u], [x + w - u * 2, y - u], [x - u, y + h - u * 2], [x + w - u * 2, y + h - u * 2]]) g.fillRect(cx, cy, u * 3, u * 3);
+}
+
+/** A vertical list of rows with a highlighted cursor; label on the left, value on the right. */
 
 export class MenuList {
   index = 0;
@@ -149,8 +166,14 @@ export class MenuList {
     return typeof h === 'function' ? h() : h;
   }
 
-  /** Translucent plate behind the rows plus a bar under the cursor, so the menu reads over any backdrop. */
-  private drawPanel(k: number, time: number): void {
+  /** Bottom edge of the plate in screen pixels, for placing what follows the list. */
+  get bottom(): number {
+    const rh = this.rowH * this.u;
+    return this.top - (rh - 7 * this.fontK * this.u) / 2 - this.u * 2 + this.items.length * rh + this.u * 3;
+  }
+
+  /** Solid plate behind the rows plus a bar under the cursor, so the menu reads over any backdrop. */
+  private drawPlate(k: number, time: number): void {
     const g = this.panel;
     g.clear();
     if (!this.plate || !this.visible || !this.items.length) return;
@@ -162,11 +185,7 @@ export class MenuList {
     const w = this.width * u + pad * 2;
     const y = this.top - (rh - textH) / 2 - u * 2;
     const h = this.items.length * rh + u * 3;
-    g.fillStyle(0x07061a, 0.62).fillRect(x, y, w, h);
-    g.lineStyle(u, 0x3c3478, 0.9).strokeRect(x - u / 2, y - u / 2, w + u, h + u);
-    // corner ticks
-    g.fillStyle(COLORS.title, 0.85);
-    for (const [cx, cy] of [[x - u, y - u], [x + w - u * 2, y - u], [x - u, y + h - u * 2], [x + w - u * 2, y + h - u * 2]]) g.fillRect(cx, cy, u * 3, u * 3);
+    drawPanel(g, x, y, w, h, u);
     // cursor bar
     const sy = this.top + this.index * rh - (rh - textH) / 2;
     const a = 0.16 + 0.06 * Math.sin(time * 6);
@@ -193,13 +212,21 @@ export class MenuList {
       this.labels[i].setScale(this.u * k);
       this.values[i].setScale(this.u * k);
     }
-    this.drawPanel(k, time);
+    this.drawPlate(k, time);
   }
 
   destroy(): void {
     this.panel.destroy();
     for (const t of [...this.labels, ...this.values]) t.destroy();
   }
+}
+
+/** Per-screen dressing of the shared menu backdrop, so each screen has its own look without new art. */
+export interface MenuBackdrop {
+  /** Centre of the ringed planet as fractions of the screen, plus a size multiplier; null hides it. Omitted: the default spot. */
+  planet?: { x: number; y: number; k?: number } | null;
+  /** Colour multiplied over the backdrop: a gentle cast per screen (0xffffff = none). */
+  tint?: number;
 }
 
 /**
@@ -219,6 +246,14 @@ export abstract class MenuScene extends Phaser.Scene {
   protected abstract build(): void;
   protected abstract onEvent(e: MenuEvent): void;
   protected layoutUi(_w: number, _h: number, _u: number): void {}
+  /** How this screen dresses the shared backdrop (planet spot, colour cast); asked again on every resize. */
+  protected backdrop(_w: number, _h: number): MenuBackdrop {
+    return {};
+  }
+  private look: MenuBackdrop = {};
+  private planet: Phaser.GameObjects.Image | null = null;
+  /** Colour cast (multiply) over the backdrop, under the UI. */
+  private shade!: Phaser.GameObjects.Graphics;
   protected tick(_time: number, _dt: number): void {}
 
   create(): void {
@@ -235,6 +270,10 @@ export abstract class MenuScene extends Phaser.Scene {
     main.ignore(this.ui);
     this.uiCam.ignore(this.bgLayer);
     this.bg = new BackgroundView(this, this.bgLayer);
+    // the planet is a plain image in the backdrop layer: found by texture so screens can move it clear of their content
+    this.planet = (this.bgLayer.list.find((o) => o instanceof Phaser.GameObjects.Image && o.texture.key === 'bg-planet') as Phaser.GameObjects.Image | undefined) ?? null;
+    this.shade = this.add.graphics();
+    this.bgLayer.add(this.shade);
     this.build();
     this.scale.on('resize', this.onResize, this);
     this.events.once('shutdown', () => this.scale.off('resize', this.onResize, this));
@@ -248,6 +287,7 @@ export abstract class MenuScene extends Phaser.Scene {
   override update(_t: number, _d: number): void {
     const time = (performance.now() - this.time0) / 1000;
     this.bg.update(time * 6, Math.sin(time * 0.2) * 10, 3, time);
+    this.placePlanet(time);
     for (const e of menuInput.poll()) {
       if (this.leaving) continue;
       // tiny UI blips; scenes that consume the event (rebinding etc.) still get it
@@ -268,7 +308,49 @@ export abstract class MenuScene extends Phaser.Scene {
   private relayout(w: number, h: number): void {
     this.u = hudUnit(h);
     this.bg.resize(w, h);
+    this.look = this.backdrop(w, h);
+    this.drawShade(w, h);
     this.layoutUi(w, h, this.u);
+  }
+
+  /**
+   * The controls hint pinned to the bottom edge, and optionally a description line above it with a clear gap
+   * (each shrunk only if it would overflow the width). Returns the y of the stack's top edge.
+   */
+  protected placeFooter(hint: Phaser.GameObjects.BitmapText, desc?: Phaser.GameObjects.BitmapText, descK = 1): number {
+    const w = this.scale.width;
+    const h = this.scale.height;
+    const u = this.u;
+    hint.setOrigin(0.5).setScale(Math.min(u, (w * 0.97) / Math.max(1, textPx(hint)))).setPosition(w / 2, h - 10 * u);
+    let top = hint.y - hint.displayHeight / 2;
+    if (desc) {
+      desc.setOrigin(0.5).setScale(Math.min(u * descK, (w * 0.94) / Math.max(1, textPx(desc))));
+      desc.setPosition(w / 2, top - 6 * u - (7 * desc.scaleY) / 2);
+      top = desc.y - (7 * desc.scaleY) / 2;
+    }
+    return top;
+  }
+
+  private placePlanet(time: number): void {
+    const p = this.planet;
+    const spot = this.look.planet;
+    if (!p || spot === undefined) return;
+    if (spot === null) {
+      p.setVisible(false);
+      return;
+    }
+    // the same slow drift the backdrop gives it, around this screen's spot
+    p.setScale(this.bg.ps * 1.5 * (spot.k ?? 1));
+    p.setPosition(this.scale.width * spot.x - time * 0.36, this.scale.height * spot.y - Math.sin(time * 0.2) * 0.6);
+  }
+
+  private drawShade(w: number, h: number): void {
+    const g = this.shade.clear();
+    const tint = this.look.tint;
+    if (tint !== undefined && tint !== 0xffffff) {
+      g.setBlendMode(Phaser.BlendModes.MULTIPLY);
+      g.fillStyle(tint, 1).fillRect(0, 0, w, h);
+    } else g.setBlendMode(Phaser.BlendModes.NORMAL);
   }
 
   /** Go to another scene (stops this one). */

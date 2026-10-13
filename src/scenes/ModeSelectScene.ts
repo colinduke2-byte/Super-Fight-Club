@@ -2,7 +2,7 @@ import Phaser from 'phaser';
 import { inputManager } from '../input/inputManager';
 import type { MenuEvent } from '../input/menuInput';
 import { session } from '../game/session';
-import { COLORS, MenuList, MenuScene, text, textPx } from '../ui/menuKit';
+import { COLORS, MenuList, MenuScene, text, textPx, type MenuBackdrop } from '../ui/menuKit';
 import { PIXEL_FONT } from '../art/pixelFont';
 import { fighterAnimKey, fighterTextureKey, uiTexK } from '../art/proceduralFighter';
 import { CHARACTER_LIST } from '../characters';
@@ -73,10 +73,11 @@ export class ModeSelectScene extends MenuScene {
   protected override layoutUi(w: number, h: number, u: number): void {
     this.title.setScale(u * 4).setPosition(w / 2, h * 0.12);
     this.list.layout(w / 2, h * 0.24, u, 130, h * 0.73);
-    this.desc.setScale(u * 1.5).setPosition(w / 2, h * 0.78);
     // flanking fighters only when there is room beside the menu
     const room = w > h * 1.25;
     this.floorY = Math.min(h * 0.7, h * 0.78 - 20 * u);
+    // the description sits a clear gap below the fighters' nameplates
+    this.desc.setScale(u * 1.5).setPosition(w / 2, Math.max(h * 0.78, this.floorY + 4 * u + 7 * 1.2 * u + 12 * u + 5.25 * u));
     this.showScale = Math.max(0.6, Math.min(u * 2.4, (this.floorY - h * 0.25) / 64));
     this.showcase.forEach((s, side) => {
       const x = side === 0 ? w * 0.17 : w * 0.83;
@@ -84,6 +85,11 @@ export class ModeSelectScene extends MenuScene {
       s.name.setVisible(room && h >= 560).setScale(u * 1.2).setPosition(x, this.floorY + 4 * u);
     });
     this.hint.setScale(Math.min(u, (w * 0.97) / Math.max(1, textPx(this.hint)))).setPosition(w / 2, h - 10 * u);
+  }
+
+  protected override backdrop(w: number, h: number): MenuBackdrop {
+    // small and high in the top-left corner, above the left fighter and clear of the title
+    return w / h > 1.5 ? { planet: { x: 0.11, y: 0.15, k: 0.62 } } : { planet: { x: 0.085, y: 0.12, k: 0.55 } };
   }
 
   protected override tick(time: number): void {

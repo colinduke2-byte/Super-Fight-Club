@@ -6,7 +6,7 @@ import type { GamepadDevice } from '../input/gamepad';
 import { inputManager } from '../input/inputManager';
 import { keyboardHub } from '../input/keyboard';
 import type { MenuEvent } from '../input/menuInput';
-import { COLORS, MenuList, MenuScene, text, type MenuItem, textPx } from '../ui/menuKit';
+import { COLORS, MenuList, MenuScene, text, type MenuBackdrop, type MenuItem } from '../ui/menuKit';
 
 type Profile = 'kb1' | 'kb2' | 'standard' | 'nintendo';
 const PROFILES: Profile[] = ['kb1', 'kb2', 'standard', 'nintendo'];
@@ -185,9 +185,16 @@ export class ControlsScene extends MenuScene {
 
   protected override layoutUi(w: number, h: number, u: number): void {
     this.title.setScale(u * 4).setPosition(w / 2, h * 0.1);
-    // twelve rows + chrome must fit: shrink the row pitch is not supported, so use the smaller unit if needed
-    this.list.layout(w / 2, h * 0.17, Math.min(u, h / 480), 250);
-    this.hint.setScale(Math.min(u, (w * 0.97) / Math.max(1, textPx(this.hint)))).setPosition(w / 2, h - 10 * u);
+    // every row must fit between the title and the hint: the list's unit is as large as that allows (up to the screen unit)
+    const top = this.title.y + this.title.displayHeight / 2 + 12 * u;
+    const rows = Math.max(1, this.list.items.length);
+    this.list.layout(w / 2, top, Math.max(1, Math.min(u, (h - 30 * u - top) / (rows * 18), (w * 0.9) / 262)), 250);
+    this.placeFooter(this.hint);
+  }
+
+  protected override backdrop(): MenuBackdrop {
+    // same cool cast and planet spot as Settings, which it opens from
+    return { planet: { x: 0.88, y: 0.3, k: 0.8 }, tint: 0xd6e4ff };
   }
 
   protected override tick(time: number): void {
@@ -200,7 +207,8 @@ export class ControlsScene extends MenuScene {
           ? 'PRESS THE NEW BUTTON ON YOUR CONTROLLER'
           : `CONNECT A ${PROFILE_NAME[this.profile]}   (ESC: CANCEL)`
       : this.notice || 'UP/DOWN: MOVE   J / ENTER: REBIND   LEFT/RIGHT: DEVICE   K / ESC: BACK';
-    this.hint.setText(up(msg));
+    // the message changes (capture prompts, notices): refit it to the width every frame
+    if (this.hint.text !== up(msg)) this.placeFooter(this.hint.setText(up(msg)));
   }
 
   protected onEvent(e: MenuEvent): void {

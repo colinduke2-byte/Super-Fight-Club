@@ -8,7 +8,7 @@ import { fightCard, nameOf } from '../game/story';
 import { LEVELS } from '../ai/profiles';
 import type { MenuEvent } from '../input/menuInput';
 import { STAGES } from '../stages';
-import { COLORS, MenuList, MenuScene, text, textPx } from '../ui/menuKit';
+import { COLORS, MenuList, MenuScene, drawPanel, text, textPx, type MenuBackdrop } from '../ui/menuKit';
 
 /** The ladder: a node per fight up a winding path (eight fights and the boss), progress, the next opponent and the continues left. */
 export class LadderMapScene extends MenuScene {
@@ -81,7 +81,12 @@ export class LadderMapScene extends MenuScene {
     this.sub.setScale(u * 1.4).setPosition(w / 2, h * 0.62);
     this.info.setScale(u * 2).setPosition(w / 2, h * 0.55);
     this.cont.setScale(u * 1.2).setPosition(w / 2, h * 0.69);
-    this.list.layout(w / 2, h * 0.76, u, 70);
+    this.list.layout(w / 2, h * 0.69 + 26 * u, u, 70);
+  }
+
+  protected override backdrop(): MenuBackdrop {
+    // the path of fights winds across the sky: no planet behind the nodes
+    return { planet: null, tint: 0xe2e6ff };
   }
 
   protected override tick(time: number): void {
@@ -119,6 +124,11 @@ export class LadderMapScene extends MenuScene {
     this.sub.setText(up(`VS ${opps}   ${STAGES[f.stage]?.name ?? ''}`));
     this.sub.setScale(Math.min(this.u * 1.4, (this.scale.width * 0.94) / Math.max(1, textPx(this.sub))));
     this.cont.setText(up(`FIGHT ${f.index + 1} OF ${l.fights.length}     CONTINUES LEFT: ${l.continuesLeft}`));
+    // the next fight's details on one plate, so they read over the lit skyline
+    const pw = Math.max(this.info.displayWidth, this.sub.displayWidth, this.cont.displayWidth) + 24 * u;
+    const top = this.info.y - this.info.displayHeight / 2 - 7 * u;
+    const bot = this.cont.y + this.cont.displayHeight / 2 + 7 * u;
+    drawPanel(g, this.scale.width / 2 - pw / 2, top, pw, bot - top, u, 0.88);
     this.list.update(time);
   }
 

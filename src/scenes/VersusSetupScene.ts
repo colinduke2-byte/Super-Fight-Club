@@ -2,7 +2,7 @@ import Phaser from 'phaser';
 import { PIXEL_FONT, up } from '../art/pixelFont';
 import type { MenuEvent } from '../input/menuInput';
 import { session } from '../game/session';
-import { COLORS, MenuList, MenuScene, text, textPx } from '../ui/menuKit';
+import { COLORS, MenuList, MenuScene, text, type MenuBackdrop } from '../ui/menuKit';
 
 const clamp = (v: number, lo: number, hi: number): number => Math.max(lo, Math.min(hi, v));
 
@@ -65,13 +65,17 @@ export class VersusSetupScene extends MenuScene {
   protected override layoutUi(w: number, h: number, u: number): void {
     this.title.setScale(u * 4).setPosition(w / 2, h * 0.14);
     this.list.layout(w / 2, h * 0.3, u, 220);
-    this.hint.setScale(Math.min(u, (w * 0.97) / Math.max(1, textPx(this.hint)))).setPosition(w / 2, h - 10 * u);
+    this.placeFooter(this.hint, this.desc);
+  }
+
+  protected override backdrop(): MenuBackdrop {
+    return { planet: { x: 0.14, y: 0.32, k: 0.8 }, tint: 0xffe0e8 };
   }
 
   protected override tick(time: number): void {
     this.list.update(time);
     this.desc.setText(up(this.list.hint));
-    this.desc.setScale(Math.min(this.u, (this.scale.width * 0.94) / Math.max(1, textPx(this.desc)))).setPosition(this.scale.width / 2, this.scale.height - 21 * this.u);
+    this.placeFooter(this.hint, this.desc);
   }
 
   protected onEvent(e: MenuEvent): void {

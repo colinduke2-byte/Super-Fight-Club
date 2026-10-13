@@ -5,7 +5,7 @@ import { CHARACTER_LIST } from '../characters';
 import { CHALLENGES } from '../game/challenges';
 import { bestLaunch, bestTargetTime, clearedChallenges, fighterRecords, formatTicks, resetRecords } from '../game/records';
 import type { MenuEvent } from '../input/menuInput';
-import { COLORS, MenuList, MenuScene, text, textPx } from '../ui/menuKit';
+import { COLORS, MenuList, MenuScene, PANEL, drawPanel, text, textPx, type MenuBackdrop } from '../ui/menuKit';
 
 /** Lifetime records kept in this browser: matches, wins, KOs and falls per fighter, and Target Smash best times. */
 export class RecordsScene extends MenuScene {
@@ -76,27 +76,38 @@ export class RecordsScene extends MenuScene {
 
   protected override layoutUi(w: number, h: number, u: number): void {
     this.title.setScale(Math.min(u * 4, (w * 0.9) / Math.max(1, textPx(this.title)))).setPosition(w / 2, h * 0.1);
-    const ts = Math.min(u * 1.2, (w * 0.8) / Math.max(1, textPx(this.head)));
+    const ts = Math.min(u * 1.2, (w * 0.84) / Math.max(1, textPx(this.head)));
     const tw = textPx(this.head) * ts;
-    const x = w / 2 - tw / 2 + 16 * u;
-    const rowH = Math.min(18 * u, (h * 0.55) / (this.rows.length + 1));
-    this.head.setScale(ts).setPosition(x, h * 0.2);
-    // a plate behind the table with faint stripes on alternate rows, so it reads over the planet and skyline
+    // the icon column sits left of the text, so the text starts right of centre by half its width (plate centred)
+    const x = w / 2 - tw / 2 + 9 * u;
+    // stacked top to bottom: title, table, tally, menu, hint; the table's rows shrink to whatever height is left
+    const footTop = this.placeFooter(this.hint);
+    const below = 7 * u + 7 * 1.2 * u + 15 * u + 2 * 18 * u + 6 * u;
+    const y0 = this.title.y + this.title.displayHeight / 2 + 13 * u;
+    const rowH = Math.min(18 * u, (footTop - 6 * u - below - y0) / (this.rows.length + 1));
+    // each text line sits centred in its row band
+    const off = (rowH - 7 * ts) / 2;
+    this.head.setScale(ts).setPosition(x, y0);
     const g = this.plate.clear();
     const px0 = x - 26 * u;
     const pw = tw + 34 * u;
-    const py0 = h * 0.2 - 5 * u;
-    const ph = rowH * (this.rows.length + 1) + 6 * u;
-    g.fillStyle(0x07061a, 0.66).fillRect(px0, py0, pw, ph);
-    g.lineStyle(u, 0x3c3478, 0.9).strokeRect(px0 - u / 2, py0 - u / 2, pw + u, ph + u);
-    for (let i = 1; i <= this.rows.length; i += 2) g.fillStyle(0x3c3478, 0.22).fillRect(px0 + u, h * 0.2 + rowH * i - 3 * u, pw - 2 * u, rowH);
-    g.fillStyle(COLORS.title, 0.85);
-    for (const [cx, cy] of [[px0 - u, py0 - u], [px0 + pw - u * 2, py0 - u], [px0 - u, py0 + ph - u * 2], [px0 + pw - u * 2, py0 + ph - u * 2]]) g.fillRect(cx, cy, u * 3, u * 3);
-    this.rows.forEach((r, i) => r.setScale(ts).setPosition(x, h * 0.2 + rowH * (i + 1)));
-    this.icons.forEach((img, i) => img.setScale(((rowH * 1.1) / 64) * (img.getData('k') as number)).setPosition(x - 12 * u, h * 0.2 + rowH * (i + 1) + rowH * 0.8));
-    this.chal.setScale(u * 1.2).setPosition(w / 2, h * 0.2 + rowH * (this.rows.length + 1.5));
-    this.list.layout(w / 2, h * 0.2 + rowH * (this.rows.length + 2.4), u, 120);
-    this.hint.setScale(Math.min(u, (w * 0.97) / Math.max(1, textPx(this.hint)))).setPosition(w / 2, h - 10 * u);
+    const py0 = y0 - off - u;
+    const ph = rowH * (this.rows.length + 1) + 2 * u;
+    drawPanel(g, px0, py0, pw, ph, u, 0.94);
+    // header band and rule, then faint stripes on alternate rows
+    g.fillStyle(PANEL.stripe, 1).fillRect(px0 + u, py0 + u, pw - 2 * u, rowH);
+    g.fillStyle(PANEL.border, 1).fillRect(px0 + u, py0 + rowH + u, pw - 2 * u, u);
+    for (let i = 2; i <= this.rows.length; i += 2) g.fillStyle(0x16132e, 1).fillRect(px0 + u, y0 + rowH * i - off, pw - 2 * u, rowH);
+    this.rows.forEach((r, i) => r.setScale(ts).setPosition(x, y0 + rowH * (i + 1)));
+    this.icons.forEach((img, i) => img.setScale(((rowH * 1.1) / 64) * (img.getData('k') as number)).setPosition(x - 12 * u, y0 + rowH * (i + 1) - off + rowH * 0.95));
+    // a clear gap under the table, then the challenge tally, then the menu
+    this.chal.setScale(u * 1.2).setPosition(w / 2, py0 + ph + 7 * u + 3.5 * 1.2 * u);
+    this.list.layout(w / 2, this.chal.y + 4.2 * u + 15 * u, u, 120);
+  }
+
+  protected override backdrop(): MenuBackdrop {
+    // the table spans the screen: no planet behind it, and a warm cast for the trophy room
+    return { planet: null, tint: 0xfff0dc };
   }
 
   protected override tick(time: number): void {

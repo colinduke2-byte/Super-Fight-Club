@@ -3,7 +3,7 @@ import { PIXEL_FONT } from '../art/pixelFont';
 import { session } from '../game/session';
 import type { MenuEvent } from '../input/menuInput';
 import { STAGE_LIST } from '../stages';
-import { COLORS, MenuList, MenuScene, text, textPx } from '../ui/menuKit';
+import { COLORS, MenuList, MenuScene, text, textPx, type MenuBackdrop } from '../ui/menuKit';
 import { stageThumb } from '../ui/stageThumb';
 
 /** Pick a stage from the list; a preview draws its platforms and blast zones. RANDOM is always last. */
@@ -33,7 +33,7 @@ export class StageSelectScene extends MenuScene {
     this.thumb = this.add.image(0, 0, stageThumb(this, STAGE_LIST[0])).setOrigin(0, 0);
     this.preview = this.add.graphics();
     this.ui.add([this.thumb, this.preview]);
-    this.blurb = text(this, this.ui, '', COLORS.text).setOrigin(0, 0);
+    this.blurb = text(this, this.ui, '', COLORS.text).setOrigin(0, 0).setLineSpacing(3);
     this.tags = text(this, this.ui, '', COLORS.accent).setOrigin(0, 0);
     this.hint = text(this, this.ui, 'UP/DOWN: MOVE   J / ENTER: FIGHT   K / ESC: BACK', COLORS.dim).setOrigin(0.5);
   }
@@ -46,16 +46,23 @@ export class StageSelectScene extends MenuScene {
   protected override layoutUi(w: number, h: number, u: number): void {
     this.title.setScale(Math.min(u * 4, (w * 0.9) / Math.max(1, textPx(this.title)))).setPosition(w / 2, h * 0.1);
     // list on the left, preview on the right: shrink the list's unit so the longest name fits its column
-    const lu = Math.max(0.8, Math.min(u, (w * 0.44) / 190)); // the longest name is ~180 units wide at full size
-    this.list.layout(w * 0.04 + 95 * lu, h * 0.28, lu, 190);
+    // the longest name is ~180 units wide at full size; the plate adds 6 units a side and must stay clear of the preview at 0.5w
+    const lu = Math.max(0.8, Math.min(u, (w * 0.43) / 202));
+    this.list.layout(w * 0.035 + 101 * lu, h * 0.28, lu, 190);
     const aw = w * 0.46;
     const ah = Math.min(aw * (9 / 16), h * 0.42);
     this.area = { x: w * 0.5, y: h * 0.22, w: ah * (16 / 9), h: ah };
     const bu = Math.max(0.75, Math.min(u * 1.1, (h * 0.2) / 40));
-    this.blurb.setScale(bu).setPosition(w * 0.5, this.area.y + this.area.h + 5 * u);
+    // clear of the preview's frame (which is drawn 2px outside the card)
+    this.blurb.setScale(bu).setPosition(this.area.x, this.area.y + this.area.h + 10 * u);
     this.wrapChars = Math.max(10, Math.floor((w * 0.46) / (7.6 * bu)));
-    this.tags.setScale(Math.min(u, bu)).setPosition(w * 0.5, h - 22 * u);
-    this.hint.setScale(Math.min(u, (w * 0.97) / Math.max(1, textPx(this.hint)))).setPosition(w / 2, h - 10 * u);
+    this.tags.setScale(Math.min(u, bu)).setPosition(this.area.x, h - 22 * u).setLineSpacing(3);
+    this.placeFooter(this.hint);
+  }
+
+  protected override backdrop(): MenuBackdrop {
+    // the preview card carries its own sky: no planet peeking over its frame
+    return { planet: null, tint: 0xe4e0ff };
   }
 
   protected override tick(time: number): void {
@@ -93,7 +100,7 @@ export class StageSelectScene extends MenuScene {
       }
       this.tags.setText(rows.join('\n'));
     } else this.tags.setText('');
-    this.tags.setY(Math.min(this.blurb.y + this.blurb.displayHeight + 4 * this.u, this.scale.height - 20 * this.u));
+    this.tags.setY(Math.min(this.blurb.y + this.blurb.displayHeight + 7 * this.u, this.hint.y - this.hint.displayHeight / 2 - 6 * this.u - this.tags.displayHeight));
     if (!stage) {
       // RANDOM: question mark card
       g.fillStyle(0x4a4578, 1).fillRect(a.x + a.w / 2 - 6, a.y + a.h / 2 - 20, 12, 40);
