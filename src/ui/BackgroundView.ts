@@ -173,6 +173,8 @@ export class BackgroundView {
   private readonly planet: Phaser.GameObjects.Image;
   private readonly far: Phaser.GameObjects.TileSprite;
   private readonly near: Phaser.GameObjects.TileSprite;
+  /** Solid ground continuing below the near skyline when its art reaches the bottom edge (jungle floor, snow, city). */
+  private readonly skirt: Phaser.GameObjects.Rectangle;
   private readonly clouds: Phaser.GameObjects.TileSprite;
   private readonly bank: Phaser.GameObjects.TileSprite;
   private readonly gMid: Phaser.GameObjects.Graphics;
@@ -197,12 +199,13 @@ export class BackgroundView {
     this.planet = scene.add.image(0, 0, 'bg-planet').setOrigin(0.5, 0.5);
     this.far = scene.add.tileSprite(0, 0, 1, 192, 'bg-ruins-far').setOrigin(0, 0);
     this.near = scene.add.tileSprite(0, 0, 1, 192, 'bg-ruins-near').setOrigin(0, 0);
+    this.skirt = scene.add.rectangle(0, 0, 1, 1, 0x000000).setOrigin(0, 0).setVisible(false);
     this.clouds = scene.add.tileSprite(0, 0, 1, 64, 'bg-clouds').setOrigin(0, 0).setVisible(false);
     this.gBack = scene.add.graphics().setBlendMode(1 /* ADD */);
     this.gFront = scene.add.graphics().setBlendMode(1 /* ADD */);
     this.bank = scene.add.tileSprite(0, 0, 1, 128, 'bg-cloudsea').setOrigin(0, 0).setVisible(false);
     this.gMid = scene.add.graphics();
-    layer.add([this.nebula, this.starsA, this.starsB, this.planet, this.gBack, this.clouds, this.far, this.near, this.gMid, this.bank, this.gFront]);
+    layer.add([this.nebula, this.starsA, this.starsB, this.planet, this.gBack, this.clouds, this.far, this.near, this.skirt, this.gMid, this.bank, this.gFront]);
   }
 
   setTheme(id: string | undefined): void {
@@ -214,6 +217,9 @@ export class BackgroundView {
     this.near.setTint(b.near);
     this.far.setTexture(b.farTex ?? 'bg-ruins-far');
     this.near.setTexture(b.nearTex ?? 'bg-ruins-near');
+    const ground = this.bottomColour(b.nearTex ?? 'bg-ruins-near', b.near);
+    this.skirt.setVisible(ground !== null);
+    if (ground !== null) this.skirt.setFillStyle(ground);
     this.extras = b.extras ?? [];
     this.scroll = b.scroll ?? 0;
     this.clouds.setVisible(this.extras.includes('clouds'));
@@ -224,6 +230,28 @@ export class BackgroundView {
     this.bank.setVisible(this.bankOn);
     if (b.bankTex) this.bank.setTexture(b.bankTex);
     if (this.w > 1) this.resize(this.w, this.h);
+  }
+
+  /** The average colour of a skyline texture's bottom row (times its tint), or null when that row is mostly sky. */
+  private bottomColour(key: string, tint: number): number | null {
+    const src = this.scene.textures.get(key).getSourceImage() as HTMLCanvasElement;
+    const ctx = typeof src.getContext === 'function' ? src.getContext('2d') : null;
+    if (!ctx) return null;
+    const row = ctx.getImageData(0, src.height - 1, src.width, 1).data;
+    let r = 0;
+    let g = 0;
+    let bl = 0;
+    let n = 0;
+    for (let i = 0; i < row.length; i += 4) {
+      if (row[i + 3] < 200) continue;
+      r += row[i];
+      g += row[i + 1];
+      bl += row[i + 2];
+      n++;
+    }
+    if (n < src.width * 0.85) return null;
+    const t = (s: number, v: number): number => Math.round(((v / n) * ((tint >> s) & 255)) / 255);
+    return (t(16, r) << 16) | (t(8, g) << 8) | t(0, bl);
   }
 
   resize(w: number, h: number): void {
@@ -302,6 +330,10 @@ export class BackgroundView {
       t.setSize(W, 192 * s);
       t.setPosition(0, (baseY - cy * f) * zoom + H / 2 - 192 * s);
       t.tilePositionX = (cx * f * zoom) / s + time * this.scroll * (f / 0.12);
+    }
+    if (this.skirt.visible) {
+      const top = Math.floor(this.near.y + this.near.height) - 1;
+      this.skirt.setPosition(0, top).setSize(W, Math.max(0, H - top));
     }
 
     if (this.bankOn) {
