@@ -17,8 +17,8 @@ validateReferences(moves, json.projectiles, json.deployables, 'riptide');
 
 const behavior: CharacterBehavior = {
   // throws (and the Shark Lunge bite) on a soaked rival wring the water out for extra damage and launch
-  onHitDealt(f, victim, _hb, damage, world) {
-    if (f.move?.kind !== 'throw') return;
+  onHitDealt(f, victim, hb, damage, world) {
+    if (f.move?.kind !== 'throw' || !f.move.hitboxes.includes(hb)) return;
     const lvl = victim.soakLevel;
     if (lvl <= 0) return;
     const b = soakThrowBonus(lvl);

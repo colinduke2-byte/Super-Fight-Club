@@ -721,7 +721,11 @@ export class Fighter implements Body {
     if (before < cost && this.meter >= cost) world?.emit('meterFull', this, this.x, this.y - this.h, 0, 0);
   }
 
+  /** True while an armored hit is being absorbed: control statuses (freeze, stun) are ignored and chill cannot tip into a freeze. */
+  absorbing = false;
+
   applyStatus(s: StatusApply, world: World): void {
+    if (this.absorbing && (s.type === 'freeze' || s.type === 'stun')) return;
     if (this.state === 'ko') return;
     if (s.minPercent !== undefined && this.damage < s.minPercent) {
       if (s.fallback) this.applyStatus(s.fallback, world);
@@ -764,6 +768,7 @@ export class Fighter implements Body {
         const st = this.status;
         st.chill += s.value ?? 1;
         st.chillT = s.frames;
+        if (this.absorbing) st.chill = Math.min(st.chill, CHILL_MAX - 1); // armor holds the freeze off until a clean hit
         if (st.chill >= CHILL_MAX) {
           st.chill = 0;
           st.chillT = 0;
@@ -776,6 +781,7 @@ export class Fighter implements Body {
       case 'stun':
         this.status.stun = Math.max(this.status.stun, s.frames);
         if (this.state !== 'hitstun') {
+          this.releaseLedge();
           this.endMoveState();
           this.setState('stunned');
         }
@@ -1847,9 +1853,14 @@ export class Fighter implements Body {
     if (this.holdTimer <= 0) {
       // victim broke free / timed out: both get a short breather
       this.grabTarget = -1;
-      this.setState('idle');
+      this.setState(this.grounded ? 'idle' : 'air');
       this.lagFrames = 0;
       return;
+    }
+    if (!this.grounded) {
+      // an air grab (Gizmo's tether): captor and victim fall together instead of hanging frozen in mid-air
+      this.vy = Math.min(this.stats.fallSpeed, this.vy + this.stats.gravity);
+      this.integrate(world);
     }
     if (this.buffer.consume(Button.Attack) && this.pummelCd === 0) {
       const v = world.fighters[this.grabTarget];
@@ -2212,7 +2223,7 @@ export class Fighter implements Body {
     this.data.behavior?.onLedgeGrab?.(this, world);
   }
 
-  private releaseLedge(): void {
+  releaseLedge(): void {
     if (this.ledge) {
       this.ledge.occupant = -1;
       this.ledge = null;
@@ -2365,7 +2376,7 @@ export class Fighter implements Body {
       const g = world.fighters[this.grabbedBy];
       if (g && g.state === 'holding') {
         g.grabTarget = -1;
-        g.setState('idle');
+        g.setState(g.grounded ? 'idle' : 'air');
       }
     }
     this.grabTarget = -1;

@@ -217,7 +217,8 @@ export class World {
     const def = this.fighters[ownerId]?.data.projectiles?.[defId];
     if (!def) throw new Error(`unknown projectile '${defId}'`);
     for (const p of this.projectiles) {
-      if (p.active) continue;
+      // a blast projectile that died this tick still has to go off (resolveBlasts, end of tick): leave its slot alone
+      if (p.active || (p.def?.blast && !p.exploded && p.age > 0)) continue;
       p.spawn(ownerId, defId, def, x, y, vx, vy, dmgMult);
       this.emit('projectile', this.fighters[ownerId], x, y, 0, 0);
       return p;
@@ -264,7 +265,8 @@ export class World {
       oldest?.deactivate();
     }
     for (const d of this.deployables) {
-      if (d.active) continue;
+      // a slot whose pillar platform has not been taken down yet (the replaced oldest) is not free this tick
+      if (d.active || d.plat) continue;
       d.spawn(ownerId, defId, def, x, y, ++this.deploySerial, owner.facing);
       this.emit('deploy', owner, x, y, 0, 0);
       return d;
@@ -335,7 +337,7 @@ export class World {
       if (!v || v.grabbedBy !== a.id || v.state === 'ko') {
         // victim got hit / KO'd out of the grab
         a.grabTarget = -1;
-        if (a.state === 'holding') a.setState('idle');
+        if (a.state === 'holding') a.setState(a.grounded ? 'idle' : 'air');
       } else if (!this.holdsGrab(a)) {
         // the captor's grab move was cut short (landing, a hit, a cancel): it can no longer hold anyone, so let go
         v.releaseGrab();
@@ -343,7 +345,7 @@ export class World {
       } else if (a.state === 'holding' && a.holdTimer <= 0) {
         v.releaseGrab();
         a.grabTarget = -1;
-        a.setState('idle');
+        a.setState(a.grounded ? 'idle' : 'air');
       }
     }
     for (const v of fs) {

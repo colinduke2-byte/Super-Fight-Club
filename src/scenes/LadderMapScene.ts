@@ -1,5 +1,5 @@
 import Phaser from 'phaser';
-import { animFrameIndex, fighterTextureKey, portraitCrop, portraitK } from '../art/proceduralFighter';
+import { animFrameIndex, ensurePalette, fighterTextureKey, portraitCrop, portraitK } from '../art/proceduralFighter';
 import { PIXEL_FONT, up } from '../art/pixelFont';
 import { characterById } from '../characters';
 import { currentFight, slotsForFight, type LadderState } from '../game/ladder';
@@ -40,7 +40,10 @@ export class LadderMapScene extends MenuScene {
     this.ui.add(this.path);
     this.ladder.fights.forEach((f) => {
       const opp = characterById(f.opponents[0].character)!;
-      const img = this.add.image(0, 0, fighterTextureKey(opp.id), animFrameIndex(opp, 'idle', 0)).setOrigin(0.5, 0.5).setCrop(...portraitCrop(opp));
+      // the next rival shows the outfit it wears this run (only that one is built: each look is a full sprite sheet)
+      const pal = f.index === this.ladder.index ? (f.opponents[0].palette ?? 0) : 0;
+      const skin = pal > 0 && opp.id !== this.ladder.player ? ensurePalette(this, opp, pal) : opp.id;
+      const img = this.add.image(0, 0, fighterTextureKey(skin), animFrameIndex(opp, 'idle', 0)).setOrigin(0.5, 0.5).setCrop(...portraitCrop(opp));
       img.setData('k', portraitK(opp));
       const num = this.add.bitmapText(0, 0, PIXEL_FONT, String(f.index + 1)).setOrigin(0.5).setTint(0xffffff);
       this.ui.add([img, num]);

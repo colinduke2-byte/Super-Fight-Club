@@ -114,7 +114,8 @@ export function predictLaunch(f: Fighter, world: World, out: number[], frames = 
     x += vx;
     y += vy;
     if (t % step === 0) out.push(x, y - f.h / 2);
-    if (x < b.left || x > b.right || y - f.h < b.top || y > b.bottom) {
+    // the same test as Fighter.checkBlastZones: the whole body past the top, or the head past the bottom
+    if (x < b.left || x > b.right || y < b.top || y - f.h > b.bottom) {
       out.push(x, y - f.h / 2);
       return 'ko';
     }

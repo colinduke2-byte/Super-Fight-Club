@@ -331,7 +331,8 @@ export function deliverHit(world: World, d: HitDelivery): void {
     def.gainResourcesTaken(d.damage);
     def.data.behavior?.onHitTaken?.(def, atk, d.damage, world);
     world.emit('armorHit', def, def.x, midY, d.damage, d.damage);
-    // lingering statuses still stick to an armored body (control effects like stun and freeze do not)
+    // lingering statuses still stick to an armored body (control effects like stun and freeze do not, see Fighter.absorbing)
+    def.absorbing = true;
     if (hb.status && (hb.status.type === 'chill' || hb.status.type === 'burn' || hb.status.type === 'soak')) def.applyStatus(hb.status, world);
     if (atk) {
       // the hit still connected: it feeds the attacker's meter, resources and hooks, and counts as landed for cancels
@@ -340,6 +341,7 @@ export function deliverHit(world: World, d: HitDelivery): void {
       atk.gainResourcesDealt(d.damage);
       atk.data.behavior?.onHitDealt?.(atk, def, hb, d.damage, world);
     }
+    def.absorbing = false;
     return;
   }
 

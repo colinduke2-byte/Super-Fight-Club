@@ -44,8 +44,14 @@ describe('Rime', () => {
       deliverHit(r.world, { atk: r.a, ownerId: 0, def: r.b, hb, damage: 1, facing: 1, originX: r.a.x, kbMult: 1 });
     }
     expect(r.b.status.chill).toBe(CHILL_MAX - 1);
+    // a light hit Brick's armor absorbs keeps the stack topped up but cannot freeze him
     r.b.invuln = 0;
     deliverHit(r.world, { atk: r.a, ownerId: 0, def: r.b, hb, damage: 1, facing: 1, originX: r.a.x, kbMult: 1 });
+    expect(r.b.status.chill).toBe(CHILL_MAX - 1);
+    expect(r.b.state).not.toBe('frozen');
+    // a clean hit through the armor completes the set
+    r.b.invuln = 0;
+    deliverHit(r.world, { atk: r.a, ownerId: 0, def: r.b, hb, damage: 14, facing: 1, originX: r.a.x, kbMult: 1 });
     expect(r.b.status.chill).toBe(0);
     expect(r.b.state).toBe('frozen');
   });

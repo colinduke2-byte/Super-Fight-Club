@@ -42,9 +42,9 @@ const behavior: CharacterBehavior = {
     if (name !== 'detonate') return;
     for (const m of world.findDeployables(f.id, 'mine')) detonateDeployable(world, m, args[0] ?? 36);
   },
-  onHitDealt(f) {
-    // Dive Kick bounces off the opponent
-    if (f.move?.id === 'dair') {
+  onHitDealt(f, _victim, hb) {
+    // Dive Kick bounces off the opponent (the kick itself, not a mine or bolt landing meanwhile)
+    if (f.move?.id === 'dair' && f.move.hitboxes.includes(hb)) {
       f.vy = -6.2;
       f.vx *= -0.3;
       f.moveFrame = Math.max(f.moveFrame, moveTotal(f.move) - 6); // skip to the tail so Vex regains control quickly

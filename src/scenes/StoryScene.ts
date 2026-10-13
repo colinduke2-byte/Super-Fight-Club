@@ -1,5 +1,7 @@
 import Phaser from 'phaser';
-import { animFrameIndex, fighterAnimKey, fighterTextureKey, uiTexK } from '../art/proceduralFighter';
+import { animFrameIndex, ensurePalette, fighterAnimKey, fighterTextureKey, uiTexK } from '../art/proceduralFighter';
+import { paletteCount } from '../art/palettes';
+import { session } from '../game/session';
 import { PIXEL_FONT, up } from '../art/pixelFont';
 import { CARD_H, CARD_W, drawStoryArt } from '../art/storyArt';
 import { characterById } from '../characters';
@@ -51,13 +53,14 @@ export class StoryScene extends MenuScene {
     this.showCard();
   }
 
-  private spriteFor(id: string | undefined, flip: boolean): Phaser.GameObjects.Sprite | null {
+  private spriteFor(id: string | undefined, flip: boolean, palette = 0): Phaser.GameObjects.Sprite | null {
     if (!id) return null;
     const data = characterById(id);
     if (!data) return null;
-    const s = this.add.sprite(0, 0, fighterTextureKey(id), animFrameIndex(data, 'idle', 0)).setOrigin(0.5, 1).setFlipX(flip);
+    const skin = palette > 0 ? ensurePalette(this, data, palette) : id;
+    const s = this.add.sprite(0, 0, fighterTextureKey(skin), animFrameIndex(data, 'idle', 0)).setOrigin(0.5, 1).setFlipX(flip);
     s.setData('k', uiTexK(data));
-    s.play(fighterAnimKey(id, 'idle'));
+    s.play(fighterAnimKey(skin, 'idle'));
     this.ui.add(s);
     return s;
   }
@@ -66,8 +69,12 @@ export class StoryScene extends MenuScene {
     const c = this.cards[this.index];
     this.left?.destroy();
     this.right?.destroy();
-    this.left = this.spriteFor(c.left, false);
-    this.right = this.spriteFor(c.right, true);
+    // the player in their chosen look, the rival in the one it rolled (a mirror match never shows two identical fighters)
+    const lp = session.arcadeHuman?.palette ?? 0;
+    let rp = c.rightPalette ?? 0;
+    if (c.right && c.right === c.left && rp === lp) rp = (rp + 1) % paletteCount(c.right);
+    this.left = this.spriteFor(c.left, false, lp);
+    this.right = this.spriteFor(c.right, true, rp);
     this.title.setText(up(c.title));
     this.caption.setText('');
     this.vs.setVisible(c.art === 'duel');

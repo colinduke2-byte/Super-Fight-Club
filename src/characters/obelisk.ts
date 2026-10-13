@@ -22,8 +22,8 @@ const behavior: CharacterBehavior = {
     if (name === 'shatter') shatterPillars(world, f.id, f.x, args[0] ?? 120);
   },
   // Rock Bottom into one of its own pillars: the rival is slammed through it for extra damage and launch
-  onHitDealt(f, victim, _hb, damage, world) {
-    if (f.move?.id !== 'bthrow') return;
+  onHitDealt(f, victim, hb, damage, world) {
+    if (f.move?.id !== 'bthrow' || !f.move.hitboxes.includes(hb)) return;
     const d = pillarBehind(world, f.id, f.x, f.facing);
     if (!d) return;
     const extra = damage * (PILLAR_SLAM.damage - 1);

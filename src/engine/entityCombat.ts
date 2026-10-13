@@ -181,7 +181,12 @@ function updateDeployables(world: World): void {
     if (d.attached >= 0) {
       // planted on a rival: ride along on their body (and fall off if they are KO'd)
       const host = world.fighters[d.attached];
-      if (!host || host.state === 'ko') d.attached = -1;
+      if (!host || host.state === 'ko') {
+        // the host is gone: the charge drops (and falls off the world) instead of hanging in the air
+        d.attached = -1;
+        d.grounded = false;
+        d.vy = 0;
+      }
       else {
         d.x = host.x;
         d.y = host.y - host.h * 0.45;

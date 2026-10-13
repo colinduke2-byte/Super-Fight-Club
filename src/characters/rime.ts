@@ -32,9 +32,9 @@ const behavior: CharacterBehavior = {
     f.speedBonus = skate ? SKATE_SPEED : 1;
     f.res.skate = skate ? 1 : 0;
   },
-  onHitDealt(f) {
-    // Avalanche Kick bounces off the rival into the next hit
-    if (f.move?.id === 'dair') {
+  onHitDealt(f, _victim, hb) {
+    // Avalanche Kick bounces off the rival into the next hit (only the kick itself: a kunai landing meanwhile does not count)
+    if (f.move?.id === 'dair' && f.move.hitboxes.includes(hb)) {
       f.vy = -6.4;
       f.vx *= -0.3;
       f.moveFrame = Math.max(f.moveFrame, moveTotal(f.move) - 6);

@@ -14,6 +14,8 @@ export interface StoryCard {
   /** Fighter ids shown on the card (left = player side). */
   left?: string;
   right?: string;
+  /** Outfit / colour the right-hand fighter wears (arcade rivals roll one per run). */
+  rightPalette?: number;
 }
 
 export const LINE_WIDTH = 36;
@@ -60,11 +62,11 @@ export function fightCard(state: LadderState, fight: LadderFight): StoryCard {
     return { art: 'boss', title: `${n}: ${fight.title}`, lines: wrap(personaOf('overseer').taunt), left: state.player, right: 'overseer' };
   }
   if (fight.kind === 'brawl') {
-    return { art: 'duel', title: `${n}: ${fight.title}`, lines: wrap(`${fight.opponents.map((o) => nameOf(o.character)).join(fight.opponents.length > 2 ? ', ' : ' and ').replace(/, ([^,]*)$/, ' and $1')} step into the ring together. The crowd loves a mess.`), left: state.player, right: fight.opponents[0].character };
+    return { art: 'duel', title: `${n}: ${fight.title}`, lines: wrap(`${fight.opponents.map((o) => nameOf(o.character)).join(fight.opponents.length > 2 ? ', ' : ' and ').replace(/, ([^,]*)$/, ' and $1')} step into the ring together. The crowd loves a mess.`), left: state.player, right: fight.opponents[0].character, rightPalette: fight.opponents[0].palette };
   }
   const mirror = opp.character === state.player;
   const line = mirror ? 'A copy of you, without the doubt. It fights like you do, and it does not hesitate.' : `${nameOf(opp.character)}: "${personaOf(opp.character).taunt}"`;
-  return { art: 'duel', title: `${n}: ${fight.title}`, lines: wrap(line), left: state.player, right: opp.character };
+  return { art: 'duel', title: `${n}: ${fight.title}`, lines: wrap(line), left: state.player, right: opp.character, rightPalette: opp.palette };
 }
 
 export function endingCards(state: LadderState): StoryCard[] {

@@ -170,6 +170,7 @@ export class Match {
       const s = this.scores[f.id];
       if (!ids.includes(f.id)) {
         s.eliminated = true;
+        f.releaseLedge(); // or the ledge it hung on stays blocked for the rest of the match
         f.setState('ko');
         continue;
       }

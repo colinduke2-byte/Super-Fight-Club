@@ -408,8 +408,9 @@ export class CpuController implements Controller {
       if (h.kind === 'avalanche') {
         // a wall of snow rolling along the floor: no column to step out of, so jump it as the front arrives
         if (Math.abs(self.y - h.y) > 6) continue;
-        // during the rumble the wall has not broken loose yet: treat it as sitting at its start
-        const front = avalancheX(h, (world.tick + (h.offset ?? 0)) % h.period) ?? h.x;
+        // only once the wall is rolling (the rumble before it is just a warning: keep fighting)
+        const front = avalancheX(h, (world.tick + (h.offset ?? 0)) % h.period);
+        if (front === null) continue;
         const dir = (h.travel ?? 1) >= 0 ? 1 : -1;
         const speed = Math.abs(h.travel ?? 0) / Math.max(1, h.active - 1);
         const ahead = (self.x - front) * dir;
@@ -420,7 +421,7 @@ export class CpuController implements Controller {
           this.sx = -dir; // drift back over the front
           return true;
         }
-        if (ahead > 0 && ahead < self.hw + h.w / 2 + speed * 36) {
+        if (ahead > 0 && ahead < self.hw + h.w / 2 + speed * 24) {
           // it is coming: do not start anything committal, wait for the moment to jump
           this.sx = 0;
           return true;
