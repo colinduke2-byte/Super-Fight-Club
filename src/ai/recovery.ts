@@ -3,21 +3,19 @@ import type { Ledge } from '../engine/platform';
 import type { World } from '../engine/world';
 import type { CharacterAi, LevelParams } from './profiles';
 
-/** True if the fighter is airborne with no stage under it (or beside it): it has to get back. */
+/**
+ * True if the fighter is airborne with no stage under it: no solid platform spans its x with a top at or below its feet.
+ * (Judged per platform, so a raised block or a side island does not make the air above the main stage count as "off".)
+ */
 export function offstage(f: Fighter, world: World): boolean {
   if (f.grounded || f.state === 'ledge' || f.state === 'ledgeClimb' || f.state === 'ko') return false;
-  let top = Infinity;
-  let left = Infinity;
-  let right = -Infinity;
+  let solid = false;
   for (const p of world.platforms) {
     if (p.kind !== 'solid') continue;
-    top = Math.min(top, p.top);
-    left = Math.min(left, p.x);
-    right = Math.max(right, p.right);
+    solid = true;
+    if (f.x >= p.x - 4 && f.x <= p.right + 4 && f.y <= p.top + 6) return false;
   }
-  if (top === Infinity) return false;
-  if (f.y > top + 6) return true; // below the stage surface
-  return f.x < left - 4 || f.x > right + 4; // above the stage level but out past the edge
+  return solid;
 }
 
 export interface RecoveryEpisode {
@@ -85,8 +83,10 @@ export function recoveryStep(f: Fighter, world: World, ai: CharacterAi, ep: Reco
   ep.ledge = pickLedge(f, world, ep.ledge);
   const l = ep.ledge;
   if (!l) return;
-  const hx = l.x + l.side * (f.hw + 4);
-  const hy = l.y + f.h * 0.9;
+  // still above the stage's top: land on it (a little way in from the corner) instead of dropping to the hang point
+  const above = f.y < l.y - 2;
+  const hx = above ? l.x - l.side * (f.hw + 10) : l.x + l.side * (f.hw + 4);
+  const hy = above ? l.y : l.y + f.h * 0.9;
   const dx = hx - f.x;
   const dy = hy - f.y; // > 0: the hang point is below us, < 0: above us
   out.sx = Math.abs(dx) < 5 ? 0 : Math.sign(dx);

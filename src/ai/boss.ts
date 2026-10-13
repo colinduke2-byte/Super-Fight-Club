@@ -283,19 +283,26 @@ export class BossController implements Controller {
     const above = tgt.y < self.y - 70 && dist < 90;
     const sameRow = Math.abs(tgt.y - self.y) < 70;
     const drones = world.findDeployables(self.id, 'drone').length;
+    // at the very edge facing out (a rival hanging on the ledge), a forward smash flick slides it off the stage
+    const pl = self.groundPlat;
+    const dir = tgt.x >= self.x ? 1 : -1;
+    const fwd = !pl || (dir > 0 ? pl.right - self.x : self.x - pl.x) > 30;
     if (above) w.push(['sky', 6]);
     if (dist < 80) {
-      w.push(['claws', 4], ['slam', 4], ['quake', 3]);
+      w.push(['claws', 4], ['quake', 3]);
+      if (fwd) w.push(['slam', 4]);
     } else if (dist < 200) {
-      w.push(['slam', 3], ['quake', 3], ['volley', 3]);
-      if (sameRow) w.push(['beam', 3]);
+      w.push(['quake', 3], ['volley', 3]);
+      if (fwd) w.push(['slam', 3]);
+      if (sameRow && fwd) w.push(['beam', 3]);
     } else {
-      w.push(['volley', 3], ['leap', 4]);
-      if (sameRow) w.push(['beam', 4]);
+      w.push(['volley', 3]);
+      if (fwd) w.push(['leap', 4]);
+      if (sameRow && fwd) w.push(['beam', 4]);
     }
     if (drones < 2 && dist > 80) w.push(['drones', 3]);
     if (phase === 2) {
-      w.push(['combo', 4]);
+      if (fwd) w.push(['combo', 4]);
       if (this.ultCooldown <= 0) w.push(['cataclysm', 14]);
     }
     let total = 0;

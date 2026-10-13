@@ -32,7 +32,7 @@ export interface LevelParams {
 
 export const LEVELS: Record<CpuLevel, LevelParams> = {
   1: { name: 'EASY', thinkEvery: 22, reaction: 24, defend: 0.25, tech: 0, di: 0, recovery: 0.7, edgeguard: false, aggression: 0.45, punish: 0.15, charge: 0, mistakes: 0.22, smart: false },
-  2: { name: 'NORMAL', thinkEvery: 11, reaction: 13, defend: 0.6, tech: 0.5, di: 0.6, recovery: 0.9, edgeguard: true, aggression: 0.65, punish: 0.55, charge: 0.4, mistakes: 0.08, smart: true },
+  2: { name: 'NORMAL', thinkEvery: 7, reaction: 13, defend: 0.6, tech: 0.5, di: 0.6, recovery: 0.9, edgeguard: true, aggression: 0.65, punish: 0.55, charge: 0.4, mistakes: 0.08, smart: true },
   3: { name: 'HARD', thinkEvery: 4, reaction: 5, defend: 0.92, tech: 1, di: 1, recovery: 1, edgeguard: true, aggression: 0.85, punish: 0.92, charge: 0.8, mistakes: 0.01, smart: true },
 };
 
@@ -73,6 +73,14 @@ export interface CharacterAi {
   strike?: { reach: number };
   /** A storable charge special (Brick's Charge Shoulder): wound up fully and banked with Shield when the rival is far away. */
   bank?: { slot: string; key: string; frames: number };
+  /** Distance band (px between centres) in which the closers are used; default 120..320. A short lunge wants it shorter. */
+  closerRange?: [number, number];
+  /** Added to a grab's score (grapplers: throws are the point of getting in). */
+  grabBonus?: number;
+  /** A tap special that switches the character's mode (Nova's Arcana Cycle): pressed now and then while the rival is far. */
+  cycle?: string;
+  /** A setup that sticks to a rival standing right in front (Havoc's C4): planted on them within `reach` px, set off later. */
+  slap?: { slot: string; reach: number };
 }
 
 const GENERIC: CharacterAi = {
@@ -116,6 +124,7 @@ export const CHARACTER_AI: Record<string, CharacterAi> = {
     setups: ['sideB'],
     finishers: ['fsmash', 'usmash', 'fair', 'bair'],
     defensive: 'downB',
+    cycle: 'downB',
     holds: { neutralB: 12, downB: 30 },
     recovery: { slot: 'upB', up: 100, out: 100, aim: 'stick8' },
     ultimateRange: 240,
@@ -160,6 +169,9 @@ CHARACTER_AI.riptide = {
   closers: ['sideB'],
   setups: ['downB'],
   finishers: ['fsmash', 'usmash', 'bair', 'fair'],
+  // the lunge only carries ~80 px: fired from further out it just whiffs (and can carry him off the stage)
+  closerRange: [40, 100],
+  grabBonus: 9,
   recovery: { slot: 'upB', up: 95, out: 40, aim: 'fixed' },
   ultimateRange: 70,
   spacing: 36,
@@ -192,18 +204,21 @@ CHARACTER_AI.rime = {
   spacing: 28,
 };
 
-// Havoc: trap-and-punish soldier. Grenades and the missile at range, C4 as a setup (set off when a rival walks over it),
-// the Cypher drone to recover.
+// Havoc: trap-and-punish soldier. Grenades and the missile at range, C4 as a setup (set off when a rival walks over it, or
+// slapped onto a rival up close and set off once they are in kill range), the Cypher drone to recover. The rocket launcher
+// and mortar smashes are projectile normals: moveTable gives them their flight path as reach.
 CHARACTER_AI.havoc = {
   ...GENERIC,
   ranged: ['neutralB', 'sideB'],
   setups: ['downB'],
   finishers: ['fsmash', 'usmash', 'utilt', 'bair', 'uair'],
-  holds: { sideB: 40 },
+  // the missile is steered while Special is held (see CpuController.steerShot), so hold it for its whole flight
+  holds: { sideB: 56 },
   recovery: { slot: 'upB', up: 110, out: 50, aim: 'fixed' },
   ultimateRange: 200,
   spacing: 40,
   detonate: { slot: 'downB', range: 400 },
+  slap: { slot: 'downB', reach: 26 },
 };
 
 export function aiFor(id: string): CharacterAi {

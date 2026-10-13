@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { CpuController } from '../src/ai/cpu';
 import { aiFor, CHARACTER_AI, LEVELS, type CpuLevel } from '../src/ai/profiles';
-import { moveTable, NORMAL_INPUTS } from '../src/ai/moveInfo';
+import { attackDecel, moveTable, NORMAL_INPUTS, travel } from '../src/ai/moveInfo';
 import { offstage } from '../src/ai/recovery';
 import { chooseTarget } from '../src/ai/targeting';
 import { CHARACTERS } from '../src/characters';
@@ -66,6 +66,20 @@ describe('CPU frame-data knowledge', () => {
       expect(c.moves[ai.recovery.slot] || Object.keys(c.moves).some((k) => k.startsWith(`${ai.recovery.slot}_`))).toBeTruthy();
     }
   });
+  it('projectile normals (Havoc\'s rocket launcher and mortar) get their flight path as reach', () => {
+    const t = moveTable(CHARACTERS.havoc);
+    const rocket = t.find((m) => m.id === 'fsmash')!;
+    const mortar = t.find((m) => m.id === 'usmash');
+    expect(rocket.proj).toBe(true);
+    expect(rocket.maxX).toBeGreaterThan(150); // not just the backblast behind Havoc
+    expect(mortar?.proj).toBe(true); // a move with no hitboxes at all used to be dropped from the table
+    expect(mortar!.minY).toBeLessThan(-100);
+  });
+  it('knows how far lunging moves carry the fighter', () => {
+    expect(travel(CHARACTERS.vex.moves.fsmash, attackDecel(CHARACTERS.vex))).toBeGreaterThan(10);
+    expect(travel(CHARACTERS.riptide.moves.sideB, attackDecel(CHARACTERS.riptide))).toBeGreaterThan(30);
+    expect(travel(CHARACTERS.brick.moves.jab1, attackDecel(CHARACTERS.brick))).toBe(0);
+  });
   it('difficulty levels get strictly sharper', () => {
     expect(LEVELS[1].reaction).toBeGreaterThan(LEVELS[2].reaction);
     expect(LEVELS[2].reaction).toBeGreaterThan(LEVELS[3].reaction);
@@ -95,6 +109,38 @@ describe('CPU recovery', () => {
     }
     expect(hard).toBeGreaterThanOrEqual(easy);
     expect(hard).toBe(reachable.length * 5);
+  });
+  it('judges "off the stage" by the surface below it, not the highest solid anywhere', () => {
+    // Skyhold's side islands sit higher than the main stage: a hop over the main stage is not "off the stage"
+    const { world, fighters } = arena(['brick', 'vex'], 'skyhold');
+    const f = fighters[0];
+    for (let i = 0; i < 140; i++) world.step([makeInput(), makeInput()]);
+    Object.assign(f, { x: 0, y: -20, grounded: false, groundPlat: null, state: 'air' });
+    expect(offstage(f, world)).toBe(false);
+    Object.assign(f, { x: 340, y: -60 }); // over the gap between the main stage and an island
+    expect(offstage(f, world)).toBe(true);
+    Object.assign(f, { x: 500, y: -60 }); // above an island
+    expect(offstage(f, world)).toBe(false);
+  });
+  it('lands on the stage from just past the edge above it instead of dropping to the ledge', () => {
+    const { world, fighters } = arena(['havoc', 'brick']);
+    const [me, other] = fighters;
+    other.spawn(-90, -1, 1);
+    const cpu = new CpuController(3, 3);
+    const ins = [makeInput(), makeInput()];
+    for (let i = 0; i < 140; i++) world.step(ins);
+    Object.assign(me, { x: 182, y: -40, vx: 0, vy: 0, grounded: false, groundPlat: null, state: 'air', invuln: 0, jumpsLeft: me.stats.doubleJumps, facing: -1 });
+    let landed = false;
+    for (let t = 0; t < 200 && !landed; t++) {
+      cpu.update(me, world, ins[0]);
+      world.step(ins);
+      expect(me.state).not.toBe('ledge');
+      landed = me.grounded;
+    }
+    expect(landed).toBe(true);
+  });
+  it('an Easy Gizmo hovers back too', () => {
+    for (const [x, y] of [[230, 40], [-260, 80]] as [number, number][]) expect(recover('gizmo', 1, x, y), `${x},${y}`).toBe(true);
   });
   it('knows when it is off the stage', () => {
     const { world, fighters } = arena(['brick', 'vex']);
@@ -200,6 +246,105 @@ describe('CPU matches', () => {
       expect(Number.isFinite(f.y)).toBe(true);
     }
     expect(r.match.over).toBe(true);
+  });
+
+  it('does not lunge off the stage: no self-destructs out of a lunging move', () => {
+    // Vex's fsmash, Brick's Charge Shoulder and Riptide's Shark Lunge carry the fighter forward
+    let bad = 0;
+    for (const [a, b] of [['vex', 'brick'], ['riptide', 'vex'], ['brick', 'riptide']]) {
+      for (const stage of ['classic', 'reactor']) {
+        const { world, fighters, match } = arena([a, b], stage);
+        const lunges = new Set(['fsmash', 'neutralB', 'sideB']);
+        const left = [-1, -1];
+        const hit = [-9999, -9999];
+        const prev = world.listener;
+        world.listener = (type, f, x, y, m, e, tag) => {
+          if (type === 'hit') hit[f.id] = world.tick;
+          if (type === 'ko' && left[f.id] >= 0 && world.tick - hit[f.id] > 120) {
+            bad++;
+          }
+          prev?.(type, f, x, y, m, e, tag);
+        };
+        const cpus = [new CpuController(3, 1), new CpuController(3, 2)];
+        const ins = fighters.map(() => makeInput());
+        for (let t = 0; t < 14400 && !match.over; t++) {
+          fighters.forEach((f, i) => {
+            cpus[i].update(f, world, ins[i]);
+            // remember when a fighter left the stage in the middle of one of its lunges (not launched)
+            if (f.state === 'attack' && f.move && lunges.has(f.move.id) && travel(f.move, attackDecel(f.data)) > 0 && offstage(f, world)) left[i] = world.tick;
+            if (f.grounded) left[i] = -1;
+          });
+          world.step(ins);
+          match.step();
+        }
+      }
+    }
+    expect(bad).toBe(0);
+  }, 60000);
+
+  it('Havoc uses its kit: rocket, mortar, steered missile and C4', () => {
+    const used: Record<string, number> = {};
+    for (const stage of ['classic', 'ring']) {
+      const { world, fighters, match } = arena(['havoc', 'brick'], stage);
+      const prev = world.listener;
+      world.listener = (type, f, x, y, m, e, tag) => {
+        if (type === 'moveStart' && f.id === 0 && f.move) used[f.move.id] = (used[f.move.id] ?? 0) + 1;
+        prev?.(type, f, x, y, m, e, tag);
+      };
+      const cpus = [new CpuController(2, 1), new CpuController(2, 2)];
+      const ins = fighters.map(() => makeInput());
+      for (let t = 0; t < 14400 && !match.over; t++) {
+        fighters.forEach((f, i) => cpus[i].update(f, world, ins[i]));
+        world.step(ins);
+        match.step();
+      }
+    }
+    for (const id of ['fsmash', 'usmash', 'sideB', 'downB', 'detonateC4']) expect(used[id] ?? 0, id).toBeGreaterThan(0);
+  }, 60000);
+
+  it('stays out of erupting / warned hazard columns (Reactor geyser), in the air too', () => {
+    const orig = Fighter.prototype.receiveHit;
+    let hazard = 0;
+    Fighter.prototype.receiveHit = function (this: Fighter, hit, world) {
+      if (hit.attackerId === undefined && !world.cinematic) hazard++;
+      return orig.call(this, hit, world);
+    };
+    let fighterMinutes = 0;
+    try {
+      for (const [a, b] of [['vex', 'brick'], ['nova', 'havoc'], ['rime', 'obelisk'], ['agni', 'riptide']]) {
+        const { world, fighters, match } = arena([a, b], 'reactor');
+        const cpus = [new CpuController(3, 1), new CpuController(3, 2)];
+        const ins = fighters.map(() => makeInput());
+        let t = 0;
+        for (; t < 14400 && !match.over; t++) {
+          fighters.forEach((f, i) => cpus[i].update(f, world, ins[i]));
+          world.step(ins);
+          match.step();
+        }
+        fighterMinutes += (2 * t) / 3600;
+      }
+    } finally {
+      Fighter.prototype.receiveHit = orig;
+    }
+    // the geyser goes off 6 times a minute; it used to catch each Hard CPU about 1.3 times a minute
+    expect(hazard / fighterMinutes).toBeLessThan(0.9);
+  }, 60000);
+
+  it('does not fire an ultimate at a target that cannot be hit (respawn invulnerability)', () => {
+    const { world, fighters } = arena(['nova', 'brick']);
+    const [me, tgt] = fighters;
+    const cpu = new CpuController(3, 1);
+    const ins = [makeInput(), makeInput()];
+    for (let i = 0; i < 140; i++) world.step(ins);
+    let ults = 0;
+    for (let t = 0; t < 120; t++) {
+      me.meter = 100;
+      tgt.invuln = 60;
+      cpu.update(me, world, ins[0]);
+      if (me.state === 'attack' && me.move?.id === 'ultimate') ults++;
+      world.step(ins);
+    }
+    expect(ults).toBe(0);
   });
 
   it('is deterministic: same seeds, same match', () => {

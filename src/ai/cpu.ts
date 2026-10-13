@@ -2,15 +2,20 @@ import { Button, type FighterInput } from '../engine/buttons';
 import { hitboxRect, hurtRect } from '../engine/combat';
 import type { Fighter } from '../engine/fighter';
 import { avalancheX, hazardPhase } from '../engine/hazards';
-import { hitboxEnd, hitboxStart } from '../engine/moves';
+import { hitboxEnd, hitboxStart, type MoveDef } from '../engine/moves';
 import type { Platform } from '../engine/platform';
+import type { HazardDef } from '../engine/types';
 import type { World } from '../engine/world';
 import { applyHeld, clearInput, type Controller } from '../game/controllers';
-import { moveTable, NORMAL_INPUTS, type AiMove } from './moveInfo';
+import { attackDecel, moveTable, NORMAL_INPUTS, travel, type AiMove } from './moveInfo';
 import { aiFor, LEVELS, type CharacterAi, type CpuLevel, type LevelParams } from './profiles';
 import { newEpisode, offstage, recoveryStep, type RecoveryEpisode, type RecoveryOut } from './recovery';
 import { chooseTarget } from './targeting';
 
+/** Default distance band for gap-closing specials. */
+const CLOSER_RANGE: [number, number] = [120, 320];
+/** Frames between two shots of the same projectile normal. */
+const SHOT_GAP = 120;
 const CAN_ACT = new Set(['idle', 'run', 'crouch', 'dash', 'air']);
 const SPECIAL_DIR: Record<string, [number, number]> = { neutralB: [0, 0], sideB: [1, 0], upB: [0, -1], downB: [0, 1] };
 
@@ -90,7 +95,16 @@ export class CpuController implements Controller {
   private wasKo: boolean[] = [];
   /** Decaying per-move usage counts (staleness). */
   private readonly useCount = new Float32Array(16);
+  /** Tick from which each projectile normal (rocket, mortar) may be fired again: shots are pokes, not a stream. */
+  private readonly shotReady = new Int32Array(16);
   private lastDamageSum = 0;
+  /** The target was punishable last frame (so an opening triggers one immediate decision, not one per frame). */
+  private sawOpening = false;
+  /** Stick direction currently held to steer a remote projectile. */
+  private steerY = 0;
+  /** Platform we are jumping across a gap to, and until when that attempt counts (then recovery takes over). */
+  private cross: Platform | null = null;
+  private crossUntil = 0;
 
   private sx = 0;
   private sy = 0;
@@ -211,9 +225,20 @@ export class CpuController implements Controller {
     this.hopTarget = false;
     this.techTried = false;
 
-    // keep running an in-flight plan (button press frames)
+    // keep running an in-flight plan (button press frames); a stage hazard about to go off where we stand comes first
+    // (the plan's move has not started yet, so dropping it costs nothing)
+    if (this.plan && CAN_ACT.has(self.state) && !offstage(self, world) && this.avoidHazards(self, world)) {
+      this.plan = null;
+      return;
+    }
     if (this.plan && this.runPlan(self, world)) return;
 
+    // mid-jump across a gap to the target's platform (Skyhold's islands): keep going while it can still be reached
+    if (this.cross && (world.tick > this.crossUntil || self.grounded || self.y > this.cross.top + 6 || self.helpless)) this.cross = null;
+    if (this.cross && self.state === 'air') {
+      this.crossGap(self, this.cross);
+      return;
+    }
     // recovery has priority over everything when we are off the stage
     if (offstage(self, world)) {
       if (this.mode !== 'recover') {
@@ -304,12 +329,40 @@ export class CpuController implements Controller {
       const main = this.mainPlatform(world);
       if (this.params.smart && self.vy > 0 && !self.fastFalling && tgt.grounded && tgt.y > self.y && self.x > main.x && self.x < main.right) this.sy = 1;
     }
+    if (tgt && m.kind === 'special' && this.mode !== 'recover') this.steerShot(self, world, tgt, m.id);
     if (this.mode === 'recover' && this.episode) {
       recoveryStep(self, world, aiFor(self.data.id), this.episode, this.rec);
       if (this.rec.steering) {
         this.sx = this.rec.sx;
         this.sy = this.rec.sy;
       }
+    }
+  }
+
+  /**
+   * Fly a stick-steered projectile (Havoc's Remote Missile) at the target while its move runs: up / down turns it toward the
+   * target's middle; once it has flown past, let go of the button so the move ends and the CPU can act again.
+   */
+  private steerShot(self: Fighter, world: World, tgt: Fighter, moveId: string): void {
+    for (let i = 0; i < world.projectiles.length; i++) {
+      const p = world.projectiles[i];
+      if (!p.active || p.owner !== self.id || p.def?.steer?.move !== moveId) continue;
+      const fwd = p.vx >= 0 ? 1 : -1;
+      const ahead = (tgt.x - p.x) * fwd;
+      if (ahead < -12 || tgt.state === 'ko') {
+        this.held &= ~Button.Special;
+        if (this.plan) this.plan.holdFrames = 0;
+        return;
+      }
+      // the stick is re-aimed only every few frames (the CPU's thinking cadence): a slower CPU flies a looser missile
+      if (world.tick % this.params.thinkEvery === 0) {
+        const want = Math.atan2(tgt.y - tgt.h / 2 - p.y, Math.abs(tgt.x - p.x) + 1);
+        const cur = Math.atan2(p.vy, Math.abs(p.vx) + 1e-6);
+        this.steerY = want - cur > 0.05 ? 1 : want - cur < -0.05 ? -1 : 0;
+      }
+      this.sy = this.steerY;
+      this.sx = 0;
+      return;
     }
   }
 
@@ -324,6 +377,8 @@ export class CpuController implements Controller {
       if (c.air !== undefined && c.air !== !self.grounded) continue;
       if (c.into === '@jump' && !(tgt.y < self.y - 20)) continue;
       if (Math.abs(tgt.x - self.x) > 140) continue;
+      // never cancel into a lunge (Charge Shoulder, Shark Lunge) that would carry us off the stage
+      if (self.grounded && this.lungesOff(self, travel(self.data.moves[c.into], attackDecel(self.data)), c.dir === 'side' ? (tgt.x >= self.x ? 1 : -1) : c.dir === 'back' ? -self.facing : self.facing)) continue;
       if (this.rnd() < 1 / ++n) pick = i; // reservoir pick
     }
     if (pick < 0) return;
@@ -377,6 +432,25 @@ export class CpuController implements Controller {
     return (self.vx > 1 && pl.right - self.x < reach) || (self.vx < -1 && self.x - pl.x < reach);
   }
 
+  /** Px of platform left in direction `dir` from where we stand (Infinity in the air). */
+  private roomAhead(self: Fighter, dir: number): number {
+    const pl = self.groundPlat;
+    if (!pl || !self.grounded) return Infinity;
+    return dir > 0 ? pl.right - self.x : self.x - pl.x;
+  }
+
+  /** True when a move's lunge (its motion steps) would carry us past the end of the platform toward `dir`. */
+  private lungesOff(self: Fighter, dist: number, dir: number): boolean {
+    return dist > 0 && dist > this.roomAhead(self, dir) - 8;
+  }
+
+  /** Drift onto platform `pl` across a gap, spending the double jump once we sink toward its top. */
+  private crossGap(self: Fighter, pl: Platform): void {
+    const aim = Math.max(pl.x + 12, Math.min(pl.right - 12, self.x));
+    this.sx = Math.abs(aim - self.x) < 4 ? 0 : Math.sign(aim - self.x);
+    if (self.vy > 0 && self.y > pl.top - 24 && self.jumpsLeft > 0) this.held |= Button.Jump;
+  }
+
   // ---- recovery --------------------------------------------------------------------------------
   private recover(self: Fighter, world: World, ai: CharacterAi): void {
     const ep = this.episode!;
@@ -387,8 +461,9 @@ export class CpuController implements Controller {
       this.held |= Button.Jump;
       ep.jumpDelay = 0;
     }
-    // jet hover (Gizmo): once the double jump is spent, hang in the air while drifting back toward the stage
-    if (self.data.hover && !this.rec.special && !self.grounded && self.vy >= 0 && self.jumpsLeft === 0 && self.state === 'air' && this.params.recovery > 0.8) this.held |= Button.Jump;
+    // jet hover (Gizmo): once the double jump is spent, hang in the air while drifting back toward the stage (a sloppy CPU
+    // only starts it late, see RecoveryEpisode.specialDelay)
+    if (self.data.hover && !this.rec.special && !self.grounded && self.vy >= 0 && self.jumpsLeft === 0 && self.state === 'air' && world.tick - ep.startTick >= ep.specialDelay) this.held |= Button.Jump;
     if (this.rec.special) {
       this.held |= Button.Special;
       ep.specialPressed = true;
@@ -401,27 +476,37 @@ export class CpuController implements Controller {
   // ---- hazards ---------------------------------------------------------------------------------
   private avoidHazards(self: Fighter, world: World): boolean {
     const hs = world.stage.hazards;
-    if (!hs || !self.grounded || this.rnd() < this.params.mistakes * 0.3) return false;
+    if (!hs || this.rnd() < this.params.mistakes * 0.3) return false;
+    const air = !self.grounded;
     for (const h of hs) {
       const ph = hazardPhase(h, world.tick);
       if (ph === 'idle') continue;
       if (h.kind === 'avalanche') {
-        // a wall of snow rolling along the floor: no column to step out of, so jump it as the front arrives
-        if (Math.abs(self.y - h.y) > 6) continue;
         // only once the wall is rolling (the rumble before it is just a warning: keep fighting)
         const front = avalancheX(h, (world.tick + (h.offset ?? 0)) % h.period);
         if (front === null) continue;
         const dir = (h.travel ?? 1) >= 0 ? 1 : -1;
         const speed = Math.abs(h.travel ?? 0) / Math.max(1, h.active - 1);
         const ahead = (self.x - front) * dir;
-        // leave the ground about a dozen ticks before the front reaches our body, so we are high and stay high while it passes
-        if (ahead > -h.w / 2 && ahead < self.hw + h.w / 2 + speed * 13) {
+        if (air) {
+          // in the air low over the snow: drift back over the front, and spend the double jump rather than drop into it
+          if (self.y > h.y - h.h - 24 && ahead > -h.w && ahead < self.hw + h.w / 2 + speed * 10) {
+            this.sx = -dir;
+            if (self.vy > 0 && self.jumpsLeft > 0) this.held |= Button.Jump;
+            return true;
+          }
+          continue;
+        }
+        // a wall of snow rolling along the floor: no column to step out of, so jump it as the front arrives
+        if (Math.abs(self.y - h.y) > 6) continue;
+        // press Jump so we leave the ground ~11 ticks before the front reaches our body, so we are high and stay high while it passes
+        if (ahead > -h.w / 2 && ahead < self.hw + h.w / 2 + speed * (11 + self.stats.jumpsquatFrames)) {
           this.held |= Button.Jump;
           this.hopTarget = true; // a full hop: a short hop does not clear the snow
           this.sx = -dir; // drift back over the front
           return true;
         }
-        if (ahead > 0 && ahead < self.hw + h.w / 2 + speed * 24) {
+        if (ahead > 0 && ahead < self.hw + h.w / 2 + speed * 28) {
           // it is coming: do not start anything committal, wait for the moment to jump
           this.sx = 0;
           return true;
@@ -429,16 +514,59 @@ export class CpuController implements Controller {
         continue;
       }
       const half = h.w / 2 + 16;
-      if (Math.abs(self.x - h.x) < half) {
-        // step out of the column toward the nearer side (and away from the edge)
+      if (Math.abs(self.x - h.x) >= half) continue;
+      if (air) {
+        // airborne inside a warned / erupting column (geyser, bolt, falling stalactite): drift out of it sideways
+        if (!inColumn(h, self)) continue;
         const dir = self.x >= h.x ? 1 : -1;
-        this.sx = dir;
-        this.clampEdge(self);
-        if (this.sx === 0) this.sx = -dir; // cornered: go the other way
+        const main = this.mainPlatform(world);
+        this.sx = (dir > 0 ? self.x < main.right - 10 : self.x > main.x + 10) ? dir : -dir;
         return true;
       }
+      // step out of the column toward the nearer side (and away from the edge)
+      const dir = self.x >= h.x ? 1 : -1;
+      this.sx = dir;
+      this.clampEdge(self);
+      if (this.sx === 0) this.sx = -dir; // cornered: go the other way
+      return true;
     }
     return false;
+  }
+
+  /** True when stepping `dir` would walk / drift us into a column hazard that is warned or erupting. */
+  private hotAhead(self: Fighter, world: World, dir: number): boolean {
+    const hs = world.stage.hazards;
+    if (!hs || dir === 0) return false;
+    for (const h of hs) {
+      if (h.kind === 'avalanche' || hazardPhase(h, world.tick) === 'idle' || !inColumn(h, self)) continue;
+      const gap = (h.x - self.x) * dir - h.w / 2 - self.hw;
+      if (gap > -4 && gap < 26) return true;
+    }
+    return false;
+  }
+
+  /** Frames until a column hazard over our x goes off (0 while it is erupting; Infinity if none is due within ~1.5 s). */
+  private hazardDue(self: Fighter, world: World): number {
+    const hs = world.stage.hazards;
+    if (!hs) return Infinity;
+    let due = Infinity;
+    for (const h of hs) {
+      if (h.kind === 'avalanche') {
+        // the snow wall: frames until its front reaches us (only once it is rolling)
+        const front = avalancheX(h, (world.tick + (h.offset ?? 0)) % h.period);
+        if (front === null || !self.grounded) continue;
+        const ahead = (self.x - front) * ((h.travel ?? 1) >= 0 ? 1 : -1);
+        const speed = Math.abs(h.travel ?? 0) / Math.max(1, h.active - 1);
+        if (ahead > -h.w) due = Math.min(due, Math.max(0, (ahead - h.w / 2) / Math.max(0.1, speed)));
+        continue;
+      }
+      if (Math.abs(self.x - h.x) >= h.w / 2 + 12 || !inColumn(h, self)) continue;
+      const p = (world.tick + (h.offset ?? 0)) % h.period;
+      const start = h.period - h.active;
+      const t = p >= start ? 0 : start - p;
+      if (t < 90) due = Math.min(due, t);
+    }
+    return due;
   }
 
   // ---- defence ---------------------------------------------------------------------------------
@@ -543,6 +671,14 @@ export class CpuController implements Controller {
     if (th.proj && this.params.smart && this.rnd() < 0.5) {
       this.held |= Button.Jump; // hop over it
       this.sx = -away;
+      return true;
+    }
+    // a counter stance (Rime's Substitution) against a close attack that will land inside its window
+    const ctr = ai.defensive ? this.slotMove(self, ai.defensive)?.counter : undefined;
+    if (ctr && this.params.smart && !th.proj && !th.grab && th.eta + 1 >= ctr.from && th.eta <= ctr.to && this.rnd() < 0.6 && !this.cooldownBusy('ctr', 50)) {
+      const [bx, by] = SPECIAL_DIR[ai.defensive!] ?? [0, 0];
+      this.startPlan(world, 'counter', Button.Special, bx, by);
+      this.runPlan(self, world);
       return true;
     }
     // sharp CPUs time the shield so it comes up just before the hit (a perfect shield) instead of raising it early
@@ -716,7 +852,12 @@ export class CpuController implements Controller {
       if (p.edgeguard && this.edgeguard(self, world, tgt, ai)) return;
     } else if (this.mode === 'edgeguard') this.mode = 'neutral';
 
-    // thinking cadence: only roll new attack decisions every few frames
+    // thinking cadence: only roll new attack decisions every few frames, except that the moment the target becomes
+    // punishable (end lag, landing lag, broken shield, lying down) the CPU may answer at once instead of waiting
+    const lag = tgt.state === 'attack' && tgt.move ? tgt.move.startup + tgt.move.active : -1;
+    const opening = (tgt.state === 'attack' && tgt.moveFrame > lag) || tgt.state === 'landing' || tgt.state === 'shieldbreak' || tgt.state === 'downed';
+    if (opening && !this.sawOpening && this.rnd() < p.punish) this.thinkLeft = 0;
+    this.sawOpening = opening;
     const decide = --this.thinkLeft <= 0;
     if (decide) {
       this.thinkLeft = p.thinkEvery;
@@ -764,18 +905,40 @@ export class CpuController implements Controller {
     s -= lag * (shielding ? 0.12 : 0.03);
     if (m.charge) s *= 0.9;
     s /= 1 + 0.45 * this.useCount[m.index]; // staleness: recently used moves lose appeal, so the CPU mixes things up
-    if (m.kind === 'grab') s = shielding ? 12 : 3 + (tgt.state === 'run' ? 0 : 1);
+    if (m.kind === 'grab') s = (shielding ? 12 : 3 + (tgt.state === 'run' ? 0 : 1)) + (ai.grabBonus ?? 0);
     return s + this.rnd() * 1.5;
+  }
+
+  /** Frames until the fighter lands on the surface below it at its current fall (Infinity over a pit). */
+  private framesToLand(self: Fighter, world: World): number {
+    if (self.grounded) return 0;
+    let gap = Infinity;
+    for (const p of world.platforms) {
+      if (self.x < p.x || self.x > p.right || p.top < self.y - 1) continue;
+      gap = Math.min(gap, p.top - self.y);
+    }
+    if (gap === Infinity) return Infinity;
+    const s = self.stats;
+    let y = 0;
+    let vy = self.vy;
+    for (let t = 1; t < 90; t++) {
+      vy = Math.min(s.fallSpeed, vy + s.gravity);
+      y += vy;
+      if (y >= gap) return t;
+    }
+    return 90;
   }
 
   /** Try an aerial that reaches the target now. */
   private tryAerial(self: Fighter, world: World, tgt: Fighter, chance: number): boolean {
     if (self.helpless || this.rnd() > chance) return false;
     const ai = aiFor(self.data.id);
+    // an aerial whose hitbox would come out after we land is only landing lag next to the opponent
+    const land = this.framesToLand(self, world);
     let best: AiMove | null = null;
     let bestScore = -Infinity;
     for (const m of moveTable(self.data)) {
-      if (m.kind !== 'aerial' || !this.reaches(self, m, tgt)) continue;
+      if (m.kind !== 'aerial' || m.startup >= land || !this.reaches(self, m, tgt)) continue;
       const s = this.score(m, tgt, ai);
       if (s > bestScore) {
         bestScore = s;
@@ -802,9 +965,23 @@ export class CpuController implements Controller {
     const transformed = self.data.transform ? (self.res[self.data.transform.resource] ?? 0) > 0 : false;
     if (self.meter >= ultCost && self.data.moves.ultimate && !self.helpless && !transformed && this.rnd() < 0.5) {
       const cin = self.data.moves.ultimate.hitboxes.some((h) => h.cinematic);
-      if ((cin && dist < ai.ultimateRange && Math.abs(dy) < 40 && grounded) || (!cin && dist < ai.ultimateRange) || (!cin && self.damage > 90)) {
+      // only on a target that can be hit right now (not mid-respawn / invulnerable) and that is within the ult's reach
+      const open = tgt.invuln === 0 && tgt.state !== 'ko';
+      if (open && ((cin && dist < ai.ultimateRange && Math.abs(dy) < 40 && grounded) || (!cin && dist < ai.ultimateRange))) {
         this.facingFix(self, tgt);
         this.startPlan(world, 'ultimate', Button.Ultimate, 0, 0);
+        this.runPlan(self, world);
+        return true;
+      }
+    }
+
+    // stick a setup onto a rival standing right in front (Havoc's C4), to set it off once they are in kill range
+    const slap = ai.slap;
+    if (slap && p.smart && grounded && self.facing === dir && Math.abs(dy) < 20 && !hasTrap(world, self.id)) {
+      const ahead = (tgt.x - self.x) * dir;
+      if (ahead > 0 && ahead < slap.reach + tgt.hw && this.rnd() < 0.35 && !this.cooldownBusy('slap', 90)) {
+        const [bx, by] = SPECIAL_DIR[slap.slot] ?? [0, 0];
+        this.startPlan(world, 'slap', Button.Special, bx * dir, by);
         this.runPlan(self, world);
         return true;
       }
@@ -815,10 +992,16 @@ export class CpuController implements Controller {
       this.sx = 0; // stop first: attacking out of a dash at the stage edge slides the CPU off the stage
       return true;
     }
+    // do not commit to a move that is still running when a hazard over us goes off
+    const due = this.hazardDue(self, world);
     const candidates: AiMove[] = [];
     for (const m of table) {
+      if (m.total >= due) continue;
       if (grounded === (m.kind === 'aerial')) continue; // aerials only in the air, ground moves only on the ground
       if (grounded && self.facing !== dir && m.kind !== 'smash') continue;
+      // a long-range shot (rocket launcher) is a poke from afar: up close the quicker normals do the job
+      if (m.proj && (world.tick < this.shotReady[m.index] || (m.maxX > 120 && dist < 60))) continue;
+      if (grounded && m.travel > 0 && this.lungesOff(self, m.travel, NORMAL_INPUTS[m.id].fwd !== 0 ? dir : self.facing)) continue;
       if (this.reaches(self, m, tgt)) candidates.push(m);
     }
 
@@ -854,7 +1037,7 @@ export class CpuController implements Controller {
     }
 
     // specials: ranged zoning, setups, gap closers
-    if (grounded || p.smart) {
+    if ((grounded || p.smart) && due > 40) {
       if (this.trySpecials(self, world, tgt, ai, dist, dy, dir)) return true;
     }
 
@@ -872,6 +1055,7 @@ export class CpuController implements Controller {
 
   private execMove(self: Fighter, world: World, m: AiMove, tgt: Fighter, dir: number, safe: boolean): void {
     this.useCount[m.index]++;
+    if (m.proj) this.shotReady[m.index] = world.tick + SHOT_GAP;
     if (aiFor(self.data.id).style === 'hitandrun') this.retreat = Math.round(m.total * 0.5);
     const mi = NORMAL_INPUTS[m.id];
     const p = this.params;
@@ -896,10 +1080,19 @@ export class CpuController implements Controller {
     this.runPlan(self, world);
   }
 
+  /** The move a special slot starts (the plain one, or the first variant such as Agni's `sideB_0`). */
+  private slotMove(self: Fighter, slot: string): MoveDef | undefined {
+    const ms = self.data.moves;
+    const m = ms[slot];
+    if (m) return m;
+    for (const k in ms) if (k.startsWith(slot) && k.charCodeAt(slot.length) === 95) return ms[k]; // '_'
+    return undefined;
+  }
+
   private trySpecials(self: Fighter, world: World, tgt: Fighter, ai: CharacterAi, dist: number, dy: number, dir: number): boolean {
     const p = this.params;
     const usable = (slot: string): boolean => {
-      const m = self.data.moves[slot] ?? Object.values(self.data.moves).find((x) => x.id.startsWith(`${slot}_`));
+      const m = this.slotMove(self, slot);
       if (!m || ai.avoid.includes(slot)) return false;
       if (m.requires && (self.res[m.requires.key] ?? 0) < m.requires.min) return false;
       return true;
@@ -944,8 +1137,14 @@ export class CpuController implements Controller {
       const r = ai.detonate.range;
       for (const d of world.deployables) {
         if (!d.active || d.owner !== self.id || Math.abs(d.x - self.x) > r) continue;
-        // a pillar (Obelisk) to burst, or a remote trap (Vex's mine) to set off
-        const near = d.plat ? Math.abs(tgt.x - d.x) < 46 && tgt.y > d.plat.top - 60 && tgt.y < d.y + 4 : !!d.def?.trigger && Math.abs(tgt.x - d.x) < 34 && Math.abs(tgt.y - d.y) < 40;
+        // a pillar (Obelisk) to burst, or a remote trap (Vex's mine) to set off; one stuck on the rival (C4) waits for kill
+        // range (or the rival going off the stage, or it getting old)
+        const stuck = d.attached === tgt.id;
+        const near = d.plat
+          ? Math.abs(tgt.x - d.x) < 46 && tgt.y > d.plat.top - 60 && tgt.y < d.y + 4
+          : stuck
+            ? tgt.damage >= 85 || offstage(tgt, world) || d.age > 360
+            : !!d.def?.trigger && d.attached < 0 && Math.abs(tgt.x - d.x) < 34 && Math.abs(tgt.y - d.y) < 40;
         if (near && this.rnd() < 0.6) {
           fire(ai.detonate.slot, 'det', false);
           return true;
@@ -960,11 +1159,20 @@ export class CpuController implements Controller {
         }
       }
       for (const slot of ai.closers) {
-        if (dist > 120 && dist < 320 && usable(slot) && p.smart && this.rnd() < 0.4 && !this.cooldownBusy(`c${slot}`, 90)) {
+        if (self.grounded && this.lungesOff(self, travel(this.slotMove(self, slot), attackDecel(self.data)), dir)) continue;
+        const [near, far] = ai.closerRange ?? CLOSER_RANGE;
+        if (dist > near && dist < far && usable(slot) && this.rnd() < (p.smart ? 0.4 : 0.12) && !this.cooldownBusy(`c${slot}`, 90)) {
           fire(slot, slot, !!ai.aimed?.includes(slot));
           return true;
         }
       }
+    }
+    // switch modes (Nova's elements) now and then while there is room: a quick tap, not the held barrier
+    if (ai.cycle && p.smart && self.grounded && dist > 150 && this.rnd() < 0.2 && !this.cooldownBusy('cycle', 420)) {
+      const [bx, by] = SPECIAL_DIR[ai.cycle] ?? [0, 0];
+      this.startPlan(world, 'cycle', Button.Special, bx * dir, by, { pressFrames: 1 });
+      this.runPlan(self, world);
+      return true;
     }
     if (p.smart && self.grounded && !stalled) {
       for (const slot of ai.setups) {
@@ -999,8 +1207,10 @@ export class CpuController implements Controller {
         const main = this.mainPlatform(world);
         if ((this.sx > 0 && self.x > main.right - 6) || (this.sx < 0 && self.x < main.x + 6)) this.sx = 0;
       }
+      if (this.hotAhead(self, world, this.sx)) this.sx = 0;
       if (p.smart && this.tryAerial(self, world, tgt, p.aggression)) return;
-      if (self.vy > 0 && tgt.y > self.y + 30 && dist < 40 && p.smart) this.sy = 1; // fast fall onto them
+      const over = this.mainPlatform(world);
+      if (self.vy > 0 && tgt.y > self.y + 30 && dist < 40 && p.smart && self.x > over.x && self.x < over.right) this.sy = 1; // fast fall onto them
       return;
     }
     const want = ai.spacing * (p.smart ? 1 : 0.7) * (this.stall > 420 ? 0.5 : 1);
@@ -1023,6 +1233,7 @@ export class CpuController implements Controller {
     } else if (dist < want * 0.5 && p.smart && tgt.state !== 'shield' && this.rnd() < 0.3) {
       this.sx = -dir * 0.5; // too close: back off a step to regain spacing
     }
+    if (this.hotAhead(self, world, Math.sign(this.sx))) this.sx = 0; // wait for the eruption in front of us to pass
     const wanted = this.sx;
     if (!(downBelow && dist < 160)) this.clampEdge(self);
     // stopped at our edge while the target stands on another platform within jumping range: jump the gap
@@ -1030,6 +1241,8 @@ export class CpuController implements Controller {
       this.held |= Button.Jump;
       this.sx = wanted;
       this.hopTarget = true;
+      this.cross = tgt.groundPlat;
+      this.crossUntil = world.tick + 150;
       return;
     }
     // a step or low wall in the way (Sunken Temple's centre tier): hop up onto it instead of running into it forever
@@ -1084,6 +1297,13 @@ export class CpuController implements Controller {
     }
     return true;
   }
+}
+
+/** Is the fighter's body within the vertical span of a column hazard (geysers rise from `y`, bolts and stalactites hang from it)? */
+function inColumn(h: HazardDef, f: Fighter): boolean {
+  const top = h.kind === 'geyser' ? h.y - h.h : h.y;
+  const bottom = h.kind === 'geyser' ? h.y : h.y + h.h;
+  return f.y > top - 8 && f.y - f.h < bottom + 8;
 }
 
 /** Does fighter `id` have a trigger trap (a mine) out? (A plain loop: this runs every think, so no closures.) */
