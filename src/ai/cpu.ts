@@ -1,7 +1,7 @@
 import { Button, type FighterInput } from '../engine/buttons';
 import { hitboxRect, hurtRect } from '../engine/combat';
 import type { Fighter } from '../engine/fighter';
-import { hazardPhase } from '../engine/hazards';
+import { avalancheX, hazardPhase } from '../engine/hazards';
 import { hitboxEnd, hitboxStart } from '../engine/moves';
 import type { Platform } from '../engine/platform';
 import type { World } from '../engine/world';
@@ -405,6 +405,28 @@ export class CpuController implements Controller {
     for (const h of hs) {
       const ph = hazardPhase(h, world.tick);
       if (ph === 'idle') continue;
+      if (h.kind === 'avalanche') {
+        // a wall of snow rolling along the floor: no column to step out of, so jump it as the front arrives
+        if (Math.abs(self.y - h.y) > 6) continue;
+        // during the rumble the wall has not broken loose yet: treat it as sitting at its start
+        const front = avalancheX(h, (world.tick + (h.offset ?? 0)) % h.period) ?? h.x;
+        const dir = (h.travel ?? 1) >= 0 ? 1 : -1;
+        const speed = Math.abs(h.travel ?? 0) / Math.max(1, h.active - 1);
+        const ahead = (self.x - front) * dir;
+        // leave the ground about a dozen ticks before the front reaches our body, so we are high and stay high while it passes
+        if (ahead > -h.w / 2 && ahead < self.hw + h.w / 2 + speed * 13) {
+          this.held |= Button.Jump;
+          this.hopTarget = true; // a full hop: a short hop does not clear the snow
+          this.sx = -dir; // drift back over the front
+          return true;
+        }
+        if (ahead > 0 && ahead < self.hw + h.w / 2 + speed * 36) {
+          // it is coming: do not start anything committal, wait for the moment to jump
+          this.sx = 0;
+          return true;
+        }
+        continue;
+      }
       const half = h.w / 2 + 16;
       if (Math.abs(self.x - h.x) < half) {
         // step out of the column toward the nearer side (and away from the edge)
