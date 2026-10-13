@@ -27,7 +27,7 @@ interface MassTheme {
   body: 'ashlar' | 'plate' | 'hull';
   cap: 'metal' | 'tech' | 'hazard' | 'slate' | 'grass' | 'deck' | 'crystal' | 'snow';
   panel: 'window' | 'holo' | 'vent' | 'rune' | 'alcove' | 'glyph' | 'porthole' | 'geode';
-  under: 'crystal' | 'tech' | 'machine' | 'shard' | 'roots' | 'reef';
+  under: 'crystal' | 'tech' | 'machine' | 'shard' | 'roots' | 'reef' | 'galleon';
   fog: string;
 }
 
@@ -121,7 +121,7 @@ const THEMES: Record<string, MassTheme> = {
     body: 'hull',
     cap: 'deck',
     panel: 'porthole',
-    under: 'machine',
+    under: 'galleon',
     fog: '#4a2a5e',
   },
   dawn: {
@@ -1040,11 +1040,16 @@ function cap(b: Buf, T: MassTheme, S: Ramp, A: Ramp, A2: Ramp, y0: number, ch: n
 function underside(b: Buf, T: MassTheme, S: Ramp, A: Ramp, A2: Ramp, x0: number, y0: number, bw: number, uh: number, rnd: () => number, n: (x: number, y: number) => number): void {
   const prof: number[] = [];
   const stepped = T.under === 'tech' || T.under === 'machine';
+  const hull = T.under === 'reef' || T.under === 'galleon'; // a ship's planked hull, not rock
   for (let x = 0; x < bw; x++) {
     const t = x / (bw - 1);
     const e = Math.abs(t - 0.5) * 2;
     let d: number;
-    if (stepped) {
+    if (hull) {
+      // a smooth bowl: full depth amidships, sweeping up hard at bow and stern
+      d = uh * 0.78 * Math.sqrt(Math.max(0, 1 - Math.pow(e, 3.2)));
+      if (T.under === 'reef') d += (n(x / 7, 5) - 0.5) * 6; // a wreck sags and splinters
+    } else if (stepped) {
       const step = Math.floor(e * 5) / 5; // tiered keel
       d = uh * (1 - Math.pow(step, 1.3)) * 0.92;
     } else {
@@ -1058,7 +1063,18 @@ function underside(b: Buf, T: MassTheme, S: Ramp, A: Ramp, A2: Ramp, x0: number,
     for (let y = 0; y < bot; y++) {
       const depth = y / bot;
       let k: number;
-      if (stepped) {
+      if (hull) {
+        // strakes follow the hull's curve: each plank row is a fixed fraction of the local depth
+        const strakes = 7;
+        const f = depth * strakes;
+        const row = Math.floor(f);
+        const inRow = f - row;
+        const butt = (x + row * 37 + Math.floor(n(row, 1) * 90)) % 74 === 0; // staggered plank ends
+        k = (row % 2 === 0 ? 3 : 2) - (depth > 0.7 ? 1 : 0);
+        if (inRow < 0.12 || butt) k = 0; // caulked seam
+        else if (inRow < 0.24) k += 1; // the plank's upper edge catches the light
+        if (n(x / 2.6, y / 1.4) > 0.8) k -= 1; // grain
+      } else if (stepped) {
         const tier = Math.floor(Math.abs(x / (bw - 1) - 0.5) * 10);
         k = 3 - Math.floor(depth * 2.2) - (tier % 2);
         if ((y % 18) === 0) k = 4;
@@ -1071,6 +1087,7 @@ function underside(b: Buf, T: MassTheme, S: Ramp, A: Ramp, A2: Ramp, x0: number,
       b.set(x0 + x, y0 + y, S[clampI(k, 0, 5)]);
     }
     b.set(x0 + x, y0 + bot - 1, S[stepped ? 4 : 1]);
+    if (hull) for (let k = 2; k <= 4; k++) if (bot - k > 6) b.set(x0 + x, y0 + bot - k, S[k === 2 ? 0 : 1]); // the keel timber
   }
   // shadow right under the facade
   for (let x = 0; x < bw; x++) for (let k = 0; k < 6; k++) b.tint(x0 + x, y0 + k, 0.5 + k * 0.08);
@@ -1099,6 +1116,52 @@ function underside(b: Buf, T: MassTheme, S: Ramp, A: Ramp, A2: Ramp, x0: number,
         if (rnd() > 0.5) x = clampI(x + (rnd() > 0.5 ? 1 : -1), 0, bw - 1);
       }
     }
+  } else if (T.under === 'galleon') {
+    // brass rub-strake, a row of lamplit scuttles, propellers on struts and a rudder at the stern
+    const band = (x: number): number => y0 + Math.round(prof[x] * 0.32);
+    for (let x = 2; x < bw - 2; x++) {
+      const y = band(x);
+      if (y >= tip(x) - 3) continue;
+      b.set(x0 + x, y - 1, A[3]);
+      b.set(x0 + x, y, A[2]);
+      b.set(x0 + x, y + 1, A[1]);
+      if (x % 24 === 12) b.set(x0 + x, y, A[4], true); // rivet heads
+    }
+    for (let x = 40; x < bw - 40; x += 46) {
+      const y = band(x) + 10;
+      if (y + 6 >= tip(x)) continue;
+      for (let yy = -3; yy <= 3; yy++) for (let xx = -3; xx <= 3; xx++) {
+        const d = Math.hypot(xx, yy);
+        if (d <= 3.4) b.set(x0 + x + xx, y + yy, d > 2.4 ? A[1] : yy < 0 ? A[4] : A[3], d <= 2.4);
+      }
+    }
+    const prop = (px: number): void => {
+      const top = tip(px) - 4;
+      b.rect(x0 + px - 3, top, 6, 20, S[1]); // strut
+      b.rect(x0 + px - 2, top, 2, 20, S[3]);
+      for (let yy = 0; yy < 14; yy++) for (let xx = -14; xx <= 14; xx++) {
+        // engine nacelle: a brass-banded cylinder, rounded at the nose
+        if (xx < -10 && (xx + 10) * (xx + 10) + (yy - 7) * (yy - 7) > 20) continue;
+        const sh = yy < 3 ? A[3] : yy < 6 ? A[2] : yy < 11 ? A[1] : S[0];
+        b.set(x0 + px + xx, top + 18 + yy, xx % 9 === 0 ? S[1] : sh);
+      }
+      b.rect(x0 + px + 15, top + 21, 4, 8, S[0]);
+      b.rect(x0 + px + 16, top + 23, 2, 4, A[4], true); // exhaust glow
+      for (let yy = -16; yy <= 16; yy++) for (let xx = -4; xx <= 4; xx++) {
+        // the spinning blades at the nose: a pale motion-blur disc seen edge-on
+        if (xx * xx / 16 + yy * yy / 256 > 1) continue;
+        b.set(x0 + px - 17 + xx, top + 25 + yy, Math.abs(yy) > 11 ? S[4] : S[5]);
+      }
+      b.rect(x0 + px - 19, top + 23, 4, 4, A[2]);
+    };
+    prop(Math.round(bw * 0.3));
+    prop(Math.round(bw * 0.7));
+    // rudder at the stern (right end)
+    const rx = bw - 64;
+    const ry = tip(rx) - 22;
+    for (let yy = 0; yy < 40; yy++) for (let xx = 0; xx < 20 - Math.floor(yy / 3); xx++) b.set(x0 + rx + xx, ry + yy, xx === 0 ? S[4] : yy === 39 ? S[0] : (xx + yy) % 9 === 0 ? S[1] : S[2]);
+    b.rect(x0 + rx, ry + 12, 16, 2, A[2]);
+    b.rect(x0 + rx, ry + 24, 11, 2, A[2]);
   } else if (T.under === 'reef') {
     // the keel is crusted with sea life: coral fans and tubes, glowing anemones, barnacles, kelp trailing below
     const KELP: Ramp = ['#0e2a1a', '#1a4a2a', '#2e7040', '#4aa058', '#8ad07a'].map(hex);
@@ -1186,11 +1249,43 @@ function underside(b: Buf, T: MassTheme, S: Ramp, A: Ramp, A2: Ramp, x0: number,
         if (x % 40 === 8) b.set(x0 + x, y + 1, A[3], true);
       }
     }
+    // coolant pipes snaking down each tier face, and vent grilles leaking furnace light
+    for (let i = 0; i < bw / 34; i++) {
+      const x = 8 + Math.floor(rnd() * (bw - 16));
+      const y1 = tip(x) - 4;
+      for (let y = y0 + 6; y < y1; y++) {
+        b.set(x0 + x, y, S[4]);
+        b.set(x0 + x + 1, y, S[3]);
+        b.set(x0 + x + 2, y, S[1]);
+        if ((y - y0) % 14 === 0) b.rect(x0 + x - 1, y, 5, 2, S[5]); // flange
+      }
+    }
+    for (let i = 0; i < bw / 50; i++) {
+      const x = 12 + Math.floor(rnd() * (bw - 40));
+      const y = y0 + 20 + Math.floor(rnd() * 30);
+      if (y + 8 >= tip(x + 20) - 2 || y + 8 >= tip(x) - 2) continue;
+      b.rect(x0 + x - 1, y - 1, 22, 10, S[0]);
+      for (let k = 0; k < 4; k++) b.rect(x0 + x, y + k * 2, 20, 1, k % 2 ? A[1] : A[2], true);
+    }
   } else {
-    // tech: light seams along each tier and a glowing core at the keel
+    // tech: light seams along each tier, circuit traces climbing the faces and a glowing core at the keel
     for (let x = 0; x < bw; x++) {
       const y = tip(x);
       b.set(x0 + x, y - 2, A[2], true);
+    }
+    for (let i = 0; i < bw / 22; i++) {
+      let x = 6 + Math.floor(rnd() * (bw - 12));
+      let y = tip(x) - 5;
+      const top = y0 + 8;
+      for (let k = 0; k < 80 && y > top; k++) {
+        b.set(x0 + x, y, A[1], true);
+        if (rnd() > 0.82) {
+          const dx = rnd() > 0.5 ? 1 : -1;
+          for (let j = 0; j < 6; j++) b.set(x0 + (x += dx), y, A[1], true);
+        }
+        y--;
+      }
+      b.set(x0 + x, y, A[3], true); // node
     }
     const cx = Math.round(bw / 2);
     const cy = tip(cx) - 10;
