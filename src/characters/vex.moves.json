@@ -620,8 +620,8 @@
      "h": 28,
      "damage": 12.06,
      "angle": 82,
-     "base": 45,
-     "scaling": 0.9,
+     "base": 50,
+     "scaling": 0.95,
      "window": [
       9,
       11
@@ -719,7 +719,7 @@
      "damage": 10.92,
      "angle": 48,
      "base": 34,
-     "scaling": 0.7,
+     "scaling": 0.8,
      "dir": "away",
      "fx": "slash"
     },
@@ -731,7 +731,7 @@
      "damage": 10.92,
      "angle": 48,
      "base": 34,
-     "scaling": 0.7,
+     "scaling": 0.8,
      "dir": "away",
      "fx": "slash"
     }

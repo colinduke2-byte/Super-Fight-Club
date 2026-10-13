@@ -48,7 +48,7 @@ export const riptide: CharacterData = {
     epilogue: 'At the top of the Ladder Riptide broke the floodgates open. The whole arena went under, and for the first time in years he was home.',
   },
   stats: {
-    weight: 106,
+    weight: 102,
     runSpeed: 2.05,
     airSpeed: 1.75,
     groundAccel: 0.26,

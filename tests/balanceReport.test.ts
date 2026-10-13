@@ -80,7 +80,7 @@ describe.skipIf(!process.env.BALANCE)('balance report', () => {
       let table = '| pairing | wins |\n|---|---|\n';
       for (let i = 0; i < ids.length; i++) {
         for (let j = i + 1; j < ids.length; j++) {
-          const focus = process.env.BALANCE_ONLY?.split(','); // e.g. BALANCE_ONLY=nova: only that fighter's pairings
+          const focus = process.env.BALANCE_ONLY ? process.env.BALANCE_ONLY.split(',') : undefined; // e.g. BALANCE_ONLY=nova: only that fighter's pairings
           if (focus && !focus.includes(ids[i]) && !focus.includes(ids[j])) continue;
           let wa = 0;
           let wb = 0;

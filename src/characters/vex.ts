@@ -67,7 +67,7 @@ export const vex: CharacterData = {
     epilogue: 'The vault was empty, except for a single note: "Thanks for the distraction." Vex laughs all the way up the stairs.',
   },
   stats: {
-    weight: 106,
+    weight: 107,
     runSpeed: 3.0,
     airSpeed: 2.2,
     groundAccel: 0.42,

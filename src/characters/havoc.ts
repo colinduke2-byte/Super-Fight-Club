@@ -78,7 +78,7 @@ export const havoc: CharacterData = {
     epilogue: 'Havoc radios in: "Arena neutralised." Behind him the Hollow lights up like a festival. Mission accomplished, loudly.',
   },
   stats: {
-    weight: 100,
+    weight: 96,
     runSpeed: 2.35,
     airSpeed: 1.8,
     groundAccel: 0.3,

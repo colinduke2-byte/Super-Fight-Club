@@ -56,7 +56,7 @@ export const halcyon: CharacterData = {
     epilogue: 'At the top of the Ladder the roof tore open. Halcyon spread both wings, caught the first real wind in years, and did not look down.',
   },
   stats: {
-    weight: 98,
+    weight: 101,
     runSpeed: 2.35,
     airSpeed: 2.5,
     groundAccel: 0.3,

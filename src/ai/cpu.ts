@@ -134,14 +134,16 @@ export class CpuController implements Controller {
     for (const k in this.cooldown) if (this.cooldown[k] > 0) this.cooldown[k]--;
 
     // scored a KO? sometimes celebrate with a taunt once it is safe (nobody close)
-    world.fighters.forEach((f, i) => {
+    for (let i = 0; i < world.fighters.length; i++) {
+      const f = world.fighters[i];
       const ko = f.state === 'ko';
       if (ko && !this.wasKo[i] && f.id !== self.id && f.lastHitBy === self.id && this.rnd() < 0.45) this.tauntIn = 40 + Math.floor(this.rnd() * 40);
       this.wasKo[i] = ko;
-    });
+    }
     if (this.tauntIn > 0) this.tauntIn--;
     if (this.tauntIn === 0 && self.state === 'idle' && self.grounded && self.meter < (self.data.ultimate?.cost ?? 100)) {
-      const near = world.fighters.some((f) => f.id !== self.id && f.state !== 'ko' && Math.abs(f.x - self.x) < 150 && Math.abs(f.y - self.y) < 100);
+      let near = false;
+      for (const f of world.fighters) if (f.id !== self.id && f.state !== 'ko' && Math.abs(f.x - self.x) < 150 && Math.abs(f.y - self.y) < 100) near = true;
       this.tauntIn = -1;
       if (!near) {
         this.held = Button.Ultimate;
@@ -437,6 +439,14 @@ export class CpuController implements Controller {
     const pl = self.groundPlat;
     if (!pl || !self.grounded) return Infinity;
     return dir > 0 ? pl.right - self.x : self.x - pl.x;
+  }
+
+  /** Airborne: true when a lunge of `dist` px toward `dir` would end with no solid stage underneath. */
+  private airLungesOff(self: Fighter, world: World, dist: number, dir: number): boolean {
+    if (self.grounded || dist <= 0) return false;
+    const x = self.x + dir * dist;
+    for (const p of world.platforms) if (p.kind === 'solid' && x >= p.x + 4 && x <= p.right - 4 && self.y <= p.top + 6) return false;
+    return true;
   }
 
   /** True when a move's lunge (its motion steps) would carry us past the end of the platform toward `dir`. */
@@ -1159,7 +1169,8 @@ export class CpuController implements Controller {
         }
       }
       for (const slot of ai.closers) {
-        if (self.grounded && this.lungesOff(self, travel(this.slotMove(self, slot), attackDecel(self.data)), dir)) continue;
+        const lunge = travel(this.slotMove(self, slot), attackDecel(self.data));
+        if (self.grounded ? this.lungesOff(self, lunge, dir) : this.airLungesOff(self, world, lunge, dir)) continue;
         const [near, far] = ai.closerRange ?? CLOSER_RANGE;
         if (dist > near && dist < far && usable(slot) && this.rnd() < (p.smart ? 0.4 : 0.12) && !this.cooldownBusy(`c${slot}`, 90)) {
           fire(slot, slot, !!ai.aimed?.includes(slot));

@@ -577,7 +577,7 @@
      "damage": 12.48,
      "angle": 90,
      "base": 44,
-     "scaling": 0.86,
+     "scaling": 0.8,
      "fx": "water",
      "status": {
       "type": "soak",
@@ -624,7 +624,7 @@
      "damage": 10.56,
      "angle": 30,
      "base": 38,
-     "scaling": 0.8,
+     "scaling": 0.74,
      "fx": "water",
      "status": {
       "type": "soak",
@@ -639,7 +639,7 @@
      "damage": 10.56,
      "angle": 30,
      "base": 38,
-     "scaling": 0.8,
+     "scaling": 0.74,
      "fx": "water",
      "status": {
       "type": "soak",

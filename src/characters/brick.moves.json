@@ -409,7 +409,7 @@
      "damage": 13.64,
      "angle": 38,
      "base": 50,
-     "scaling": 0.893,
+     "scaling": 0.83,
      "hitlag": 1.3,
      "fx": "heavy"
     }
@@ -461,7 +461,7 @@
      "damage": 10.61,
      "angle": 82,
      "base": 45,
-     "scaling": 0.827,
+     "scaling": 0.761,
      "dir": "away",
      "hitlag": 1.2,
      "fx": "heavy"
@@ -474,7 +474,7 @@
      "damage": 10.61,
      "angle": 82,
      "base": 45,
-     "scaling": 0.827,
+     "scaling": 0.761,
      "dir": "away",
      "hitlag": 1.2,
      "fx": "heavy"
@@ -578,7 +578,7 @@
      "damage": 9.1,
      "angle": 361,
      "base": 38,
-     "scaling": 0.752,
+     "scaling": 0.692,
      "dir": "away",
      "fx": "shock"
     },
@@ -590,7 +590,7 @@
      "damage": 9.1,
      "angle": 361,
      "base": 38,
-     "scaling": 0.752,
+     "scaling": 0.692,
      "dir": "away",
      "fx": "shock"
     }
