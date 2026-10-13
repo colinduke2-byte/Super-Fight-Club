@@ -1,5 +1,5 @@
 import { announcer } from '../audio/announcer';
-import { challengeById, challengeCleared } from '../game/challenges';
+import { challengeById, challengeCleared, challengeRules } from '../game/challenges';
 import Phaser from 'phaser';
 import { PIXEL_FONT } from '../art/pixelFont';
 import { music } from '../audio/music';
@@ -64,9 +64,9 @@ export class ResultsScene extends MenuScene {
     const chal = session.mode === 'challenge' && r ? challengeById(session.challenge) : undefined;
     const chalClear = !!chal && !!r && challengeCleared(r);
     if (chal) label = chalClear ? 'CHALLENGE CLEAR!' : 'CHALLENGE FAILED';
-    this.title = this.add.bitmapText(0, 0, PIXEL_FONT, label).setOrigin(0.5).setTint(winner >= 0 ? COLORS.p[winner % 4] : COLORS.title);
+    this.title = this.add.bitmapText(0, 0, PIXEL_FONT, label).setOrigin(0.5).setTint(r && r.winnerTeam >= 0 ? COLORS.p[r.winnerTeam] : winner >= 0 ? COLORS.p[winner % 4] : COLORS.title);
     this.ui.add(this.title);
-    const timed = session.rules.mode === 'time' && !arcade;
+    const timed = (chal ? challengeRules(chal) : session.rules).mode === 'time' && !arcade;
     this.head = text(this, this.ui, tr ? `TARGET SMASH  ${(characterById(tr.character)?.name ?? '').toUpperCase()}` : lr ? `LAUNCH CONTEST  ${(characterById(lr.character)?.name ?? '').toUpperCase()}` : `PLAYER    FIGHTER    KOS  FALLS  DAMAGE  COMBO  ${timed ? 'POINTS' : 'STOCKS'}`, COLORS.dim);
     this.stageG = this.add.graphics();
     this.fx = this.add.graphics().setBlendMode(Phaser.BlendModes.ADD);
@@ -117,7 +117,7 @@ export class ResultsScene extends MenuScene {
         const name = (characterById(p.character)?.name ?? p.character).replace('The ', '');
         const who = `${p.placement}. ${nameOf(p)}`;
         const line = `${who.padEnd(9)} ${name.slice(0, 10).padEnd(10)} ${String(p.kos).padStart(3)}  ${String(p.falls).padStart(5)}  ${String(Math.round(p.damageDealt)).padStart(6)}  ${String(p.bestCombo ?? 0).padStart(5)}  ${String(timed ? p.kos - p.falls : p.stocks).padStart(6)}`;
-        this.rows.push(text(this, this.ui, line, p.index === winner ? COLORS.hot : COLORS.p[p.index % 4]));
+        this.rows.push(text(this, this.ui, line, p.index === winner ? COLORS.hot : COLORS.p[p.team >= 0 ? p.team : p.index % 4]));
       }
     }
     const items: MenuItem[] = [];
@@ -154,7 +154,7 @@ export class ResultsScene extends MenuScene {
   }
 
   protected override layoutUi(w: number, h: number, u: number): void {
-    this.title.setScale(u * 5).setPosition(w / 2, h * 0.12);
+    this.title.setScale(Math.min(u * 5, (w * 0.92) / Math.max(1, textPx(this.title)) * 1)).setPosition(w / 2, h * 0.12);
     // champion on the left, the table and the menu on the right (everything centred when there is no winner)
     const side = this.champ ? w * 0.4 : w * 0.06;
     const tw = Math.max(1, textPx(this.head));
@@ -174,7 +174,7 @@ export class ResultsScene extends MenuScene {
       const s = Math.max(0.6, Math.min(u * 3.2, (h * 0.5) / 64));
       this.floor = { x: w * 0.2, y: h * 0.78, s };
       this.champ.setScale(s * this.champK).setPosition(this.floor.x, this.floor.y);
-      this.champName?.setScale(u * 2).setPosition(this.floor.x, this.floor.y + s * 10 + 9 * u);
+      this.champName?.setScale(Math.min(u * 2, (w * 0.36) / Math.max(1, textPx(this.champName)))).setPosition(this.floor.x, this.floor.y + s * 10 + 9 * u);
     }
   }
 

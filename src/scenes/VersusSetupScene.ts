@@ -21,6 +21,8 @@ export class VersusSetupScene extends MenuScene {
     this.title = this.add.bitmapText(0, 0, PIXEL_FONT, 'VERSUS SETUP').setOrigin(0.5).setTint(COLORS.title);
     this.ui.add(this.title);
     const r = session.rules;
+    // single-player modes leave playerCount at 1: versus always needs at least two
+    session.playerCount = clamp(session.playerCount, 2, 4);
     const timed = (): boolean => r.mode === 'time';
     const MODES = ['stock', 'time', 'stamina'] as const;
     const NAMES = { stock: 'STOCKS', time: 'TIMED', stamina: 'STAMINA' };

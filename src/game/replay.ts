@@ -5,6 +5,8 @@ import type { MatchRules } from './session';
 export interface ReplayPlayer {
   character: string;
   palette?: number;
+  /** Who played the slot (for the P1 / CPU labels when it is watched back). */
+  type?: 'human' | 'cpu';
 }
 
 /**

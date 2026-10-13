@@ -50,7 +50,7 @@ export class CharacterSelectScene extends MenuScene {
   protected build(): void {
     this.cards = [];
     this.roster = [];
-    this.palettes = (session.players.length ? session.players.map((p) => p.palette ?? 0) : []).concat([0, 0, 0, 0]).slice(0, 4);
+    this.palettes = (session.players.length ? session.players.map((p) => (p.type === 'human' ? (p.palette ?? 0) : 0)) : []).concat([0, 0, 0, 0]).slice(0, 4);
     this.lobby = new Lobby(session.playerCount, CHARACTER_LIST.length);
     this.lobby.slots.forEach((s, i) => (s.character = i % CHARACTER_LIST.length));
     // a challenge with a set fighter: the cursor starts (and stays) on them

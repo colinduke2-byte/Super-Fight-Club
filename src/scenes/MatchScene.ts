@@ -35,7 +35,7 @@ import { Effects } from '../ui/Effects';
 import { FighterView } from '../ui/FighterView';
 import { PerfCounter } from '../ui/PerfCounter';
 import { FighterHud } from '../ui/FighterHud';
-import { COLORS, MenuList } from '../ui/menuKit';
+import { COLORS, MenuList, textPx } from '../ui/menuKit';
 import { KoBlast } from '../ui/KoBlast';
 import { OffscreenBubbles } from '../ui/OffscreenBubbles';
 import { PlayerTags } from '../ui/PlayerTags';
@@ -59,7 +59,7 @@ import { BossController } from '../ai/boss';
 import { CpuController } from '../ai/cpu';
 import { currentFight } from '../game/ladder';
 import { buildResult } from '../game/results';
-import { session, type PlayerSlot } from '../game/session';
+import { DEFAULT_RULES, session, type PlayerSlot } from '../game/session';
 
 /** Countdown: READY? for a beat, then 3, 2, 1 at COUNT_STEP ticks each. */
 const COUNT_STEP = 36;
@@ -227,6 +227,9 @@ export class MatchScene extends Phaser.Scene {
     this.slowTicks = 0;
     this.pendingHitDummy = this.pendingHitSelf = this.pendingReset = false;
     this.cinT = 0;
+    this.ultT = 0;
+    this.countdown = 0;
+    this.entranceFx = [];
     this.shake = 0;
     this.punch = 0;
     this.frameCount = 0;
@@ -246,7 +249,8 @@ export class MatchScene extends Phaser.Scene {
     this.isTraining = !rep && session.mode === 'training';
     this.isLaunch = !rep && session.mode === 'launch' && this.slots.length === 2;
     const chal = !rep && session.mode === 'challenge' ? challengeById(session.challenge) : undefined;
-    const rulesNow = rep ? rep.rules : chal ? challengeRules(chal) : session.rules;
+    // versus rules (timed, stamina...) belong to versus: arcade and the single-player modes always play standard stocks
+    const rulesNow = rep ? rep.rules : chal ? challengeRules(chal) : session.mode === 'versus' || session.mode === 'training' ? session.rules : { ...DEFAULT_RULES };
     const base = STAGES[rep ? rep.stage : session.stage] ?? sandboxStage;
     const stage = (this.stageData = rulesNow.hazards === false && (rep || session.mode === 'versus' || chal) ? { ...base, hazards: undefined } : base);
     this.world = new World(stage);
@@ -271,7 +275,7 @@ export class MatchScene extends Phaser.Scene {
     this.launchView = null;
     const cfg: MatchConfig = this.isTraining || this.isLaunch ? TRAINING : { mode: rules.mode, stocks: rules.stocks, timeLimitSec: rules.timeSec, respawnDelay: 70, staminaHp: rules.staminaHp };
     this.match = new Match(this.world, cfg);
-    if (!rep && !this.isTraining && session.mode === 'versus' && !session.demo) this.recorder = new ReplayRecorder(session.stage, rules, this.slots.map((sl) => ({ character: sl.character, palette: sl.palette })), settings.smashMode === 'flick');
+    if (!rep && !this.isTraining && session.mode === 'versus' && !session.demo) this.recorder = new ReplayRecorder(session.stage, rules, this.slots.map((sl) => ({ character: sl.character, palette: sl.palette, type: sl.type })), settings.smashMode === 'flick');
     this.match.onRespawn = (f) => this.respawn(f.id, true);
     this.match.onSuddenDeath = () => {
       this.banner.setText('SUDDEN DEATH!').setVisible(true).setTint(0xff4a5a);
@@ -326,6 +330,7 @@ export class MatchScene extends Phaser.Scene {
     ambience.start(stage.background.theme);
     // back from the Controls overlay: the stage music and a clean frame clock
     const onResume = (): void => {
+      keyboardHub.onKeyDown = (code) => this.onKey(code); // the Controls overlay took the keyboard over
       music.play(track);
       menuInput.reset();
       this.lastNow = performance.now();
@@ -351,8 +356,9 @@ export class MatchScene extends Phaser.Scene {
     const tagColors = this.fighters.map((f) => (f.team >= 0 ? COLORS.p[f.team] : COLORS.p[f.id % 4]));
     this.views.forEach((v, i) => (v.color = tagColors[i]));
     // with several CPUs each gets its port number so stacked tags and HUDs can be told apart
-    const cpus = this.slots.filter((s) => s.type === 'cpu' && !s.boss).length;
-    const labels = (this.labels = this.slots.map((s, i) => (s.boss ? 'BOSS' : this.isTraining ? (i === 0 ? 'YOU' : 'DUMMY') : s.type === 'cpu' ? (cpus > 1 ? `CPU${i + 1}` : 'CPU') : `P${i + 1}`)));
+    const kind = (i: number): 'human' | 'cpu' => (rep ? (rep.players[i]?.type ?? 'cpu') : this.slots[i].type === 'human' ? 'human' : 'cpu');
+    const cpus = this.slots.filter((s, i) => kind(i) === 'cpu' && !s.boss).length;
+    const labels = (this.labels = this.slots.map((s, i) => (s.boss ? 'BOSS' : this.isTraining ? (i === 0 ? 'YOU' : 'DUMMY') : kind(i) === 'cpu' ? (cpus > 1 ? `CPU${i + 1}` : 'CPU') : `P${i + 1}`)));
     this.tags = new PlayerTags(this, this.uiLayer, this.fighters, this.views, labels, tagColors);
     this.bubblesSay = new TauntBubbles(this, this.uiLayer, this.fighters, this.views);
     this.cutIn = new UltCutIn(this, this.uiLayer);
@@ -390,7 +396,7 @@ export class MatchScene extends Phaser.Scene {
     }
     this.pauseMenu = new MenuList(this, this.uiLayer, [
       { label: 'RESUME', enabled: () => this.pauseReason !== 'disconnect', onConfirm: () => this.setPaused(false) },
-      ...(session.mode !== 'arcade' ? [{ label: 'RESTART', onConfirm: () => this.scene.restart() }] : []),
+      ...(session.mode !== 'arcade' && !this.replay && !session.demo ? [{ label: 'RESTART', onConfirm: () => this.scene.restart() }] : []),
       ...(!this.replay ? [{ label: 'MOVE LIST', onConfirm: () => this.showMoveList(true) }] : []),
       {
         label: 'CONTROLS',
@@ -401,7 +407,15 @@ export class MatchScene extends Phaser.Scene {
           this.scene.pause();
         },
       },
-      { label: 'QUIT', onConfirm: () => this.scene.start('ModeSelect') },
+      {
+        label: 'QUIT',
+        onConfirm: () => {
+          if (session.demo) {
+            endDemo();
+            this.scene.start('Title');
+          } else this.scene.start('ModeSelect');
+        },
+      },
     ]);
     this.pauseMenu.setVisible(false);
     this.moveListBox = this.add.bitmapText(0, 0, PIXEL_FONT, '').setOrigin(0.5).setLeftAlign().setVisible(false);
@@ -414,7 +428,7 @@ export class MatchScene extends Phaser.Scene {
     keyboardHub.onKeyDown = (code) => this.onKey(code);
     // losing focus (alt-tab, another window) pauses a live match instead of letting the CPUs win
     const onBlur = (): void => {
-      if (!this.paused && this.endTimer < 0 && !this.bench) this.setPaused(true, 'user');
+      if (!this.paused && this.endTimer < 0 && !this.bench && !session.demo) this.setPaused(true, 'user');
     };
     window.addEventListener('blur', onBlur);
     this.events.once('shutdown', () => window.removeEventListener('blur', onBlur));
@@ -934,7 +948,9 @@ export class MatchScene extends Phaser.Scene {
     this.cutIn.update(this.paused ? 0 : Math.min(frameMs, 50) / 1000, this.scale.width, this.scale.height, hu);
     this.bubbles.update(this.worldCam.worldView, this.scale.width, this.scale.height, hu, this.scale.height - Math.round(8 * this.dpr()) - 40 * hu);
     if (this.bannerPop > 0) this.bannerPop = Math.max(0, this.bannerPop - frameMs / 16.7);
-    this.banner.setScale(this.bannerBase * (1 + 0.06 * this.bannerPop));
+    // long banners (challenge titles, TEAM BLUE WINS) shrink to fit narrow windows
+    const fit = Math.min(this.bannerBase, (this.scale.width * 0.92) / Math.max(1, textPx(this.banner)));
+    this.banner.setScale(fit * (1 + 0.06 * this.bannerPop));
     if (this.match.over && !this.banner.visible) {
       const w = this.match.winner;
       if (this.launch) {
