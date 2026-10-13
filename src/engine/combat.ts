@@ -10,6 +10,10 @@ const HITLAG_PER_DAMAGE = 0.4;
 const HEAVY_FREEZE_FROM = 8;
 const HEAVY_FREEZE_PER_DAMAGE = 0.35;
 const HITLAG_MAX = 28;
+/** Momentum hits: attacker speed (px/frame) toward the victim above MIN carries into the launch at CARRY, up to MAX. */
+const MOMENTUM_MIN = 0.6;
+const MOMENTUM_CARRY = 0.5;
+const MOMENTUM_MAX = 2;
 const MAX_CANDIDATES = 16;
 
 interface Candidate {
@@ -311,8 +315,13 @@ export function deliverHit(world: World, d: HitDelivery): void {
   }
 
   // --- clean hit ---
+  // momentum: a body moving into its own melee hit (a dash attack, a drifting aerial) carries part of its speed into the launch
+  let carryVx = 0;
+  if (atk && d.freezeOwner !== false && atk.vx * direction > MOMENTUM_MIN) {
+    carryVx = Math.min(MOMENTUM_MAX, (atk.vx * direction - MOMENTUM_MIN) * MOMENTUM_CARRY) * direction;
+  }
   def.receiveHit(
-    { damage: d.damage, base: hb.base, scaling: hb.scaling, angle: hb.angle, direction, moveWeight: hb.weight, hitlag: hl, minHitstun: hb.minHitstun, kbMult: d.kbMult, attackerId: d.ownerId },
+    { damage: d.damage, base: hb.base, scaling: hb.scaling, angle: hb.angle, direction, moveWeight: hb.weight, hitlag: hl, minHitstun: hb.minHitstun, kbMult: d.kbMult, attackerId: d.ownerId, carryVx },
     world,
   );
   def.lastHitFx = hb.fx ?? '';

@@ -76,6 +76,16 @@ export class WorldEventFx {
         e.flash(x, y, 2.4, 0xffe9a8);
         this.host.shake(5);
         break;
+      case 'splat': {
+        // a hard slam into the scenery: a crack of light, a puff of debris and a jolt that grows with the speed
+        const k = Math.min(1.4, mag / 10);
+        e.flash(x, y, 1.6 + k, 0xfff4dc);
+        e.ring(x, y, 16 + mag * 2.5, 0xffc78a, 0.28);
+        e.burst(x, y, Math.round(10 + mag * 1.5), 70 + mag * 10, 0xd8b48a, 0.4, 3);
+        e.dust(x, y, 6, 0);
+        this.host.shake(Math.min(10, 3 + mag * 0.8));
+        break;
+      }
       case 'collide': {
         // human projectile: a starburst where the bodies meet, a shockwave ring and a jolt scaled by the speed
         const k = Math.min(1.6, mag / 9);

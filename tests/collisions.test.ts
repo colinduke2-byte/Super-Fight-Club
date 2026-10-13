@@ -1,7 +1,8 @@
 import { describe, expect, it } from 'vitest';
+import { deliverHit } from '../src/engine/combat';
 import { brick } from '../src/characters/brick';
 import { vex } from '../src/characters/vex';
-import { makeInput } from '../src/engine/buttons';
+import { Button, makeInput } from '../src/engine/buttons';
 import { Fighter } from '../src/engine/fighter';
 import { World, type WorldEventType } from '../src/engine/world';
 import { classicStage } from '../src/stages/classic';
@@ -96,5 +97,75 @@ describe('human projectiles', () => {
       return t.world.hash();
     };
     expect(go()).toBe(go());
+  });
+});
+
+describe('impact splats', () => {
+  function spike(tech: boolean) {
+    const world = new World(classicStage);
+    const a = new Fighter(0, brick);
+    const v = new Fighter(1, vex);
+    world.addFighter(a);
+    world.addFighter(v);
+    a.spawn(-150, -1, 1);
+    v.spawn(0, -1, 1);
+    const ins = [makeInput(), makeInput()];
+    const events: { t: WorldEventType; extra: number }[] = [];
+    world.listener = (t, _f, _x, _y, _m, extra) => events.push({ t, extra });
+    for (let i = 0; i < 125; i++) world.step(ins);
+    v.invuln = 0;
+    v.y = -70;
+    v.grounded = false;
+    v.damage = 50;
+    v.receiveHit({ damage: 8, base: 110, scaling: 0.5, angle: 270, direction: 1, hitlag: 0, attackerId: 0 }, world);
+    const before = v.damage;
+    for (let i = 0; i < 40; i++) {
+      ins[1].pressed = tech && i > 2 && i % 25 === 3 ? Button.Shield : 0;
+      world.step(ins);
+    }
+    return { events, before, v, world };
+  }
+
+  it('an untech\'d spike into the floor splats: extra damage, credited to the attacker', () => {
+    const r = spike(false);
+    const s = r.events.find((e) => e.t === 'splat');
+    expect(s).toBeDefined();
+    expect(s!.extra).toBeGreaterThan(0);
+    expect(r.v.damage).toBeGreaterThan(r.before);
+    expect(r.world.damageDealt[0]).toBeGreaterThan(8);
+  });
+
+  it('teching the slam avoids the splat', () => {
+    const r = spike(true);
+    expect(r.events.some((e) => e.t === 'tech')).toBe(true);
+    expect(r.events.some((e) => e.t === 'splat')).toBe(false);
+  });
+});
+
+describe('momentum hits', () => {
+  function hitWhileMoving(atkVx: number): number {
+    const world = new World(classicStage);
+    const a = new Fighter(0, brick);
+    const v = new Fighter(1, vex);
+    world.addFighter(a);
+    world.addFighter(v);
+    a.spawn(-20, -1, 1);
+    v.spawn(20, -1, -1);
+    const ins = [makeInput(), makeInput()];
+    for (let i = 0; i < 125; i++) world.step(ins);
+    v.invuln = 0;
+    v.damage = 40;
+    a.vx = atkVx;
+    const hb = { x: 0, y: 0, w: 10, h: 10, damage: 8, base: 30, scaling: 0.5, angle: 40 } as never;
+    deliverHit(world, { atk: a, ownerId: 0, def: v, hb, damage: 8, facing: 1, originX: a.x, kbMult: 1 });
+    return v.vx;
+  }
+
+  it('running into a hit launches further than standing; backing away adds nothing', () => {
+    const still = hitWhileMoving(0);
+    const run = hitWhileMoving(3);
+    const back = hitWhileMoving(-3);
+    expect(run).toBeGreaterThan(still + 0.5);
+    expect(back).toBeCloseTo(still, 5);
   });
 });

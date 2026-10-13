@@ -59,6 +59,7 @@ export type WorldEventType =
   | 'hazardFire'
   | 'pillarShatter'
   | 'collide'
+  | 'splat'
   | 'pillarCrumble'
   | 'ko';
 /** `extra` meaning: hit/armorHit/shieldHit/pummel = damage dealt; ko = id of the last attacker (-1 none). */

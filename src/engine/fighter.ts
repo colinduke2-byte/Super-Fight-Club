@@ -51,6 +51,10 @@ const TECH_INVULN = 14;
 const BOUNCE_MIN_SPEED = 3;
 const BOUNCE_FLOOR = 0.7;
 const BOUNCE_WALL = 0.75;
+/** An untech'd slam into a floor, wall or ceiling at least this fast (px/frame) is a splat: it hurts. */
+const SPLAT_MIN_SPEED = 6.5;
+const SPLAT_RATE = 0.9;
+const SPLAT_MAX = 9;
 const HITSTUN_GROUND_FRICTION = 0.35;
 /** Perfect shield: shielding in the first N frames after raising it deflects a hit with no shield damage. */
 export const PARRY_FRAMES = 4;
@@ -180,6 +184,8 @@ export interface HitParams {
   /** Extra knockback multiplier (e.g. smash charge). */
   kbMult?: number;
   attackerId?: number;
+  /** Horizontal momentum carried into the launch (px/frame, signed), from an attacker moving into the hit. */
+  carryVx?: number;
 }
 
 const tmpLaunch: LaunchVector = { vx: 0, vy: 0 };
@@ -818,6 +824,7 @@ export class Fighter implements Body {
     let angle = hit.angle;
     if (angle === 361) angle = this.grounded && kb < 32 ? 0 : 44; // "Sakurai angle"
     launchVelocity(kb, angle, hit.direction, tmpLaunch);
+    if (hit.carryVx) tmpLaunch.vx += hit.carryVx;
     const stunScale = this.comboHits <= 1 ? 1 : Math.max(COMBO_STUN_MIN, 1 - COMBO_STUN_STEP * (this.comboHits - 1));
     this.launch(tmpLaunch.vx, tmpLaunch.vy, Math.round(Math.max(hitstunFrames(kb), hit.minHitstun ?? 0) * stunScale));
     // recoil: knocked sideways, the victim turns to face where the hit came from; near-vertical launches keep their facing
@@ -2019,6 +2026,7 @@ export class Fighter implements Body {
           this.grounded = false;
           this.groundPlat = null;
           world.emit('bounce', this, this.x, this.y, this.impactVy, 0);
+          this.splat(world, this.impactVy, this.x, this.y);
         }
       } else if (this.hitstun > 0) {
         // slow landing: lie down
@@ -2034,6 +2042,7 @@ export class Fighter implements Body {
       } else {
         this.vx = -this.impactVx * BOUNCE_WALL;
         world.emit('bounce', this, this.x, this.y - this.h / 2, Math.abs(this.impactVx), 0);
+        this.splat(world, Math.abs(this.impactVx), this.x + this.wall * this.hw, this.y - this.h / 2);
       }
       return;
     }
@@ -2044,8 +2053,19 @@ export class Fighter implements Body {
       } else {
         this.vy = -this.impactVy * BOUNCE_FLOOR;
         world.emit('bounce', this, this.x, this.y - this.h, Math.abs(this.impactVy), 0);
+        this.splat(world, Math.abs(this.impactVy), this.x, this.y - this.h);
       }
     }
+  }
+
+  /** A hard, untech'd slam hurts: damage by impact speed, credited to whoever launched us, plus a beat of hitlag. */
+  private splat(world: World, speed: number, x: number, y: number): void {
+    if (speed < SPLAT_MIN_SPEED || this.stats.weight >= 200) return; // colossi (the boss) are too massive to splat
+    const dmg = Math.min(SPLAT_MAX, (speed - SPLAT_MIN_SPEED + 2) * SPLAT_RATE);
+    this.damage += dmg;
+    if (this.lastHitBy >= 0) world.damageDealt[this.lastHitBy] = (world.damageDealt[this.lastHitBy] ?? 0) + dmg;
+    this.hitlag = Math.max(this.hitlag, 4 + Math.round(speed / 3));
+    world.emit('splat', this, x, y, speed, dmg);
   }
 
   private doTech(inp: FighterInput, world: World, kind: 'floor' | 'wall' | 'ceiling'): void {
