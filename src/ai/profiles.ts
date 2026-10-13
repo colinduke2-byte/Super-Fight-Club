@@ -189,7 +189,6 @@ CHARACTER_AI.rime = {
   holds: { neutralB: 18 },
   recovery: { slot: 'upB', up: 96, out: 96, aim: 'stick8' },
   ultimateRange: 70,
-  style: 'hitandrun',
   spacing: 28,
 };
 

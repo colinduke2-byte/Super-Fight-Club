@@ -59,7 +59,7 @@ export const rime: CharacterData = {
     epilogue: 'The bell rings once at the top of the mountain. Rime is already gone; only footprints in the snow remember the fight.',
   },
   stats: {
-    weight: 78,
+    weight: 80,
     runSpeed: 3.3,
     airSpeed: 2.3,
     groundAccel: 0.46,

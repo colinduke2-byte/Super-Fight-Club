@@ -420,14 +420,14 @@
    "name": "Rising Kick",
    "kind": "tilt",
    "anim": "smashU",
-   "startup": 6,
+   "startup": 8,
    "active": 4,
    "recovery": 14,
    "cancels": [
     {
      "button": "jump",
      "into": "@jump",
-     "from": 9
+     "from": 11
     }
    ],
    "pose": {
@@ -446,10 +446,10 @@
      "y": -30,
      "w": 26,
      "h": 30,
-     "damage": 9.5,
+     "damage": 7.2,
      "angle": 90,
      "base": 34,
-     "scaling": 0.72,
+     "scaling": 0.62,
      "hitlag": 1.1,
      "fx": "kick"
     }
@@ -727,7 +727,7 @@
      "y": -4,
      "w": 32,
      "h": 12,
-     "damage": 11.5,
+     "damage": 9.5,
      "angle": 361,
      "base": 34,
      "scaling": 0.8,
@@ -738,7 +738,7 @@
      "y": -4,
      "w": 32,
      "h": 12,
-     "damage": 11.5,
+     "damage": 9.5,
      "angle": 361,
      "base": 34,
      "scaling": 0.8,
@@ -954,7 +954,7 @@
      "y": -34,
      "w": 30,
      "h": 26,
-     "damage": 11.0,
+     "damage": 8.5,
      "angle": 88,
      "base": 34,
      "scaling": 0.75,
