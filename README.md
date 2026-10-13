@@ -593,11 +593,14 @@ instead of 125 / 80 / 90 / n/a / 95: weight was by far the strongest lever and m
 damage by 25% and Nova's fire / ice bolts by 25%, and slowed Gizmo's turrets and Mech punches. Hard CPUs now sit at roughly 45-55%
 (Brick 55, Vex 39, Nova 53, Gizmo 49, Agni 54, Halcyon 49 in the latest Hard-CPU run; weights are now Brick 114, Vex 106, Nova 100, Agni 92, Gizmo 88). Real balance needs your hands-on feedback.
 
-With all ten fighters (84 Hard-CPU matches per pairing) every fighter sits between 46% and 52%: Brick 52, Vex 47, Nova 46, Gizmo 49,
-Agni 51, Halcyon 48, Riptide 51, Obelisk 52, Rime 52, Havoc 52. Getting there took Rime's CPU off hit-and-run spacing (it was
-throwing away its speed), slower Havoc juggles (up tilt and up air), and a heavier Riptide (106). Normal CPUs spread much wider
-(fast fighters such as Vex and Rime near 70%, Havoc near 25%): at that skill level speed matters more than kit, so tune against the
-Hard numbers.
+The CPU later learned each fighter's whole kit: Havoc fires its rocket and mortar, steers the missile and slaps C4; Riptide bites and
+throws; Rime counters; Nova switches elements. It also stopped lunging off ledges and recovering to the ledge instead of the stage.
+That moved the numbers, mostly because fighters stopped self-destructing, so the roster was retuned: Havoc 96 weight, Riptide 102 with
+gentler up / down smashes, Brick's smashes scale a little less, Vex 107 (still lighter than Brick) with stronger forward / down smash
+kill power, Halcyon 101. With 84 Hard-CPU matches per pairing: Brick 54, Vex 40, Nova 46, Gizmo 51, Agni 44, Halcyon 51, Riptide 56,
+Obelisk 45, Rime 49, Havoc 63. Havoc is the remaining outlier: its zoning outlasts rivals (it is KO'd near 195% and kills near 150%),
+and frame-data nerfs to its explosives barely moved it. Normal CPUs spread about as wide (39-65%, Rime highest, Havoc lowest): at
+that skill level speed matters more than kit, so tune against the Hard numbers.
 
 ## Roadmap
 
