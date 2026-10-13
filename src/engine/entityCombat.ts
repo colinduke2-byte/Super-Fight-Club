@@ -48,6 +48,17 @@ function updateProjectiles(world: World): void {
     }
     for (let i = 0; i < p.rehit.length; i++) if (p.rehit[i] > 0) p.rehit[i]--;
 
+    if (def.steer) {
+      // a remote missile: while its owner holds the controlling move, the stick turns it (speed stays constant)
+      const owner = world.fighters[p.owner];
+      if (owner && owner.state === 'attack' && owner.move?.id === def.steer.move && Math.abs(owner.stick.y) > 0.25) {
+        const sp = Math.hypot(p.vx, p.vy);
+        let a = Math.atan2(p.vy, p.vx);
+        a += owner.stick.y * def.steer.turn * (Math.cos(a) >= 0 ? 1 : -1);
+        p.vx = Math.cos(a) * sp;
+        p.vy = Math.sin(a) * sp;
+      }
+    }
     if (def.boomerang) {
       const owner = world.fighters[p.owner];
       if (p.age < def.boomerang.out) {
@@ -167,6 +178,16 @@ function updateDeployables(world: World): void {
         }
       }
     }
+    if (d.attached >= 0) {
+      // planted on a rival: ride along on their body (and fall off if they are KO'd)
+      const host = world.fighters[d.attached];
+      if (!host || host.state === 'ko') d.attached = -1;
+      else {
+        d.x = host.x;
+        d.y = host.y - host.h * 0.45;
+        d.grounded = true;
+      }
+    }
     if (def.turret && d.age >= (def.armFrames ?? 0)) runTurret(world, d);
     if (def.pull) pullToward(world, d, def.pull.radius, def.pull.strength);
   }
@@ -215,6 +236,28 @@ export function resolveEntityCombat(world: World): void {
   projectilesHitFighters(world);
   attacksHitEntities(world);
   triggerDeployables(world);
+  resolveBlasts(world);
+}
+
+/** Blast projectiles that died this tick go off: everyone (but the owner and its team) in the radius is hit once. */
+export function resolveBlasts(world: World): void {
+  for (const p of world.projectiles) {
+    const def = p.def;
+    if (p.active || !def?.blast || p.exploded || p.age === 0) continue;
+    p.exploded = true;
+    const hb = def.blast.hit ?? def.hit;
+    const owner = world.fighters[p.owner] ?? null;
+    const r = def.blast.radius;
+    for (const f of world.fighters) {
+      if (f.id === p.owner || f.state === 'ko' || f.state === 'grabbed' || f.invuln > 0 || p.hitOnce[f.id] || world.allied(p.owner, f.id)) continue;
+      hurtRect(f, rB);
+      const nx = Math.max(rB[0], Math.min(p.x, rB[0] + rB[2]));
+      const ny = Math.max(rB[1], Math.min(p.y, rB[1] + rB[3]));
+      if (Math.hypot(nx - p.x, ny - p.y) > r) continue;
+      deliverHit(world, { atk: owner, ownerId: p.owner, def: f, hb: { ...hb, dir: 'away' }, damage: hb.damage * p.dmgMult, facing: p.dir, originX: p.x, kbMult: 1, freezeOwner: false });
+    }
+    world.emit('blast', owner ?? world.fighters[0], p.x, p.y, r, p.owner);
+  }
 }
 
 function reflectProjectiles(world: World): void {
@@ -357,7 +400,7 @@ function triggerDeployables(world: World): void {
     if (!d.active) continue;
     const def = d.def!;
     const trig = def.trigger;
-    if (!trig || d.age < (def.armFrames ?? 0)) continue;
+    if (!trig || trig.remote || d.age < (def.armFrames ?? 0)) continue;
     depRect(d, rA);
     for (const f of world.fighters) {
       if (f.id === d.owner || f.state === 'ko' || f.invuln > 0 || f.state === 'grabbed' || world.allied(d.owner, f.id)) continue;

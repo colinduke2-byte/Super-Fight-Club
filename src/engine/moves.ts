@@ -228,6 +228,10 @@ export interface ProjectileDef {
   reflectable?: boolean;
   /** Vertical motion override: zigzag oscillation of +-amp px around the launch height. */
   path?: { kind: 'zigzag'; amp: number; period: number };
+  /** Explodes when it dies (expires, hits a wall, hits someone, is shot down): every rival within `radius` takes `hit` (default: its own hit). */
+  blast?: { radius: number; hit?: HitboxDef };
+  /** Steered by its owner's stick (up / down turns it) while the owner is still in move `move` (a remote missile). */
+  steer?: { turn: number; move: string };
   /** Boomerang: flies out for `out` frames, then homes back to its owner and can hit a second time. */
   boomerang?: { out: number; speed: number };
   /** Keeps this fraction of speed when bouncing off solid floors. 0 = vanishes on contact. */
@@ -254,7 +258,7 @@ export interface DeployableDef {
   gravity?: boolean;
   armFrames?: number;
   /** Triggers on enemy contact: applies `hit` then (by default) disappears. */
-  trigger?: { hit: HitboxDef; persistent?: boolean };
+  trigger?: { hit: HitboxDef; persistent?: boolean; /** Never sets itself off on contact: only by remote (detonateDeployable). */ remote?: boolean };
   turret?: { range: number; interval: number; projectile: string; muzzleX: number; muzzleY: number; speed: number };
   /** Granted to the owner when an enemy destroys it. */
   reward?: { key: string; add: number };

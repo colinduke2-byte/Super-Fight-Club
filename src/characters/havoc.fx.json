@@ -1,0 +1,181 @@
+{
+ "sound": "heavy",
+ "slash": "spark",
+ "trail": "#ffd08a",
+ "recipes": {
+  "launch": [
+   {
+    "op": "flash",
+    "x": 20,
+    "y": -18,
+    "power": 1.4,
+    "color": 16773312
+   },
+   {
+    "op": "burst",
+    "x": -18,
+    "y": -18,
+    "count": 12,
+    "speed": 70,
+    "color": 9079424,
+    "life": 0.6,
+    "size": 3
+   },
+   {
+    "op": "shake",
+    "amount": 3
+   }
+  ],
+  "mortar": [
+   {
+    "op": "flash",
+    "y": -30,
+    "power": 1.2,
+    "color": 16773312
+   },
+   {
+    "op": "burst",
+    "y": -30,
+    "count": 10,
+    "speed": 60,
+    "color": 9079424,
+    "life": 0.6,
+    "size": 3
+   },
+   {
+    "op": "shake",
+    "amount": 2
+   }
+  ],
+  "pin": [
+   {
+    "op": "burst",
+    "x": 8,
+    "yh": 0.7,
+    "count": 4,
+    "speed": 40,
+    "color": 14211264,
+    "life": 0.2,
+    "size": 2
+   }
+  ],
+  "drone": [
+   {
+    "op": "ring",
+    "y": -44,
+    "radius": 18,
+    "color": 14211264,
+    "life": 0.25
+   },
+   {
+    "op": "dust",
+    "count": 6,
+    "dir": 0
+   }
+  ],
+  "radio": [
+   {
+    "op": "ring",
+    "yh": 0.9,
+    "radius": 24,
+    "color": 16756782,
+    "life": 0.5
+   },
+   {
+    "op": "ring",
+    "yh": 0.9,
+    "radius": 40,
+    "color": 16738874,
+    "life": 0.7
+   },
+   {
+    "op": "flash",
+    "yh": 0.5,
+    "power": 2,
+    "color": 16738874
+   }
+  ],
+  "stick": [
+   {
+    "op": "burst",
+    "count": 6,
+    "speed": 40,
+    "color": 16756782,
+    "life": 0.25,
+    "size": 2
+   }
+  ],
+  "taunt": [
+   {
+    "op": "burst",
+    "yh": 0.9,
+    "count": 8,
+    "speed": 30,
+    "color": 16756782,
+    "life": 0.4,
+    "size": 2
+   }
+  ]
+ },
+ "rules": [
+  {
+   "when": {
+    "moves": [
+     "upB"
+    ],
+    "phase": "active"
+   },
+   "every": 2,
+   "ops": [
+    {
+     "op": "emit",
+     "y": -40,
+     "jx": 12,
+     "vy": 40,
+     "jvx": 30,
+     "life": 0.25,
+     "color": 14737616,
+     "size": 2
+    }
+   ]
+  },
+  {
+   "when": {
+    "moves": [
+     "sideB"
+    ],
+    "phase": "active"
+   },
+   "every": 8,
+   "ops": [
+    {
+     "op": "flash",
+     "x": 8,
+     "yh": 0.5,
+     "power": 0.4,
+     "color": 16728128
+    }
+   ]
+  },
+  {
+   "when": {
+    "charging": true
+   },
+   "every": 3,
+   "ops": [
+    {
+     "op": "emit",
+     "x": 18,
+     "y": -18,
+     "jx": 2,
+     "jy": 2,
+     "vy": -20,
+     "life": 0.25,
+     "color": 16756782,
+     "size": 2,
+     "additive": true
+    }
+   ]
+  }
+ ]
+}

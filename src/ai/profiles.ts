@@ -193,6 +193,20 @@ CHARACTER_AI.rime = {
   spacing: 28,
 };
 
+// Havoc: trap-and-punish soldier. Grenades and the missile at range, C4 as a setup (set off when a rival walks over it),
+// the Cypher drone to recover.
+CHARACTER_AI.havoc = {
+  ...GENERIC,
+  ranged: ['neutralB', 'sideB'],
+  setups: ['downB'],
+  finishers: ['fsmash', 'usmash', 'utilt', 'bair', 'uair'],
+  holds: { sideB: 40 },
+  recovery: { slot: 'upB', up: 110, out: 50, aim: 'fixed' },
+  ultimateRange: 200,
+  spacing: 40,
+  detonate: { slot: 'downB', range: 400 },
+};
+
 export function aiFor(id: string): CharacterAi {
   return CHARACTER_AI[id] ?? GENERIC;
 }

@@ -307,6 +307,8 @@ export class Fighter implements Body {
   superArmor = false;
   /** The stick this tick (character logic like Overclock reads it). */
   readonly stick = { x: 0, y: 0 };
+  /** Buttons held this tick (for behaviours that read a held button, e.g. steering a remote missile). */
+  heldButtons = 0;
   /** Added to armor thresholds (Infinity = super armor). */
   armorBonus = 0;
   /** Tough Guy: hits dealing at most this much damage do not flinch (0 = off). Reset to `data.toughness` each tick; behaviours may raise it. */
@@ -942,6 +944,7 @@ export class Fighter implements Body {
 
     this.stick.x = inp.stickX;
     this.stick.y = inp.stickY;
+    this.heldButtons = inp.held;
     this.buffer.advance();
     this.buffer.record(inp.pressed);
 

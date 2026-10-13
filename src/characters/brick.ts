@@ -27,7 +27,7 @@ export const brick: CharacterData = {
   id: 'brick',
   fx,
   name: 'Brick',
-  tagline: 'Heavy cyber-knight. Slow, armored, brutal.',
+  tagline: 'Heavy cyber-knight. Tough, armored, brutal.',
   persona: {
     intro: 'Brick was built to guard a gate that fell long ago. Tonight he chooses to break the line instead of holding it.',
     taunt: 'Not many get past me. Fewer get up.',

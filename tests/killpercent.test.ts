@@ -8,8 +8,12 @@ import { STAGES } from '../src/stages';
 
 /** Lowest damage percent (in steps of 5) at which `moveId`'s hardest hit KOs `victimId` from centre stage with no DI; 999 = never. */
 export function killPercent(atkId: string, moveId: string, victimId: string, stage = 'classic'): number {
-  const mv = CHARACTERS[atkId].moves[moveId];
-  const hb = mv.hitboxes.reduce((a, b) => (b.damage > a.damage ? b : a));
+  const data = CHARACTERS[atkId];
+  const mv = data.moves[moveId];
+  // a projectile smash (Havoc's rocket and mortar) is judged by its shot
+  const shot = mv.events?.find((e) => e.action === 'projectile');
+  const hbs = shot && shot.action === 'projectile' ? [...mv.hitboxes, data.projectiles![shot.id].hit] : mv.hitboxes;
+  const hb = hbs.reduce((a, b) => (b.damage > a.damage ? b : a));
   for (let pct = 0; pct <= 250; pct += 5) {
     const w = new World(STAGES[stage]);
     const a = new Fighter(0, CHARACTERS[atkId]);

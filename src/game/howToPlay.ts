@@ -118,14 +118,21 @@ export const HOW_TO_PLAY: HowToPage[] = [
     title: 'THE FIGHTERS',
     rows: [
       ['BRICK', 'Heavy. Light hits do not flinch him; Shield banks a charge.'],
-      ['VEX', 'Fast rogue. Blink leaves a marker: special again to recall.'],
+      ['VEX', 'Fast rogue. Blink to a marker; down special again detonates.'],
       ['NOVA', 'Zoner. Down special cycles fire, ice and lightning spells.'],
       ['GIZMO', 'Inventor. Hold Jump to hover; catch the Rocket Fist.'],
-      ['AGNI', 'All-rounder. FLAME levels up every special as it builds.'],
-      ['HALCYON', 'Lancer. Three air flaps, a glide, spear tip sweetspots.'],
-      ['RIPTIDE', 'Grappler. Water SOAKS rivals; throws wring it out.'],
-      ['OBELISK', 'Builder. Raise pillars, then smash them into rivals.'],
+      ['AGNI', 'Brawler. FLAME levels up specials; tilts cancel into them.'],
     ],
     demo: ['riptide', ['idle', 'mv_taunt', 'mv_fsmash', 'idle']],
+  },
+  {
+    title: 'MORE FIGHTERS',
+    rows: [
+      ['HALCYON', 'Lancer. Glide, then Attack for a diving Talon Dive.'],
+      ['RIPTIDE', 'Grappler. Water SOAKS rivals; throws wring it out.'],
+      ['OBELISK', 'Builder. Raise pillars, then smash them into rivals.'],
+      ['RIME', 'Frost ninja. Hits stack FROSTBITE: six freeze them solid.'],
+    ],
+    demo: ['rime', ['idle', 'mv_ftilt', 'mv_fsmash', 'idle']],
   },
 ];

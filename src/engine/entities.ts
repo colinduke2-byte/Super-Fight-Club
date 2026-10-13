@@ -27,6 +27,8 @@ export class Projectile {
   /** Frames until this projectile may hit fighter i again (0 = ready). Pierce / multi-hit use this. */
   readonly rehit = new Int16Array(MAX_FIGHTERS);
   readonly hitOnce = new Uint8Array(MAX_FIGHTERS);
+  /** A blast projectile (grenade, missile) has already gone off. */
+  exploded = false;
 
   constructor(index: number) {
     this.index = index;
@@ -52,6 +54,7 @@ export class Projectile {
     this.reflects = 0;
     this.rehit.fill(0);
     this.hitOnce.fill(0);
+    this.exploded = false;
   }
 
   deactivate(): void {
@@ -88,6 +91,8 @@ export class Deployable {
   /** A pillar its owner struck: the shards fly along this launch angle (degrees, -1 = the usual radial burst) and side. */
   aimAngle = -1;
   aimDir: 1 | -1 = 1;
+  /** Stuck to a fighter (C4 planted on a rival): follows their body until set off. -1 = not attached. */
+  attached = -1;
 
   constructor(index: number) {
     this.index = index;
@@ -113,6 +118,7 @@ export class Deployable {
     this.modFrames = 0;
     this.shatter = false;
     this.aimAngle = -1;
+    this.attached = -1;
   }
 
   deactivate(): void {

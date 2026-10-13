@@ -86,6 +86,16 @@ export class WorldEventFx {
         this.host.views()[f.id]?.afterimage(x, y + f.h / 2, ice ? 0x9fe0ff : 0xffffff, 16);
         break;
       }
+      case 'blast': {
+        // an explosion (grenade, missile, airstrike): white core, a fireball ring, smoke and a jolt by size
+        const k = Math.min(1.5, mag / 30);
+        e.flash(x, y, 2 + k, 0xfff4d0);
+        e.ring(x, y, mag, 0xffb04a, 0.35);
+        e.burst(x, y, Math.round(18 + mag * 0.6), 120 + mag * 2, 0xff8a2a, 0.45, 3);
+        e.burst(x, y, 10, 70, 0x6a6a72, 0.9, 4);
+        this.host.shake(Math.min(9, 3 + mag * 0.15));
+        break;
+      }
       case 'splat': {
         // a hard slam into the scenery: a crack of light, a puff of debris and a jolt that grows with the speed
         const k = Math.min(1.4, mag / 10);

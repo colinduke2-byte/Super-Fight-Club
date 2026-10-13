@@ -40,6 +40,8 @@ export const FANFARES: Record<string, Fanfare> = {
   obelisk: { notes: [[48, 3], [0, 1], [48, 2], [51, 2], [55, 3], [0, 1], [53, 2], [60, 6]], step: 0.1, wave: 'square', harmony: 7, drums: true },
   // falling snow: a quick pentatonic flurry that settles on a high, bell-like note
   rime: { notes: [[81, 1], [79, 1], [76, 1], [74, 1], [76, 1], [0, 1], [79, 1], [81, 1], [86, 1], [88, 6]], step: 0.07, wave: 'triangle', harmony: 12 },
+  // a snare-led military cadence that ends on a bugle call
+  havoc: { notes: [[67, 1], [67, 1], [67, 1], [72, 3], [0, 1], [67, 1], [72, 1], [76, 2], [72, 1], [76, 1], [79, 6]], step: 0.08, wave: 'square', harmony: 7, drums: true },
   // a rolling sea-shanty phrase
   riptide: { notes: [[62, 1], [62, 1], [62, 1], [0, 1], [62, 1], [65, 1], [69, 2], [67, 1], [65, 1], [64, 1], [62, 5]], step: 0.09, wave: 'square', harmony: 4, drums: true },
 };
