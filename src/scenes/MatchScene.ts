@@ -168,6 +168,10 @@ export class MatchScene extends Phaser.Scene {
   private trainText!: Phaser.GameObjects.BitmapText;
   private dimOverlay!: Phaser.GameObjects.Rectangle;
   private cinT = 0;
+  /** Super flash for a non-cinematic ultimate winding up (0..1), and where it focuses. */
+  private ultT = 0;
+  private ultFocusX = 0;
+  private ultFocusY = 0;
   private slowMo = false;
   private stepMode = false;
   private stepOnce = false;
@@ -299,6 +303,9 @@ export class MatchScene extends Phaser.Scene {
     this.bg.setTheme(stage.background.theme);
     this.stageView = new StageView(this, this.worldLayer, this.world);
     if (stage.hazards) this.hazardView = new HazardView(this, this.worldLayer, stage.hazards);
+    // the ultimate dim sits over the backdrop and the stage but under the fighters, effects and cinematic staging
+    this.dimOverlay = this.add.rectangle(0, 0, 10, 10, 0x000010, 1).setOrigin(0, 0).setAlpha(0);
+    this.worldLayer.add(this.dimOverlay);
     // palettes: chosen ones kept, duplicates of the same fighter bumped to a free colour (built on demand)
     const palettes = assignPalettes(this.slots);
     this.slots.forEach((s, i) => (s.palette = palettes[i])); // results / rematches show the same colours
@@ -338,8 +345,6 @@ export class MatchScene extends Phaser.Scene {
     this.uiLayer.add(this.perf.text);
     this.debug = new DebugOverlay(this, this.worldLayer, this.uiLayer, this.world, this.views, fontPx);
 
-    this.dimOverlay = this.add.rectangle(0, 0, 10, 10, 0x000010, 1).setOrigin(0, 0).setAlpha(0);
-    this.uiLayer.add(this.dimOverlay);
     this.koBlast = new KoBlast(this, this.uiLayer);
     this.targetView = this.isTargets ? new TargetView(this, this.worldLayer, this.world) : null;
     if (this.launch) this.launchView = new LaunchView(this, this.worldLayer, this.launch, bestLaunch(this.slots[0].character), stage.blast.right - 400);
@@ -856,7 +861,27 @@ export class MatchScene extends Phaser.Scene {
       cx += (mx - cx) * this.cinT;
       cy += (my - cy) * this.cinT;
     }
-    this.dimOverlay.setAlpha(0.45 * this.cinT);
+    // a non-cinematic ultimate winding up: a quick super flash, pushing in on the caster and dimming the stage
+    let caster: Fighter | undefined;
+    if (!cin) for (const f of this.fighters) if (f.state === 'attack' && f.move?.kind === 'ultimate' && !f.move.cinematic && f.moveFrame <= f.move.startup + 6) caster = f;
+    if (caster) {
+      this.ultFocusX = caster.x;
+      this.ultFocusY = caster.y - caster.h / 2;
+    }
+    this.ultT = caster ? Math.min(1, this.ultT + 0.14) : Math.max(0, this.ultT - 0.07);
+    if (this.ultT > 0) {
+      zoom *= 1 + 0.32 * this.ultT;
+      cx += (this.ultFocusX - cx) * this.ultT * 0.6;
+      cy += (this.ultFocusY - cy) * this.ultT * 0.6;
+    }
+    const dim = Math.max(0.5 * this.cinT, 0.4 * this.ultT);
+    this.dimOverlay.setAlpha(dim).setVisible(dim > 0);
+    if (dim > 0) {
+      // world space: cover well past the view whatever the zoom
+      const vw = this.scale.width / zoom;
+      const vh = this.scale.height / zoom;
+      this.dimOverlay.setPosition(cx - vw, cy - vh).setSize(vw * 2, vh * 2);
+    }
 
     // crisp pixels: when close to an even zoom (1 art pixel = zoom/2 device px) snap to it, and snap the
     // camera centre to whole device pixels so sprites never swim between pixel grids
@@ -1305,7 +1330,6 @@ export class MatchScene extends Phaser.Scene {
     this.helpText.setOrigin(0, 0);
     this.toast.setScale(u * 2).setPosition(w / 2, m * 4);
     this.pauseOverlay.setSize(w, h);
-    this.dimOverlay.setSize(w, h);
     this.trainText.setScale(u).setOrigin(0, 0);
     this.placeTrainText();
     this.pauseText.setScale(u * 2).setPosition(w / 2, h * 0.3);
