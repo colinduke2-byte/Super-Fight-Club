@@ -16,7 +16,7 @@
    "w": 12,
    "h": 8,
    "health": 3,
-   "limit": 2,
+   "limit": 1,
    "armFrames": 20,
    "life": 900,
    "gravity": true,
@@ -38,7 +38,8 @@
    "look": {
     "shape": "mine",
     "color": "#ff5aa0"
-   }
+   },
+   "replaceOldest": true
   }
  },
  "moves": {
@@ -1592,6 +1593,94 @@
    "view": {
     "squash": 0.92
    }
+  },
+  "detonate": {
+   "name": "Detonate",
+   "kind": "special",
+   "anim": "castD",
+   "startup": 3,
+   "active": 1,
+   "recovery": 11,
+   "events": [
+    {
+     "frame": 3,
+     "action": "custom",
+     "name": "detonate",
+     "args": [
+      36
+     ]
+    }
+   ],
+   "hitboxes": [],
+   "pose": {
+    "keys": [
+     [
+      -2,
+      4,
+      [
+       -2,
+       -6
+      ],
+      [
+       -4,
+       -4
+      ],
+      [
+       4,
+       0
+      ],
+      [
+       -4,
+       0
+      ]
+     ],
+     [
+      2,
+      9,
+      [
+       12,
+       4
+      ],
+      [
+       -4,
+       -4
+      ],
+      [
+       8,
+       0
+      ],
+      [
+       -8,
+       0
+      ]
+     ],
+     [
+      0,
+      5,
+      [
+       6,
+       0
+      ],
+      [
+       -4,
+       -2
+      ],
+      [
+       6,
+       0
+      ],
+      [
+       -6,
+       0
+      ]
+     ]
+    ],
+    "t": "custom"
+   },
+   "view": {
+    "squash": 0.92
+   },
+   "hidden": true
   },
   "ultimate": {
    "name": "Pirate King's Raid",

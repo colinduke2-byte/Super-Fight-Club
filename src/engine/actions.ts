@@ -13,9 +13,19 @@ const tmpRect = [0, 0, 0, 0];
 /** Runs one frame-timed move event for fighter `f`. */
 export function executeMoveEvent(f: Fighter, ev: MoveEvent, inp: FighterInput, world: World): void {
   switch (ev.action) {
-    case 'projectile':
-      world.spawnProjectile(f.id, ev.id, f.x + f.facing * ev.x, f.y + ev.y, f.facing * ev.vx, ev.vy, f.outMul * chargeScale(f));
+    case 'projectile': {
+      let vx = f.facing * ev.vx;
+      let vy = ev.vy;
+      if (ev.aim && Math.abs(inp.stickY) > 0.3) {
+        // tilt the shot with the stick (up to 25 degrees either way)
+        const a = (-Math.sign(inp.stickY) * Math.min(1, Math.abs(inp.stickY)) * 25 * Math.PI) / 180;
+        const c = Math.cos(a);
+        const s = Math.sin(a);
+        [vx, vy] = [vx * c + vy * s * f.facing, -Math.abs(vx) * s + vy * c];
+      }
+      world.spawnProjectile(f.id, ev.id, f.x + f.facing * ev.x, f.y + ev.y, vx, vy, f.outMul * chargeScale(f));
       break;
+    }
     case 'deploy':
       world.spawnDeployable(f.id, ev.id, f.x + f.facing * ev.x, f.y + ev.y);
       break;

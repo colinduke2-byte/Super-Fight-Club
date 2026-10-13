@@ -232,7 +232,7 @@ export interface CharacterData {
   /** Jet hover (Peach-style float): hold Jump while falling to hang in the air for up to `frames` per airtime; aerials keep hovering. */
   hover?: { frames: number; drift: number };
   /** Wings: holding Jump while falling slows the fall (`fall` px/frame), speeds up air drift (`speed` x) for at most `max` frames per airtime. */
-  glide?: { fall: number; speed: number; max: number };
+  glide?: { fall: number; speed: number; max: number; /** Move started by Attack while gliding (a diving glide attack). */ attack?: string };
   dash?: { speed: number; frames: number; invuln: [number, number]; cooldown: number };
   /** HUD resource bar (Heat, Scrap...): drawn as a glowing seam on the player plate; sprite glows once `hotAt` is reached. */
   hud?: { resource: string; max: number; color: number; hotAt: number; /** Per-element seam colours picked by `res[colorKey]`. */ colors?: number[]; colorKey?: string; /** Tick marks on the seam (level thresholds). */ marks?: number[] };

@@ -1243,6 +1243,8 @@ export class Fighter implements Body {
     if (!grounded) {
       this.buffer.consume(smashBtn ? Button.Smash : Button.Attack);
       let id = 'nair';
+      const ga = this.data.glide?.attack;
+      if (this.gliding && ga && this.data.moves[ga]) return this.startMove(ga, inp, world);
       if (up) id = 'uair';
       else if (down) id = 'dair';
       else if (side) id = inp.stickX * this.facing > 0 ? 'fair' : 'bair';

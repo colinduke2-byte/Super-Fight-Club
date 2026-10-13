@@ -920,8 +920,10 @@ export class CpuController implements Controller {
     if (ai.detonate && self.grounded && usable(ai.detonate.slot) && !this.cooldownBusy('det', 60)) {
       const r = ai.detonate.range;
       for (const d of world.deployables) {
-        if (!d.active || d.owner !== self.id || !d.plat || Math.abs(d.x - self.x) > r) continue;
-        if (Math.abs(tgt.x - d.x) < 46 && tgt.y > d.plat.top - 60 && tgt.y < d.y + 4 && this.rnd() < 0.6) {
+        if (!d.active || d.owner !== self.id || Math.abs(d.x - self.x) > r) continue;
+        // a pillar (Obelisk) to burst, or a remote trap (Vex's mine) to set off
+        const near = d.plat ? Math.abs(tgt.x - d.x) < 46 && tgt.y > d.plat.top - 60 && tgt.y < d.y + 4 : !!d.def?.trigger && Math.abs(tgt.x - d.x) < 34 && Math.abs(tgt.y - d.y) < 40;
+        if (near && this.rnd() < 0.6) {
           fire(ai.detonate.slot, 'det', false);
           return true;
         }
@@ -943,6 +945,8 @@ export class CpuController implements Controller {
     }
     if (p.smart && self.grounded && !stalled) {
       for (const slot of ai.setups) {
+        // a remote trap already out: pressing its slot again would set it off, so leave it to the detonate logic
+        if (ai.detonate?.slot === slot && world.deployables.some((d) => d.active && d.owner === self.id && !!d.def?.trigger)) continue;
         if (dist > 70 && dist < 300 && usable(slot) && this.rnd() < 0.25 && !this.cooldownBusy(`s${slot}`, 150)) {
           fire(slot, slot, false);
           return true;

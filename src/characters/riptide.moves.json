@@ -60,6 +60,10 @@
    "look": {
     "shape": "whirlpool",
     "color": "#3ab8ff"
+   },
+   "pull": {
+    "radius": 80,
+    "strength": 0.9
    }
   }
  },
@@ -88,6 +92,12 @@
      "button": "grab",
      "into": "grab",
      "from": 6
+    },
+    {
+     "button": "special",
+     "into": "sideB",
+     "from": 6,
+     "dir": "side"
     }
    ],
    "hitboxes": [
@@ -222,6 +232,12 @@
      "button": "grab",
      "into": "grab",
      "from": 13
+    },
+    {
+     "button": "special",
+     "into": "sideB",
+     "from": 10,
+     "dir": "side"
     }
    ],
    "hitboxes": [
@@ -278,6 +294,12 @@
      "into": "utilt",
      "from": 13,
      "dir": "up"
+    },
+    {
+     "button": "special",
+     "into": "upB",
+     "from": 9,
+     "dir": "up"
     }
    ],
    "hitboxes": [
@@ -331,6 +353,12 @@
      "into": "sideB",
      "from": 10,
      "dir": "forward"
+    },
+    {
+     "button": "special",
+     "into": "sideB",
+     "from": 7,
+     "dir": "side"
     }
    ],
    "hitboxes": [
@@ -373,6 +401,12 @@
      "button": "grab",
      "into": "grab",
      "from": 9
+    },
+    {
+     "button": "special",
+     "into": "sideB",
+     "from": 10,
+     "dir": "side"
     }
    ],
    "hitboxes": [
@@ -1224,12 +1258,12 @@
    "name": "Tidal Shot",
    "kind": "special",
    "anim": "castF",
-   "startup": 13,
+   "startup": 11,
    "active": 1,
    "recovery": 20,
    "events": [
     {
-     "frame": 13,
+     "frame": 11,
      "action": "projectile",
      "id": "tidal",
      "x": 20,
@@ -1238,7 +1272,7 @@
      "vy": -1.6
     },
     {
-     "frame": 13,
+     "frame": 11,
      "action": "fx",
      "name": "cast"
     }

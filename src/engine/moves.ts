@@ -65,7 +65,7 @@ export interface HitboxDef {
 
 /** Things a move does at a given frame, in addition to its hitboxes. Positions are forward-relative from the feet. */
 export type MoveEvent =
-  | { frame: number; /** Only runs if the move's charge is at least this fraction (hold-to-activate effects). */ minCharge?: number; action: 'projectile'; id: string; x: number; y: number; vx: number; vy: number }
+  | { frame: number; /** Only runs if the move's charge is at least this fraction (hold-to-activate effects). */ minCharge?: number; action: 'projectile'; id: string; x: number; y: number; vx: number; vy: number; /** Up / down on the stick tilts the shot up to 25 degrees. */ aim?: boolean }
   | { frame: number; /** Only runs if the move's charge is at least this fraction (hold-to-activate effects). */ minCharge?: number; action: 'deploy'; id: string; x: number; y: number }
   | { frame: number; /** Only runs if the move's charge is at least this fraction (hold-to-activate effects). */ minCharge?: number; action: 'teleport'; dist: number; dir?: 'stick8' | 'forward' | 'up' | 'up8' | 'back'; /** Deployable id to drop at the departure point (Blink marker). */ leaveMarker?: string }
   | { frame: number; /** Only runs if the move's charge is at least this fraction (hold-to-activate effects). */ minCharge?: number; action: 'recall'; id: string }
@@ -233,6 +233,8 @@ export interface ProjectileDef {
 export interface DeployableDef {
   w: number;
   h: number;
+  /** A vortex: rivals within `radius` px (horizontally, near its height) are dragged toward it, up to `strength` px a frame. */
+  pull?: { radius: number; strength: number };
   health: number;
   /** Frames until it expires (0 = permanent). */
   life?: number;

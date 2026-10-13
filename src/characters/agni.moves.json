@@ -328,6 +328,12 @@
      "button": "smash",
      "into": "fsmash",
      "from": 5
+    },
+    {
+     "button": "special",
+     "into": "upB",
+     "from": 5,
+     "dir": "up"
     }
    ],
    "hitboxes": [
@@ -462,6 +468,18 @@
      "into": "neutralB",
      "from": 6,
      "dir": "neutral"
+    },
+    {
+     "button": "special",
+     "into": "sideB",
+     "from": 6,
+     "dir": "side"
+    },
+    {
+     "button": "special",
+     "into": "upB",
+     "from": 6,
+     "dir": "up"
     }
    ],
    "motion": [
@@ -573,6 +591,18 @@
      "button": "jump",
      "into": "@jump",
      "from": 5
+    },
+    {
+     "button": "special",
+     "into": "sideB",
+     "from": 5,
+     "dir": "side"
+    },
+    {
+     "button": "special",
+     "into": "upB",
+     "from": 5,
+     "dir": "up"
     }
    ],
    "hitboxes": [
@@ -621,6 +651,12 @@
     {
      "button": "attack",
      "into": "utilt",
+     "from": 8,
+     "dir": "up"
+    },
+    {
+     "button": "special",
+     "into": "upB",
      "from": 8,
      "dir": "up"
     }
@@ -1941,12 +1977,34 @@
      "y": -30,
      "w": 30,
      "h": 40,
+     "damage": 8.86,
+     "angle": 80,
+     "base": 48,
+     "scaling": 0.85,
+     "hitlag": 1.5,
+     "fx": "fire",
+     "window": [
+      1,
+      2
+     ],
+     "group": 0
+    },
+    {
+     "x": 8,
+     "y": -30,
+     "w": 30,
+     "h": 40,
      "damage": 5.54,
      "angle": 86,
      "base": 34,
      "scaling": 0.7,
      "hitlag": 1.1,
-     "fx": "fire"
+     "fx": "fire",
+     "window": [
+      3,
+      7
+     ],
+     "group": 0
     }
    ],
    "pose": {
@@ -1961,7 +2019,11 @@
     "stretch": 1.14,
     "smear": 1.4,
     "ghosts": true
-   }
+   },
+   "invuln": [
+    1,
+    5
+   ]
   },
   "upB_1": {
    "name": "Rising Flare",
@@ -1998,12 +2060,34 @@
      "y": -30,
      "w": 30,
      "h": 40,
+     "damage": 10.69,
+     "angle": 80,
+     "base": 50,
+     "scaling": 0.9,
+     "hitlag": 1.5,
+     "fx": "fire",
+     "window": [
+      1,
+      2
+     ],
+     "group": 0
+    },
+    {
+     "x": 8,
+     "y": -30,
+     "w": 30,
+     "h": 40,
      "damage": 6.68,
      "angle": 86,
      "base": 36,
      "scaling": 0.75,
      "hitlag": 1.1,
-     "fx": "fire"
+     "fx": "fire",
+     "window": [
+      3,
+      7
+     ],
+     "group": 0
     }
    ],
    "pose": {
@@ -2018,7 +2102,11 @@
     "stretch": 1.16,
     "smear": 1.5,
     "ghosts": true
-   }
+   },
+   "invuln": [
+    1,
+    5
+   ]
   },
   "upB_2": {
    "name": "Rising Flare",
@@ -2055,17 +2143,39 @@
      "y": -30,
      "w": 30,
      "h": 40,
+     "damage": 12.32,
+     "angle": 80,
+     "base": 54,
+     "scaling": 0.97,
+     "hitlag": 1.5,
+     "fx": "fire",
+     "window": [
+      1,
+      2
+     ],
+     "group": 0
+    },
+    {
+     "x": 8,
+     "y": -30,
+     "w": 30,
+     "h": 40,
      "damage": 7.7,
      "angle": 86,
      "base": 40,
      "scaling": 0.82,
      "hitlag": 1.1,
-     "fx": "fire"
+     "fx": "fire",
+     "window": [
+      3,
+      7
+     ],
+     "group": 0
     }
    ],
    "invuln": [
     1,
-    9
+    5
    ],
    "pose": {
     "hand": "front",
@@ -2116,6 +2226,28 @@
      "y": -30,
      "w": 30,
      "h": 40,
+     "damage": 14.78,
+     "angle": 80,
+     "base": 60,
+     "scaling": 1.1,
+     "hitlag": 1.5,
+     "fx": "fire",
+     "status": {
+      "type": "burn",
+      "frames": 90,
+      "value": 0.04
+     },
+     "window": [
+      1,
+      2
+     ],
+     "group": 0
+    },
+    {
+     "x": 8,
+     "y": -30,
+     "w": 30,
+     "h": 40,
      "damage": 9.24,
      "angle": 86,
      "base": 46,
@@ -2126,7 +2258,12 @@
       "type": "burn",
       "frames": 90,
       "value": 0.04
-     }
+     },
+     "window": [
+      3,
+      7
+     ],
+     "group": 0
     }
    ],
    "invuln": [

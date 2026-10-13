@@ -72,7 +72,7 @@ export const halcyon: CharacterData = {
     jumpsquatFrames: 4,
   },
   body: { width: 16, height: 29, footHalfWidth: 5 },
-  glide: { fall: 1.05, speed: 1.15, max: 80 },
+  glide: { fall: 1.05, speed: 1.15, max: 80, attack: 'glideAttack' },
   sprite: {
     frameSize: 240,
     frameWidth: 288, // room for the spear and the wings

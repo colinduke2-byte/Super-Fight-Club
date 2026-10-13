@@ -184,14 +184,23 @@ describe('Shadow Climb (recovery)', () => {
 });
 
 describe('Snare Mine', () => {
-  it('holds at most 2 mines; a third is refused', () => {
+  it('one mine at a time; down special again sets it off by remote', () => {
     const r = rig(300);
-    for (let i = 0; i < 3; i++) {
-      r.a.x = -100 + i * 40;
-      r.a.startMove('downB', null, r.world);
-      r.run(30);
-    }
-    expect(r.world.countDeployables(0, 'mine')).toBe(2);
+    r.a.startMove('downB', null, r.world);
+    r.run(30);
+    expect(r.world.countDeployables(0, 'mine')).toBe(1);
+    const m = r.world.findDeployables(0, 'mine')[0];
+    r.b.spawn(m.x + 10, -1, -1);
+    r.b.invuln = 0;
+    r.b.x = m.x + 24; // near it, but not touching
+    r.a.x = m.x - 120;
+    r.run(2);
+    expect(m.active).toBe(true);
+    r.tick(press(Button.Special, { stickY: 1 }));
+    expect(r.a.move?.id).toBe('detonate');
+    r.run(6);
+    expect(r.world.countDeployables(0, 'mine')).toBe(0);
+    expect(r.b.damage).toBeGreaterThan(5);
   });
 
   it('triggers on an enemy, launching them upward, and ignores its owner', () => {

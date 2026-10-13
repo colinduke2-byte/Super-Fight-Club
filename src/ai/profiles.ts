@@ -108,6 +108,7 @@ export const CHARACTER_AI: Record<string, CharacterAi> = {
     recovery: { slot: 'upB', up: 110, out: 110, aim: 'stick8' },
     ultimateRange: 70,
     spacing: 30,
+    detonate: { slot: 'downB', range: 400 },
   },
   nova: {
     ...GENERIC,

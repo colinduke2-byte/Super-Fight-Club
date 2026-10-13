@@ -1,4 +1,5 @@
 import type { CharacterBehavior } from '../engine/behavior';
+import { detonateDeployable } from '../engine/entityCombat';
 import { moveTotal, parseMoves, validateReferences, type CharacterJson } from '../engine/moves';
 import type { CharacterData } from '../engine/types';
 import { applyMovePoses } from '../engine/movePoses';
@@ -27,6 +28,8 @@ const behavior: CharacterBehavior = {
     f.res.markerTime = m ? Math.max(0, (1 - m.age / MARKER_LIFE) * 100) : 0;
   },
   chooseMove(f, id, world) {
+    // Snare Mine: press down special again to set it off by remote (once it is armed)
+    if (id === 'downB') return world.findDeployables(f.id, 'mine').some((m) => m.age >= (m.def?.armFrames ?? 0)) ? 'detonate' : id;
     if (id !== 'neutralB') return id;
     if (world.findDeployables(f.id, 'marker').length > 0) return 'recall'; // press special again to return
     if (!f.grounded && (f.res.blinkAir ?? 0) <= 0) return null; // one air blink per airtime
@@ -34,6 +37,10 @@ const behavior: CharacterBehavior = {
   },
   onMoveStart(f, m) {
     if (m.id === 'neutralB' && !f.grounded) f.res.blinkAir = 0;
+  },
+  onMoveEvent(f, name, args, world) {
+    if (name !== 'detonate') return;
+    for (const m of world.findDeployables(f.id, 'mine')) detonateDeployable(world, m, args[0] ?? 36);
   },
   onHitDealt(f) {
     // Dive Kick bounces off the opponent

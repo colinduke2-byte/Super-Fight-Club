@@ -47,7 +47,7 @@ export const agni: CharacterData = {
   },
   stats: {
     weight: 92,
-    runSpeed: 1.95,
+    runSpeed: 2.25,
     airSpeed: 1.7,
     groundAccel: 0.25,
     groundFriction: 0.3,

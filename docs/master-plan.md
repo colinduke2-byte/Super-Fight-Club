@@ -9,17 +9,17 @@ Names chosen: **Rime** (frost ninja), **Havoc** (gadget soldier), **Frostfang Sh
 (the airship).
 
 ## 1. Fun pass for the rest of the roster (cues in brackets)
-- [ ] **Vex** (Sheik / Fox): already the reference. Polish: a jab finisher that links into dash attack, fair landing
-      hitbox, Blink Strike can be aimed diagonally on the ground, mine detonation on command (press down special again).
-- [ ] **Agni** (Ken / Captain Falcon): a Shoryuken-style input reward: up special with a sweetspot first frame, a command
-      dash (Flame Step) that cancels into any normal, Flame level 3 lets specials cancel into each other.
-- [ ] **Halcyon** (Pit / Meta Knight): glide attack out of the glide, a Wing Shield counter on Wing Buffet's startup,
-      Javelin can be tilted up and down, Falcon Dive bounce chains into a second dive once.
-- [ ] **Riptide** (Incineroar / King Dedede): a Revenge-style counter that powers the next throw, wave-ride dash on soaked
-      floors, side special command grab that drags along the ground, Whirlpool pulls items too.
-- [ ] **Nova** (Zelda / Robin): bolts can be aimed up/down, rune traps detonate on command, Elemental Convergence beams
-      follow the stick.
-- [ ] Shared: every fighter gets at least two hit-confirm routes and one "toy" the CPU knows how to use.
+- [x] **Vex** (Snake's C4): Snare Mine is one at a time and down special again sets it off by remote; the CPU detonates it
+      when a rival walks near.
+- [x] **Agni** (Ken): Rising Flare is a Shoryuken (a frame 1-2 sweetspot at 1.6x, intangible start); tilts, jab and dash
+      attack cancel into Spin Kick / Rising Flare on hit; faster run.
+- [x] **Halcyon** (Pit / Meta Knight): Talon Dive, a diving lance attack out of the glide (Attack while gliding); the
+      Javelin comes out 3 frames sooner and tilts up or down with the stick.
+- [x] **Riptide** (Incineroar / Dedede): the Whirlpool drags nearby rivals in; jab, tilts and dash attack confirm into
+      Shark Lunge, up tilt into Waterspout; Tidal Wave 2 frames quicker.
+- [x] **Nova**: Spell Bolts tilt up or down with the stick.
+- [x] Shared: an engine `aim` flag for projectile events, `glide.attack`, deployable `pull` vortices, remote
+      detonation (`detonateDeployable`), and the CPU knows when to set traps off.
 
 ## 2. New fighter: Rime, the frost ninja (cues: Sheik, Greninja)
 - [ ] Lightest and fastest fighter (weight ~78, run 3.3, three-frame jab, two double jumps, wall cling).

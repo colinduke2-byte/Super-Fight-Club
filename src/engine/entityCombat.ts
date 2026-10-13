@@ -168,6 +168,18 @@ function updateDeployables(world: World): void {
       }
     }
     if (def.turret && d.age >= (def.armFrames ?? 0)) runTurret(world, d);
+    if (def.pull) pullToward(world, d, def.pull.radius, def.pull.strength);
+  }
+}
+
+/** A vortex (Riptide's Whirlpool): rivals standing near it are dragged toward its centre, harder the closer they get. */
+function pullToward(world: World, d: Deployable, radius: number, strength: number): void {
+  for (const f of world.fighters) {
+    if (f.id === d.owner || f.state === 'ko' || f.state === 'grabbed' || f.state === 'ledge' || world.allied(d.owner, f.id)) continue;
+    const dx = d.x - f.x;
+    if (Math.abs(dx) > radius || Math.abs(f.y - d.y) > 40) continue;
+    const k = 1 - Math.abs(dx) / radius;
+    f.x += Math.sign(dx) * Math.min(Math.abs(dx), strength * (0.4 + 0.6 * k));
   }
 }
 
@@ -313,6 +325,31 @@ export function destroyDeployable(world: World, d: Deployable, byFighter: number
   if (owner && def.reward) owner.res[def.reward.key] = (owner.res[def.reward.key] ?? 0) + def.reward.add;
   world.emit('deployableDestroyed', owner, d.x, d.y - def.h / 2, byFighter, d.owner);
   owner?.data.behavior?.onDeployableDestroyed?.(owner, d.defId, world);
+}
+
+/**
+ * Set off a trigger deployable on command (remote mines, C4): every rival within `radius` px of it takes its trigger hit,
+ * then it is gone. Returns how many fighters it caught.
+ */
+export function detonateDeployable(world: World, d: Deployable, radius: number): number {
+  const def = d.def;
+  const trig = def?.trigger;
+  if (!d.active || !def || !trig) return 0;
+  let n = 0;
+  const owner = world.fighters[d.owner] ?? null;
+  const cy = d.y - def.h / 2;
+  for (const f of world.fighters) {
+    if (f.id === d.owner || f.state === 'ko' || f.invuln > 0 || f.state === 'grabbed' || world.allied(d.owner, f.id)) continue;
+    hurtRect(f, rB);
+    const nx = Math.max(rB[0], Math.min(d.x, rB[0] + rB[2]));
+    const ny = Math.max(rB[1], Math.min(cy, rB[1] + rB[3]));
+    if (Math.hypot(nx - d.x, ny - cy) > radius) continue;
+    deliverHit(world, { atk: owner, ownerId: d.owner, def: f, hb: trig.hit, damage: trig.hit.damage * d.damageMul, facing: d.facing, originX: d.x, kbMult: 1, freezeOwner: false });
+    n++;
+  }
+  world.emit('deployableTrigger', owner ?? world.fighters[0], d.x, cy, radius, trig.hit.damage);
+  d.deactivate();
+  return n;
 }
 
 function triggerDeployables(world: World): void {
