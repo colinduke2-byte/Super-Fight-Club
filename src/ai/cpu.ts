@@ -73,6 +73,7 @@ export class CpuController implements Controller {
   private diOn = false;
   private lastHitstunFrame = -1;
   private techTried = false;
+  private techOn = false;
   private ledgeWait = 0;
   private holdPummels = 0;
   private mashToggle = false;
@@ -561,7 +562,10 @@ export class CpuController implements Controller {
   private hitstun(self: Fighter, world: World): void {
     if (self.stateFrame <= this.lastHitstunFrame) this.techTried = false; // new hit
     this.lastHitstunFrame = self.stateFrame;
-    if (self.stateFrame <= 1) this.diOn = this.rnd() < this.params.di;
+    if (self.stateFrame <= 1) {
+      this.diOn = this.rnd() < this.params.di;
+      this.techOn = this.rnd() < this.params.tech; // one decision per hit
+    }
     if (this.diOn) {
       const center = this.mainPlatform(world);
       // bend the launch toward the stage centre (applied once when the hitlag ends, see Fighter.applyDirectionalInfluence)
@@ -573,12 +577,24 @@ export class CpuController implements Controller {
     }
     // combo breaker: a sharp CPU caught in a long combo with enough meter bursts out
     if (this.params.smart && self.comboHits >= 5 && self.meter >= 50 && this.rnd() < 0.06 * this.params.punish) this.held |= Button.Ultimate;
-    // tech: press shield just before touching a surface
-    if (!this.techTried && !self.grounded && self.vy > 1 && self.techLock === 0 && this.rnd() < this.params.tech) {
+    // tech: press shield just before slamming into a floor, wall or ceiling (a missed tech bounces and can splat)
+    if (!this.techTried && !self.grounded && self.techLock === 0 && this.techOn) {
+      const hw = self.hw;
       for (const pl of world.platforms) {
-        if (self.x < pl.x - 4 || self.x > pl.right + 4) continue;
-        const gap = pl.top - self.y;
-        if (gap >= -2 && gap <= self.vy * 3 + 4) {
+        let soon = false;
+        if (self.vy > 1 && self.x >= pl.x - 4 && self.x <= pl.right + 4) {
+          const gap = pl.top - self.y;
+          soon = gap >= -2 && gap <= self.vy * 3 + 4;
+        }
+        if (!soon && pl.kind === 'solid' && Math.abs(self.vx) >= 3 && self.y > pl.top + 2 && self.y - self.h < pl.top + pl.h) {
+          const gap = self.vx > 0 ? pl.x - (self.x + hw) : self.x - hw - pl.right;
+          soon = gap >= -2 && gap <= Math.abs(self.vx) * 3 + 4;
+        }
+        if (!soon && pl.kind === 'solid' && self.vy < -3 && self.x >= pl.x && self.x <= pl.right) {
+          const gap = self.y - self.h - (pl.top + pl.h);
+          soon = gap >= -2 && gap <= -self.vy * 3 + 4;
+        }
+        if (soon) {
           this.held |= Button.Shield;
           this.techTried = true;
           break;

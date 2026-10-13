@@ -441,6 +441,25 @@ built over its cave (`src/characters/obelisk.*`, `obeliskPillars.ts`). Its **cry
   (fire orange, lightning yellow, ice blue, blast, shock).
 - Other movement poses: `dash` (two-stride loop), `skid` (braking), `roll`, `held` (dangling in a grab).
 
+## Combat physics (`src/engine/physics.ts`)
+
+Bodies and objects interact, so every launch, wall and stray item is part of the fight:
+
+- **Human projectiles:** a fighter in hitstun flying at 5.5 px/frame or faster crashes into anyone in their path. The one hit
+  takes damage by the speed (2-13%) and is knocked along the flier's path, credited to whoever made the launch; the flier takes
+  40% of it and loses momentum. Weight matters: a heavy body ploughs through a light one, a light one glances off a heavy one.
+  Once per pair per launch; the launcher and teammates of either side are spared. Fliers stream smoke while they are dangerous.
+- **Splats:** an untech'd slam into a floor, wall or ceiling at 6.5 px/frame or more deals damage by impact speed (up to 9%),
+  credited to the launcher, with a crunch and a jolt. Teching (Shield just before impact) avoids it; CPUs tech floors, walls
+  and ceilings (Normal about half the time, Hard always).
+- **Momentum hits:** an attacker moving into its own melee hit (a dash attack, a drifting aerial) carries part of its speed into
+  the launch (up to +2 px/frame). Backing away adds nothing.
+- **Items are physics objects:** attacks bat loose items around (they bounce, slide and settle; the hitter cannot catch the
+  item for a moment). A knocked Shock Bomb arms and flies for the hitter. A fast knocked item bumps the first rival it meets
+  (4%, credited to the knocker), then drops.
+- **Launch-path preview (training):** every launching hit draws the no-DI flight path: orange while it is fast enough to crash
+  into others, a ring where it lands, a red cross where it would KO.
+
 ## Phase 16-17: content foundations and deeper mechanics
 
 **Data-driven effects.** Every character's visuals beyond the sprite live in `src/characters/<id>.fx.json` (named recipes for move events,
