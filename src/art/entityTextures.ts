@@ -187,6 +187,19 @@ export function buildEntityTextures(scene: Phaser.Scene): void {
     for (const x of [3, 9, 15]) px(g, '#e0e0f0', x, 0, 2, 2);
     add('dep-mine', c);
   }
+  // soft radial halo 32x32 behind item pickups (tinted per kind, drawn additively)
+  {
+    const [c, g] = mk(32, 32);
+    for (let y = 0; y < 32; y++) {
+      for (let x = 0; x < 32; x++) {
+        const d = Math.hypot(x - 15.5, y - 15.5) / 15.5;
+        if (d >= 1) continue;
+        g.fillStyle = `rgba(255,255,255,${((1 - d) ** 2 * 0.9).toFixed(3)})`;
+        g.fillRect(x, y, 1, 1);
+      }
+    }
+    add('item-glow', c);
+  }
   // mine blinking light 4x4
   {
     const [c, g] = mk(4, 4);

@@ -31,6 +31,9 @@ function itemTexture(kind: string): string {
   return k;
 }
 
+/** Halo colour behind each item kind, so pickups read against busy stages. */
+const ITEM_GLOW: Record<string, number> = { heal: 0x5fe08a, cell: 0xffd04a, boost: 0xff6a5a, aegis: 0xfff4ff, bomb: 0x3ad0e8 };
+
 function lightTint(hex: string): number {
   let c = LIGHT_TINT.get(hex);
   if (c === undefined) {
@@ -48,6 +51,7 @@ export class EntityViews {
   private readonly barriers: Phaser.GameObjects.Image[] = [];
   private readonly tether: Phaser.GameObjects.Graphics;
   private readonly items: Phaser.GameObjects.Image[] = [];
+  private readonly itemGlow: Phaser.GameObjects.Image[] = [];
   /** Per fighter: the crystal colour of its palette (null = the data's own), for pillars and shards. */
   private crystal: (string | null)[] = [];
 
@@ -75,8 +79,11 @@ export class EntityViews {
       this.barriers.push(b);
     }
     for (let i = 0; i < MAX_ITEMS; i++) {
-      const s = scene.add.image(0, 0, 'item-heal').setVisible(false).setScale(0.5);
+      const gl = scene.add.image(0, 0, 'item-glow').setVisible(false).setBlendMode(Phaser.BlendModes.ADD);
+      const s = scene.add.image(0, 0, 'item-heal').setVisible(false).setScale(0.6);
+      layer.add(gl);
       layer.add(s);
+      this.itemGlow.push(gl);
       this.items.push(s);
     }
     this.tether = scene.add.graphics().setDepth(5);
@@ -92,8 +99,10 @@ export class EntityViews {
     for (let i = 0; i < this.items.length; i++) {
       const it = w.items[i];
       const s = this.items[i];
+      const gl = this.itemGlow[i];
       if (!it.active) {
         s.setVisible(false);
+        gl.setVisible(false);
         continue;
       }
       if (it.thrown) {
@@ -101,10 +110,14 @@ export class EntityViews {
         const fast = it.fuse < 45 ? 2 : 3;
         s.setTexture('item-bomb').setVisible(true).setPosition(it.x, it.y).setRotation(tick * 0.35 * Math.sign(it.vx || 1));
         s.setTint((tick >> fast) % 2 === 0 ? 0xffffff : 0xff9a9a);
+        gl.setVisible(false);
         continue;
       }
       const blink = it.age > 600 && (tick >> 2) % 2 === 0;
-      s.setTexture(itemTexture(it.kind)).setVisible(!blink).setRotation(it.spin).clearTint().setPosition(it.x, it.y + Math.sin(tick * 0.1 + i) * (it.resting && it.vx === 0 ? 1.2 : 0));
+      const y = it.y + Math.sin(tick * 0.1 + i) * (it.resting && it.vx === 0 ? 1.2 : 0);
+      s.setTexture(itemTexture(it.kind)).setVisible(!blink).setRotation(it.spin).clearTint().setPosition(it.x, y);
+      // a soft halo that breathes, in the item's colour
+      gl.setVisible(!blink).setPosition(it.x, y).setTint(ITEM_GLOW[it.kind] ?? 0xffffff).setScale(0.85 + 0.12 * Math.sin(tick * 0.12 + i)).setAlpha(0.85);
     }
     for (let i = 0; i < this.proj.length; i++) {
       const p = w.projectiles[i];
