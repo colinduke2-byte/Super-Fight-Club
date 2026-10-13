@@ -310,6 +310,16 @@ export class World {
     }
   }
 
+  /** Whether a captor is in a state that can hold a victim: holding, throwing, a command-grab move, or running a cinematic. */
+  private holdsGrab(a: Fighter): boolean {
+    if (a.state === 'holding' || this.cinematic?.attacker === a) return true;
+    const m = a.move;
+    if (a.state !== 'attack' || !m) return false;
+    if (m.kind === 'throw') return true;
+    for (const h of m.hitboxes) if (h.grab) return true;
+    return false;
+  }
+
   /** Keep grabbed fighters pinned to their captor and clean up broken grab links. */
   private fixGrabs(): void {
     const fs = this.fighters;
@@ -326,6 +336,10 @@ export class World {
         // victim got hit / KO'd out of the grab
         a.grabTarget = -1;
         if (a.state === 'holding') a.setState('idle');
+      } else if (!this.holdsGrab(a)) {
+        // the captor's grab move was cut short (landing, a hit, a cancel): it can no longer hold anyone, so let go
+        v.releaseGrab();
+        a.grabTarget = -1;
       } else if (a.state === 'holding' && a.holdTimer <= 0) {
         v.releaseGrab();
         a.grabTarget = -1;

@@ -33,6 +33,26 @@ describe('grabs', () => {
     expect(a.grabTarget).toBe(-1);
   });
 
+  it('a command grab cut short (landing, a cancel) lets go instead of holding the victim forever', () => {
+    const world = new World(classicStage);
+    const a = new Fighter(0, brick);
+    const b = new Fighter(1, brick);
+    world.addFighter(a);
+    world.addFighter(b);
+    a.spawn(-12, -1, 1);
+    b.spawn(12, -1, -1);
+    const ins = [makeInput(), makeInput()];
+    for (let i = 0; i < 130; i++) world.step(ins);
+    // the captor has a victim but is back to idle (its grab move ended without a throw)
+    a.grabTarget = b.id;
+    b.beGrabbed(a);
+    a.setState('idle');
+    world.step(ins);
+    expect(b.state).not.toBe('grabbed');
+    expect(b.grabbedBy).toBe(-1);
+    expect(a.grabTarget).toBe(-1);
+  });
+
   it('two fighters grabbing each other on the same frame end up with one holder and one victim, then both are free', () => {
     const world = new World(classicStage);
     const a = new Fighter(0, brick);

@@ -412,7 +412,7 @@ Sky Ascent (up special) is her recovery; Falcon Dive (down special) plunges spea
 
 ### Riptide: cyber-shark grappler
 
-Weight 102, middleweight, one double jump. A shark-headed gladiator with an anchor on a chain (reach on his tilts, smashes and
+Weight 106, a heavy middleweight, one double jump. A shark-headed gladiator with an anchor on a chain (reach on his tilts, smashes and
 fair) and a shark's jaws. His water moves **SOAK** whoever they hit (`src/characters/riptide.*`, `riptideSoak.ts`).
 
 - **Soak** is a status any fighter can carry: it stacks up to three levels (2 s each, dripping away), a soaked fighter takes
