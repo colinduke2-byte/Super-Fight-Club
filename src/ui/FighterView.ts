@@ -10,6 +10,27 @@ const BODY_SHIFT = 5;
 /** Hit-stop flash colour by the hit's fx tag. */
 const HIT_FLASH: Record<string, number> = { fire: 0xffa860, zap: 0xffff90, ice: 0xa8f0ff, blast: 0xffc080, meteor: 0xffd0d0, shock: 0xe0c0ff, water: 0x8adcff, crystal: 0xe0c0ff };
 
+/** [stretch, squash, lean] through an attack, by move kind. */
+const AV_SMASH = [1.08, 0.94, 0.1] as const;
+const AV_TILT = [1.05, 0.97, 0.06] as const;
+const AV_AERIAL = [1.03, 0.98, 0.05] as const;
+const AV_JAB = [1.04, 0.98, 0.04] as const;
+const AV_NONE = [1, 1, 0] as const;
+
+/** Aegis shimmer colours: the hue steps 0.02 per tick, so one cycle is 50 ticks (built on first use). */
+const AEGIS_STEPS = 50;
+let aegisColors: number[] | null = null;
+function aegisColor(tick: number): number {
+  if (!aegisColors) aegisColors = Array.from({ length: AEGIS_STEPS }, (_, i) => Phaser.Display.Color.HSVToRGB(i / AEGIS_STEPS, 0.55, 1).color);
+  return aegisColors[((tick % AEGIS_STEPS) + AEGIS_STEPS) % AEGIS_STEPS];
+}
+
+interface AttackView {
+  sx: number;
+  sy: number;
+  rot: number;
+}
+
 /** Renders one Fighter: interpolates between sim ticks so 120/144 Hz displays animate smoothly. */
 export class FighterView {
   readonly sprite: Phaser.GameObjects.Sprite;
@@ -31,6 +52,16 @@ export class FighterView {
   private spin = 0;
   private lastJumps = 0;
   private lastGhostTick = -9;
+  /** Sim time (tick + interpolation alpha) of the last update: effects advance by sim ticks, not render frames. */
+  private lastSimT = NaN;
+  /** Pose currently shown while posed (attack / holding), and animation key per anim name. */
+  private poseAnim = '';
+  private poseFrame = -1;
+  private readonly animKeys = new Map<string, string>();
+  private readonly av: AttackView = { sx: 1, sy: 1, rot: 0 };
+  /** Trail tint for the smear when it does not depend on the fighter's state (null = resolve each frame). */
+  private readonly trailTint: number | null;
+  private readonly accentHex: number;
   /** Two additive copies of the previous pose frames behind the strike: a motion-blur smear. */
   private readonly smear: Phaser.GameObjects.Sprite[] = [];
   /** Additive silhouette over the body: brightens towards a colour (charge, burn, stun) instead of a muddy multiply tint. */
@@ -55,6 +86,9 @@ export class FighterView {
     this.layer = layer;
     this.scene = scene;
     this.skin = skin ?? fighter.data.id;
+    const trail = fighter.data.fx?.trail;
+    this.trailTint = typeof trail === 'object' ? null : fighterTrailColor(fighter, 0);
+    this.accentHex = parseInt(fighter.data.sprite.placeholder.accent.slice(1), 16);
     const key = fighterTextureKey(this.skin);
     this.shadow = scene.add.image(0, 0, 'px').setTint(0x000000).setAlpha(0.25).setScale(5, 0.7);
     this.sprite = scene.add.sprite(0, 0, key, 0).setOrigin(0.5, 1).setScale(fighter.data.sprite.pixelScale);
@@ -99,6 +133,14 @@ export class FighterView {
     const a = f.snapped ? 1 : alpha;
     this.x = f.prevX + (f.x - f.prevX) * a;
     this.y = f.prevY + (f.y - f.prevY) * a;
+    // sim ticks elapsed since the last render (about 1 per frame at 60 Hz, ~0.42 at 144 Hz, 0 while paused)
+    const simT = tick + alpha;
+    let dt = 0;
+    if (!(simT >= this.lastSimT - 2)) this.lastSimT = simT; // first frame, or time went backwards (reset)
+    else if (simT > this.lastSimT) {
+      dt = Math.min(4, simT - this.lastSimT);
+      this.lastSimT = simT;
+    }
 
     const s = this.sprite;
     s.setVisible(f.state !== 'ko');
@@ -107,7 +149,7 @@ export class FighterView {
     // came back from a KO: light the way down until they land (or the invincibility runs out)
     if (this.wasKo && f.state !== 'ko') this.haloT = 1;
     this.wasKo = f.state === 'ko';
-    if (this.haloT > 0 && (f.grounded || f.invuln <= 0 || f.state === 'ko')) this.haloT = Math.max(0, this.haloT - 0.08);
+    if (this.haloT > 0 && (f.grounded || f.invuln <= 0 || f.state === 'ko')) this.haloT = Math.max(0, this.haloT - 0.08 * dt);
     const ha = this.haloT;
     this.halo.setVisible(ha > 0);
     this.beam.setVisible(ha > 0);
@@ -127,17 +169,23 @@ export class FighterView {
     if (posed) {
       // attack poses are driven by the move phase (wind-up / active / recovery), not by a timer
       const frame = f.state === 'holding' ? 1 : f.attackPhase;
-      const key = `${f.anim}#${frame}`;
-      if (key !== this.lastAnim) {
+      if (f.anim !== this.poseAnim || frame !== this.poseFrame) {
         s.anims.stop();
         s.setFrame(animFrameIndex(f.data, f.anim, frame));
-        this.lastAnim = key;
+        this.poseAnim = f.anim;
+        this.poseFrame = frame;
+        this.lastAnim = '';
       }
     } else {
-      const anim = fighterAnimKey(this.skin, f.anim);
+      let anim = this.animKeys.get(f.anim);
+      if (anim === undefined) {
+        anim = fighterAnimKey(this.skin, f.anim);
+        this.animKeys.set(f.anim, anim);
+      }
       if (anim !== this.lastAnim) {
         s.anims.play(anim, true);
         this.lastAnim = anim;
+        this.poseAnim = '';
       } else if (f.anim === 'jump' && f.jumpsLeft < this.lastJumps) {
         s.anims.restart(); // a double jump replays the take-off
       }
@@ -153,10 +201,10 @@ export class FighterView {
     const tumbling = f.state === 'hitstun' && !f.grounded && Math.hypot(f.vx, f.vy) > 5;
     const rolling = f.state === 'roll' || (f.state === 'tech' && Math.abs(f.vx) > 1);
     if (rolling) {
-      this.spin += Math.sign(f.vx || f.facing) * 0.45;
+      this.spin += Math.sign(f.vx || f.facing) * 0.45 * dt;
       s.setOrigin(0.5, 0.5).setPosition(s.x, this.y - f.h * 0.35 * f.sizeMul).setRotation(this.spin);
     } else if (tumbling) {
-      if (f.hitlag === 0) this.spin += Math.sign(f.vx || f.facing) * Math.min(0.5, Math.hypot(f.vx, f.vy) * 0.03);
+      if (f.hitlag === 0) this.spin += Math.sign(f.vx || f.facing) * Math.min(0.5, Math.hypot(f.vx, f.vy) * 0.03) * dt;
       s.setOrigin(0.5, 0.62).setPosition(s.x, this.y - f.h * 0.5 * f.sizeMul).setRotation(this.spin);
     } else {
       this.spin = 0;
@@ -210,7 +258,7 @@ export class FighterView {
     else s.clearTint();
     if (aegis) {
       // Aegis Core: a prismatic shimmer cycling through the spectrum, flickering out over the last second
-      glowCol = Phaser.Display.Color.HSVToRGB(((tick * 0.02) % 1 + 1) % 1, 0.55, 1).color;
+      glowCol = aegisColor(tick);
       glowA = (0.42 + 0.12 * Math.sin(tick * 0.5)) * (f.aegisFrames < 60 && (tick >> 2) % 2 === 0 ? 0.3 : 1);
     } else if (st.stun > 0) {
       glowCol = 0xffff60;
@@ -247,9 +295,9 @@ export class FighterView {
     } else g.setVisible(false);
 
     this.updateCombo(f);
-    this.updateOrb(f, tick);
+    this.updateOrb(f, tick, dt);
     this.updateCounter(f);
-    this.updateGhosts(f, tick);
+    this.updateGhosts(f, tick, dt);
     const bubble = this.bubble;
     const shielding = f.state === 'shield' || f.state === 'shieldstun';
     bubble.setVisible(shielding);
@@ -263,26 +311,26 @@ export class FighterView {
    * Body squash / stretch / lean through an attack's phases (anticipation squashes and leans back, the strike stretches and leans
    * into the hit, recovery settles). Tuned per move kind, overridable per move with `view`.
    */
-  private attackView(f: Fighter): { sx: number; sy: number; rot: number } {
+  private attackView(f: Fighter): AttackView {
     const m = f.move;
-    if (f.state !== 'attack' || !m) return { sx: 1, sy: 1, rot: 0 };
+    if (f.state !== 'attack' || !m) return setView(this.av, 1, 1, 0);
     const k = m.kind;
-    const d = k === 'smash' ? [1.08, 0.94, 0.1] : k === 'tilt' || k === 'dashAttack' ? [1.05, 0.97, 0.06] : k === 'aerial' ? [1.03, 0.98, 0.05] : k === 'jab' ? [1.04, 0.98, 0.04] : [1, 1, 0];
+    const d = k === 'smash' ? AV_SMASH : k === 'tilt' || k === 'dashAttack' ? AV_TILT : k === 'aerial' ? AV_AERIAL : k === 'jab' ? AV_JAB : AV_NONE;
     const st = m.view?.stretch ?? d[0];
     const sq = m.view?.squash ?? d[1];
     const lean = (m.view?.lean ?? d[2]) * f.facing;
     switch (f.attackPhase) {
       case 0:
       case 1:
-        return { sx: 1 + (1 - sq) * 0.7, sy: sq, rot: -lean * 0.6 };
+        return setView(this.av, 1 + (1 - sq) * 0.7, sq, -lean * 0.6);
       case 2:
-        return { sx: 1 + (st - 1) * 0.4, sy: 1 - (st - 1) * 0.3, rot: lean * 0.3 };
+        return setView(this.av, 1 + (st - 1) * 0.4, 1 - (st - 1) * 0.3, lean * 0.3);
       case 3:
-        return { sx: st, sy: 1 - (st - 1) * 0.8, rot: lean };
+        return setView(this.av, st, 1 - (st - 1) * 0.8, lean);
       case 4:
-        return { sx: 1 + (st - 1) * 0.4, sy: 1 - (st - 1) * 0.3, rot: lean * 0.5 };
+        return setView(this.av, 1 + (st - 1) * 0.4, 1 - (st - 1) * 0.3, lean * 0.5);
       default:
-        return { sx: 1, sy: 1, rot: 0 };
+        return setView(this.av, 1, 1, 0);
     }
   }
 
@@ -306,7 +354,7 @@ export class FighterView {
         .setFlipX(s.flipX)
         .setScale(av.sx * ps, av.sy * ps)
         .setRotation(s.rotation)
-        .setTint(fighterTrailColor(f, 0))
+        .setTint(this.trailTint ?? fighterTrailColor(f, 0))
         .setAlpha((i === 0 ? 0.34 : 0.18) * Math.min(1.5, strength) * (phase === 3 ? 1 : 0.7))
         .setVisible(true);
     }
@@ -342,11 +390,11 @@ export class FighterView {
   }
 
   /** Fade existing afterimages and drop new ones while the fighter is moving fast (dashes, lunges, big launches). */
-  private updateGhosts(f: Fighter, tick: number): void {
+  private updateGhosts(f: Fighter, tick: number, dt: number): void {
     for (let i = 0; i < this.ghosts.length; i++) {
       const g = this.ghosts[i];
       if (!g.visible) continue;
-      this.ghostLife[i]--;
+      this.ghostLife[i] -= dt;
       if (this.ghostLife[i] <= 0) g.setVisible(false);
       else g.setAlpha(0.5 * (this.ghostLife[i] / 7));
     }
@@ -354,8 +402,7 @@ export class FighterView {
     const fast = f.state === 'dash' || (f.state === 'attack' && (speed > 3.2 || (!!f.move?.view?.ghosts && f.attackPhase >= 3 && f.attackPhase <= 4))) || (f.state === 'hitstun' && speed > 9);
     if (fast && tick - this.lastGhostTick >= 2 && f.hitlag === 0) {
       this.lastGhostTick = tick;
-      const hex = parseInt(f.data.sprite.placeholder.accent.slice(1), 16);
-      this.afterimage(this.x, this.y, f.state === 'hitstun' ? 0xff8080 : hex);
+      this.afterimage(this.x, this.y, f.state === 'hitstun' ? 0xff8080 : this.accentHex);
     }
   }
 
@@ -388,7 +435,7 @@ export class FighterView {
   }
 
   /** Floating companion orb: lags behind the fighter, bobs, and takes the colour of the current element. */
-  private updateOrb(f: Fighter, tick: number): void {
+  private updateOrb(f: Fighter, tick: number, dt: number): void {
     const orb = this.orb;
     if (!orb || !this.orbGlow) return;
     const c = f.data.companion!;
@@ -398,8 +445,9 @@ export class FighterView {
       this.orbX = tx;
       this.orbY = ty;
     }
-    this.orbX += (tx - this.orbX) * 0.18;
-    this.orbY += (ty - this.orbY) * 0.18;
+    const follow = dt === 1 ? 0.18 : 1 - Math.pow(0.82, dt); // 0.18 of the gap per sim tick
+    this.orbX += (tx - this.orbX) * follow;
+    this.orbY += (ty - this.orbY) * follow;
     const col = c.colors[Math.max(0, Math.min(c.colors.length - 1, Math.round(f.res[c.resource] ?? 0)))];
     const pulse = 0.9 + 0.1 * Math.sin(tick * 0.25);
     orb.setPosition(this.orbX, this.orbY).setTint(col).setScale(0.5 * pulse).setVisible(f.state !== 'ko');
@@ -417,4 +465,11 @@ export class FighterView {
     this.orbGlow?.destroy();
     for (const g of this.ghosts) g.destroy();
   }
+}
+
+function setView(v: AttackView, sx: number, sy: number, rot: number): AttackView {
+  v.sx = sx;
+  v.sy = sy;
+  v.rot = rot;
+  return v;
 }

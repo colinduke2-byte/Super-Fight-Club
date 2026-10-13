@@ -987,7 +987,7 @@ export class MatchScene extends Phaser.Scene {
         this.trainText.setText(this.trainReport + line);
       }
     }
-    this.perf.update(frameMs, `${this.scale.width}x${this.scale.height} @${this.dpr().toFixed(1)}x  z${zoom.toFixed(2)}  ${this.stepsLastFrame}/f  sim ${this.simMs.toFixed(2)}ms  frame-js ${this.updMs.toFixed(2)}ms  1%low ${this.perf.lowFps.toFixed(0)}`);
+    this.perf.update(frameMs, () => `${this.scale.width}x${this.scale.height} @${this.dpr().toFixed(1)}x  z${zoom.toFixed(2)}  ${this.stepsLastFrame}/f  sim ${this.simMs.toFixed(2)}ms  frame-js ${this.updMs.toFixed(2)}ms  1%low ${this.perf.lowFps.toFixed(0)}`);
     if (this.toastUntil > 0) {
       const left = this.toastUntil - performance.now();
       this.toast.setAlpha(left <= 0 ? 0 : Math.min(1, left / 400));

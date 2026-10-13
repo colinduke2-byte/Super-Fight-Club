@@ -7,6 +7,10 @@ const MAX_PIPS = 5;
 /** Status icon colours in the order burn, slow, freeze, stun. */
 const STATUS_COLORS = [0xff8a30, 0x8aa0ff, 0x9fe9ff, 0xffff60, 0x3aa8ff];
 const PLAYER_COLORS = [0x4aa3ff, 0xff6a5a, 0x5fe08a, 0xffd04a];
+/** Stock pips text by count ("@ @ @"), built once. */
+const PIPS = Array.from({ length: MAX_PIPS + 1 }, (_, n) => '@'.repeat(n).split('').join(' '));
+/** One 60 Hz frame, the unit the pop / jolt decay rates were tuned in. */
+const FRAME_MS = 1000 / 60;
 
 /** One fighter's plate: portrait, name, damage percent (colour + pop on hit), stock icons. */
 export class FighterHud {
@@ -27,6 +31,12 @@ export class FighterHud {
   /** Index into hud.colors (set by the scene each frame). */
   colorIndex = 0;
   private pop = 0;
+  /** Wall-clock time of the last update, so the pop / jolt decay at the same speed at any refresh rate. */
+  private lastNow = -1;
+  /** What the percent / pips texts currently show, so they are only rebuilt when it changes. */
+  private shownValue = NaN;
+  private shownHp = false;
+  private shownPips = -1;
   private u = 3;
   private texK = 1;
   private crop: [number, number, number, number] = [6, 0, 40, 40];
@@ -98,13 +108,16 @@ export class FighterHud {
   hpMax = 0;
 
   update(damage: number, stocks: number, training: boolean, out: boolean, meterFrac = 0, tick = 0, resource = 0, status?: { burn: number; slow: number; freeze: number; stun: number; soak?: number; chill?: number }): void {
+    const now = performance.now();
+    const k = this.lastNow < 0 ? 1 : Math.min(4, (now - this.lastNow) / FRAME_MS); // elapsed 60 Hz frames
+    this.lastNow = now;
     if (damage > this.lastDamage) {
       this.pop = 1;
       this.jolt = Math.min(1, (damage - this.lastDamage) / 14); // big hits shake the number
     }
-    this.jolt = Math.max(0, this.jolt - 0.06);
+    this.jolt = Math.max(0, this.jolt - 0.06 * k);
     this.lastDamage = damage;
-    this.pop = Math.max(0, this.pop - 0.08);
+    this.pop = Math.max(0, this.pop - 0.08 * k);
     const d = Math.min(damage / 160, 1);
     // white -> yellow -> orange -> red -> deep red
     const r = 255;
@@ -115,10 +128,19 @@ export class FighterHud {
       const left = Math.max(0, Math.ceil(this.hpMax - damage));
       const f = left / this.hpMax;
       const low = f < 0.2 && ((tick >> 3) & 1) === 0;
-      this.percent.setText(`${left}HP`);
+      if (left !== this.shownValue || !this.shownHp) {
+        this.shownValue = left;
+        this.shownHp = true;
+        this.percent.setText(`${left}HP`);
+      }
       this.percent.setTint(low ? 0xffffff : f > 0.5 ? 0x7affa0 : f > 0.25 ? 0xffe14a : 0xff5a4a);
     } else {
-      this.percent.setText(up(`${Math.floor(damage)}%`));
+      const shown = Math.floor(damage);
+      if (shown !== this.shownValue || this.shownHp) {
+        this.shownValue = shown;
+        this.shownHp = false;
+        this.percent.setText(up(`${shown}%`));
+      }
       this.percent.setTint(Phaser.Display.Color.GetColor(r, Math.max(30, g), Math.max(30, b)));
     }
     this.percent.setScale(this.u * 2 * (1 + this.pop * 0.25));
@@ -126,7 +148,11 @@ export class FighterHud {
     this.percent.setPosition(this.percentAt[0] + (tick & 1 ? j : -j), this.percentAt[1] + ((tick >> 1) & 1 ? j * 0.6 : -j * 0.6));
     this.sub.setText(training ? 'INF' : out ? 'OUT' : '');
     this.sub.setVisible(training || out);
-    this.pips.setText(!training && !out ? '@'.repeat(Math.min(stocks, MAX_PIPS)).split('').join(' ') : '');
+    const pips = !training && !out ? Math.max(0, Math.min(stocks, MAX_PIPS)) : 0;
+    if (pips !== this.shownPips) {
+      this.shownPips = pips;
+      this.pips.setText(PIPS[pips]);
+    }
     this.portrait.setAlpha(out ? 0.35 : 1);
     // character resource seam (Heat): fills left to right, glows hot at/after the threshold
     const hd = this.hudDef;
@@ -140,8 +166,11 @@ export class FighterHud {
       this.seamGlow.setVisible(hot || !!hd.colors).setScale(((68 * this.u) / 4) * frac, (4 * this.u) / 4).setTint(col).setAlpha(hd.colors ? 0.4 : bright ? 0.7 : 0.35);
     }
     if (status) {
-      const t = [status.burn, status.slow, Math.max(status.freeze, status.chill ? 41 : 0), status.stun, status.soak ?? 0];
-      for (let i = 0; i < this.statusIcons.length; i++) this.statusIcons[i].setVisible(t[i] > 0 && (t[i] > 40 || ((tick >> 2) & 1) === 0));
+      const blinkOn = ((tick >> 2) & 1) === 0;
+      for (let i = 0; i < this.statusIcons.length; i++) {
+        const t = i === 0 ? status.burn : i === 1 ? status.slow : i === 2 ? Math.max(status.freeze, status.chill ? 41 : 0) : i === 3 ? status.stun : (status.soak ?? 0);
+        this.statusIcons[i].setVisible(t > 0 && (t > 40 || blinkOn));
+      }
     }
     const full = meterFrac >= 1;
     this.meter.setVisible(meterFrac > 0).setScale(((66 * this.u) / 4) * meterFrac, (2 * this.u) / 4).setTint(full ? (((tick >> 3) & 1) === 0 ? 0xffd040 : 0xffffff) : 0x8ff6ee);

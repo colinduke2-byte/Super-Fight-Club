@@ -17,6 +17,28 @@ function lighten(hex: string): string {
   return '#' + [(n >> 16) & 255, (n >> 8) & 255, n & 255].map((v) => Math.round(v + (255 - v) * 0.45).toString(16).padStart(2, '0')).join('');
 }
 
+/** Per-frame lookups cached by key: item textures by kind, lightened shard tints by palette colour. */
+const ITEM_TEX = new Map<string, string>();
+const LIGHT_TINT = new Map<string, number>();
+
+function itemTexture(kind: string): string {
+  let k = ITEM_TEX.get(kind);
+  if (k === undefined) {
+    k = `item-${kind}`;
+    ITEM_TEX.set(kind, k);
+  }
+  return k;
+}
+
+function lightTint(hex: string): number {
+  let c = LIGHT_TINT.get(hex);
+  if (c === undefined) {
+    c = color(lighten(hex));
+    LIGHT_TINT.set(hex, c);
+  }
+  return c;
+}
+
 /** Pooled sprites for projectiles, deployables, reflecting barriers and tether lines. */
 export class EntityViews {
   private readonly proj: Phaser.GameObjects.Image[] = [];
@@ -81,7 +103,7 @@ export class EntityViews {
         continue;
       }
       const blink = it.age > 600 && (tick >> 2) % 2 === 0;
-      s.setTexture(`item-${it.kind}`).setVisible(!blink).setRotation(it.spin).clearTint().setPosition(it.x, it.y + Math.sin(tick * 0.1 + i) * (it.resting && it.vx === 0 ? 1.2 : 0));
+      s.setTexture(itemTexture(it.kind)).setVisible(!blink).setRotation(it.spin).clearTint().setPosition(it.x, it.y + Math.sin(tick * 0.1 + i) * (it.resting && it.vx === 0 ? 1.2 : 0));
     }
     for (let i = 0; i < this.proj.length; i++) {
       const p = w.projectiles[i];
@@ -92,7 +114,7 @@ export class EntityViews {
       }
       const look = p.def.look;
       const own = look.shape === 'shard' ? this.crystal[p.owner] : null;
-      s.setTexture(SHAPE_TEX[look.shape] ?? 'proj-orb').setVisible(true).setTint(color(own ? lighten(own) : look.color));
+      s.setTexture(SHAPE_TEX[look.shape] ?? 'proj-orb').setVisible(true).setTint(own ? lightTint(own) : color(look.color));
       s.setPosition(p.prevX + (p.x - p.prevX) * alpha, p.prevY + (p.y - p.prevY) * alpha);
       s.setFlipX(p.vx < 0);
       const base = 0.5 * (look.size ?? 1);

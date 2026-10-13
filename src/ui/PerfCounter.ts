@@ -45,15 +45,18 @@ export class PerfCounter {
     return m;
   }
 
-  /** Refresh the label at most 4x per second to avoid per-frame string churn. */
-  update(frameMs: number, extra: string): void {
+  /**
+   * Refresh the label at most 4x per second to avoid per-frame string churn. Pass `extra` as a function so its text (and anything
+   * costly in it, such as `lowFps`, which sorts) is only built when the counter is shown and due to refresh.
+   */
+  update(frameMs: number, extra: string | (() => string)): void {
     this.text.setVisible(this.visible);
     if (!this.visible) return;
     this.sinceText += frameMs;
     if (this.sinceText < 250) return;
     this.sinceText = 0;
     const avg = this.avgMs;
-    this.text.setText(`${(1000 / Math.max(avg, 0.001)).toFixed(0)} fps  ${avg.toFixed(1)} ms (max ${this.maxMs.toFixed(1)})  ${extra}`);
+    this.text.setText(`${(1000 / Math.max(avg, 0.001)).toFixed(0)} fps  ${avg.toFixed(1)} ms (max ${this.maxMs.toFixed(1)})  ${typeof extra === 'function' ? extra() : extra}`);
   }
 
   layout(width: number, margin: number): void {

@@ -19,6 +19,8 @@ export class UltCutIn {
   private color = 0xffffff;
   private k = 1;
   private dir = 1;
+  /** The band's four corners, reused for every band drawn. */
+  private readonly quad = [new Phaser.Math.Vector2(), new Phaser.Math.Vector2(), new Phaser.Math.Vector2(), new Phaser.Math.Vector2()];
 
   constructor(scene: Phaser.Scene, layer: Phaser.GameObjects.Layer) {
     this.g = scene.add.graphics();
@@ -56,9 +58,14 @@ export class UltCutIn {
     const bh = h * 0.24 * open;
     const slant = h * 0.08;
     // band: dark backing, coloured body, bright edges
+    const q = this.quad;
     const band = (half: number, col: number, a: number): void => {
       g.fillStyle(col, a * fade);
-      g.fillPoints([new Phaser.Math.Vector2(0, cy - half + slant), new Phaser.Math.Vector2(w, cy - half - slant), new Phaser.Math.Vector2(w, cy + half - slant), new Phaser.Math.Vector2(0, cy + half + slant)], true);
+      q[0].set(0, cy - half + slant);
+      q[1].set(w, cy - half - slant);
+      q[2].set(w, cy + half - slant);
+      q[3].set(0, cy + half + slant);
+      g.fillPoints(q, true);
     };
     band(bh / 2 + 4 * u, 0x0a0816, 0.85);
     band(bh / 2, this.color, 0.55 * soft);

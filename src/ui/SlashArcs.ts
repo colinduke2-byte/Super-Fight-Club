@@ -7,6 +7,11 @@ import { fighterTrailColor } from '../fx/runner';
 
 const r4 = [0, 0, 0, 0];
 const N = 14;
+/** t^1.1 for t = i / N (the trail's taper), computed once. */
+const TAPER = Array.from({ length: N + 1 }, (_, i) => Math.pow(i / N, 1.1));
+/** Scratch polygons reused every redraw (Graphics.fillPoints reads them immediately). */
+const ARC: { x: number; y: number }[] = Array.from({ length: 2 * (N + 1) }, () => ({ x: 0, y: 0 }));
+const NEEDLE: { x: number; y: number }[] = Array.from({ length: 4 }, () => ({ x: 0, y: 0 }));
 
 /** Trail looks. A character picks one with `fx.slash`; otherwise its sound style decides (heavy = sparks, blade = blade, ...). */
 export type SlashStyle = 'plain' | 'fire' | 'water' | 'spark' | 'blade' | 'arcane' | 'volt' | 'gale' | 'crystal' | 'frost';
@@ -38,6 +43,13 @@ export function slashStyle(f: Fighter): SlashStyle {
  */
 export class SlashArcs {
   private readonly g: Phaser.GameObjects.Graphics;
+  /** The drawing only changes when the sim steps: skip redraws between ticks (high refresh rates, pauses). */
+  private lastWorld: World | null = null;
+  private lastTick = -1;
+  /** Layers for the accent-coloured styles (colour filled in per fighter). */
+  private readonly accent: [number, number, number][] = [[1.5, 0, 0.35], [1, 0, 0.7], [0.45, 0xffffff, 0.95]];
+  /** Pooled trail-edge points handed to `decorate`. */
+  private readonly deco: Deco[] = Array.from({ length: 8 }, () => ({ x: 0, y: 0, t: 0, nx: 0, ny: 0 }));
 
   constructor(scene: Phaser.Scene, layer: Phaser.GameObjects.Layer) {
     this.g = scene.add.graphics().setDepth(50).setBlendMode(1 /* ADD */);
@@ -45,15 +57,23 @@ export class SlashArcs {
   }
 
   update(world: World): void {
+    const tick = world.tick;
+    if (world === this.lastWorld && tick === this.lastTick) return;
+    this.lastWorld = world;
+    this.lastTick = tick;
     const g = this.g;
     g.clear();
-    const tick = world.tick;
     for (const f of world.fighters) {
       const m = f.move;
       if (f.state !== 'attack' || !m) continue;
       const style = slashStyle(f);
       const col = fighterTrailColor(f, tick);
-      const layers: Layers = FIXED[style] ?? [[1.5, col, 0.35], [1, col, 0.7], [0.45, 0xffffff, 0.95]];
+      let layers: Layers | undefined = FIXED[style];
+      if (!layers) {
+        this.accent[0][1] = col;
+        this.accent[1][1] = col;
+        layers = this.accent;
+      }
       const wMul = WIDTH[style] ?? 1;
       const chestX = f.x;
       const chestY = f.y - f.h * 0.55;
@@ -77,7 +97,8 @@ export class SlashArcs {
         const shape = m.view?.arc ?? 'curve';
         if (shape === 'none') continue;
         const fade = after > 0 ? 1 - after / 6 : 1;
-        const deco: Deco[] = [];
+        const deco = this.deco;
+        let nd = 0;
         if (shape === 'line') {
           // straight streak (punches, thrusts, pokes): a tapered needle from behind the fist to its tip
           const ux = dx / r;
@@ -91,16 +112,31 @@ export class SlashArcs {
           const px = -uy * f.facing;
           const py = ux;
           const wid = Math.min(10, Math.max(4, Math.min(r4[2], r4[3]) * 0.4)) * wMul;
-          for (const [mulW, c, a] of layers) {
-            const w = (wid * mulW * 0.93) / 2;
-            g.fillStyle(c, a * fade);
-            g.fillPoints([{ x: tx, y: ty }, { x: hx + px * w, y: hy + py * w }, { x: hx + ux * f.facing * 4, y: hy + uy * 4 }, { x: hx - px * w, y: hy - py * w }] as Phaser.Geom.Point[], true);
+          const q = NEEDLE;
+          for (let li = 0; li < layers.length; li++) {
+            const L = layers[li];
+            const w = (wid * L[0] * 0.93) / 2;
+            g.fillStyle(L[1], L[2] * fade);
+            q[0].x = tx;
+            q[0].y = ty;
+            q[1].x = hx + px * w;
+            q[1].y = hy + py * w;
+            q[2].x = hx + ux * f.facing * 4;
+            q[2].y = hy + uy * 4;
+            q[3].x = hx - px * w;
+            q[3].y = hy - py * w;
+            g.fillPoints(q as Phaser.Geom.Point[], true);
           }
           for (let i = 1; i <= 4; i++) {
             const t = i / 5;
-            deco.push({ x: tx + (hx - tx) * t, y: ty + (hy - ty) * t, t, nx: px, ny: py });
+            const d = deco[nd++];
+            d.x = tx + (hx - tx) * t;
+            d.y = ty + (hy - ty) * t;
+            d.t = t;
+            d.nx = px;
+            d.ny = py;
           }
-          decorate(g, style, deco, fade, tick, col, hx, hy);
+          decorate(g, style, deco, nd, fade, tick, col, hx, hy);
           continue;
         }
         const dir = m.kind === 'aerial' && hb.y > 0 ? -1 : 1;
@@ -108,32 +144,40 @@ export class SlashArcs {
         const tail = Math.max(centre - span, Math.min(centre + span, head - span * 1.5 * dir));
         const heavy = hb.damage >= 12 || m.kind === 'smash';
         const width = Math.min(13, Math.max(5, Math.min(r4[2], r4[3]) * 0.5 + (heavy ? 3 : 0))) * wMul;
-        for (const [mulW, c, a] of layers) {
-          const outer: [number, number][] = [];
-          const inner: [number, number][] = [];
+        const pts = ARC;
+        for (let li = 0; li < layers.length; li++) {
+          const L = layers[li];
+          // outer edge tail -> head, then the inner edge head -> tail, written straight into the scratch polygon
           for (let i = 0; i <= N; i++) {
-            const t = i / N;
-            const ang = tail + (head - tail) * t;
-            const w = width * mulW * Math.pow(t, 1.1);
+            const ang = tail + ((head - tail) * i) / N;
+            const w = width * L[0] * TAPER[i];
             const cx = Math.cos(ang);
             const cy = Math.sin(ang);
-            outer.push([chestX + cx * (r + w / 2) * f.facing, chestY + cy * (r + w / 2)]);
-            inner.push([chestX + cx * (r - w / 2) * f.facing, chestY + cy * (r - w / 2)]);
+            const o = pts[i];
+            o.x = chestX + cx * (r + w / 2) * f.facing;
+            o.y = chestY + cy * (r + w / 2);
+            const n = pts[2 * N + 1 - i];
+            n.x = chestX + cx * (r - w / 2) * f.facing;
+            n.y = chestY + cy * (r - w / 2);
           }
-          const pts = [...outer, ...inner.reverse()].map(([x, y]) => ({ x, y }));
-          g.fillStyle(c, a * fade);
+          g.fillStyle(L[1], L[2] * fade);
           g.fillPoints(pts as Phaser.Geom.Point[], true);
         }
         for (let i = 3; i <= N; i += 2) {
           const t = i / N;
           const ang = tail + (head - tail) * t;
-          const w = width * Math.pow(t, 1.1);
+          const w = width * TAPER[i];
           const cx = Math.cos(ang);
           const cy = Math.sin(ang);
-          deco.push({ x: chestX + cx * (r + w / 2) * f.facing, y: chestY + cy * (r + w / 2), t, nx: cx * f.facing, ny: cy });
+          const d = deco[nd++];
+          d.x = chestX + cx * (r + w / 2) * f.facing;
+          d.y = chestY + cy * (r + w / 2);
+          d.t = t;
+          d.nx = cx * f.facing;
+          d.ny = cy;
         }
         const hAng = head;
-        decorate(g, style, deco, fade, tick, col, chestX + Math.cos(hAng) * r * f.facing, chestY + Math.sin(hAng) * r);
+        decorate(g, style, deco, nd, fade, tick, col, chestX + Math.cos(hAng) * r * f.facing, chestY + Math.sin(hAng) * r);
       }
     }
   }
@@ -148,38 +192,41 @@ interface Deco {
   ny: number;
 }
 
-/** Per-style dressing along the trail's outer edge plus an accent at its head (hx, hy). */
-function decorate(g: Phaser.GameObjects.Graphics, style: SlashStyle, pts: Deco[], fade: number, tick: number, col: number, hx: number, hy: number): void {
+/** Per-style dressing along the first `n` points of the trail's outer edge plus an accent at its head (hx, hy). */
+function decorate(g: Phaser.GameObjects.Graphics, style: SlashStyle, pts: readonly Deco[], n: number, fade: number, tick: number, col: number, hx: number, hy: number): void {
   switch (style) {
     case 'fire':
       // flame tongues rising off the edge, flickering per tick
-      pts.forEach((p, i) => {
+      for (let i = 0; i < n; i++) {
+        const p = pts[i];
         const fl = (3 + 7 * p.t) * fade * (0.65 + 0.35 * Math.sin(tick * 1.9 + i * 1.3));
         g.fillStyle(i % 2 ? 0xffc040 : 0xff5a1a, 0.75 * fade);
         g.fillTriangle(p.x - 2.4, p.y, p.x + 2.4, p.y, p.x + Math.sin(tick * 0.8 + i) * 2.5, p.y - fl);
-      });
+      }
       break;
     case 'water':
       // droplets thrown off the edge, falling away behind the head
-      pts.forEach((p, i) => {
+      for (let i = 0; i < n; i++) {
+        const p = pts[i];
         const off = 3 + ((i * 7) % 5);
         g.fillStyle(i % 2 ? 0xe6fbff : 0x3ab8ff, 0.8 * fade);
         g.fillCircle(p.x + p.nx * off, p.y + p.ny * off + (1 - p.t) * 6 * (1 - fade * 0.5), 1.4 + p.t * 1.2);
-      });
+      }
       break;
     case 'spark':
       // molten sparks spitting outward from the edge
-      pts.forEach((p, i) => {
-        if ((i + (tick >> 1)) % 2) return;
+      for (let i = 0; i < n; i++) {
+        const p = pts[i];
+        if ((i + (tick >> 1)) % 2) continue;
         const d = 4 + ((i * 5 + tick) % 7);
         g.fillStyle(i % 3 ? 0xffd27a : 0xffffff, 0.9 * fade);
         g.fillRect(p.x + p.nx * d - 1, p.y + p.ny * d - 1, 2, 2);
-      });
+      }
       g.fillStyle(0xffe0a0, 0.5 * fade).fillCircle(hx, hy, 4);
       break;
     case 'blade':
       // a hard bright edge and a four-point glint riding the head
-      for (let i = 1; i < pts.length; i++) {
+      for (let i = 1; i < n; i++) {
         const a = pts[i - 1];
         const b = pts[i];
         g.lineStyle(1, 0xffffff, 0.85 * fade * b.t).lineBetween(a.x, a.y, b.x, b.y);
@@ -188,42 +235,46 @@ function decorate(g: Phaser.GameObjects.Graphics, style: SlashStyle, pts: Deco[]
       break;
     case 'arcane':
       // twinkling stars strewn along the arc in the spell's colour
-      pts.forEach((p, i) => {
+      for (let i = 0; i < n; i++) {
+        const p = pts[i];
         const tw = 0.5 + 0.5 * Math.sin(tick * 0.9 + i * 2.3);
         glint(g, p.x + p.nx * 4, p.y + p.ny * 4, (1.5 + 2.5 * p.t) * tw, i % 2 ? 0xffffff : col, 0.85 * fade);
-      });
+      }
       glint(g, hx, hy, 5 * fade, 0xffffff, fade);
       break;
     case 'volt': {
       // a crackling zigzag bolt along the edge, re-rolled every couple of ticks
       g.lineStyle(1.5, 0xbff8ff, 0.9 * fade);
       g.beginPath();
-      pts.forEach((p, i) => {
+      for (let i = 0; i < n; i++) {
+        const p = pts[i];
         const j = (((i * 13 + (tick >> 1) * 7) % 9) - 4) * 0.9;
         const x = p.x + p.nx * (3 + j);
         const y = p.y + p.ny * (3 + j);
         if (i === 0) g.moveTo(x, y);
         else g.lineTo(x, y);
-      });
+      }
       g.strokePath();
       g.fillStyle(0xffffff, 0.8 * fade).fillCircle(hx, hy, 2.5);
       break;
     }
     case 'gale':
       // feathers peeling off behind the head
-      pts.forEach((p, i) => {
-        if (i % 2) return;
+      for (let i = 0; i < n; i++) {
+        const p = pts[i];
+        if (i % 2) continue;
         const d = 4 + (1 - p.t) * 6;
         const x = p.x + p.nx * d;
         const y = p.y + p.ny * d + (1 - p.t) * 3;
         g.fillStyle(i % 4 ? 0xffffff : 0xffe39a, 0.8 * fade);
         g.fillEllipse(x, y, 5 * (0.5 + p.t), 2);
-      });
+      }
       break;
     case 'crystal':
       // faceted shards flaking off the edge (little diamonds that tumble outward) and ringing glints
-      pts.forEach((p, i) => {
-        if ((i + (tick >> 2)) % 2) return;
+      for (let i = 0; i < n; i++) {
+        const p = pts[i];
+        if ((i + (tick >> 2)) % 2) continue;
         const d = 3 + ((i * 7) % 6) * (1.2 - fade * 0.4);
         const x = p.x + p.nx * d;
         const y = p.y + p.ny * d;
@@ -231,13 +282,14 @@ function decorate(g: Phaser.GameObjects.Graphics, style: SlashStyle, pts: Deco[]
         g.fillStyle(i % 3 ? 0xc898f6 : 0xf0e2ff, 0.9 * fade);
         g.fillTriangle(x, y - s, x + s * 0.7, y, x, y + s);
         g.fillTriangle(x, y - s, x - s * 0.7, y, x, y + s);
-      });
+      }
       glint(g, hx, hy, 6 * fade, 0xf0e2ff, 0.95 * fade);
       break;
     case 'frost':
       // a razor-thin cut that leaves a trail of snow: tiny flakes drifting off the edge and icy glints at the tip
-      pts.forEach((p, i) => {
-        if ((i + (tick >> 1)) % 3) return;
+      for (let i = 0; i < n; i++) {
+        const p = pts[i];
+        if ((i + (tick >> 1)) % 3) continue;
         const d = 2 + ((i * 5) % 7) * (1.3 - fade * 0.5);
         const x = p.x + p.nx * d - fade * 2;
         const y = p.y + p.ny * d + (1 - fade) * 4;
@@ -245,7 +297,7 @@ function decorate(g: Phaser.GameObjects.Graphics, style: SlashStyle, pts: Deco[]
         g.fillStyle(i % 2 ? 0xbfeaff : 0xffffff, 0.85 * fade);
         g.fillRect(x - s, y - 0.4, s * 2, 0.8);
         g.fillRect(x - 0.4, y - s, 0.8, s * 2);
-      });
+      }
       glint(g, hx, hy, 7 * fade, 0xffffff, fade);
       break;
     default:

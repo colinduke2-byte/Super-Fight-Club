@@ -2,11 +2,19 @@ import Phaser from 'phaser';
 import { avalancheX, hazardPhase, stalactiteFall } from '../engine/hazards';
 import type { HazardDef } from '../engine/types';
 
+/** Scratch points of the lightning strike's jagged path, reused each redraw. */
+const BOLT_STEPS = 14;
+const BOLT_X = new Float64Array(BOLT_STEPS + 1);
+const BOLT_Y = new Float64Array(BOLT_STEPS + 1);
+const BOLT_LAYERS = [[9, 0x6ab8ff, 0.35], [5, 0xbfe6ff, 0.7], [2, 0xffffff, 1]] as const;
+
 /** Draws stage hazards: a glowing vent while idle, a pulsing telegraph while warning, a bright column while erupting. */
 export class HazardView {
   private readonly g: Phaser.GameObjects.Graphics;
   /** Additive layer for plasma and glow. */
   private readonly ga: Phaser.GameObjects.Graphics;
+  /** Everything drawn is a pure function of the sim tick (the defs never change): redraw only when it advances. */
+  private lastTick = NaN;
 
   constructor(
     scene: Phaser.Scene,
@@ -20,6 +28,8 @@ export class HazardView {
   }
 
   update(tick: number): void {
+    if (tick === this.lastTick) return;
+    this.lastTick = tick;
     const g = this.g;
     g.clear();
     this.ga.clear();
@@ -254,19 +264,22 @@ export class HazardView {
       g.lineStyle(1, 0x9fd8ff, 0.2).strokeRect(h.x - h.w / 2, h.y, h.w, h.h); // where it will strike
     } else if (phase === 'active') {
       const seed = Math.floor(tick / 2);
-      const pts: [number, number][] = [[h.x, h.y]];
-      const steps = 14;
+      const steps = BOLT_STEPS;
+      BOLT_X[0] = h.x;
+      BOLT_Y[0] = h.y;
       for (let i = 1; i < steps; i++) {
         const r = Math.sin((seed * 12.9898 + i * 78.233) * 43758.5453) * 0.5 + 0.5; // deterministic jitter, no Math.random
-        pts.push([h.x + (r - 0.5) * 22, h.y + ((base - 12 - h.y) * i) / steps]);
+        BOLT_X[i] = h.x + (r - 0.5) * 22;
+        BOLT_Y[i] = h.y + ((base - 12 - h.y) * i) / steps;
       }
-      pts.push([h.x, base - 6]);
+      BOLT_X[steps] = h.x;
+      BOLT_Y[steps] = base - 6;
       g.fillStyle(0x9fd8ff, 0.18).fillRect(h.x - h.w / 2, h.y, h.w, h.h);
-      for (const [w, c, a] of [[9, 0x6ab8ff, 0.35], [5, 0xbfe6ff, 0.7], [2, 0xffffff, 1]] as const) {
+      for (const [w, c, a] of BOLT_LAYERS) {
         g.lineStyle(w, c, a);
         g.beginPath();
-        g.moveTo(pts[0][0], pts[0][1]);
-        for (let i = 1; i < pts.length; i++) g.lineTo(pts[i][0], pts[i][1]);
+        g.moveTo(BOLT_X[0], BOLT_Y[0]);
+        for (let i = 1; i <= steps; i++) g.lineTo(BOLT_X[i], BOLT_Y[i]);
         g.strokePath();
       }
       g.fillStyle(0xffffff, 0.9).fillCircle(h.x, base - 8, 12);
