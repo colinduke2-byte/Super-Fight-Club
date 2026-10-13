@@ -36,8 +36,9 @@ export interface LadderState {
 export const LADDER_CONTINUES = 3;
 
 /**
- * Five escalating fights then the boss: three duels against other roster fighters, a mirror match, a two-on-one
- * brawl against the two rivals not met yet (so a run meets the whole roster), then the Overseer. The rival order is
+ * Eight escalating fights then the boss: three duels against other roster fighters, a mirror match, three more duels
+ * (the cave, the mountain pass, the sky raid), a brawl against the rivals not met yet (so a run meets the whole
+ * roster), then the Overseer. The rival order is
  * shuffled per run (`rand` for tests).
  */
 export function buildLadder(player: string, rand: () => number = Math.random): LadderState {
@@ -53,14 +54,19 @@ export function buildLadder(player: string, rand: () => number = Math.random): L
   // a big enough roster sends a third rival into the brawl and a seventh into the cave, so every run still meets everyone
   const f = others[5];
   const g = others[6] ?? c;
+  // the mountain pass and the sky raid bring in the last two rivals of a full roster
+  const h = others[7] ?? a;
+  const i8 = others[8] ?? b;
   const fights: LadderFight[] = [
     { index: 0, title: 'OPENING BOUT', stage: 'classic', kind: 'duel', opponents: [{ character: a, level: 1, stocks: 2 }], playerStocks: 3 },
     { index: 1, title: 'LOW TIDE', stage: 'wreck', kind: 'duel', opponents: [{ character: b, level: 1, stocks: 2 }], playerStocks: 3 },
     { index: 2, title: 'THE CIRCUIT', stage: 'temple', kind: 'duel', opponents: [{ character: c, level: 2, stocks: 3 }], playerStocks: 3 },
     { index: 3, title: 'SHADOW MATCH', stage: 'storm', kind: 'duel', opponents: [{ character: player, level: 2, stocks: 3 }], playerStocks: 3 },
     { index: 4, title: 'DEEP DARK', stage: 'hollow', kind: 'duel', opponents: [{ character: g, level: 2, stocks: 3 }], playerStocks: 3 },
+    { index: 5, title: 'AVALANCHE PASS', stage: 'frostfang', kind: 'duel', opponents: [{ character: h, level: 2, stocks: 3 }], playerStocks: 3 },
+    { index: 6, title: 'SKY RAID', stage: 'stormrunner', kind: 'duel', opponents: [{ character: i8, level: 3, stocks: 3 }], playerStocks: 3 },
     {
-      index: 5,
+      index: 7,
       title: f ? 'FOUR-WAY BRAWL' : 'TRIPLE THREAT',
       stage: 'skyhold',
       kind: 'brawl',
@@ -71,7 +77,7 @@ export function buildLadder(player: string, rand: () => number = Math.random): L
       ],
       playerStocks: 3,
     },
-    { index: 6, title: 'THE OVERSEER', stage: 'reactor', kind: 'boss', opponents: [{ character: 'overseer', level: 3, stocks: 2, boss: true }], playerStocks: 3 },
+    { index: 8, title: 'THE OVERSEER', stage: 'reactor', kind: 'boss', opponents: [{ character: 'overseer', level: 3, stocks: 2, boss: true }], playerStocks: 3 },
   ];
   return { player, fights, index: 0, continuesLeft: LADDER_CONTINUES, continuesUsed: 0, kos: 0, seconds: 0, introduced: false };
 }

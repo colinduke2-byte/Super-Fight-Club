@@ -10,7 +10,7 @@ import type { MenuEvent } from '../input/menuInput';
 import { STAGES } from '../stages';
 import { COLORS, MenuList, MenuScene, text, textPx } from '../ui/menuKit';
 
-/** The ladder: a node per fight up a winding path (six fights and the boss), progress, the next opponent and the continues left. */
+/** The ladder: a node per fight up a winding path (eight fights and the boss), progress, the next opponent and the continues left. */
 export class LadderMapScene extends MenuScene {
   private list!: MenuList;
   private title!: Phaser.GameObjects.BitmapText;

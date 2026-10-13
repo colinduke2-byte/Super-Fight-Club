@@ -186,6 +186,9 @@ describe('CPU matches', () => {
     expect(play(['brick', 'vex'], [2, 2], 'temple', 30000).match.over, 'temple tier').toBe(true);
     expect(play(['brick', 'riptide'], [1, 1], 'skyhold', 30000).match.over, 'skyhold gap').toBe(true);
     expect(play(['vex', 'vex'], [1, 1], 'wreck', 36000).match.over, 'wreck quarterdeck').toBe(true);
+    // ice platforms and avalanches on Frostfang, the raised stern and the moving skiff on the Stormrunner
+    expect(play(['brick', 'rime'], [1, 1], 'frostfang', 36000).match.over, 'frostfang ice').toBe(true);
+    expect(play(['havoc', 'riptide'], [1, 1], 'stormrunner', 36000).match.over, 'stormrunner stern').toBe(true);
     // crystal pillars everywhere: two Obelisks and two rivals, nobody gets walled in
     expect(play(['obelisk', 'brick', 'obelisk', 'halcyon'], [2, 2, 2, 2], 'temple', 36000).match.over, 'obelisk pillars').toBe(true);
   });
