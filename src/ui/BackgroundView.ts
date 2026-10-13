@@ -130,7 +130,7 @@ export const BACKDROPS: Record<string, Backdrop> = {
     far: 0xffd8c0,
     near: 0xffffff,
     tiles: 0xffe8d8,
-    farTex: 'bg-mesas-far',
+    farTex: 'bg-thunderheads-far',
     nearTex: 'bg-islands-near',
     bankTex: 'bg-cloudsea',
     stars: false,

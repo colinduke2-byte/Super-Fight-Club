@@ -631,10 +631,12 @@ function spires(seed: number, body: string, light: string, dark: string, glow: s
 function islands(seed: number, rock: string, rockL: string, rockD: string, grass: string, grassL: string, water: string, W = 512, H = 192): HTMLCanvasElement {
   const [c, g] = canvas(W, H);
   const rnd = mulberry32(seed);
-  const count = 5;
+  const count = 4;
   for (let n = 0; n < count; n++) {
-    const w = 46 + Math.floor(rnd() * 56);
-    const topY = 40 + Math.floor(rnd() * 70);
+    // one big island per tile, the rest small and scattered at different heights so the strip doesn't read as a row
+    const big = n === Math.floor(seed % count);
+    const w = big ? 96 + Math.floor(rnd() * 30) : 26 + Math.floor(rnd() * 46);
+    const topY = big ? 54 + Math.floor(rnd() * 26) : 22 + Math.floor(rnd() * 110);
     const cx = Math.floor(((n + 0.3 + rnd() * 0.4) / count) * W);
     wrapX(W, cx, (bx) => {
       const left = bx - Math.floor(w / 2);
@@ -644,7 +646,7 @@ function islands(seed: number, rock: string, rockL: string, rockD: string, grass
         px(g, k < 2 ? grassL : grass, left + Math.floor((w - ww) / 2), topY + k, ww, 1);
       }
       // rock underside tapering to a point
-      const depth = 34 + Math.floor(rnd() * 26);
+      const depth = Math.round(w * (0.45 + rnd() * 0.3)) + 8;
       for (let k = 0; k < depth; k++) {
         const t = k / depth;
         const ww = Math.max(2, Math.round(w * (1 - Math.pow(t, 0.8))) - ((k * 7 + n) % 5 === 0 ? 2 : 0));
@@ -874,29 +876,70 @@ function shrineWoods(seed: number, pine: string, pineL: string, pineD: string, s
   return c;
 }
 
-/** Sunset mesas and sea cliffs far below the airship: flat-topped buttes with banded strata; tileable. */
-function mesas(seed: number, rock: string, rockL: string, rockD: string, band: string, W = 512, H = 192): HTMLCanvasElement {
+/**
+ * Towering sunset thunderheads: billowing cloud columns lit from the upper right (where the sun sits), purple in their own
+ * shadow, with a rose rim where the light grazes them; tileable.
+ */
+function thunderheads(seed: number, shadow: string, mid: string, lit: string, rim: string, W = 512, H = 192): HTMLCanvasElement {
   const [c, g] = canvas(W, H);
   const rnd = mulberry32(seed);
-  let x = 0;
-  while (x < W - 10) {
-    const w = 30 + Math.floor(rnd() * 70);
-    const hgt = 40 + Math.floor(rnd() * 90);
-    const cx = x;
-    wrapX(W, cx, (bx) => {
-      for (let k = 0; k < hgt; k++) {
-        const flare = k > hgt * 0.75 ? Math.round((k - hgt * 0.75) * 0.6) : 0; // talus slope at the foot
-        const xx = bx - flare;
-        const ww = w + flare * 2;
-        const y = H - hgt + k;
-        px(g, k % 13 < 2 ? band : rock, xx, y, ww, 1);
-        px(g, rockL, xx, y, 3, 1);
-        px(g, rockD, xx + ww - 3, y, 3, 1);
-      }
-      px(g, rockL, bx, H - hgt - 1, w, 2); // lit top
-    });
-    x += w + 10 + Math.floor(rnd() * 40);
+  const blobs: { x: number; y: number; r: number }[] = [];
+  const towers = 3;
+  for (let t = 0; t < towers; t++) {
+    // a cumulus dome: blobs scattered inside a half-ellipse, bigger at the base, crowned by smaller billows
+    const cx = ((t + 0.25 + rnd() * 0.5) / towers) * W;
+    const hw = 70 + rnd() * 50;
+    const h = 80 + rnd() * 90;
+    for (let k = 0; k < 34; k++) {
+      const a = rnd() * Math.PI;
+      const rr = Math.sqrt(rnd());
+      const x = cx + Math.cos(a) * hw * rr;
+      const y = H - Math.sin(a) * h * rr;
+      const f = (H - y) / h; // 0 base .. 1 crown
+      blobs.push({ x, y, r: (30 - f * 16) * (0.8 + rnd() * 0.4) });
+    }
   }
+  const ramp = [shadow, mid, lit, rim].map((h) => [parseInt(h.slice(1, 3), 16), parseInt(h.slice(3, 5), 16), parseInt(h.slice(5, 7), 16)]);
+  // a metaball density field, so neighbouring billows merge into one soft surface instead of a pile of balls
+  const D = new Float32Array(W * H);
+  for (const b of blobs) {
+    const r2 = b.r * b.r;
+    const y0 = Math.max(0, Math.floor(b.y - b.r * 2));
+    const y1 = Math.min(H - 1, Math.ceil(b.y + b.r * 2));
+    for (let y = y0; y <= y1; y++) {
+      for (let dx = -Math.ceil(b.r * 2); dx <= Math.ceil(b.r * 2); dx++) {
+        const x = (((Math.round(b.x) + dx) % W) + W) % W; // wrap so the strip tiles
+        const dy = y - b.y;
+        D[y * W + x] += Math.exp(-(dx * dx + dy * dy) / r2);
+      }
+    }
+  }
+  const at = (x: number, y: number): number => D[Math.min(H - 1, Math.max(0, y)) * W + ((x + W) % W)];
+  const img = g.createImageData(W, H);
+  const T = 0.55;
+  for (let y = 0; y < H; y++) {
+    for (let x = 0; x < W; x++) {
+      const d = at(x, y);
+      if (d < T) continue;
+      // surface normal from the field's gradient (pointing out of the cloud); light from the upper right
+      const gx = at(x - 2, y) - at(x + 2, y);
+      const gy = at(x, y - 2) - at(x, y + 2);
+      const len = Math.hypot(gx, gy) + 1e-6;
+      const facing = (gx / len) * 0.6 + (gy / len) * -0.8;
+      const edge = Math.min(1, (d - T) / 0.5); // 0 at the silhouette .. 1 deep inside
+      const shade = facing * (1 - edge * 0.6) + (y < H * 0.5 ? 0.15 : -0.1);
+      let k = shade > 0.45 ? 2 : shade > -0.15 ? 1 : 0;
+      if (edge < 0.18 && facing > 0.3) k = 3; // a bright rim where the sun grazes the edge
+      if ((x * 7 + y * 3) % 17 === 0 && k < 2) k++; // a sparse dither between bands
+      const col = ramp[k];
+      const o = (y * W + x) * 4;
+      img.data[o] = col[0];
+      img.data[o + 1] = col[1];
+      img.data[o + 2] = col[2];
+      img.data[o + 3] = 255;
+    }
+  }
+  g.putImageData(img, 0, 0);
   return c;
 }
 
@@ -1212,7 +1255,7 @@ export function buildStageTextures(scene: Phaser.Scene): void {
   add('bg-peaks-far', peaks(13, '#3a4a68', '#5a6e90', '#24304a', '#e8f2ff', '#a8bcd8', 512, 192));
   add('bg-shrine-near', shrineWoods(29, '#14283a', '#24405a', '#0a1622', '#e8f2ff', '#b02a30', '#6a1418', '#ffd08a', 512, 192));
   add('bg-snowbank', cloudBank(23, '#c8d8ec', '#f4f8ff', '#8aa0c0', 512, 128));
-  add('bg-mesas-far', mesas(37, '#8a4a50', '#c87a6a', '#5a2a3a', '#a85a5a', 512, 192));
+  add('bg-thunderheads-far', thunderheads(41, '#4e2e5c', '#7a4670', '#b8687a', '#eaa290', 512, 192));
   add('spark', sparkTex());
   add('ring', ringTex());
   add('bubble', bubbleTex());
