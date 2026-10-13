@@ -593,6 +593,12 @@ instead of 125 / 80 / 90 / n/a / 95: weight was by far the strongest lever and m
 damage by 25% and Nova's fire / ice bolts by 25%, and slowed Gizmo's turrets and Mech punches. Hard CPUs now sit at roughly 45-55%
 (Brick 55, Vex 39, Nova 53, Gizmo 49, Agni 54, Halcyon 49 in the latest Hard-CPU run; weights are now Brick 114, Vex 106, Nova 100, Agni 92, Gizmo 88). Real balance needs your hands-on feedback.
 
+With all ten fighters (84 Hard-CPU matches per pairing) every fighter sits between 46% and 52%: Brick 52, Vex 47, Nova 46, Gizmo 49,
+Agni 51, Halcyon 48, Riptide 51, Obelisk 52, Rime 52, Havoc 52. Getting there took Rime's CPU off hit-and-run spacing (it was
+throwing away its speed), slower Havoc juggles (up tilt and up air), and a heavier Riptide (106). Normal CPUs spread much wider
+(fast fighters such as Vex and Rime near 70%, Havoc near 25%): at that skill level speed matters more than kit, so tune against the
+Hard numbers.
+
 ## Roadmap
 
 Phases 1-12 are done. Possible next steps: real sprite sheets (drop in `sheetUrl`), more characters and stages, online play (the

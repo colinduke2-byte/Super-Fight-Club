@@ -7,45 +7,129 @@ The CPU plays some characters better than others, so read this as a smoke test f
 
 | pairing | wins |
 |---|---|
-| brick vs vex | 35 - 49 |
-| brick vs nova | 28 - 56 |
-| brick vs gizmo | 50 - 34 |
-| brick vs agni | 40 - 44 |
-| brick vs halcyon | 43 - 41 |
-| brick vs riptide | 36 - 48 |
+| brick vs vex | 43 - 41 |
+| brick vs nova | 32 - 52 |
+| brick vs gizmo | 51 - 33 |
+| brick vs agni | 49 - 35 |
+| brick vs halcyon | 55 - 29 |
+| brick vs riptide | 34 - 50 |
 | brick vs obelisk | 43 - 41 |
-| vex vs nova | 33 - 51 |
-| vex vs gizmo | 50 - 34 |
-| vex vs agni | 53 - 31 |
-| vex vs halcyon | 34 - 50 |
-| vex vs riptide | 57 - 27 |
-| vex vs obelisk | 43 - 41 |
-| nova vs gizmo | 26 - 58 |
-| nova vs agni | 40 - 44 |
-| nova vs halcyon | 51 - 33 |
-| nova vs riptide | 51 - 33 |
+| brick vs rime | 48 - 36 |
+| brick vs havoc | 40 - 44 |
+| vex vs nova | 37 - 47 |
+| vex vs gizmo | 43 - 41 |
+| vex vs agni | 48 - 36 |
+| vex vs halcyon | 28 - 56 |
+| vex vs riptide | 40 - 44 |
+| vex vs obelisk | 42 - 42 |
+| vex vs rime | 40 - 44 |
+| vex vs havoc | 35 - 48 |
+| nova vs gizmo | 21 - 63 |
+| nova vs agni | 33 - 51 |
+| nova vs halcyon | 47 - 37 |
+| nova vs riptide | 46 - 38 |
 | nova vs obelisk | 32 - 52 |
-| gizmo vs agni | 41 - 43 |
-| gizmo vs halcyon | 43 - 39 |
-| gizmo vs riptide | 37 - 47 |
+| nova vs rime | 37 - 47 |
+| nova vs havoc | 32 - 52 |
+| gizmo vs agni | 33 - 51 |
+| gizmo vs halcyon | 39 - 45 |
+| gizmo vs riptide | 41 - 43 |
 | gizmo vs obelisk | 52 - 32 |
-| agni vs halcyon | 59 - 25 |
-| agni vs riptide | 27 - 57 |
+| gizmo vs rime | 18 - 66 |
+| gizmo vs havoc | 50 - 34 |
+| agni vs halcyon | 58 - 26 |
+| agni vs riptide | 40 - 44 |
 | agni vs obelisk | 39 - 45 |
-| halcyon vs riptide | 44 - 39 |
-| halcyon vs obelisk | 47 - 37 |
-| riptide vs obelisk | 42 - 42 |
+| agni vs rime | 44 - 40 |
+| agni vs havoc | 34 - 50 |
+| halcyon vs riptide | 30 - 54 |
+| halcyon vs obelisk | 48 - 36 |
+| halcyon vs rime | 36 - 48 |
+| halcyon vs havoc | 54 - 30 |
+| riptide vs obelisk | 35 - 47 |
+| riptide vs rime | 42 - 42 |
+| riptide vs havoc | 33 - 50 |
+| obelisk vs rime | 45 - 39 |
+| obelisk vs havoc | 49 - 34 |
+| rime vs havoc | 31 - 53 |
 
 | fighter | win rate | ultimates used per match |
 |---|---|---|
-| brick | 47% | 1.34 |
-| vex | 54% | 1.82 |
-| nova | 52% | 1.85 |
-| gizmo | 51% | 2.08 |
-| agni | 49% | 1.84 |
-| halcyon | 48% | 2.03 |
-| riptide | 50% | 1.74 |
-| obelisk | 49% | 1.72 |
+| brick | 52% | 1.35 |
+| vex | 47% | 1.82 |
+| nova | 46% | 1.84 |
+| gizmo | 49% | 2.06 |
+| agni | 51% | 1.82 |
+| halcyon | 48% | 2.00 |
+| riptide | 51% | 1.78 |
+| obelisk | 52% | 1.70 |
+| rime | 52% | 1.96 |
+| havoc | 52% | 2.17 |
 
-Mean match length: 130 s
+Mean match length: 136 s
+
+## Level 2
+
+| pairing | wins |
+|---|---|
+| brick vs vex | 24 - 60 |
+| brick vs nova | 15 - 69 |
+| brick vs gizmo | 43 - 41 |
+| brick vs agni | 37 - 47 |
+| brick vs halcyon | 28 - 56 |
+| brick vs riptide | 33 - 51 |
+| brick vs obelisk | 36 - 48 |
+| brick vs rime | 30 - 54 |
+| brick vs havoc | 41 - 43 |
+| vex vs nova | 34 - 50 |
+| vex vs gizmo | 70 - 14 |
+| vex vs agni | 53 - 31 |
+| vex vs halcyon | 53 - 31 |
+| vex vs riptide | 76 - 8 |
+| vex vs obelisk | 64 - 20 |
+| vex vs rime | 54 - 30 |
+| vex vs havoc | 69 - 14 |
+| nova vs gizmo | 42 - 42 |
+| nova vs agni | 39 - 45 |
+| nova vs halcyon | 52 - 32 |
+| nova vs riptide | 63 - 21 |
+| nova vs obelisk | 60 - 24 |
+| nova vs rime | 29 - 55 |
+| nova vs havoc | 76 - 8 |
+| gizmo vs agni | 35 - 49 |
+| gizmo vs halcyon | 38 - 46 |
+| gizmo vs riptide | 41 - 43 |
+| gizmo vs obelisk | 45 - 39 |
+| gizmo vs rime | 10 - 74 |
+| gizmo vs havoc | 56 - 27 |
+| agni vs halcyon | 34 - 50 |
+| agni vs riptide | 55 - 29 |
+| agni vs obelisk | 43 - 41 |
+| agni vs rime | 37 - 47 |
+| agni vs havoc | 64 - 20 |
+| halcyon vs riptide | 61 - 23 |
+| halcyon vs obelisk | 57 - 27 |
+| halcyon vs rime | 36 - 48 |
+| halcyon vs havoc | 83 - 1 |
+| riptide vs obelisk | 40 - 44 |
+| riptide vs rime | 12 - 72 |
+| riptide vs havoc | 41 - 36 |
+| obelisk vs rime | 25 - 59 |
+| obelisk vs havoc | 60 - 23 |
+| rime vs havoc | 79 - 5 |
+
+| fighter | win rate | ultimates used per match |
+|---|---|---|
+| brick | 38% | 1.48 |
+| vex | 71% | 2.03 |
+| nova | 63% | 1.79 |
+| gizmo | 43% | 2.06 |
+| agni | 54% | 1.83 |
+| halcyon | 60% | 2.04 |
+| riptide | 36% | 1.95 |
+| obelisk | 43% | 1.79 |
+| rime | 69% | 2.00 |
+| havoc | 24% | 2.19 |
+
+Mean match length: 137 s
 

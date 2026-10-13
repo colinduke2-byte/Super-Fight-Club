@@ -17,6 +17,11 @@
    - Hooks (only for logic data cannot express): `onTick`, `onMoveStart / Frame / End`, `onHitDealt / Taken`, `onKill`, `onLand`, `onLedgeGrab`, `onTech`, `onParry`, `onShieldHit`, `onGrab`, `onThrow`, `onSpawn`, `onDeployableDestroyed`, `onMoveEvent`, `chooseMove`, `remapMove`.
 4. Register it in `src/characters/index.ts`.
 5. CPU knowledge: add an entry to `CHARACTER_AI` in `src/ai/profiles.ts` (ranged / closers / setups / finishers / recovery / spacing; `aimed` for stick-aimed closers).
+6. Looks: add seven entries to `ALT_LOOKS` and three names to `OUTFIT_NAMES` in `src/art/palettes.ts`: three recolours of the
+   original outfit, then two colours each of outfits 1 and 2 (`outfit: 1 | 2`). The hero drawer reads `look.outfit` and changes
+   gear and shape for each outfit. Set `difficulty` (1-5) for the character-select bar.
+7. Ultimate staging (optional): a cinematic ultimate can name bespoke staging with `cinematic.art`; add the drawing to
+   `src/ui/CinematicArt.ts` under that name. Without it the cinematic still gets the cut-in, camera push, dim and finisher slow-mo.
 
 `tests/content.test.ts` then checks the new fighter automatically (animations exist, fx names resolve, fx data valid, persona present, standard moves exist),
 `tests/soak.test.ts` brawls it in every lineup, and `tests/killpercent.test.ts` guards that its smashes can KO. `npm run framedata` documents it.
@@ -54,6 +59,7 @@ same art (`src/ui/stageThumb.ts`).
 ## Character art
 
 Fighters are drawn procedurally. A look with `art: 'hi'` is rendered at full resolution (160px frames) by `src/art/hero/<style>.ts`, chosen by its `build.helmet` style
-(`visor`, `hood`, `pointed`, `dome`, `band`). A drawer paints parts into a `Raster` (painter's algorithm, no anti-aliasing) from a `Skel` built from the animation pose
+(`visor`, `hood`, `pointed`, `dome`, `band`, `winged`, `fin`, `geode`, `kasa`, `goggles`; `monolith` is the boss). Each drawer branches on
+`look.outfit` (0 = the original design) for the alternate outfits. A drawer paints parts into a `Raster` (painter's algorithm, no anti-aliasing) from a `Skel` built from the animation pose
 (two-bone IK arms and legs), and `Raster.shade()` lights every part by its own edges. Knocked-down frames are the standing body rotated onto its back.
 Looks without `art` use the older 64px block template, upscaled 2x with a detail pass (`src/art/spriteDetail.ts`).
