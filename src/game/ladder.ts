@@ -1,3 +1,4 @@
+import { paletteCount } from '../art/palettes';
 import { CHARACTER_LIST } from '../characters';
 import type { CpuLevel } from './lobby';
 import type { MatchResult, PlayerSlot } from './session';
@@ -8,6 +9,8 @@ export interface LadderOpponent {
   level: CpuLevel;
   stocks: number;
   boss?: boolean;
+  /** Outfit / colour the rival wears this run (rolled per run; the mirror match is bumped off the player's look). */
+  palette?: number;
 }
 
 export interface LadderFight {
@@ -79,6 +82,8 @@ export function buildLadder(player: string, rand: () => number = Math.random): L
     },
     { index: 8, title: 'THE OVERSEER', stage: 'reactor', kind: 'boss', opponents: [{ character: 'overseer', level: 3, stocks: 2, boss: true }], playerStocks: 3 },
   ];
+  // every rival wears a random look this run, so the ladder shows off the outfits
+  for (const f of fights) for (const o of f.opponents) if (!o.boss) o.palette = Math.floor(rand() * paletteCount(o.character));
   return { player, fights, index: 0, continuesLeft: LADDER_CONTINUES, continuesUsed: 0, kos: 0, seconds: 0, introduced: false };
 }
 
@@ -91,7 +96,7 @@ export function slotsForFight(state: LadderState, human: PlayerSlot): PlayerSlot
   const f = currentFight(state);
   const slots: PlayerSlot[] = [{ ...human, index: 0, stocks: f.playerStocks }];
   f.opponents.forEach((o, i) => {
-    slots.push({ index: i + 1, type: 'cpu', device: null, character: o.character, cpuLevel: o.level, stocks: o.stocks, boss: o.boss });
+    slots.push({ index: i + 1, type: 'cpu', device: null, character: o.character, cpuLevel: o.level, stocks: o.stocks, boss: o.boss, palette: o.palette });
   });
   return slots;
 }

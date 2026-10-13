@@ -44,8 +44,9 @@ player named; re-plugging (or plugging another pad) re-attaches it.
 
 ## Arcade Ladder and the boss
 
-Pick Arcade Ladder, choose a fighter, and climb seven fights: three rivals from the roster (Easy, Easy, Normal), a **mirror match** (on
-Stormspire, in another colourway), a duel in the dark of Amethyst Hollow, a **four-way brawl** against the three rivals not met yet (Hard, Normal, Normal; on Skyhold Expanse), so a
+Pick Arcade Ladder, choose a fighter, and climb nine fights: three rivals from the roster (Easy, Easy, Normal), a **mirror match** (on
+Stormspire, in another colourway), a duel in the dark of Amethyst Hollow, **Avalanche Pass** at Frostfang Shrine (Normal), a **Sky Raid** on the Stormrunner (Hard),
+a **four-way brawl** against the three rivals not met yet (Hard, Normal, Normal; on Skyhold Expanse), so a
 run faces the whole roster in a shuffled order, then **The Overseer** (`src/characters/overseer.*`), the arena AI's warden body.
 Story cards (pixel-art scenes drawn in code, `src/art/storyArt.ts`, text in `src/game/story.ts`) play before each fight and in
 the ending, with lines specific to your fighter. You get **3 continues**: losing a fight retries it (stocks reset) until they run out
@@ -54,7 +55,7 @@ The Overseer is not a reactive CPU but a **scripted pattern machine** (`src/ai/b
 (claws, overhead slam, quake, orb volley, plasma beam, summon drones, skyfist, leap slam) by distance / height without repeating, shows a
 long windup (armored on the big ones) and then leaves a punish window. At one stock left it **enrages** (+35% damage, shorter pauses,
 a double-smash combo) and uses **Cataclysm**, a telegraphed set of ground pillars across the stage. It is very heavy (weight 300), so
-expect to land many hits per stock. Dev shortcut: `?arcade=<char>&fight=<0-5>` jumps straight onto the ladder.
+expect to land many hits per stock. Dev shortcut: `?arcade=<char>&fight=<0-8>` jumps straight onto the ladder.
 
 ## CPU opponents
 
@@ -83,6 +84,8 @@ stand / shield / jump / jab / CPU 1-3.
 | Sunken Temple | a jungle ziggurat: a wide main floor with a **raised centre tier** (a low wall to fight around, jump over or wall-jump off), two side bridges and a bobbing stone altar on top; misty ziggurats, canopy, god rays and fireflies. No hazards: the terrain is the twist |
 | Wreck Cove | the deck of a wrecked galleon in a moonlit cove: a **raised quarterdeck** at the stern, rigging spars, a crow's nest and a raft bobbing off the bow. Two blowholes take turns throwing up **water spouts** (1.5 s telegraph, 9% and a launch) that also **soak** whoever they hit, so fire goes out and every hit after sends them a little further. Sea stacks, a sweeping lighthouse beam, shipwrecks and rolling surf; a sea-shanty loop |
 | Amethyst Hollow | a geode cavern under the arena (Obelisk's home): a wide crystal-crusted floor with a **low tier**, two rock shelves and a high crystal ledge. Three **stalactites** take turns cracking loose from the roof (1.25 s warning: cracks, grit and a glow on the floor); the spike hurts and drives you down as it falls, then shatters into a **crystal stump** that stands for four seconds. Stalagmites, crystal clusters, a dripping roof and violet mist; a slow minor-key loop and cave ambience |
+| Frostfang Shrine | Rime's home: a snowed-in mountain shrine on a granite bridge, red-lacquered beams, shide streamers and icicles. Two **ice** pass-through platforms (slippery: you slide on landing and turning) and a high perch. **Avalanches** come down the slopes, alternating sides every 20 s: a rumble and a warning stripe, then a wall of snow sweeps across the floor (hurts, launches; jump it or get to a platform). Falling snow, snowy peaks and pines; a koto-and-taiko loop and wind ambience |
+| Stormrunner | a sky galleon at sunset: a long deck with a **raised stern quarterdeck**, pass-through rigging platforms, and a **skiff** that sails alongside, back and forth. A **lightning rod** on the mast calls down a bolt on the deck (telegraphed). Rigging ropes and brass portholes on the hull; the mesas and clouds **scroll past** as the ship flies; a sea-shanty-in-the-sky loop and wind and creaking timber |
 | Skyhold Expanse | the **large** stage (blast zones +-900 x 620): a 520-wide bridge deck, two floating islands across gaps, tiers of platforms and a drifting cloud; a golden-hour sky with a sun, god rays, birds and floating islands |
 
 Stages are data (`src/stages/*.ts`: platforms, blast zones, spawns, hazards, `background.theme`, `music`); register a new
@@ -451,6 +454,48 @@ built over its cave (`src/characters/obelisk.*`, `obeliskPillars.ts`). Its **cry
 | Upheaval (up, recovery) | rides a rising pillar up (leaving it behind when there is ground below) |
 | Bedrock Stomp (down) | a shockwave both ways along the floor that shatters every pillar in range |
 | Mountain's Wrath (ultimate) | a cinematic grab: sealed in a growing amethyst crystal, then a monolith falls on it |
+
+### Rime: frost ninja
+
+The lightest and fastest fighter: weight 80, run 3.3, three-frame jab, **two** double jumps and a wall cling (`src/characters/rime.*`).
+A slim ninja under a wide ice-blue kasa hat, a long scarf streaming behind and a kunai with a frozen edge.
+
+- **Frostbite:** nearly every hit adds a chill stack to the rival (shown on their HUD). At six stacks they **freeze solid** for 42 frames:
+  a free follow-up. Chill also works through armour (Brick's Tough Guy still takes the stacks).
+- **Skating:** on its own ice patches Rime runs 22% faster; rivals slip on them instead. Avalanche Kick (down air) bounces off the rival into the next hit.
+
+| Special | |
+|---|---|
+| Ice Kunai (neutral) | fast needles; hold to throw a fan of three |
+| Frost Step (side) | a slashing dash that leaves a slippery ice patch behind |
+| Shatter Ascent (up, recovery) | an icy teleport that bursts on arrival |
+| Substitution (down) | a counter: an ice decoy takes the hit and Rime strikes from behind |
+| Thousand Cuts (ultimate) | a cinematic grab: frost creeps over the floor, a flurry of twelve cuts, the rival freezes over and shatters out |
+
+### Havoc: gadget soldier
+
+Weight 100, steady speed, one double jump (`src/characters/havoc.*`). A helmeted soldier with goggles, a tactical vest, a backpack
+radio and a rifle on his back. Combat knife and boots up close; explosives for everything else. Every explosion is a **blast**:
+it hits every rival in its radius (never Havoc or his teammates) and pushes them away from the centre.
+
+| Special | |
+|---|---|
+| Frag Grenade (neutral) | lobbed in an arc, bounces, and goes off on a short fuse |
+| Remote Missile (side) | a missile he **steers** with the stick while holding Special (one at a time); let go and he puts the controller away |
+| Cypher Drone (up, recovery) | a rotor drone carries him up |
+| C4 (down) | plants a charge on the floor, or **slaps it onto a rival** standing in front; down special again detonates it by remote |
+| Airstrike (ultimate) | radios in a barrage: strikes rain down across the whole stage |
+
+Smashes: a Rocket Launcher (forward), a Mortar (up) and a Tripwire Kick (down). The CPU throws grenades and missiles from range,
+plants C4 where you walk and sets it off when you are close.
+
+## Ultimates
+
+Every ultimate plays a cut-in banner with the fighter and the move's name. Cinematic ultimates (a grab that freezes the world) push the
+camera in, dim the backdrop and stage, and play bespoke staging named by `cinematic.art` in the move data (`src/ui/CinematicArt.ts`):
+Meltdown, Pirate King's Raid, Judgement From Above, Maelstrom, Mountain's Wrath and Thousand Cuts each draw their own scene over the
+grapple. The launching hit plays a beat of slow motion with a double shockwave. The other ultimates (Solar Beam, Mega Mech Mode,
+Elemental Convergence, Airstrike) get a **super flash**: the camera pushes in on the caster during the wind-up while the stage dims.
 
 ## Knockback and hit reactions
 
