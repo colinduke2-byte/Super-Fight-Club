@@ -10,6 +10,8 @@ import { bindings } from './bindings';
 export class InputManager {
   readonly keyboards: KeyboardDevice[] = [new KeyboardDevice('kb1'), new KeyboardDevice('kb2')];
   readonly pads = new Map<number, GamepadDevice>();
+  /** Every pad device ever created, by index: a pad that reconnects gets the same object back (callers compare by identity). */
+  private readonly padDevices = new Map<number, GamepadDevice>();
   /** Fired when a pad connects / disconnects (UI toasts, pause-on-disconnect). */
   onPadConnect: ((d: GamepadDevice) => void) | null = null;
   onPadDisconnect: ((d: GamepadDevice) => void) | null = null;
@@ -21,17 +23,24 @@ export class InputManager {
     this.started = true;
     bindings.load();
     keyboardHub.attach();
-    gamepadHub.onConnect = (idx, id) => {
-      const d = new GamepadDevice(idx, id);
-      this.pads.set(idx, d);
-      this.onPadConnect?.(d);
-    };
-    gamepadHub.onDisconnect = (idx) => {
-      const d = this.pads.get(idx);
-      this.pads.delete(idx);
-      if (d) this.onPadDisconnect?.(d);
-    };
+    gamepadHub.onConnect = (idx, id) => this.padConnected(idx, id);
+    gamepadHub.onDisconnect = (idx) => this.padDisconnected(idx);
     gamepadHub.attach();
+  }
+
+  /** Hub callback, public for tests. Reuses the device object of a pad that was at this index before. */
+  padConnected(idx: number, id: string): void {
+    let d = this.padDevices.get(idx);
+    if (d) d.setPadId(id);
+    else this.padDevices.set(idx, (d = new GamepadDevice(idx, id)));
+    this.pads.set(idx, d);
+    this.onPadConnect?.(d);
+  }
+
+  padDisconnected(idx: number): void {
+    const d = this.pads.get(idx);
+    this.pads.delete(idx);
+    if (d) this.onPadDisconnect?.(d);
   }
 
   /** Cheap periodic re-scan (some browsers only expose pads after the first poll). */

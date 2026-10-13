@@ -11,15 +11,26 @@ export interface MenuEvent {
 }
 
 const STICK = 0.6;
-const REPEAT_DELAY = 16; // frames before a held direction repeats
-const REPEAT_RATE = 5;
+// Time-based so menus feel the same at any refresh rate (same feel as the old 60 Hz frame counter, which first
+// repeated 20 frames after the press, then every 5 frames).
+const REPEAT_DELAY = 333; // ms before a held direction repeats
+const REPEAT_RATE = 83; // ms between repeats
+
+/** Keys every keyboard player can use in menus, and the scheme (1 = WASD, 2 = arrows) each belongs to. */
+const SHARED_KEYS: [string, MenuAction, 1 | 2][] = [
+  ['Enter', 'confirm', 2],
+  ['Space', 'confirm', 1],
+  ['Escape', 'back', 1],
+  ['Backspace', 'back', 2],
+  ['Tab', 'alt', 1],
+];
 
 const CONFIRM_BITS = Button.Attack | Button.Jump;
 const BACK_BITS = Button.Special | Button.Shield;
 const ALT_BITS = Button.Grab | Button.Smash | Button.Ultimate;
 
 interface DevState {
-  up: number; // frames held (0 = not held)
+  up: number; // time (performance.now ms) of the next auto-repeat (0 = not held)
   down: number;
   left: number;
   right: number;
@@ -31,8 +42,9 @@ interface DevState {
 
 /**
  * One menu input for every device: both keyboard schemes (WASD/JKLI and arrows/numpad, plus Enter / Space /
- * Escape / Tab), every connected gamepad. Each frame `poll()` returns discrete events (with auto-repeat
- * for held directions) tagged with the device that produced them, so character select can tell players apart.
+ * Escape / Tab), every connected gamepad. Each frame `poll()` returns discrete events (with time-based
+ * auto-repeat for held directions) tagged with the device that produced them, so character select can tell
+ * players apart.
  *
  * Mapping: confirm = Attack or Jump (J / I, pad face buttons); back = Special or Shield (K / L, B / bumpers);
  * alt = Grab / Smash / Ultimate; start = gamepad Start only.
@@ -42,34 +54,37 @@ export class MenuInput {
   private readonly raw: RawInput = makeRaw();
   private readonly events: MenuEvent[] = [];
   private readonly keyPrev = new Set<string>();
-  private lastKeyboard: InputDevice;
+  /** Keyboard schemes that have produced menu input through their own keys this session. */
+  private readonly usedKeyboards = new Set<InputDevice>();
 
   constructor(
     private readonly im: InputManager = inputManager,
     private readonly hub: KeyboardHub = keyboardHub,
-  ) {
-    this.lastKeyboard = im.keyboards[0];
-  }
+    private readonly now: () => number = () => performance.now(),
+  ) {}
 
   /** Treat everything currently held as already handled (call when a scene starts). */
   reset(): void {
     this.states.clear();
     this.keyPrev.clear();
-    for (const code of ['Enter', 'Space', 'Escape', 'Backspace', 'Tab']) if (this.hub.isHeld(code)) this.keyPrev.add(code);
+    for (const [code] of SHARED_KEYS) if (this.hub.isHeld(code)) this.keyPrev.add(code);
+    const now = this.now();
     for (const d of this.im.allDevices) {
-      const st = this.read(d);
+      const st = this.read(d, now);
       this.states.set(d.id, st);
     }
   }
 
-  private read(d: InputDevice): DevState {
+  /** Current state; a held direction counts as just pressed (first repeat due after REPEAT_DELAY). */
+  private read(d: InputDevice, now: number): DevState {
     d.sample(this.raw);
     const r = this.raw;
+    const next = now + REPEAT_DELAY;
     return {
-      up: r.stickY < -STICK ? 1 : 0,
-      down: r.stickY > STICK ? 1 : 0,
-      left: r.stickX < -STICK ? 1 : 0,
-      right: r.stickX > STICK ? 1 : 0,
+      up: r.stickY < -STICK ? next : 0,
+      down: r.stickY > STICK ? next : 0,
+      left: r.stickX < -STICK ? next : 0,
+      right: r.stickX > STICK ? next : 0,
       confirm: (r.held & CONFIRM_BITS) !== 0,
       back: (r.held & BACK_BITS) !== 0,
       alt: (r.held & ALT_BITS) !== 0,
@@ -81,33 +96,42 @@ export class MenuInput {
   poll(): readonly MenuEvent[] {
     const ev = this.events;
     ev.length = 0;
+    const now = this.now();
     for (const d of this.im.allDevices) {
-      const cur = this.read(d);
+      const cur = this.read(d, now);
       let prev = this.states.get(d.id);
       if (!prev) {
         prev = cur; // first sight of a device: do not fire for buttons it is already holding
         this.states.set(d.id, prev);
       }
       for (const dir of ['up', 'down', 'left', 'right'] as const) {
-        if (cur[dir]) {
-          const held = prev[dir] + 1;
-          const fire = held === 1 || (held > REPEAT_DELAY && (held - REPEAT_DELAY) % REPEAT_RATE === 0);
-          if (fire) ev.push({ action: dir, device: d });
-          cur[dir] = held;
+        if (!cur[dir]) continue;
+        if (!prev[dir]) {
+          ev.push({ action: dir, device: d }); // fresh press (cur already holds the first repeat time)
+        } else if (now >= prev[dir]) {
+          ev.push({ action: dir, device: d });
+          // after a long hitch, resume the cadence from now rather than firing a burst of catch-up repeats
+          const next = prev[dir] + REPEAT_RATE;
+          cur[dir] = next > now ? next : now + REPEAT_RATE;
+        } else {
+          cur[dir] = prev[dir];
         }
       }
       if (cur.confirm && !prev.confirm) ev.push({ action: 'confirm', device: d });
       if (cur.back && !prev.back) ev.push({ action: 'back', device: d });
       if (cur.alt && !prev.alt) ev.push({ action: 'alt', device: d });
       if (cur.start && !prev.start) ev.push({ action: 'start', device: d });
-      if (d.kind === 'keyboard' && (cur.up || cur.down || cur.left || cur.right || cur.confirm)) this.lastKeyboard = d;
+      if (d.kind === 'keyboard' && (cur.up || cur.down || cur.left || cur.right || cur.confirm || cur.back || cur.alt)) this.usedKeyboards.add(d);
       this.states.set(d.id, cur);
     }
-    // universal keyboard keys are attributed to whichever keyboard scheme was used last
-    const keys: [string, MenuAction][] = [['Enter', 'confirm'], ['Space', 'confirm'], ['Escape', 'back'], ['Backspace', 'back'], ['Tab', 'alt']];
-    for (const [code, action] of keys) {
+    // universal keyboard keys belong to the side of the keyboard they sit on (Space / Escape / Tab: WASD scheme,
+    // Enter / Backspace: arrows scheme) once both schemes are in use; until then they all act for the one in use
+    const [kb1, kb2] = this.im.keyboards;
+    const both = this.usedKeyboards.has(kb1) && this.usedKeyboards.has(kb2);
+    const solo = this.usedKeyboards.has(kb2) ? kb2 : kb1;
+    for (const [code, action, side] of SHARED_KEYS) {
       const down = this.hub.isActive(code); // held, or tapped since the last frame (a quick tap on a slow frame still counts)
-      if (down && !this.keyPrev.has(code)) ev.push({ action, device: this.lastKeyboard });
+      if (down && !this.keyPrev.has(code)) ev.push({ action, device: both ? (side === 1 ? kb1 : kb2) : solo });
       if (down) this.keyPrev.add(code);
       else this.keyPrev.delete(code);
     }

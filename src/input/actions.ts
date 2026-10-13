@@ -57,7 +57,7 @@ export const DEFAULT_KEY_SCHEMES: Record<KeyboardSchemeId, KeyBindings> = {
     ultimate: ['KeyQ'],
     pause: ['Escape'],
   },
-  // P2: arrows + numpad (laptop-friendly alternates on , . / and right shift)
+  // P2: arrows + numpad (laptop-friendly alternates on , . / ; ' \ and right shift)
   kb2: {
     left: ['ArrowLeft'],
     right: ['ArrowRight'],
@@ -69,7 +69,7 @@ export const DEFAULT_KEY_SCHEMES: Record<KeyboardSchemeId, KeyBindings> = {
     shield: ['Numpad3', 'Slash'],
     grab: ['Numpad4', 'Semicolon'],
     smash: ['Numpad6', 'Quote'],
-    ultimate: ['Numpad0', 'BracketRight'],
+    ultimate: ['Numpad0', 'Backslash'],
     pause: ['NumpadEnter'],
   },
 };
@@ -113,6 +113,33 @@ export function profileForPadId(id: string): PadProfileId {
   if (s.includes('057e') || s.includes('nintendo') || s.includes('switch') || s.includes('pro controller')) return 'nintendo';
   return 'standard';
 }
+
+/**
+ * Keys MatchScene handles itself (debug / help / tap-jump / perf / fullscreen toggles and the training-mode
+ * hotkeys), so they can never be bound to a player action. Keep in sync with MatchScene.onKey.
+ */
+export const RESERVED_KEYS = new Set([
+  'Digit0',
+  'Digit1',
+  'Digit2',
+  'Digit3',
+  'Digit4',
+  'Digit5',
+  'Digit6',
+  'KeyH',
+  'KeyT',
+  'KeyF',
+  'Backquote',
+  'BracketLeft',
+  'BracketRight',
+  'Enter',
+  'KeyM',
+  'KeyN',
+  'KeyB',
+]);
+
+/** Standard-mapping d-pad buttons (12..15): hard-wired as a digital stick in GamepadDevice, never rebindable. */
+export const RESERVED_PAD_BUTTONS = new Set([12, 13, 14, 15]);
 
 /** Keys the page must never let the browser act on (scroll, tab focus, ...). */
 export const ALWAYS_PREVENT = new Set([

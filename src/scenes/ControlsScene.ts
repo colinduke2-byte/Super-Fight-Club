@@ -1,7 +1,8 @@
 import Phaser from 'phaser';
 import { PIXEL_FONT, up } from '../art/pixelFont';
-import { ACTION_LABEL, ALL_ACTIONS, BUTTON_ACTIONS, type Action, type ButtonAction } from '../input/actions';
-import { bindings } from '../input/bindings';
+import { ACTION_LABEL, ALL_ACTIONS, BUTTON_ACTIONS, RESERVED_PAD_BUTTONS, type Action, type ButtonAction } from '../input/actions';
+import { bindings, type RebindResult } from '../input/bindings';
+import type { GamepadDevice } from '../input/gamepad';
 import { inputManager } from '../input/inputManager';
 import { keyboardHub } from '../input/keyboard';
 import type { MenuEvent } from '../input/menuInput';
@@ -38,6 +39,8 @@ export class ControlsScene extends MenuScene {
   private armedAt = 0;
   private notice = '';
   private ignoreUntil = 0;
+  /** Pad capture: buttons each pad (by index) had down on the last poll; only a fresh press binds. */
+  private readonly padHeld = new Map<number, Set<number>>();
 
   constructor() {
     super('Controls');
@@ -109,16 +112,43 @@ export class ControlsScene extends MenuScene {
     this.capturing = a;
     this.armedAt = performance.now();
     this.notice = '';
-    if (this.isKb) {
-      keyboardHub.onKeyDown = (code) => {
-        if (code === 'Escape') {
-          this.finishCapture('CANCELLED');
-          return;
-        }
-        bindings.rebindKey(this.profile as 'kb1' | 'kb2', a, code);
-        this.finishCapture(`${ACTION_LABEL[a].toUpperCase()} = ${keyName(code)}`);
-      };
+    keyboardHub.onKeyDown = (code) => {
+      if (code === 'Escape') {
+        this.finishCapture('CANCELLED');
+        return;
+      }
+      if (this.isKb) {
+        const res = bindings.rebindKey(this.profile as 'kb1' | 'kb2', a, code);
+        this.finishCapture(this.resultText(a, keyName(code), res));
+      }
+    };
+    if (!this.isKb) {
+      // snapshot what is already down (e.g. the button that opened capture) so only a new press binds
+      this.padHeld.clear();
+      for (const pad of this.matchingPads()) this.padHeld.set(pad.index, this.pressedButtons(pad.index));
     }
+  }
+
+  private resultText(a: Action, name: string, res: RebindResult): string {
+    if (!res.ok) return `${name}: ${res.reason}`;
+    let msg = `${ACTION_LABEL[a].toUpperCase()} = ${name}`;
+    if (res.swappedWith) msg += `  (SWAPPED WITH ${ACTION_LABEL[res.swappedWith].toUpperCase()})`;
+    if (res.takenFrom) msg += `  (REMOVED FROM ${res.takenFrom.scheme === 'kb1' ? 'KEYBOARD 1' : 'KEYBOARD 2'} ${ACTION_LABEL[res.takenFrom.action].toUpperCase()})`;
+    return msg;
+  }
+
+  /** Connected pads that use the profile being edited (an Xbox pad must not rebind the Nintendo profile). */
+  private matchingPads(): GamepadDevice[] {
+    return inputManager.padList.filter((p) => p.connected && p.profile === this.profile);
+  }
+
+  /** Rebindable buttons (standard mapping 0..15, minus the hard-wired d-pad) currently down on a pad. */
+  private pressedButtons(index: number): Set<number> {
+    const out = new Set<number>();
+    const p = navigator.getGamepads()[index];
+    if (!p) return out;
+    for (let i = 0; i < Math.min(16, p.buttons.length); i++) if (p.buttons[i].pressed && !RESERVED_PAD_BUTTONS.has(i)) out.add(i);
+    return out;
   }
 
   private finishCapture(msg: string): void {
@@ -129,19 +159,22 @@ export class ControlsScene extends MenuScene {
     this.ignoreUntil = performance.now() + 200;
   }
 
-  /** Gamepad capture: first fresh button press on any pad of the matching profile. */
+  /** Gamepad capture: first released->pressed button on any pad of the matching profile. */
   private pollPadCapture(): void {
     if (this.capturing === null || this.isKb) return;
-    if (performance.now() - this.armedAt < 250) return;
-    for (const pad of inputManager.padList) {
-      const p = navigator.getGamepads()[pad.index];
-      if (!p) continue;
-      for (let i = 0; i < p.buttons.length; i++) {
-        if (p.buttons[i].pressed && i < 16) {
-          bindings.rebindPadButton(this.profile as 'standard' | 'nintendo', this.capturing as ButtonAction, i);
-          this.finishCapture(`${ACTION_LABEL[this.capturing].toUpperCase()} = ${padButtonName(i)}`);
-          return;
-        }
+    const armed = performance.now() - this.armedAt >= 250;
+    for (const pad of this.matchingPads()) {
+      const now = this.pressedButtons(pad.index);
+      // a pad first seen mid-capture: whatever it holds now is not a fresh press
+      const before = this.padHeld.get(pad.index) ?? now;
+      this.padHeld.set(pad.index, now);
+      if (!armed) continue;
+      for (const i of now) {
+        if (before.has(i)) continue;
+        const a = this.capturing;
+        const res = bindings.rebindPadButton(this.profile as 'standard' | 'nintendo', a as ButtonAction, i);
+        this.finishCapture(this.resultText(a, padButtonName(i), res));
+        return;
       }
     }
   }
@@ -161,7 +194,11 @@ export class ControlsScene extends MenuScene {
     this.pollPadCapture();
     this.list.update(time);
     const msg = this.capturing
-      ? this.isKb ? 'PRESS THE NEW KEY   (ESC: CANCEL)' : 'PRESS THE NEW BUTTON ON YOUR CONTROLLER'
+      ? this.isKb
+        ? 'PRESS THE NEW KEY   (ESC: CANCEL)'
+        : this.matchingPads().length
+          ? 'PRESS THE NEW BUTTON ON YOUR CONTROLLER'
+          : `CONNECT A ${PROFILE_NAME[this.profile]}   (ESC: CANCEL)`
       : this.notice || 'UP/DOWN: MOVE   J / ENTER: REBIND   LEFT/RIGHT: DEVICE   K / ESC: BACK';
     this.hint.setText(up(msg));
   }

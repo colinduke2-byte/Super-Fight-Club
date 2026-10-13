@@ -84,6 +84,11 @@ export class GamepadDevice implements InputDevice {
     return this._label;
   }
 
+  /** A (possibly different) pad reconnected at this index: keep the object, refresh its name. */
+  setPadId(padId: string): void {
+    this._label = shortPadName(padId);
+  }
+
   /** Short dual-motor rumble (Chromium / Edge; silently ignored where unsupported). */
   rumble(strong: number, weak: number, ms: number): void {
     if (!settings.rumble || typeof navigator === 'undefined' || !navigator.getGamepads) return;
