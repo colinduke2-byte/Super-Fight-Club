@@ -17,7 +17,9 @@ export function drawHavoc(r: Raster, k: Skel, look: PlaceholderLook): void {
   const glow = mix(accent, [255, 250, 220], 0.5);
   const skin = col(look.skin);
   // the value ladder: shirt (light) > pouches / helmet (mid) > trousers > vest (dark) > webbing, gloves, boots (darkest)
-  const shirt: RGB = mix(armor, [200, 192, 150], 0.42);
+  // the shirt lightens toward khaki; a near-black kit (Night Ops) lightens toward slate instead, so it stays dark
+  const lum = (armor[0] + armor[1] + armor[2]) / 3;
+  const shirt: RGB = mix(armor, mix([92, 98, 110], [200, 192, 150], Math.max(0, Math.min(1, (lum - 50) / 20))), 0.42);
   const pants: RGB = mul(mix(armor, [118, 108, 88], 0.35), 0.86);
   const vest: RGB = mix(armor, dark, 0.55);
   const web: RGB = mul(dark, 0.62);
