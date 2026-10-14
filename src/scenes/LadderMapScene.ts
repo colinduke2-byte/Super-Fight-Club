@@ -1,5 +1,6 @@
 import Phaser from 'phaser';
-import { animFrameIndex, ensurePalette, fighterTextureKey, portraitCrop, portraitK } from '../art/proceduralFighter';
+import type { CharacterData } from '../engine/types';
+import { animFrameIndex, ensurePalette, fighterTextureKey, paletteReady, portraitCrop, portraitK, requestPalette } from '../art/proceduralFighter';
 import { PIXEL_FONT, up } from '../art/pixelFont';
 import { characterById } from '../characters';
 import { currentFight, slotsForFight, type LadderState } from '../game/ladder';
@@ -42,8 +43,12 @@ export class LadderMapScene extends MenuScene {
       const opp = characterById(f.opponents[0].character)!;
       // the next rival shows the outfit it wears this run (only that one is built: each look is a full sprite sheet)
       const pal = f.index === this.ladder.index ? (f.opponents[0].palette ?? 0) : 0;
-      const skin = pal > 0 && opp.id !== this.ladder.player ? ensurePalette(this, opp, pal) : opp.id;
+      // that outfit is built on the art workers: the default look stands in until it arrives (see tick)
+      const outfit = pal > 0 && opp.id !== this.ladder.player;
+      if (outfit) requestPalette(this, opp, pal);
+      const skin = outfit && paletteReady(this, opp, pal) ? ensurePalette(this, opp, pal) : opp.id;
       const img = this.add.image(0, 0, fighterTextureKey(skin), animFrameIndex(opp, 'idle', 0)).setOrigin(0.5, 0.5).setCrop(...portraitCrop(opp));
+      if (outfit && skin === opp.id) this.pendingOutfit = { img, data: opp, pal };
       img.setData('k', portraitK(opp));
       const num = this.add.bitmapText(0, 0, PIXEL_FONT, String(f.index + 1)).setOrigin(0.5).setTint(0xffffff);
       this.ui.add([img, num]);
@@ -89,7 +94,15 @@ export class LadderMapScene extends MenuScene {
     return { planet: null, tint: 0xe2e6ff };
   }
 
+  /** The next rival's outfit, while its sheet is still being built. */
+  private pendingOutfit: { img: Phaser.GameObjects.Image; data: CharacterData; pal: number } | null = null;
+
   protected override tick(time: number): void {
+    const po = this.pendingOutfit;
+    if (po && paletteReady(this, po.data, po.pal)) {
+      po.img.setTexture(fighterTextureKey(ensurePalette(this, po.data, po.pal)), animFrameIndex(po.data, 'idle', 0)).setCrop(...portraitCrop(po.data));
+      this.pendingOutfit = null;
+    }
     if (!this.list) return;
     const l = this.ladder;
     const cur = l.index;
