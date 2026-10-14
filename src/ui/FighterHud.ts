@@ -83,6 +83,8 @@ export class FighterHud {
   /** Timed matches: the score shown where the stock pips go (null in stock / stamina matches). */
   timedScore: number | null = null;
   private shownScore: number | null = null;
+  /** Timed matches: 1 when the score just changed, decaying (the score swells and flashes). */
+  private scorePop = 0;
   private u = 3;
   /** Whole-pixel scale of the small texts (u rounded down). */
   private tu = 3;
@@ -215,10 +217,16 @@ export class FighterHud {
       // a timed match: the KO score instead of stock pips (stocks mean nothing there)
       const sc = this.timedScore;
       if (sc !== this.shownScore) {
-        this.shownScore = sc;
         this.shownPips = -1;
+        if (this.shownScore !== null) this.scorePop = 1;
+        this.shownScore = sc;
         this.pips.setText(sc > 0 ? `+${sc}` : String(sc));
       }
+      this.scorePop = Math.max(0, this.scorePop - 0.04 * k);
+      // swells to double size on a change, then settles; green when ahead, red when behind
+      const flash = this.scorePop > 0.6 && ((tick >> 2) & 1) === 0;
+      this.pips.setScale(this.tu * (1 + Math.round(this.scorePop * 2) / 2));
+      this.pips.setTint(flash ? 0xffffff : sc > 0 ? 0x7affa0 : sc < 0 ? 0xff6a5a : 0xffffff);
     } else {
       const pips = !training && !out ? Math.max(0, Math.min(stocks, MAX_PIPS)) : 0;
       if (pips !== this.shownPips) {
