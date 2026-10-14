@@ -1,6 +1,9 @@
 import { launchSlots } from '../game/launch';
 import Phaser from 'phaser';
-import { buildPlaceholderSheet, registerAnimations } from '../art/proceduralFighter';
+import { buildPlaceholderSheet, registerAnimations, registerPixels } from '../art/proceduralFighter';
+import { hasHeroArt } from '../art/hero';
+import { sheetSpec } from '../art/sheetPixels';
+import { buildSheetPixels } from '../art/sheetPool';
 import { buildStageTextures } from '../art/stageTextures';
 import { buildEntityTextures } from '../art/entityTextures';
 import { buildLadder } from '../game/ladder';
@@ -48,23 +51,21 @@ export class BootScene extends Phaser.Scene {
       bar.fillStyle(0x34d6d0, 1).fillRect(w / 2 - barW / 2, h / 2 + 6 * u, (barW * n) / all.length, 6 * u);
     };
     draw(0);
-    let i = 0;
+    let done = 0;
     const t0 = performance.now();
-    const step = (): void => {
-      if (i >= all.length) {
-        console.info(`[boot] ${all.length} fighter sheets built in ${Math.round(performance.now() - t0)} ms`);
-        label.destroy();
-        bar.destroy();
-        this.finish();
-        return;
-      }
-      const c = all[i++];
+    // every sheet is built in parallel off the main thread (sheetPool), then turned into a texture as it arrives
+    const jobs = all.map(async (c) => {
       if (c.sprite.sheetUrl) registerAnimations(this, c);
+      else if (hasHeroArt(c.sprite.placeholder)) registerPixels(this, c, await buildSheetPixels(sheetSpec(c)));
       else buildPlaceholderSheet(this, c);
-      draw(i);
-      this.time.delayedCall(0, step);
-    };
-    this.time.delayedCall(30, step);
+      draw(++done);
+    });
+    void Promise.all(jobs).then(() => {
+      console.info(`[boot] ${all.length} fighter sheets built in ${Math.round(performance.now() - t0)} ms`);
+      label.destroy();
+      bar.destroy();
+      this.finish();
+    });
   }
 
   private finish(): void {

@@ -1,5 +1,5 @@
 import Phaser from 'phaser';
-import { animFrameIndex, ensurePalette, fighterAnimKey, fighterTextureKey, portraitCrop, portraitK, uiTexK } from '../art/proceduralFighter';
+import { animFrameIndex, ensurePalette, fighterAnimKey, fighterTextureKey, paletteReady, portraitCrop, portraitK, requestPalette, uiTexK } from '../art/proceduralFighter';
 import { ALT_LOOKS, lookName, paletteCount } from '../art/palettes';
 import { PIXEL_FONT } from '../art/pixelFont';
 import { CHARACTER_LIST } from '../characters';
@@ -175,7 +175,13 @@ export class CharacterSelectScene extends MenuScene {
       const slot = l.slots[i];
       const data = CHARACTER_LIST[slot.character];
       const pal = slot.kind === 'human' ? this.palettes[i] % paletteCount(data.id) : 0;
-      const skin = pal > 0 ? ensurePalette(this, data, pal) : data.id;
+      // outfits are built off the main thread: until one is ready the card shows the fighter's default look, and the next
+      // outfit along is prepared ahead so flicking through them never stalls the menu
+      if (slot.kind === 'human') {
+        if (!paletteReady(this, data, pal)) requestPalette(this, data, pal);
+        requestPalette(this, data, (pal + 1) % paletteCount(data.id));
+      }
+      const skin = pal > 0 && paletteReady(this, data, pal) ? ensurePalette(this, data, pal) : data.id;
       if (c.tex !== skin) {
         c.tex = skin;
         c.sprite.setTexture(fighterTextureKey(skin), 0);
