@@ -1,307 +1,455 @@
 import type { PlaceholderLook } from '../../engine/types';
-import { col, mix, mul, type Raster, type RGB, type V2 } from './raster';
+import { col, mix, mul, Raster, type RGB, type V2 } from './raster';
 import { solveLimb, type Skel } from './skeleton';
 
-/** Brick: a heavy blue bruiser in layered plate armour with a piston fist, reactor core, hazard belt and back exhausts. */
+/**
+ * Brick: a heavy powersuit bruiser. Designed silhouette-first: a barrel chest with the reactor core as the focal point,
+ * two big domed pauldrons, a helm with a wide visor sitting down in a collar, thick bell gauntlets ending in big
+ * knuckle-plated fists, and stocky legs on heavy boots. Every plate is a few large shapes painted with a hand-set bevel
+ * (see `plate`): one light from up-front, so the top and front edges catch it and the lower and back edges fall away.
+ * Value ladder: lit armour plates > shadowed armour (the far limbs) > the dark frame; gunmetal is the second material for
+ * the joints, knuckles and fittings, and the accent glow is kept to the core, the visor and a couple of running lights.
+ */
 export function drawBrick(r: Raster, k: Skel, look: PlaceholderLook): void {
   const armor = col(look.armor);
   const dark = col(look.armorDark);
-  const deep = mul(dark, 0.62);
-  const plate = mix(armor, [220, 235, 255], 0.14);
   const accent = col(look.accent);
   guardGlow(r, accent); // no part blooms unless it is emissive on purpose (see guardGlow)
   const glow = mix(accent, [255, 250, 220], 0.55);
-  const steel: RGB = [169, 180, 204];
-  const steelD: RGB = [106, 117, 146];
-  const black: RGB = [20, 22, 36];
-  // the dark mechanical frame under the plates (joints, neck, waist): the darkest value, so every plate parts from its neighbour
+  // the dark mechanical frame under the plates (joints, waist, thighs): the darkest value on the suit
   const frame: RGB = mix(mul(dark, 0.42), [22, 24, 34], 0.5);
-  const gun: RGB = mix([118, 116, 122], armor, 0.12);
-  const P = {
-    armor: r.part(armor),
-    plate: r.part(plate),
-    dark: r.part(dark),
-    deep: r.part(deep),
-    steel: r.part(steel),
-    steelD: r.part(steelD),
+  // gunmetal: kept a clear step away from the armour (darker under pale armour, lighter under deep armour)
+  const lum = armor[0] * 0.3 + armor[1] * 0.59 + armor[2] * 0.11;
+  const gunC: RGB = lum > 125 ? mix([74, 74, 84], dark, 0.15) : mix([132, 130, 138], armor, 0.1);
+  const M: Mats = {
+    A: ramp(r, armor, dark, 0.3),
+    D: ramp(r, mix(armor, dark, 0.72), mul(dark, 0.6), 0.16),
+    F: ramp(r, frame, mul(frame, 0.6), 0.08),
+    G: ramp(r, gunC, mul(gunC, 0.5), 0.3),
+    GD: ramp(r, mul(gunC, 0.7), mul(gunC, 0.4), 0.14),
+    H: ramp(r, [226, 214, 186], [120, 106, 84], 0.3),
+    HD: ramp(r, [160, 146, 120], [92, 80, 64], 0.12),
+    line: r.part(mix(frame, [6, 6, 14], 0.45), { flat: true }),
+    deep: r.part(mix(frame, [0, 0, 6], 0.35), { flat: true }),
     accent: r.part(accent, { emissive: true }),
     glow: r.part(glow, { emissive: true }),
     stripeA: r.part(accent, { flat: true, emissive: true }), // hazard stripes glow on purpose
-    stripeB: r.part(black, { flat: true }),
-    seam: r.part(deep, { flat: true }),
-    rivet: r.part(steel, { flat: true }),
-    frame: r.part(frame),
-    frameL: r.part(mix(frame, steelD, 0.45)),
-    // a second material: neutral gunmetal for the joints, cuffs and the off hand, so the suit is not one blue family
-    gun: r.part(gun),
-    gunL: r.part(mix(gun, [236, 232, 224], 0.38)),
-    gunD: r.part(mul(gun, 0.62)),
+    stripeB: r.part([20, 22, 36], { flat: true }),
   };
-  const T = k.torso;
-  const pulse = k.phase % 2;
-  // outfits: 1 = Siege (horned great helm with a T-slit, spiked pauldron, a chain), 2 = Diver (brass diving helmet, air tank)
-  const o = look.outfit ?? 0;
-  const horn = r.part([236, 226, 200]);
-  const hornD = r.part([170, 156, 128]);
   const glass = r.part(mix(accent, [200, 240, 255], 0.5), { emissive: true });
   const smoke = r.part(mix([150, 152, 166], dark, 0.25), { soft: true });
   const smokeD = r.part(mix([96, 98, 116], dark, 0.3), { soft: true });
+  const T = k.torso;
+  const pulse = k.phase % 2;
+  // outfits: 1 = Siege (horned great helm with a T-slit, spiked pauldron), 2 = Diver (round diving helmet, air tank)
+  const o = look.outfit ?? 0;
   // keep the gauntlets and boots inside the frame on the widest reaches (they are the biggest pieces at a limb's end)
-  const handF = clampV(k.handF, 17, r.w - 19, 17, r.h - 17);
-  const handB = clampV(k.handB, 19, r.w - 19, 17, r.h - 17);
-  const ankleF = clampV(k.ankleF, 15, r.w - 23, 0, k.base - 8);
-  const ankleB = clampV(k.ankleB, 15, r.w - 23, 0, k.base - 8);
+  const handF = clampV(k.handF, 19, r.w - 20, 17, r.h - 17);
+  const handB = clampV(k.handB, 19, r.w - 20, 17, r.h - 17);
+  const ankleF = clampV(k.ankleF, 16, r.w - 24, 0, k.base - 8);
+  const ankleB = clampV(k.ankleB, 16, r.w - 24, 0, k.base - 8);
   // a hand pulled in re-solves its elbow, so the arm folds naturally instead of stretching to the old joint
   const elbowF = clampV(handF === k.handF ? k.elbowF : solveLimb(k.shF, handF, k.armBone, 1).mid, 14, r.w - 13, 12, r.h - 12);
   const elbowB = clampV(handB === k.handB ? k.elbowB : solveLimb(k.shB, handB, k.armBone, 1).mid, 14, r.w - 13, 12, r.h - 12);
   const kneeF = clampV(k.kneeF, 14, r.w - 14, 0, r.h - 16);
   const kneeB = clampV(k.kneeB, 14, r.w - 14, 0, r.h - 16);
+  const hx = k.head.x;
+  const hy = k.head.y;
+  const hs = k.head.s;
+  const x0 = T.x;
+  const top = T.y;
+  const w = T.w;
+  const h = T.h;
 
-  // ---- back arm: a dark frame upper arm, an elbow joint, a plated forearm ----
-  {
-    const el = elbowB;
-    r.seg(P.frame, k.shB[0], k.shB[1], el[0], el[1], 13, 11);
-    r.seg(P.deep, lerp(k.shB, el, 0.15)[0], lerp(k.shB, el, 0.15)[1], lerp(k.shB, el, 0.7)[0], lerp(k.shB, el, 0.7)[1], 16, 14);
-    r.seg(P.dark, el[0], el[1], handB[0], handB[1], 15, 13);
-    r.seg(P.deep, lerp(el, handB, 0.55)[0], lerp(el, handB, 0.55)[1], handB[0], handB[1], 15, 13);
-    r.ellipse(P.frame, el[0], el[1], 7, 6.5);
-    r.ellipse(P.gunD, el[0] - 0.5, el[1] - 1, 4.5, 4);
-    fist(r, P, handB, el, true);
-  }
-
-  // ---- back leg ----
-  leg(r, P, k.hipB, kneeB, ankleB, true);
-
+  // ---- back pack: twin exhaust stacks (or the diver's air tank), tucked behind the far shoulder ----
   if (o === 2) {
-    // ---- an air tank on the back with a hose up to the helmet ----
-    const bx = Math.max(T.x - 10, 7); // tucked in on a deep wind-up so it stays in the frame
-    const by = T.y + 2;
-    r.ellipse(P.steelD, bx + 6, by + 2, 8, 5);
-    r.rect(P.steelD, bx - 2, by + 2, 16, 26);
-    r.ellipse(P.steelD, bx + 6, by + 28, 8, 4);
-    r.rect(P.steel, bx + 1, by + 4, 3, 22);
-    r.rect(P.stripeA, bx - 2, by + 10, 16, 2);
-    r.rect(P.stripeA, bx - 2, by + 20, 16, 2);
-    r.seg(P.deep, bx + 6, by - 2, k.head.x - 2, k.head.y + k.head.s - 4, 4, 4);
+    // the tank stands up past the far shoulder, so it shows above the pauldron
+    const bx = Math.max(x0 - 2, 12);
+    const by = top - 12;
+    plate(r, M.F, (m) => m.seg(0, bx + 6, by - 1, hx + 1, hy + hs - 8, 5, 5), { line: M.line });
+    plate(r, M.G, (m) => m.seg(0, bx + 6, by + 6, bx + 6, by + 30, 13, 13), { line: M.line, round: true });
+    plate(r, M.GD, (m) => m.rect(0, bx + 3, by - 2, 6, 4), { line: M.line });
+    r.rect(M.stripeA, bx, by + 11, 13, 2);
   } else {
-  // ---- back exhausts ----
-  {
-    const bx = Math.max(T.x - 9, 11); // tucked in on a deep wind-up so the pipes stay in the frame
-    const by = T.y + 4;
-    r.rect(P.dark, bx, by, 14, 30);
-    r.rect(P.deep, bx, by + 22, 14, 8);
-    r.seg(P.steelD, bx + 4, by + 2, bx - 2, by - 12, 7, 6);
-    r.seg(P.steelD, bx + 10, by + 4, bx + 7, by - 8, 7, 6);
-    // exhaust: puffs of smoke rising off the pipes and drifting back, cycling with the animation (behind the pipe mouths)
-    for (const [mx, my, i0] of [[bx - 2, by - 12, 0], [bx + 7, by - 8, 1]] as const) {
+    const bx = Math.max(x0 + 3, 17);
+    const by = top + 4;
+    const tips: [number, number][] = [
+      [Math.max(bx - 8, 11), by - 10],
+      [Math.max(bx + 1, 16), by - 14],
+    ];
+    // exhaust: puffs of smoke rising off the pipe mouths and drifting back, cycling with the animation
+    tips.forEach(([mx, my], i0) => {
       for (let i = 0; i < 2; i++) {
         const t = (k.phase * 0.17 + i * 0.5 + i0 * 0.25) % 1;
         const x = Math.max(9, mx - 2 - t * 6 - k.pose.lean * 0.8 * t);
-        const y = Math.max(9, my - 4 - t * 9);
+        const y = Math.max(9, my - 5 - t * 9);
         const rad = 2 + t * 2;
         r.ellipse(smokeD, x + 0.6, y + 0.6, rad, rad * 0.85);
         r.ellipse(smoke, x, y, rad - 0.8, rad * 0.85 - 0.8);
       }
+    });
+    plate(r, M.G, (m) => m.seg(0, bx + 1, by + 6, tips[0][0], tips[0][1], 10, 9), { line: M.line });
+    plate(r, M.G, (m) => m.seg(0, bx + 9, by + 6, tips[1][0], tips[1][1], 10, 9), { line: M.line });
+    for (const [mx, my] of tips) {
+      r.ellipse(M.deep, mx - 0.5, my - 1.5, 2.6, 1.6);
     }
-    r.ellipse(P.accent, bx - 2, by - 12, 3, 3);
-    r.ellipse(P.glow, bx + 7, by - 8, 2.4, 2.4);
-    r.rect(P.stripeA, bx + 2, by + 12, 10, 2);
-  }
   }
 
-  // ---- torso ----
+  // ---- back arm (in shadow): frame upper arm, gunmetal elbow, a shadowed gauntlet ----
+  arm(r, M, k.shB, elbowB, handB, true);
+  // ---- back leg ----
+  leg(r, M, k.hipB, kneeB, ankleB, true);
+  // ---- back pauldron: only its rear dome shows past the chest, bulking out the shoulder line ----
   {
-    const x0 = T.x;
-    const top = T.y;
-    const w = T.w;
-    const h = T.h;
-    // the dark frame at the neck and the waist, so the chest shell sits apart from the head and the belt
-    r.rect(P.frame, x0 + 12, top - 2, w - 22, 8);
-    r.rect(P.frame, x0 + 8, top + h - 18, w - 16, 18);
-    for (let i = 0; i < 3; i++) r.rect(P.frameL, x0 + 12, top + h - 16 + i * 3, w - 24, 1);
-    // chest shell
-    r.poly(P.armor, [[x0 + 6, top], [x0 + w - 4, top], [x0 + w + 4, top + 10], [x0 + w - 8, top + h - 12], [x0 + 10, top + h - 12], [x0 - 2, top + 10]]);
-    r.poly(P.dark, [[x0 - 2, top + 10], [x0 + 6, top], [x0 + 16, top + 2], [x0 + 18, top + h - 14], [x0 + 10, top + h - 12]]);
-    // chest plate
-    r.poly(P.plate, [[x0 + 18, top + 2], [x0 + w - 8, top + 2], [x0 + w - 2, top + 10], [x0 + w - 12, top + h - 18], [x0 + 20, top + h - 18], [x0 + 14, top + 10]]);
-    // reactor housing + core
-    const rx = x0 + w / 2 + 2;
-    const ry = top + 18;
-    r.ellipse(P.deep, rx, ry, 13, 13);
-    r.ellipse(P.steelD, rx, ry, 11, 11);
-    r.ellipse(P.deep, rx, ry, 9, 9);
-    r.ellipse(P.accent, rx, ry, 7, 7);
-    r.ellipse(P.glow, rx - 1, ry - 1, 3.5 + pulse * 0.6, 3.5 + pulse * 0.6);
-    for (let a = 0; a < 6; a++) r.rect(P.rivet, rx + Math.cos((a * Math.PI) / 3) * 11.5 - 1, ry + Math.sin((a * Math.PI) / 3) * 11.5 - 1, 2, 2);
-    // pec seams and ab plates
-    r.rect(P.seam, x0 + 22, top + 4, 2, 10);
-    r.rect(P.seam, x0 + w - 12, top + 4, 2, 10);
-    for (let i = 0; i < 3; i++) {
-      r.rect(P.dark, x0 + 22, top + h - 26 + i * 4, w - 36, 3);
-      r.rect(P.seam, x0 + 22, top + h - 27 + i * 4, w - 36, 1);
-    }
-    // glowing flank seams
-    r.rect(P.accent, x0 + 14, top + 22, 2, 10);
-    r.rect(P.accent, x0 + w - 10, top + 22, 2, 10);
-    // belt with hazard chevrons and buckle
-    r.rect(P.deep, x0 + 2, top + h - 12, w - 4, 12);
-    for (let i = 0; i < w - 6; i += 8) {
-      r.poly(P.stripeA, [[x0 + 4 + i, top + h - 4], [x0 + 8 + i, top + h - 4], [x0 + 12 + i, top + h - 1], [x0 + 8 + i, top + h - 1]]);
-    }
-    r.rect(P.steel, x0 + w / 2 - 6, top + h - 11, 12, 8);
-    r.rect(P.deep, x0 + w / 2 - 3, top + h - 9, 6, 4);
-    // hip plates
-    r.poly(P.armor, [[x0 + 2, top + h], [x0 + 14, top + h], [x0 + 12, top + h + 10], [x0 + 4, top + h + 8]]);
-    r.poly(P.armor, [[x0 + w - 14, top + h], [x0 + w - 2, top + h], [x0 + w - 4, top + h + 8], [x0 + w - 12, top + h + 10]]);
+    const px = Math.max(k.shB[0] - 2, 21);
+    const py = k.shB[1] - 3;
+    plate(r, M.D, (m) => m.ellipse(0, px, py, 16, 13), { line: M.line, round: true });
   }
 
-  if (o === 1) {
-    // a heavy chain slung across the chest
-    for (let i = 0; i <= 7; i++) {
-      const t = i / 7;
-      const cx = T.x + 4 + (T.w - 8) * t;
-      const cy = T.y + 4 + (T.h - 20) * t;
-      r.ellipse(i % 2 ? P.steel : P.steelD, cx, cy, i % 2 ? 2.4 : 3.6, i % 2 ? 3.6 : 2.4);
-    }
+  // ---- torso: collar ring, frame waist, the barrel chest, reactor core, belt ----
+  const ccx = hx + hs / 2 + 1; // the collar centre (under the helm)
+  plate(r, M.F, (m) => m.ellipse(0, ccx, top + 1, 18, 7), { line: M.line });
+  plate(r, M.F, (m) => m.rect(0, x0 + 8, top + 28, w - 14, h - 34), { line: M.line });
+  plate(r, M.GD, (m) => m.rect(0, x0 + 12, top + h - 16, w - 22, 4), { line: M.line });
+  plate(
+    r,
+    M.A,
+    (m) =>
+      m.poly(0, [
+        [x0 - 1, top + 6],
+        [x0 + 10, top - 2],
+        [x0 + w - 8, top - 3],
+        [x0 + w + 4, top + 5],
+        [x0 + w + 8, top + 17],
+        [x0 + w + 4, top + 29],
+        [x0 + w - 6, top + 36],
+        [x0 + 12, top + 37],
+        [x0 + 1, top + 30],
+        [x0 - 4, top + 18],
+      ]),
+    { line: M.line, round: true },
+  );
+  // the core: a gunmetal housing ring, a dark socket, the glowing reactor and its hot centre
+  {
+    const rx = x0 + w / 2 + 4;
+    const ry = top + 19;
+    plate(r, M.G, (m) => m.ellipse(0, rx, ry, 11.5, 11.5), { line: M.line, round: true });
+    r.ellipse(M.deep, rx, ry, 8.5, 8.5);
+    r.ellipse(M.accent, rx, ry, 7, 7);
+    r.ellipse(M.glow, rx + 0.5, ry - 0.5, 3.6 + pulse * 0.6, 3.6 + pulse * 0.6);
+  }
+  // the belt, with a hazard band across the back of it (the front is covered by the tasset)
+  plate(r, M.D, (m) => m.rect(0, x0 + 1, top + h - 11, w - 2, 10), { line: M.line });
+  r.rect(M.stripeB, x0 + 6, top + h - 8, 18, 4);
+  for (let i = 0; i < 4; i++) r.poly(M.stripeA, [[x0 + 6 + i * 5, top + h - 4], [x0 + 8 + i * 5, top + h - 8], [x0 + 10 + i * 5, top + h - 8], [x0 + 8 + i * 5, top + h - 4]]);
+
+  // ---- front leg, then the tasset that hangs from the belt over its hip ----
+  leg(r, M, k.hipF, kneeF, ankleF, false);
+  {
+    const [tx, ty] = k.hipF;
+    plate(r, M.A, (m) => m.poly(0, [[tx - 8, ty - 3], [tx + 11, ty - 3], [tx + 10, ty + 7], [tx + 2, ty + 11], [tx - 7, ty + 8]]), { line: M.line });
   }
 
-  // ---- front leg ----
-  leg(r, P, k.hipF, kneeF, ankleF, false);
-
-  if (o === 1) {
-    // ---- head: a horned great helm with a T-shaped eye slit ----
-    const hx = k.head.x;
-    const hy = k.head.y;
-    const hs = k.head.s;
-    r.rect(P.frame, hx + 8, T.y - 4, hs - 12, 8); // neck
-    // horns: thick at the root, curving up and forward
-    for (const [bx, dir] of [[hx + 2, -1], [hx + hs - 2, 1]] as const) {
-      let px = bx;
-      let py = hy + 6;
-      for (let i = 0; i < 5; i++) {
-        const x = px + dir * (4 - i * 0.6) + (dir > 0 ? 1 : -0.5);
-        const y = py - 4.5 + i * 0.2;
-        r.seg(i < 3 ? horn : hornD, px, py, x, y, 8 - i * 1.4, 7 - i * 1.4);
-        px = x;
-        py = y;
-      }
-    }
-    r.poly(P.armor, [[hx - 2, hy + 4], [hx + hs + 2, hy + 2], [hx + hs + 5, hy + hs - 4], [hx + hs - 2, hy + hs + 1], [hx + 2, hy + hs], [hx - 3, hy + hs - 6]]);
-    r.poly(P.plate, [[hx + 1, hy + 4], [hx + hs, hy + 3], [hx + hs + 1, hy + 8], [hx + 2, hy + 9]]);
-    r.rect(P.dark, hx - 2, hy + 9, 8, hs - 14);
-    // a ridge down the middle and the T-slit
-    r.rect(P.dark, hx + hs - 6, hy + 2, 3, hs - 4);
-    r.rect(P.deep, hx + 9, hy + 12, hs - 4, 4);
-    r.rect(P.deep, hx + hs - 7, hy + 12, 5, 14);
-    r.rect(P.accent, hx + 11, hy + 13, hs - 8, 2);
-    r.rect(P.glow, hx + hs - 6, hy + 14, 3, 9);
-    for (let i = 0; i < 4; i++) r.rect(P.rivet, hx + 6 + i * 6, hy + hs - 3, 2, 2);
-  } else if (o === 2) {
-    // ---- head: a round brass diving helmet with a big front port and two side ports ----
-    const hx = k.head.x;
-    const hy = k.head.y;
-    const hs = k.head.s;
-    const cx = hx + hs / 2 + 1;
-    const cy = hy + hs / 2 + 2;
-    const R = hs / 2 + 7;
-    r.ellipse(P.deep, cx, T.y + 1, R + 2, 7); // collar
-    r.ellipse(P.dark, cx + 1, cy + 1, R, R);
-    r.ellipse(P.armor, cx, cy, R - 1, R - 1);
-    r.ellipse(P.plate, cx - 4, cy - 6, R * 0.5, R * 0.35);
-    // front port: a thick ring, glass with a glowing face behind it, a cross guard
-    const fx = cx + R * 0.45;
-    r.ellipse(P.frame, fx + 0.5, cy + 1.5, 11, 11);
-    r.ellipse(P.steel, fx - 0.5, cy + 0.5, 9.6, 9.6);
-    r.ellipse(P.frame, fx, cy + 1, 7.4, 7.4);
-    // dark glass with two glowing eyes looking out of it, a top bar and a glint
-    r.rect(P.glow, fx - 4, cy, 3, 3);
-    r.rect(P.glow, fx + 2, cy, 3, 3);
-    r.rect(P.steelD, fx - 6, cy - 4, 12, 2);
-    r.rect(glass, fx - 4, cy - 6, 2, 1);
-    for (let i = 0; i < 4; i++) r.rect(P.rivet, fx + Math.cos(i * 1.57 + 0.78) * 9.4 - 1, cy + 0.5 + Math.sin(i * 1.57 + 0.78) * 9.4 - 1, 2, 2);
-    // top port and bolts around the collar
-    r.ellipse(P.steelD, cx - 3, cy - R + 5, 4, 3.4);
-    r.ellipse(glass, cx - 3, cy - R + 5, 2.6, 2.2);
-    for (let i = 0; i < 6; i++) r.rect(P.rivet, cx - R + 2 + i * ((2 * R - 4) / 5), T.y - 1, 2, 2);
-  } else {
   // ---- head ----
-  {
-    const hx = k.head.x;
-    const hy = k.head.y;
-    const hs = k.head.s;
-    r.rect(P.frame, hx + 8, T.y - 4, hs - 12, 8); // neck
-    // crest fin
-    r.poly(P.dark, [[hx + 6, hy + 4], [hx + 10, hy - 8], [hx + hs - 4, hy - 7], [hx + hs - 2, hy + 4]]);
-    r.rect(P.stripeA, hx + 12, hy - 6, hs - 18, 2);
-    // shell
-    r.poly(P.armor, [[hx - 2, hy + 8], [hx + 4, hy], [hx + hs - 2, hy], [hx + hs + 4, hy + 8], [hx + hs + 4, hy + hs - 6], [hx + hs - 6, hy + hs], [hx + 2, hy + hs - 2], [hx - 4, hy + hs - 10]]);
-    r.poly(P.plate, [[hx + 4, hy + 1], [hx + hs - 2, hy + 1], [hx + hs, hy + 6], [hx + 6, hy + 6]]);
-    r.rect(P.dark, hx - 3, hy + 8, 10, hs - 16); // rear shade
-    for (let i = 0; i < 3; i++) r.rect(P.seam, hx, hy + 11 + i * 4, 6, 1); // vents
-    // visor
-    r.rect(P.deep, hx + 11, hy + 10, hs - 5, 11);
-    r.rect(P.accent, hx + 13, hy + 12, hs - 9, 6);
-    const scan = 14 + ((k.phase * 5) % (hs - 14));
-    r.rect(P.glow, hx + scan, hy + 12, 3, 6);
-    // cheek / jaw
-    r.poly(P.dark, [[hx + 10, hy + 22], [hx + hs + 4, hy + 22], [hx + hs - 2, hy + hs], [hx + 6, hy + hs - 2]]);
-    // a steel mouth grille on the jaw and a bolted ear disc at the side, so the head reads as a face in profile
-    r.rect(P.steelD, hx + hs - 8, hy + hs - 9, 11, 6);
-    for (let i = 0; i < 3; i++) r.rect(P.frame, hx + hs - 7 + i * 4, hy + hs - 8, 1, 4);
-    r.ellipse(P.frame, hx + 5, hy + 16, 5, 5);
-    r.ellipse(P.steelD, hx + 5, hy + 16, 3.6, 3.6);
-    r.rect(P.frame, hx + 3, hy + 15.5, 4, 1);
-  }
+  if (o === 1) helmSiege(r, M, hx, hy, hs, pulse);
+  else if (o === 2) helmDiver(r, M, hx, hy, hs, top, glass);
+  else helmVisor(r, M, hx, hy, hs, k.phase);
+  // the gorget: a collar lip in front of the neck, so the helm sits down in the suit instead of on top of it
+  if (o !== 2) {
+    plate(r, M.A, (m) => m.poly(0, [[hx + 4, top + 1], [hx + hs + 6, top - 1], [hx + hs + 10, top + 5], [hx + hs + 6, top + 9], [hx + 6, top + 9]]), { line: M.line });
   }
 
-  // ---- front arm: pauldron, frame upper arm with a bicep plate, elbow joint, piston forearm, fist ----
+  // ---- front arm and its pauldron ----
+  arm(r, M, k.shF, elbowF, handF, false);
   {
-    const [sx, sy] = k.shF;
-    const el = elbowF;
-    const hand = handF;
-    r.seg(P.frame, sx, sy, el[0], el[1], 14, 12);
-    const b0 = lerp(k.shF, el, 0.2);
-    const b1 = lerp(k.shF, el, 0.72);
-    r.seg(P.dark, b0[0], b0[1], b1[0], b1[1], 19, 16);
-    // piston forearm: housing + exposed rod
-    const mx = el[0] + (hand[0] - el[0]) * 0.5;
-    const my = el[1] + (hand[1] - el[1]) * 0.5;
-    r.seg(P.armor, el[0], el[1], mx, my, 19, 17);
-    r.seg(P.plate, el[0] - 1, el[1] - 3, mx - 1, my - 3, 6, 5);
-    r.seg(P.frame, mx, my, hand[0], hand[1], 10, 10);
-    r.seg(P.steel, mx, my - 1, hand[0], hand[1] - 1, 4, 4);
-    for (let i = 0; i < 2; i++) {
-      const t = 0.25 + i * 0.35;
-      const px = mx + (hand[0] - mx) * t;
-      const py = my + (hand[1] - my) * t;
-      r.ellipse(P.stripeA, px, py, 2.5, 5);
-    }
-    r.ellipse(P.frame, el[0], el[1], 8, 7.5);
-    r.ellipse(P.gun, el[0] - 0.5, el[1] - 1, 5.5, 5);
-    r.ellipse(P.gunL, el[0] - 2, el[1] - 3, 2.2, 1.6);
-    r.rect(P.frame, el[0] - 1, el[1] - 2, 2, 2); // the hinge pin
-    fist(r, P, hand, el, false);
-    // pauldron: sits low and outboard so the visor stays readable
-    const px = sx + 5;
-    const py = sy + 1;
-    r.ellipse(P.frame, px + 1, py - 3, 16, 12);
-    r.ellipse(P.armor, px, py - 5, 15, 10);
-    r.poly(P.plate, [[px - 11, py - 10], [px + 9, py - 12], [px + 13, py - 5], [px - 9, py - 3]]);
-    r.rect(P.dark, px - 14, py + 1, 28, 5);
-    r.rect(P.stripeA, px - 13, py + 2, 26, 2);
-    r.rect(P.rivet, px - 6, py - 8, 2, 2);
-    r.rect(P.rivet, px + 5, py - 9, 2, 2);
+    const px = Math.min(k.shF[0] + 1, r.w - 22);
+    const py = k.shF[1];
+    // the rim: a shadowed lip under the dome
+    plate(r, M.D, (m) => m.poly(0, [[px - 15, py + 2], [px + 15, py + 2], [px + 13, py + 8], [px - 13, py + 8]]), { line: M.line });
     if (o === 1) {
-      // three spikes along the top of the pauldron
       for (let i = 0; i < 3; i++) {
-        const sx2 = px - 9 + i * 9;
-        r.poly(i === 1 ? horn : hornD, [[sx2 - 3, py - 12], [sx2 + 3, py - 13], [sx2 - 1, py - 24 + Math.abs(i - 1) * 3]]);
+        const sx = px - 9 + i * 9;
+        plate(r, M.H, (m) => m.poly(0, [[sx - 4, py - 10], [sx + 4, py - 11], [sx + 1, py - 27 + Math.abs(i - 1) * 4]]), { line: M.line });
       }
     }
+    plate(r, M.A, (m) => m.ellipse(0, px, py - 3, 16, 13), { line: M.line, round: true, clip: [0, 0, r.w, py + 4] });
   }
 }
 
-type Parts = Record<'armor' | 'plate' | 'dark' | 'deep' | 'steel' | 'steelD' | 'accent' | 'glow' | 'stripeA' | 'stripeB' | 'seam' | 'rivet' | 'frame' | 'frameL' | 'gun' | 'gunL' | 'gunD', number>;
+interface Mats {
+  A: Ramp;
+  D: Ramp;
+  F: Ramp;
+  G: Ramp;
+  GD: Ramp;
+  H: Ramp;
+  HD: Ramp;
+  line: number;
+  deep: number;
+  accent: number;
+  glow: number;
+  stripeA: number;
+  stripeB: number;
+}
+
+/** A material's five flat tones, dark to light: shadow edge, shade, base, lit, highlight. */
+type Ramp = [number, number, number, number, number];
+
+function ramp(r: Raster, base: RGB, lo: RGB, shine: number): Ramp {
+  return [
+    r.part(mix(lo, [14, 12, 30], 0.3), { flat: true }),
+    r.part(mix(base, lo, 0.5), { flat: true }),
+    r.part(base, { flat: true }),
+    r.part(mix(mul(base, 1.14), [255, 244, 220], shine * 0.35), { flat: true }),
+    r.part(mix(mul(base, 1.28), [255, 246, 228], shine), { flat: true }),
+  ];
+}
+
+/** A scratch coverage mask (same size as the frame) that remembers the box it was painted in. */
+class Mask extends Raster {
+  bx0 = 1e9;
+  by0 = 1e9;
+  bx1 = -1;
+  by1 = -1;
+  override set(_p: number, x: number, y: number): void {
+    x = Math.round(x);
+    y = Math.round(y);
+    if (x < 0 || y < 0 || x >= this.w || y >= this.h) return;
+    this.id[y * this.w + x] = 1;
+    if (x < this.bx0) this.bx0 = x;
+    if (x > this.bx1) this.bx1 = x;
+    if (y < this.by0) this.by0 = y;
+    if (y > this.by1) this.by1 = y;
+  }
+  clear(): void {
+    for (let y = this.by0; y <= this.by1; y++) this.id.fill(0, y * this.w + this.bx0, y * this.w + this.bx1 + 1);
+    this.bx0 = this.by0 = 1e9;
+    this.bx1 = this.by1 = -1;
+  }
+}
+let scratch: Mask | null = null;
+
+/**
+ * Paint one plate: `draw` lays its shape into a mask, which is then filled from `R` with a bevel lit from up-front (the
+ * fighter faces +x): the top edge takes the highlight, the front edge the lit tone, the back edge and the row above the
+ * bottom the shade, and the bottom edge the shadow. `round` adds a soft specular on the upper front of the interior and
+ * shade low at the back (domes, fists, pauldrons); `line` draws a 1px dark keyline around it first, so a piece reads apart
+ * from whatever it overlaps; `clip` keeps only the part of the shape inside [x0, y0, x1, y1).
+ */
+function plate(r: Raster, R: Ramp, draw: (m: Raster) => void, o: { line?: number; round?: boolean; clip?: [number, number, number, number] } = {}): void {
+  if (!scratch || scratch.w !== r.w || scratch.h !== r.h) scratch = new Mask(r.w, r.h);
+  const m = scratch;
+  draw(m);
+  if (m.bx1 < 0) return;
+  const W = r.w;
+  const id = m.id;
+  if (o.clip) {
+    const [cx0, cy0, cx1, cy1] = o.clip;
+    for (let y = m.by0; y <= m.by1; y++) for (let x = m.bx0; x <= m.bx1; x++) if (x < cx0 || y < cy0 || x >= cx1 || y >= cy1) id[y * W + x] = 0;
+  }
+  const at = (x: number, y: number): boolean => x >= 0 && y >= 0 && x < W && y < r.h && id[y * W + x] === 1;
+  if (o.line !== undefined) {
+    for (let y = m.by0 - 1; y <= m.by1 + 1; y++)
+      for (let x = m.bx0 - 1; x <= m.bx1 + 1; x++) if (!at(x, y) && (at(x - 1, y) || at(x + 1, y) || at(x, y - 1) || at(x, y + 1))) r.set(o.line, x, y);
+  }
+  const bw = Math.max(1, m.bx1 - m.bx0);
+  const bh = Math.max(1, m.by1 - m.by0);
+  const sx = m.bx0 + bw * 0.64;
+  const sy = m.by0 + bh * 0.3;
+  const run = (x: number, y: number, dx: number, dy: number): number => {
+    let n = 0;
+    while (n < 3 && at(x + dx * (n + 1), y + dy * (n + 1))) n++;
+    return n;
+  };
+  for (let y = m.by0; y <= m.by1; y++)
+    for (let x = m.bx0; x <= m.bx1; x++) {
+      if (!at(x, y)) continue;
+      const u = run(x, y, 0, -1);
+      const d = run(x, y, 0, 1);
+      const f = run(x, y, 1, 0);
+      const b = run(x, y, -1, 0);
+      let t = 2;
+      if (d === 0) t = 0;
+      else if (u === 0) t = 4;
+      else if (f === 0) t = 3;
+      else if (b === 0 || d === 1) t = 1;
+      else if (u === 1) t = 3;
+      else {
+        // form shade: the lower and back faces of a big plate turn away from the light
+        const fu = (x - m.bx0) / bw;
+        const fv = (y - m.by0) / bh;
+        if (o.round) {
+          const ex = (x - sx) / (bw * 0.26);
+          const ey = (y - sy) / (bh * 0.2);
+          if (ex * ex + ey * ey < 1) t = 3;
+          else if (fv > 0.7 || (fu < 0.25 && fv > 0.4)) t = 1;
+        } else if (bh > 12 && fv > 0.72) t = 1;
+      }
+      r.set(R[t], x, y);
+    }
+  m.clear();
+}
+
+/** Upper arm, elbow, bell gauntlet and fist (the far arm `back` takes the shadowed armour). */
+function arm(r: Raster, M: Mats, sh: V2, el: V2, hand: V2, back: boolean): void {
+  const [hx, hy] = hand;
+  let dx = hx - el[0];
+  let dy = hy - el[1];
+  const l = Math.hypot(dx, dy) || 1;
+  dx /= l;
+  dy /= l;
+  const wr: V2 = [hx - dx * 8, hy - dy * 8];
+  plate(r, M.F, (m) => m.seg(0, sh[0], sh[1], el[0], el[1], 15, 13), { line: M.line });
+  plate(r, back ? M.D : M.A, (m) => m.seg(0, el[0], el[1], wr[0], wr[1], 16, 21), { line: M.line, round: true });
+  plate(r, back ? M.GD : M.G, (m) => m.ellipse(0, el[0], el[1], 5, 4.5), { line: M.line, round: true });
+  fist(r, M, hand, [dx, dy], back);
+}
+
+/**
+ * An armoured fist: a dark cuff across the wrist (with a thin glowing seam on the lead hand), a big chamfered gauntlet
+ * shell, a gunmetal knuckle plate on the striking face with the finger breaks cut into it, and a thumb over the top.
+ */
+function fist(r: Raster, M: Mats, h: V2, dir: V2, back: boolean): void {
+  const [x, y] = h;
+  const [dx, dy] = dir;
+  const nx = -dy;
+  const ny = dx;
+  const cx = x - dx * 9;
+  const cy = y - dy * 9;
+  plate(r, M.F, (m) => m.seg(0, cx - nx * 9, cy - ny * 9, cx + nx * 9, cy + ny * 9, 6, 6), { line: M.line });
+  if (!back) r.seg(M.accent, cx - nx * 7 + dx * 1.5, cy - ny * 7 + dy * 1.5, cx + nx * 7 + dx * 1.5, cy + ny * 7 + dy * 1.5, 1.4, 1.4);
+  const shell = back ? M.D : M.A;
+  plate(
+    r,
+    shell,
+    (m) =>
+      m.poly(0, [
+        [x - 8, y - 10],
+        [x + 7, y - 10],
+        [x + 10, y - 7],
+        [x + 10, y + 7],
+        [x + 7, y + 10],
+        [x - 8, y + 10],
+        [x - 11, y + 7],
+        [x - 11, y - 7],
+      ]),
+    { line: M.line, round: true },
+  );
+  plate(r, back ? M.GD : M.G, (m) => m.poly(0, [[x + 3, y - 9], [x + 9, y - 9], [x + 12, y - 6], [x + 12, y + 6], [x + 9, y + 9], [x + 3, y + 9]]), { line: M.line });
+  for (let i = 0; i < 3; i++) r.rect(M.line, x + 4, y - 4 + i * 5, 7, 1);
+  plate(r, back ? M.GD : M.D, (m) => m.seg(0, x - 6, y - 7, x + 2, y - 9, 6, 5), { line: M.line });
+}
+
+/** Frame thigh, gunmetal knee, a greave that flares toward the ankle, and a heavy boot with a gunmetal toe cap. */
+function leg(r: Raster, M: Mats, hip: V2, kn: V2, ankle: V2, back: boolean): void {
+  const S = back ? M.D : M.A;
+  plate(r, M.F, (m) => m.seg(0, hip[0], hip[1], kn[0], kn[1], 19, 16), { line: M.line });
+  // a thigh plate one step down the ladder from the greave (it sits under the belt, out of the light)
+  const t1 = lerp(hip, kn, 0.75);
+  plate(r, back ? M.F : M.D, (m) => m.seg(0, hip[0] + 1, hip[1] + 2, t1[0] + 1, t1[1], 16, 13), { line: M.line, round: true });
+  const s0 = lerp(kn, ankle, 0.1);
+  plate(r, S, (m) => m.seg(0, s0[0], s0[1], ankle[0], ankle[1] - 5, 17, 21), { line: M.line, round: true });
+  const kx = kn[0] + 3;
+  const ky = kn[1] - 1;
+  plate(r, S, (m) => m.poly(0, [[kx - 7, ky - 7], [kx + 5, ky - 8], [kx + 10, ky], [kx + 5, ky + 8], [kx - 7, ky + 6]]), { line: M.line, round: true });
+  const [bx, by] = ankle;
+  // the sole sits on the ankle line + 8 (the floor); the keyline under it is the last opaque row
+  plate(r, M.F, (m) => m.rect(0, bx - 11, by + 4, 28, 3), { line: M.line });
+  plate(r, S, (m) => m.poly(0, [[bx - 10, by - 4], [bx + 5, by - 5], [bx + 12, by - 1], [bx + 16, by + 4], [bx - 10, by + 4]]), { line: M.line });
+  plate(r, back ? M.GD : M.G, (m) => m.poly(0, [[bx + 6, by - 1], [bx + 12, by - 1], [bx + 16, by + 4], [bx + 6, by + 4]]), { line: M.line });
+}
+
+/** The standard helm: a rounded shell with a low crest, a wide visor slot that runs out to the front edge, a jaw plate. */
+function helmVisor(r: Raster, M: Mats, hx: number, hy: number, hs: number, phase: number): void {
+  plate(r, M.D, (m) => m.poly(0, [[hx + 5, hy + 2], [hx + 9, hy - 5], [hx + hs - 7, hy - 5], [hx + hs - 2, hy + 2]]), { line: M.line });
+  plate(
+    r,
+    M.A,
+    (m) =>
+      m.poly(0, [
+        [hx - 1, hy + hs + 1],
+        [hx - 2, hy + 9],
+        [hx + 3, hy + 1],
+        [hx + 10, hy - 2],
+        [hx + hs - 3, hy - 2],
+        [hx + hs + 3, hy + 4],
+        [hx + hs + 5, hy + 11],
+        [hx + hs + 5, hy + hs - 3],
+        [hx + hs + 1, hy + hs + 1],
+      ]),
+    { line: M.line, round: true },
+  );
+  // jaw plate under the visor
+  plate(r, M.D, (m) => m.poly(0, [[hx + 11, hy + 19], [hx + hs + 5, hy + 19], [hx + hs + 4, hy + hs - 3], [hx + hs, hy + hs + 1], [hx + 12, hy + hs + 1]]), { line: M.line });
+  // the visor: a dark slot cut through to the front edge, the glowing band in it and a bright glint that sweeps along it
+  r.poly(M.deep, [[hx + 9, hy + 9], [hx + hs + 6, hy + 8], [hx + hs + 6, hy + 18], [hx + 11, hy + 18]]);
+  r.rect(M.accent, hx + 12, hy + 11, hs - 6, 5);
+  const g = hx + 13 + ((phase * 4) % (hs - 12));
+  r.rect(M.glow, g, hy + 12, 5, 3);
+  // the side bolt that holds the visor hinge
+  plate(r, M.G, (m) => m.ellipse(0, hx + 5, hy + 16, 4.5, 4.5), { line: M.line, round: true });
+}
+
+/** Siege: a flat-topped great helm with two big horns and a glowing T-slit. */
+function helmSiege(r: Raster, M: Mats, hx: number, hy: number, hs: number, pulse: number): void {
+  // horns, thick at the root and curving up and outward: the far one behind the helm in shade, the near one in front
+  for (const [bx, dir, far] of [[hx + 3, -1, true], [hx + hs - 1, 1, false]] as const) {
+    let px = bx;
+    let py = hy + 7;
+    const pts: V2[] = [[px, py]];
+    for (let i = 0; i < 5; i++) {
+      px += dir * (5 - i * 0.9);
+      py -= 3.2 + i * 1.1;
+      pts.push([px, py]);
+    }
+    plate(r, far ? M.HD : M.H, (m) => {
+      for (let i = 0; i < 5; i++) m.seg(0, pts[i][0], pts[i][1], pts[i + 1][0], pts[i + 1][1], 10 - i * 1.9, 8.1 - i * 1.9);
+    }, { line: M.line, round: !far });
+  }
+  plate(
+    r,
+    M.A,
+    (m) =>
+      m.poly(0, [
+        [hx - 2, hy + hs + 1],
+        [hx - 2, hy + 3],
+        [hx + 2, hy - 2],
+        [hx + hs + 1, hy - 2],
+        [hx + hs + 5, hy + 3],
+        [hx + hs + 5, hy + hs - 2],
+        [hx + hs + 1, hy + hs + 1],
+      ]),
+    { line: M.line, round: true },
+  );
+  // a raised ridge down the face
+  plate(r, M.D, (m) => m.rect(0, hx + hs - 2, hy - 1, 5, hs + 1), { line: M.line });
+  // the T-slit
+  r.rect(M.deep, hx + 8, hy + 10, hs - 3, 6);
+  r.rect(M.deep, hx + hs - 8, hy + 10, 6, 15);
+  r.rect(M.accent, hx + 10, hy + 12, hs - 7, 2);
+  r.rect(M.accent, hx + hs - 6, hy + 12, 2, 11);
+  r.rect(M.glow, hx + hs - 7, hy + 11, 4, 4 + pulse);
+  for (let i = 0; i < 3; i++) r.rect(M.G[4], hx + 4 + i * 7, hy + hs - 3, 2, 2);
+}
+
+/** Diver: a big round helmet with a thick front port (two glowing eyes behind the glass) and a small top port. */
+function helmDiver(r: Raster, M: Mats, hx: number, hy: number, hs: number, top: number, glass: number): void {
+  const cx = hx + hs / 2 + 1;
+  const cy = hy + hs / 2 + 1;
+  const R = hs / 2 + 3;
+  plate(r, M.A, (m) => m.ellipse(0, cx, cy, R, R), { line: M.line, round: true });
+  // the breastplate collar the helmet is bolted into
+  plate(r, M.G, (m) => m.ellipse(0, cx + 1, top + 3, R - 1, 5), { line: M.line });
+  plate(r, M.G, (m) => m.ellipse(0, cx - 3, cy - R + 3, 4.5, 3.5), { line: M.line });
+  r.ellipse(glass, cx - 3, cy - R + 3, 2.4, 1.8);
+  const fx = cx + R * 0.42;
+  const fy = cy + 1;
+  plate(r, M.G, (m) => m.ellipse(0, fx, fy, 10.5, 10.5), { line: M.line, round: true });
+  r.ellipse(M.deep, fx, fy, 7.4, 7.4);
+  r.rect(M.glow, fx - 4, fy - 1, 3, 3);
+  r.rect(M.glow, fx + 2, fy - 1, 3, 3);
+  r.rect(glass, fx - 4, fy - 5, 3, 1);
+}
 
 function lerp(a: V2, b: V2, t: number): V2 {
   return [a[0] + (b[0] - a[0]) * t, a[1] + (b[1] - a[1]) * t];
@@ -312,93 +460,6 @@ function clampV(v: V2, x0: number, x1: number, y0: number, y1: number): V2 {
   const x = Math.max(x0, Math.min(x1, v[0]));
   const y = Math.max(y0, Math.min(y1, v[1]));
   return x === v[0] && y === v[1] ? v : [x, y];
-}
-
-/**
- * An armoured gauntlet closed into a fist: a dark cuff across the wrist, a back-of-hand plate, four finger rolls curled
- * on the striking face with dark gaps between them, steel knuckle studs and a thumb laid over the top.
- */
-function fist(r: Raster, P: Parts, h: V2, el: V2, back: boolean): void {
-  const [x, y] = h;
-  let dx = x - el[0];
-  let dy = y - el[1];
-  const l = Math.hypot(dx, dy) || 1;
-  dx /= l;
-  dy /= l;
-  const nx = -dy;
-  const ny = dx;
-  // the off hand is a gunmetal gauntlet (it sits in shadow behind the body, so it takes the neutral metal rather than a
-  // darker blue that would sink into the back leg); the lead hand keeps the armour plate
-  const shell = back ? P.gun : P.armor;
-  const lit = back ? P.gunL : P.plate;
-  // cuff across the wrist, square to the forearm
-  const cx = x - dx * 9;
-  const cy = y - dy * 9;
-  r.seg(P.frame, cx - nx * 9, cy - ny * 9, cx + nx * 9, cy + ny * 9, 7, 7);
-  r.seg(P.accent, cx - nx * 8 + dx * 1.5, cy - ny * 8 + dy * 1.5, cx + nx * 8 + dx * 1.5, cy + ny * 8 + dy * 1.5, 1.5, 1.5);
-  // the hand: a dark underside, the plated back, a lit top edge
-  r.ellipse(P.frame, x + 1, y + 1, 12.5, 11.5);
-  r.ellipse(shell, x - 1, y, 11, 10.5);
-  r.ellipse(lit, x - 3, y - 4, 7, 4.5);
-  // fingers curled on the front face (always the side facing forward), separated by dark gaps
-  r.rect(P.frame, x + 2, y - 10, 10, 20);
-  for (let i = 0; i < 4; i++) {
-    const fy = y - 8 + i * 5;
-    r.seg(i % 2 ? shell : lit, x + 3, fy, x + 9, fy, 4.4, 4.4);
-    r.rect(P.steel, x + 10, fy - 1, 2, 2);
-  }
-  // thumb over the top of the fingers
-  r.seg(P.frame, x - 4, y - 8, x + 6, y - 11, 6, 5.5);
-  r.seg(back ? P.gunD : P.dark, x - 4, y - 9, x + 6, y - 11.5, 4.4, 4);
-  r.rect(P.rivet, x - 7, y + 1, 2, 2);
-}
-
-function leg(r: Raster, P: Parts, hip: V2, kn: V2, ankle: V2, back: boolean): void {
-  const plate = back ? P.deep : P.armor;
-  // the front thigh sits a step down the value ladder (it is under the belt, out of the light), so a fist held at the hip
-  // parts from it; the shin greave below catches the light again
-  const thigh = back ? P.deep : P.dark;
-  // the frame: a dark hydraulic thigh and shin under the plates
-  r.seg(P.frame, hip[0], hip[1], kn[0], kn[1], 18, 16);
-  r.seg(P.frame, kn[0], kn[1], ankle[0], ankle[1], 15, 13);
-  // thigh plate (upper two thirds of the thigh), shin greave
-  const t0 = lerp(hip, kn, 0.05);
-  const t1 = lerp(hip, kn, 0.7);
-  r.seg(P.frame, t0[0], t0[1] + 1, t1[0], t1[1] + 1, 27, 23); // a dark rim, so the plate stands off the frame and the belt
-  r.seg(thigh, t0[0], t0[1], t1[0], t1[1], 25, 21);
-  if (!back) {
-    r.seg(P.armor, t0[0] - 5, t0[1] + 1, t1[0] - 5, t1[1], 6, 5);
-    r.seg(P.plate, t0[0] - 6, t0[1] + 1, t1[0] - 6, t1[1], 2.5, 2);
-    // a lame seam across the plate, lit on its upper lip
-    const m = lerp(t0, t1, 0.55);
-    const [ux, uy] = [t1[0] - t0[0], t1[1] - t0[1]];
-    const ul = Math.hypot(ux, uy) || 1;
-    r.seg(P.seam, m[0] - (uy / ul) * 10, m[1] + (ux / ul) * 10, m[0] + (uy / ul) * 10, m[1] - (ux / ul) * 10, 1.4, 1.4);
-    r.rect(P.rivet, m[0] + 4, m[1] - 5, 2, 2);
-  }
-  const s0 = lerp(kn, ankle, 0.22);
-  const s1 = lerp(kn, ankle, 0.92);
-  r.seg(plate, s0[0], s0[1], s1[0], s1[1], 21, 17);
-  if (!back) {
-    r.seg(P.plate, s0[0] + 4, s0[1], s1[0] + 3, s1[1] - 2, 5, 4);
-    r.rect(P.stripeA, ankle[0] - 8, ankle[1] - 6, 16, 2);
-  }
-  // knee: a pointed poleyn plate over the joint
-  const kx = kn[0] + 3;
-  const ky = kn[1];
-  r.poly(P.frame, [[kx - 9, ky - 8], [kx + 6, ky - 9], [kx + 11, ky], [kx + 6, ky + 9], [kx - 9, ky + 8]]);
-  r.poly(back ? P.gunD : P.gun, [[kx - 7, ky - 6], [kx + 5, ky - 7], [kx + 9, ky], [kx + 5, ky + 6], [kx - 7, ky + 5]]);
-  if (!back) r.poly(P.gunL, [[kx - 6, ky - 6], [kx + 5, ky - 7], [kx + 7, ky - 3], [kx - 6, ky - 3]]);
-  if (!back) r.rect(P.gunD, kx - 7, ky + 2, 13, 3);
-  r.rect(P.rivet, kx - 1, ky - 3, 2, 2);
-  // boot: a heavy sabaton with a toe cap and a thick sole; its sole sits on the ankle line + 8 (the floor)
-  const bx = ankle[0];
-  const by = ankle[1];
-  r.poly(back ? P.frame : P.deep, [[bx - 10, by - 5], [bx + 7, by - 5], [bx + 17, by + 1], [bx + 18, by + 6], [bx - 12, by + 6]]);
-  r.poly(back ? P.deep : P.dark, [[bx + 6, by - 2], [bx + 16, by + 2], [bx + 17, by + 5], [bx + 6, by + 5]]);
-  r.rect(back ? P.deep : P.armor, bx - 11, by - 6, 19, 4);
-  r.rect(P.frame, bx - 12, by + 5, 31, 4);
-  r.rect(P.frameL, bx - 11, by + 5, 29, 1);
 }
 
 /**
