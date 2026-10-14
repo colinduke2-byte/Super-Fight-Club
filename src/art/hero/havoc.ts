@@ -41,7 +41,12 @@ export function drawHavoc(r: Raster, k: Skel, look: PlaceholderLook): void {
     belt: r.part(belt),
     skin: r.part(skin, { soft: true }),
     skinD: r.part(mul(skin, 0.74), { soft: true }),
-    stubble: r.part(mix(mul(skin, 0.62), [60, 50, 50], 0.2), { flat: true }),
+    skinL: r.part(mix(skin, [255, 240, 222], 0.32), { soft: true }),
+    skinDD: r.part(mix(mul(skin, 0.5), [40, 24, 30], 0.2), { flat: true }),
+    hair: r.part([52, 40, 32], { flat: true }),
+    brow: r.part([40, 28, 22], { flat: true }),
+    pupil: r.part([28, 22, 20], { flat: true }),
+    stubble: r.part(mix(mul(skin, 0.72), [84, 84, 104], 0.3), { flat: true }), // a blue-grey five o'clock shadow
     line: r.part([40, 28, 26], { flat: true }),
     eye: r.part([240, 236, 226], { flat: true }),
     glove: r.part([46, 40, 34], { soft: true }),
@@ -215,27 +220,14 @@ export function drawHavoc(r: Raster, k: Skel, look: PlaceholderLook): void {
   const armUnder = elbowF[1] > k.shF[1] - 2;
   if (armUnder) arm(r, P, k.shF, elbowF, handF, false, o, 'upper');
 
-  // ---- head: a strong profile face under the helmet, goggles over the eyes ----
+  // ---- head: a three-quarter human face turned to the right, under the helmet / boonie / beret ----
   {
     const hx = k.head.x;
-    const hy = k.head.y - 5; // sits a little high on the collar, so the jaw clears the vest and the shoulder
+    const hy = k.head.y - 9; // sits high enough on the collar that the jaw clears the vest and a neck shows
     const hs = k.head.s;
-    r.rect(P.skinD, hx + 5, hy + hs - 2, hs - 9, T.y - hy - hs + 6); // neck
-    // the face: brow, nose, a square jaw (drawn a touch larger than the head box so the jaw reads)
-    const fy = hy + 7;
-    const fh = hs - 1;
-    soldierFace(r, P, hx + 2, fy, hs - 1, fh, o === 2);
-    // stubble over the jaw and chin
-    r.inlay(P.skin, P.stubble, (set) => {
-      for (let y = fy + fh * 0.72; y < fy + fh; y++) for (let x = hx + hs * 0.35; x < hx + hs + 2; x++) if ((x + y * 3) % 4 === 0) set(x, y);
-    });
-    r.inlay(P.skinD, P.stubble, (set) => {
-      for (let y = fy + fh * 0.66; y < fy + fh; y++) for (let x = hx; x < hx + hs; x++) if ((x + y * 3) % 4 === 0) set(x, y);
-    });
+    soldierHead(r, P, hx, hy, hs, T.y, o, ghillie);
     if (o === 1) {
       // boonie hat: a soft crown, a floppy brim, foliage tucked in the band; face paint and a squinting eye under it
-      r.seg(ghillie[1], hx + hs - 10, fy + fh * 0.5, hx + hs + 2, fy + fh * 0.45, 2, 2);
-      r.seg(ghillie[0], hx + hs - 12, fy + fh * 0.66, hx + hs + 1, fy + fh * 0.6, 2, 2);
       r.ellipse(P.shirt, hx + hs / 2 + 1, hy + 2, hs / 2 + 3, hs / 2 - 1);
       r.rect(P.shirtD, hx - 2, hy + 1, 4, 6);
       r.poly(P.shirtD, [[hx - 12, hy + 11], [hx - 6, hy + 6], [hx + hs + 10, hy + 6], [hx + hs + 15, hy + 11], [hx + hs + 10, hy + 12], [hx - 6, hy + 11]]);
@@ -254,9 +246,6 @@ export function drawHavoc(r: Raster, k: Skel, look: PlaceholderLook): void {
       r.poly(P.web, [[hx + 3, hy + 1], [hx + 10, hy + 1], [hx + 10, hy + 7], [hx + 6.5, hy + 9], [hx + 3, hy + 7]]);
       r.poly(P.mark, [[hx + 4, hy + 2], [hx + 9, hy + 2], [hx + 9, hy + 6.5], [hx + 6.5, hy + 8], [hx + 4, hy + 6.5]]);
       r.ellipse(brass, hx + 6.5, hy + 4.5, 1.6, 1.8);
-      r.rect(P.web, hx + hs * 0.48, fy + fh * 0.33, hs * 0.62, 4);
-      r.rect(P.web, hx + hs * 0.2, fy + fh * 0.36, hs * 0.3, 1);
-      r.rect(P.glow, hx + hs - 2, fy + fh * 0.33, 2, 1);
     } else {
       // helmet: a rounded shell with a lighter crown, a dark cover band with a net and a jutting lip
       r.ellipse(P.armor, hx + hs / 2 + 1, hy + 5, hs / 2 + 5, hs / 2 - 1);
@@ -267,14 +256,13 @@ export function drawHavoc(r: Raster, k: Skel, look: PlaceholderLook): void {
       });
       r.rect(P.web, hx - 5, hy + 9, hs + 12, 3); // lip
       r.rect(P.dark, hx - 4, hy + 9, hs + 10, 1);
-      // chin strap from the helmet down to the jaw
-      r.seg(P.web, hx + 4, hy + 11, hx + hs * 0.3, fy + fh * 0.88, 1.2, 1.2);
-      // goggles over the eyes: a dark frame and strap, glowing amber lens, a glint
-      r.rect(P.web, hx - 3, fy + fh * 0.26, hs * 0.6, 3);
-      r.poly(P.web, [[hx + hs * 0.46, fy + fh * 0.2], [hx + hs + 3, fy + fh * 0.2], [hx + hs + 4, fy + fh * 0.5], [hx + hs * 0.46, fy + fh * 0.5]]);
-      r.poly(P.lens, [[hx + hs * 0.52, fy + fh * 0.25], [hx + hs + 2, fy + fh * 0.25], [hx + hs + 2.5, fy + fh * 0.45], [hx + hs * 0.52, fy + fh * 0.45]]);
-      r.rect(P.glow, hx + hs - 2, fy + fh * 0.27, 2, 2);
-      r.rect(P.web, hx + hs * 0.76, fy + fh * 0.24, 1, fh * 0.24); // the bridge
+      // goggles pushed up onto the helmet front: a dark strap round the shell, a framed pair of amber lenses, a glint
+      r.rect(P.web, hx - 3, hy + 3, hs + 4, 3);
+      r.poly(P.web, [[hx + hs * 0.42, hy + 1], [hx + hs + 4, hy + 1], [hx + hs + 5, hy + 8], [hx + hs * 0.42, hy + 8]]);
+      r.poly(P.lens, [[hx + hs * 0.48, hy + 2], [hx + hs + 3, hy + 2], [hx + hs + 3.5, hy + 7], [hx + hs * 0.48, hy + 7]]);
+      r.rect(P.web, hx + hs * 0.74, hy + 2, 1, 5); // the bridge
+      r.rect(P.glow, hx + hs * 0.52, hy + 3, 2, 1);
+      r.rect(P.glow, hx + hs * 0.8, hy + 3, 2, 1);
     }
   }
 
@@ -297,6 +285,11 @@ interface Parts {
   belt: number;
   skin: number;
   skinD: number;
+  skinL: number;
+  skinDD: number;
+  hair: number;
+  brow: number;
+  pupil: number;
   stubble: number;
   line: number;
   eye: number;
@@ -324,35 +317,83 @@ function clampV(v: V2, x0: number, x1: number, y0: number, y1: number): V2 {
 }
 
 /**
- * A hard profile face looking right in the box (x, y, w, h): a heavy brow ridge, a broken boxer's nose, a set mouth and a
- * square jutting chin; the cheek, the underside of the jaw and the eye socket fall into shade, with an ear at the side.
+ * A three-quarter human head turned to the right, in a 24px head box at (hx, hy) (scaled by hs / 24): a neck in shade
+ * down into the collar, short dark hair at the back and the sideburn, an ear, a lit forehead and cheekbone, a near eye
+ * (white, dark pupil) and a sliver of the far one under heavy brows, a nose with a lit bridge and a shaded side, a set
+ * mouth, and a square stubbled jaw over a shadow on the neck. Headgear is drawn over the top by the caller; the sniper
+ * gets face paint, the commando wraparound shades (the brows, nose, mouth and jaw still show around them).
  */
-function soldierFace(r: Raster, P: Parts, x: number, y: number, w: number, h: number, shades: boolean): void {
-  const p = (u: number, v: number): V2 => [x + u * w, y + v * h];
-  r.poly(P.skin, [p(0.02, 0), p(0.9, 0.02), p(0.98, 0.22), p(0.95, 0.34), p(1.0, 0.48), p(1.15, 0.65), p(1.0, 0.69), p(0.98, 0.74), p(1.02, 0.82), p(1.04, 0.93), p(0.94, 1.0), p(0.36, 1.0), p(0.12, 0.88), p(0, 0.66)]);
-  // the turned-away side of the face, the hollow under the cheekbone and the underside of the jaw
-  r.poly(P.skinD, [p(0, 0.6), p(0.3, 0.62), p(0.44, 0.8), p(0.6, 0.97), p(0.36, 1.0), p(0.12, 0.88), p(0, 0.66)]);
-  r.seg(P.skinD, x + w * 0.56, y + h * 0.64, x + w * 0.7, y + h * 0.78, 1.6, 1.2);
-  r.rect(P.skinD, x + w * 0.42, y + h * 0.96, w * 0.56, 1.5);
-  // nose: a lit bridge, a dark nostril under the tip
-  r.seg(P.skinD, x + w * 0.98, y + h * 0.67, x + w * 1.08, y + h * 0.67, 1.2, 1.2);
-  r.rect(P.line, x + w * 0.96, y + h * 0.65, 1, 1);
-  // the socket under the brow, the eye, and a brow ridge pushed down to the nose
-  // (under shades only the brow's frown shows, as a crease pressed into the top of the frame)
-  if (!shades) {
-    r.rect(P.skinD, x + w * 0.56, y + h * 0.32, w * 0.4, h * 0.14);
-    r.rect(P.eye, x + w * 0.74, y + h * 0.36, w * 0.18, 2);
-    r.rect(P.line, x + w * 0.84, y + h * 0.36, w * 0.08, 2);
-    r.seg(P.line, x + w * 0.54, y + h * 0.27, x + w * 0.96, y + h * 0.33, 2.2, 2.6);
-  } else r.rect(P.skinD, x + w * 0.6, y + h * 0.3, w * 0.34, 1);
-  // a set mouth with a hard corner, a chin cleft
-  r.rect(P.line, x + w * 0.76, y + h * 0.79, w * 0.24, 1);
-  r.rect(P.line, x + w * 0.76, y + h * 0.77, 1, 2);
-  r.rect(P.skinD, x + w * 0.96, y + h * 0.86, 1, 2);
-  // the ear
-  r.ellipse(P.skinD, x + w * 0.24, y + h * 0.52, w * 0.1, h * 0.13);
-  r.ellipse(P.skin, x + w * 0.22, y + h * 0.5, w * 0.06, h * 0.08);
-  r.rect(P.line, x + w * 0.25, y + h * 0.5, 1, 2);
+function soldierHead(r: Raster, P: Parts, hx: number, hy: number, hs: number, collar: number, o: number, paint: number[]): void {
+  const z = hs / 24;
+  const zx = z * 1.1; // a three-quarter head is broad: a little wider than tall in the box
+  const q = (u: number, v: number): V2 => [hx + u * zx, hy + v * z];
+  const X = (u: number): number => hx + u * zx;
+  const Y = (v: number): number => hy + v * z;
+  // neck: a shaded column down into the collar, with the jaw's cast shadow across its top
+  const nb = collar - hy + 2;
+  r.poly(P.skinD, [q(7, 18), q(17, 22), q(19, nb), q(6, nb)]);
+  r.poly(P.skinDD, [q(7, 22), q(19, 27), q(19, 30.5), q(7, 26)]);
+  r.seg(P.skin, X(17), Y(28), X(16), Y(nb - 1), 1.2, 1.2); // the lit front edge of the neck
+  // the collar of the shirt closing round the neck
+  r.poly(P.shirtD, [q(4, nb - 4), q(9, nb - 3), q(13, nb - 1), q(20, nb - 4), q(22, nb), q(3, nb)]);
+  // the head: cranium, a flat forehead, the cheek and a square chin
+  r.poly(P.skin, [q(3, 9), q(23, 9), q(24.5, 13), q(24.5, 16.5), q(25, 19), q(25.2, 23), q(26.2, 24.2), q(25.6, 26), q(26, 28.2), q(24.8, 29.8), q(20, 30.2), q(14.5, 28.6), q(10, 26), q(7, 22.5), q(3.5, 18)]);
+  // the turned-away side of the head falls into shade, the cheek hollows under the cheekbone
+  r.poly(P.skinD, [q(3, 9), q(8, 9), q(8.5, 15), q(10, 22), q(13.5, 27.6), q(10, 26), q(7, 22.5), q(3.5, 18)]);
+  r.seg(P.skinD, X(14.5), Y(23), X(17.5), Y(25.2), 1.2, 1);
+  // light on the forehead, the cheekbone and the chin
+  r.rect(P.skinL, X(13), Y(12), 10 * zx, 2 * z);
+  r.rect(P.skinL, X(16), Y(21), 6 * zx, 1.5 * z);
+  r.rect(P.skinL, X(22), Y(27.5), 3 * zx, 1);
+  // short cropped hair at the back and the sideburn, the ear in front of it
+  r.poly(P.hair, [q(2.5, 9), q(11, 9), q(11, 13), q(9.5, 17.5), q(7.5, 19.5), q(4, 18)]);
+  r.ellipse(P.skinD, X(9.5), Y(17.5), 2.3 * zx, 3.2 * z);
+  r.ellipse(P.skin, X(10), Y(17), 1.5 * zx, 2.3 * z);
+  r.seg(P.skinDD, X(9.6), Y(16), X(9.4), Y(19), 1, 1);
+  // stubble: a dark shadow over the jaw, the chin and the upper lip
+  r.inlay(P.skin, P.stubble, (set) => {
+    for (let y = Math.floor(Y(27.4)); y < Y(31); y++) for (let x = Math.floor(X(12)); x < X(27); x++) if ((x + y) % 2 === 0) set(x, y);
+    for (let y = Math.floor(Y(23)); y < Y(27.4); y++) for (let x = Math.floor(X(10)); x < X(15); x++) if ((x + y) % 2 === 0) set(x, y);
+  });
+  r.inlay(P.skinD, P.stubble, (set) => {
+    for (let y = Math.floor(Y(22)); y < Y(31); y++) for (let x = Math.floor(X(7)); x < X(27); x++) if ((x + y) % 2 === 0) set(x, y);
+  });
+  r.seg(P.skinDD, X(11), Y(26.2), X(15), Y(29), 1, 1); // the jaw's edge on the shaded side
+  // the nose: a wedge out past the face, a lit bridge, a shaded side plane and a nostril
+  r.poly(P.skin, [q(23.5, 15.5), q(29.4, 21.8), q(28.8, 23.2), q(25, 23.6), q(23.6, 21)]);
+  r.poly(P.skinD, [q(23.2, 19), q(25, 23.4), q(23, 22.8)]);
+  r.seg(P.skinL, X(24.8), Y(16.8), X(28.2), Y(21), 1.2, 1);
+  r.rect(P.skinDD, X(25.6), Y(23), 2.4 * zx, 1);
+  // the mouth: a set line with a hard corner, a lit lower lip
+  r.rect(P.line, X(20), Y(25.4), 5.8 * zx, 1);
+  r.rect(P.line, X(19.6), Y(25.4), 1, 2);
+  r.rect(P.skinL, X(21.5), Y(26.4), 3.5 * zx, 1);
+  if (o === 2) {
+    // wraparound shades over the eyes: dark lenses with a lit top edge and a glint, the arm running back to the ear;
+    // the brows still frown over the top
+    r.seg(P.brow, X(14.5), Y(13.2), X(21.5), Y(14.4), 2, 1.8);
+    r.seg(P.brow, X(23.2), Y(14.4), X(25), Y(13.6), 1.6, 1.4);
+    r.rect(P.web, X(10), Y(17), 6 * zx, 1.2);
+    r.poly(P.web, [q(14.5, 16.4), q(26.4, 16.4), q(26, 19.8), q(22.5, 20.4), q(21.5, 19.4), q(15, 20.4)]);
+    r.rect(P.gunL, X(15.5), Y(17), 6 * zx, 1);
+    r.rect(P.glow, X(23.6), Y(17), 2 * zx, 1);
+  } else {
+    // the eye socket in shade, the near eye looking right (white, dark pupil, a heavy lid), the far eye past the bridge
+    r.rect(P.eye, X(16), Y(16.6), 5 * zx, 3);
+    r.rect(P.pupil, X(18.8), Y(16.6), 2 * zx, 3);
+    r.rect(P.skinD, X(15.6), Y(16.6) + 3, 5.4 * zx, 1);
+    r.rect(P.eye, X(23.4), Y(16.6), 1, 3);
+    r.rect(P.pupil, X(24.4), Y(16.6), 1, 3);
+    // heavy brows angled down toward the nose (a set, confident frown)
+    r.seg(P.brow, X(15), Y(14), X(21.8), Y(15.4), 2.2, 2);
+    r.seg(P.brow, X(23), Y(15.2), X(25.2), Y(14.2), 1.8, 1.4);
+    if (o === 1) {
+      // camo face paint: two stripes across the cheek and the nose
+      r.seg(paint[1], X(12), Y(20.6), X(21.5), Y(21.6), 1.4, 1.4);
+      r.seg(paint[0], X(13), Y(23.2), X(19.5), Y(24), 1.2, 1.2);
+      r.seg(paint[1], X(23.5), Y(19.6), X(26.5), Y(20.6), 1.2, 1.2);
+    }
+  }
 }
 
 /** A round frag grenade hanging by its spoon. */
