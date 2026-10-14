@@ -16,6 +16,7 @@ import { COLORS, MenuList, MenuScene, PANEL, drawPanel, text, textPx, type MenuI
 /** After a match: winner banner, per-player stats, and what to do next. */
 export class ResultsScene extends MenuScene {
   private list!: MenuList;
+  private hint!: Phaser.GameObjects.BitmapText;
   private title!: Phaser.GameObjects.BitmapText;
   private rows: Phaser.GameObjects.BitmapText[] = [];
   private head!: Phaser.GameObjects.BitmapText;
@@ -140,6 +141,7 @@ export class ResultsScene extends MenuScene {
       items.push({ label: 'CHARACTER SELECT', onConfirm: () => this.go('CharacterSelect') }, { label: 'MAIN MENU', onConfirm: () => this.go('ModeSelect') });
     }
     this.list = new MenuList(this, this.ui, items);
+    this.hint = text(this, this.ui, 'UP/DOWN: MOVE   J / ENTER: SELECT', COLORS.dim).setOrigin(0.5);
     // a human loss in the arcade gets the sad version; everything else celebrates
     const humanLost = (arcade && winner !== 0) || (!!tr && !tr.cleared) || (!!lr && lr.distance <= 0) || (!!chal && !chalClear);
     music.jingle(humanLost || winner < 0 ? 'lose' : 'win', wc?.id);
@@ -169,6 +171,7 @@ export class ResultsScene extends MenuScene {
     drawPanel(this.plate, tx - pad, top, tw * ts + pad * 2, bottom - top, u, 0.92);
     this.plate.fillStyle(PANEL.border, 1).fillRect(tx, h * 0.27 + 10 * (ts / 1.2), tw * ts, Math.max(1, u / 2));
     this.list.layout(side + (w - side) / 2, h * 0.56, u, 120);
+    this.placeFooter(this.hint);
     if (this.champ) {
       // sized so even a wide fighter (wings, staffs) stays on screen beside the table
       const s = Math.max(0.6, Math.min(u * 2.6, (h * 0.44) / 64, (w * 0.2) / 56));

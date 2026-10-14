@@ -81,10 +81,19 @@ export class ModeSelectScene extends MenuScene {
     this.showScale = Math.max(0.6, Math.min(u * 2.4, (this.floorY - h * 0.25) / 64));
     this.showcase.forEach((s, side) => {
       const x = side === 0 ? w * 0.17 : w * 0.83;
-      s.sprite.setVisible(room).setPosition(x, this.floorY).setScale(this.showScale * uiTexK(CHARACTER_LIST[s.idx]));
+      s.sprite.setVisible(room).setPosition(x, this.floorY);
+      this.fitShowcase(s.sprite, CHARACTER_LIST[s.idx]);
       s.name.setVisible(room && h >= 560).setScale(u * 1.2).setPosition(x, this.floorY + 4 * u);
     });
     this.hint.setScale(Math.min(u, (w * 0.97) / Math.max(1, textPx(this.hint)))).setPosition(w / 2, h - 10 * u);
+  }
+
+  /** Scale a showcase fighter, shrinking it if a wide one (wings, staffs) would run past the screen edge. */
+  private fitShowcase(sprite: Phaser.GameObjects.Sprite, c: (typeof CHARACTER_LIST)[number]): void {
+    sprite.setScale(this.showScale * uiTexK(c));
+    const room = Math.min(sprite.x, this.scale.width - sprite.x) - 4;
+    const half = sprite.displayWidth * 0.4; // the frame carries transparent margin around the body
+    if (half > room && room > 0) sprite.setScale(sprite.scaleX * (room / half));
   }
 
   protected override backdrop(w: number, h: number): MenuBackdrop {
@@ -107,7 +116,7 @@ export class ModeSelectScene extends MenuScene {
       if (s.idx !== idx) {
         s.idx = idx;
         s.sprite.setTexture(fighterTextureKey(c.id), 0).play(fighterAnimKey(c.id, 'idle'));
-        s.sprite.setScale(this.showScale * uiTexK(c));
+        this.fitShowcase(s.sprite, c);
         s.name.setText(c.name.toUpperCase()).setTint(parseInt(c.sprite.placeholder.accent.slice(1), 16));
       }
       s.sprite.setAlpha(fade);
