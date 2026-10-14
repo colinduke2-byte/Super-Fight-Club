@@ -1342,7 +1342,7 @@ export class MatchScene extends Phaser.Scene {
       });
       this.introTicks = 45;
       this.bannerPop = 12;
-      sfx.play('boom', 0.7, 0);
+      sfx.play('go', 0.9, 0);
       return;
     }
     const n = c >= COUNT_STEP * 3 ? 0 : Math.floor(c / COUNT_STEP) + 1;
