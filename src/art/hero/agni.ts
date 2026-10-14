@@ -245,12 +245,15 @@ function head(r: Raster, P: Parts, k: Skel, o: number, ph: number, run: boolean,
   }
   // a crown of fire burning up out of the hair (Inferno: taller, wilder; Temple: none)
   if (o !== 2) {
+    const laid = !!k.pose.laid;
     const tongues: [number, number][] = o === 1 ? [[-0.4, 0.95], [-0.22, 1.35], [-0.02, 1.15], [0.16, 1.45], [0.32, 0.95]] : [[-0.36, 0.75], [-0.18, 1.05], [0.0, 0.9], [0.17, 1.15], [0.32, 0.7]];
     tongues.forEach(([ox, hgt], i) => {
       const fl = flick(i) * 2.5;
       const bx = cx + ox * s;
       const by = cy - 0.28 * s;
-      const H = hgt * s * 0.62;
+      // knocked down, the body is turned on its side and centred across the frame, so the crown's height becomes width
+      // past the head: cap the tips (plus their ~3px glow) to the standard crown's reach so they clear the frame side
+      const H = Math.min(hgt * s * 0.62, laid ? by - fl - (k.base - 126) : Infinity);
       const lean = -2 + fl * 0.4; // swept back
       r.poly(P.flame, [[bx - 5, by + 4], [bx - 3 + lean * 0.5, by - H * 0.5], [bx + lean, by - H - fl], [bx + 3 + lean * 0.3, by - H * 0.45], [bx + 5, by + 4]]);
       r.poly(P.glow, [[bx - 2.5, by + 4], [bx + lean * 0.6, by - H * 0.62 - fl * 0.6], [bx + 2.5, by + 4]]);

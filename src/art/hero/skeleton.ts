@@ -12,6 +12,8 @@ export interface HeroPose {
   backHand: V2;
   aim?: number;
   wing?: number;
+  /** Set by the renderer on the upright stance it draws a knocked-down fighter in before laying it on its back. */
+  laid?: boolean;
 }
 
 /** Joint positions in full-resolution (128px frame) pixels, derived from a pose. */

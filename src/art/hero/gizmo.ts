@@ -1,6 +1,6 @@
 import type { PlaceholderLook } from '../../engine/types';
 import { col, mix, mul, type Raster, type RGB, type V2 } from './raster';
-import type { Skel } from './skeleton';
+import { solveLimb, type Skel } from './skeleton';
 
 const lum = (c: RGB): number => c[0] * 0.3 + c[1] * 0.59 + c[2] * 0.11;
 
@@ -13,6 +13,17 @@ export function drawGizmo(r: Raster, k0: Skel, look: PlaceholderLook): void {
   // limb ends pulled inside the frame (a hand or foot posed past the edge would otherwise be cut off)
   const fit = (q: V2, m: number): V2 => [Math.max(m, Math.min(k0.W - m, q[0])), Math.max(m, Math.min(k0.H - m, q[1]))];
   const k: Skel = { ...k0, handF: fit(k0.handF, 12), handB: fit(k0.handB, 11), elbowF: fit(k0.elbowF, 8), elbowB: fit(k0.elbowB, 8) };
+  // the wrench reaches past the grip: aimed level, its long hook hangs ~8px under the head; aimed upward, the butt cap
+  // (7px behind the grip, ~3.5px round) drops below the hand. Lift a low grip so neither dips into the floor rows, and
+  // re-solve the elbow so the arm folds to the new grip instead of stretching to the old joint.
+  {
+    const up = k0.pose.aim === undefined ? 0 : Math.max(0, -Math.sin((k0.pose.aim * Math.PI) / 180));
+    const maxY = Math.min(k0.H - 13, k0.H - 7.5 - 7 * up);
+    if (k.handF[1] > maxY) {
+      k.handF = [k.handF[0], maxY];
+      k.elbowF = fit(solveLimb(k0.shF, k.handF, k0.armBone, 1).mid, 8);
+    }
+  }
   const armor = col(look.armor);
   const dark = col(look.armorDark);
   const deep = mul(dark, 0.6);
@@ -379,7 +390,8 @@ function leg(r: Raster, P: Parts, hip0: V2, kn0: V2, ankle0: V2, back: boolean):
   r.ellipse(back ? P.dark : P.light, kn[0], kn[1], 4, 4); // knee cap
   // boot: armoured upper, dark rubber tread with notches
   const [ax, ay] = ankle;
-  const by = Math.min(ay, r.h - 11);
+  // the tread sits on the ground line (base = h - 4) like a standing boot, never a row below it
+  const by = Math.min(ay, r.h - 12);
   r.poly(back ? P.dark : P.armor, [[ax - 7, by - 2], [ax + 4, by - 3], [ax + 10, by + 2], [ax + 11, by + 5], [ax - 8, by + 5]]);
   if (!back) r.rect(P.light, ax - 5, by - 2, 8, 2);
   r.rect(P.tread, ax - 9, by + 5, 22, 4);

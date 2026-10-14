@@ -43,7 +43,7 @@ export function renderHero(ctx: Ctx, W: number, H: number, look: PlaceholderLook
 export function renderHeroImage(W: number, H: number, look: PlaceholderLook, pose: HeroPose, phase: number): ImageData {
   let r = new Raster(W, H);
   const lying = !!(pose as HeroPose & { lying?: boolean }).lying;
-  const stand: HeroPose = lying ? { bob: 0, crouch: 0, lean: 0, frontFoot: [8, 3], backFoot: [-8, 0], frontHand: [6, -2], backHand: [-8, -2] } : pose;
+  const stand: HeroPose = lying ? { bob: 0, crouch: 0, lean: 0, frontFoot: [8, 3], backFoot: [-8, 0], frontHand: [6, -2], backHand: [-8, -2], laid: true } : pose;
   const k = skeleton(look, stand, W, H, phase);
   DRAWERS[look.build.helmet]?.(r, k, look);
   // knocked down: the same body, laid on its back
