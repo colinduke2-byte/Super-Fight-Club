@@ -78,6 +78,12 @@ export class MenuList {
   private readonly panel: Phaser.GameObjects.Graphics;
   /** Draw the backing plate (on by default; scenes with their own frame turn it off). */
   plate = true;
+  /** Cursor bar position in rows: glides toward `index` instead of jumping. */
+  private barPos = -1;
+  private lastTime = -1;
+  /** Each row's last value text and when it last changed (for the pop on a changed setting). */
+  private lastVals: (string | undefined)[] = [];
+  private popAt: number[] = [];
 
   constructor(
     private readonly scene: Phaser.Scene,
@@ -98,6 +104,9 @@ export class MenuList {
       this.values.push(text(this.scene, this.layer, ''));
     }
     this.index = Math.min(this.index, Math.max(0, this.items.length - 1));
+    this.lastVals = [];
+    this.popAt = [];
+    this.barPos = -1;
     this.layout(this.cx, this.top, this.u, this.width);
   }
 
@@ -186,14 +195,19 @@ export class MenuList {
     const y = this.top - (rh - textH) / 2 - u * 2;
     const h = this.items.length * rh + u * 3;
     drawPanel(g, x, y, w, h, u);
-    // cursor bar
-    const sy = this.top + this.index * rh - (rh - textH) / 2;
+    // cursor bar (glides between rows)
+    const sy = this.top + (this.barPos < 0 ? this.index : this.barPos) * rh - (rh - textH) / 2;
     const a = 0.16 + 0.06 * Math.sin(time * 6);
     g.fillStyle(COLORS.hot, a).fillRect(x + u, sy, w - u * 2, rh);
     g.fillStyle(COLORS.hot, 0.9).fillRect(x + u, sy, u * 2, rh);
   }
 
   update(time: number): void {
+    const dt = this.lastTime < 0 ? 1 : Math.max(0, Math.min(0.1, time - this.lastTime));
+    this.lastTime = time;
+    // the cursor bar eases to the selected row; a wrap-around (or the first frame) jumps straight there
+    if (this.barPos < 0 || Math.abs(this.index - this.barPos) > 2.5) this.barPos = this.index;
+    else this.barPos += (this.index - this.barPos) * Math.min(1, dt * 22);
     let worst = 1;
     this.items.forEach((it, i) => {
       const sel = i === this.index;
@@ -204,13 +218,19 @@ export class MenuList {
       this.labels[i].setTint(!on ? 0x5a5680 : sel ? (pulse ? COLORS.hot : COLORS.title) : COLORS.text);
       const v = it.value ? up(`${sel && it.onLeft ? '< ' : ''}${it.value()}${sel && it.onRight ? ' >' : ''}`) : '';
       this.values[i].setText(v).setTint(!on ? 0x5a5680 : sel ? COLORS.hot : COLORS.accent);
+      const raw = it.value ? it.value() : undefined;
+      if (this.lastVals[i] !== undefined && raw !== this.lastVals[i]) this.popAt[i] = time;
+      this.lastVals[i] = raw;
       worst = Math.max(worst, textPx(this.labels[i]) + (it.value ? textPx(this.values[i]) + 12 : 0));
     });
     // one text size for the whole menu: shrunk only when the widest row (label + value) would overflow the menu width
     const k = Math.min(this.fontK, (this.width * this.u) / (worst * this.u));
     for (let i = 0; i < this.items.length; i++) {
       this.labels[i].setScale(this.u * k);
-      this.values[i].setScale(this.u * k);
+      // a changed value pops (briefly larger, centred on its row) so a left / right press visibly lands
+      const pop = 1 + 0.3 * Math.max(0, 1 - (time - (this.popAt[i] ?? -9)) / 0.2);
+      const y = this.top + i * this.rowH * this.u;
+      this.values[i].setScale(this.u * k * pop).setY(y - (7 * this.u * k * (pop - 1)) / 2);
     }
     this.drawPlate(k, time);
   }

@@ -3,7 +3,7 @@ import { PIXEL_FONT } from '../art/pixelFont';
 import { session } from '../game/session';
 import type { MenuEvent } from '../input/menuInput';
 import { STAGE_LIST } from '../stages';
-import { COLORS, MenuList, MenuScene, text, textPx, type MenuBackdrop } from '../ui/menuKit';
+import { COLORS, MenuList, MenuScene, drawPanel, text, textPx, type MenuBackdrop } from '../ui/menuKit';
 import { stageThumb } from '../ui/stageThumb';
 
 /** Pick a stage from the list; a preview draws its platforms and blast zones. RANDOM is always last. */
@@ -14,15 +14,21 @@ export class StageSelectScene extends MenuScene {
   private blurb!: Phaser.GameObjects.BitmapText;
   private tags!: Phaser.GameObjects.BitmapText;
   private wrapChars = 40;
+  /** Characters per tag line, and the description's laid-out scale (shrunk per stage if its text would not fit). */
+  private tagChars = 48;
+  private blurbK = 1;
   private preview!: Phaser.GameObjects.Graphics;
   private thumb!: Phaser.GameObjects.Image;
   private area = { x: 0, y: 0, w: 0, h: 0 };
+  /** Backdrop theme currently shown behind the menu. */
+  private theme: string | undefined = '';
 
   constructor() {
     super('StageSelect');
   }
 
   protected build(): void {
+    this.theme = '';
     this.title = this.add.bitmapText(0, 0, PIXEL_FONT, 'CHOOSE A STAGE').setOrigin(0.5).setTint(COLORS.title);
     this.ui.add(this.title);
     this.list = new MenuList(this, this.ui, [
@@ -57,14 +63,15 @@ export class StageSelectScene extends MenuScene {
     const bu = Math.max(0.75, Math.min(u * 1.1, (h * 0.2) / 40));
     // clear of the preview's frame (which is drawn 2px outside the card)
     this.blurb.setScale(bu).setPosition(this.area.x, this.area.y + this.area.h + 10 * u);
-    this.wrapChars = Math.max(10, Math.floor((w * 0.46) / (7.6 * bu)));
+    this.blurbK = bu;
+    this.tagChars = Math.max(12, Math.floor(this.area.w / (7 * Math.min(u, bu))));
     this.tags.setScale(Math.min(u, bu)).setPosition(this.area.x, h - 22 * u).setLineSpacing(3);
     this.placeFooter(this.hint);
   }
 
   protected override backdrop(): MenuBackdrop {
     // the preview card carries its own sky: no planet peeking over its frame
-    return { planet: null, tint: 0xe4e0ff };
+    return { planet: null, tint: 0xc8c4e4 };
   }
 
   protected override tick(time: number): void {
@@ -73,6 +80,11 @@ export class StageSelectScene extends MenuScene {
     g.clear();
     const a = this.area;
     const stage = STAGE_LIST[this.list.index];
+    // the whole screen's backdrop turns into the highlighted stage's world (RANDOM keeps the last one)
+    if (stage && stage.background.theme !== this.theme) {
+      this.theme = stage.background.theme;
+      this.bg.setTheme(this.theme);
+    }
     if (stage) {
       this.thumb.setTexture(stageThumb(this, stage)).setVisible(true);
       const k = Math.min(a.w / this.thumb.width, a.h / this.thumb.height);
@@ -82,7 +94,7 @@ export class StageSelectScene extends MenuScene {
       g.fillStyle(0x0b0a24, 0.85).fillRect(a.x, a.y, a.w, a.h);
     }
     g.lineStyle(3, COLORS.title, 1).strokeRect(a.x - 2, a.y - 2, a.w + 4, a.h + 4);
-    this.blurb.setText(this.wrap(stage ? (stage.blurb ?? '').toUpperCase() : 'A RANDOM STAGE FROM THE LIST.'));
+    const blurb = stage ? (stage.blurb ?? '').toUpperCase() : 'A RANDOM STAGE FROM THE LIST.';
     if (stage) {
       const bw0 = stage.blast.right - stage.blast.left;
       const size = bw0 > 1500 ? 'LARGE' : bw0 > 1150 ? 'MEDIUM' : 'SMALL';
@@ -97,12 +109,26 @@ export class StageSelectScene extends MenuScene {
       const rows: string[] = [];
       for (const t of tags) {
         const last = rows.length ? rows[rows.length - 1] : '';
-        if (last && (last + '   ' + t).length <= Math.floor(this.wrapChars * 1.2)) rows[rows.length - 1] = `${last}   ${t}`;
+        if (last && (last + '   ' + t).length <= this.tagChars) rows[rows.length - 1] = `${last}   ${t}`;
         else rows.push(t);
       }
       this.tags.setText(rows.join('\n'));
     } else this.tags.setText('');
+    // the description wraps to the preview's width; a long one on a short window shrinks until it and the tags fit
+    const room = this.hint.y - this.hint.displayHeight / 2 - 6 * this.u - this.blurb.y;
+    let bs = this.blurbK;
+    for (let tries = 0; tries < 6; tries++) {
+      this.wrapChars = Math.max(10, Math.floor(a.w / (7 * bs)));
+      this.blurb.setScale(bs).setText(this.wrap(blurb));
+      if (this.blurb.displayHeight + 7 * this.u + this.tags.displayHeight <= room) break;
+      bs *= 0.88;
+    }
     this.tags.setY(Math.min(this.blurb.y + this.blurb.displayHeight + 7 * this.u, this.hint.y - this.hint.displayHeight / 2 - 6 * this.u - this.tags.displayHeight));
+    // a plate under the description and tags so they read over the stage's own ground
+    const u = this.u;
+    const bottom = this.tags.text ? this.tags.y + this.tags.displayHeight : this.blurb.y + this.blurb.displayHeight;
+    drawPanel(g, a.x - 6 * u, this.blurb.y - 5 * u, a.w + 12 * u, bottom - this.blurb.y + 10 * u, u, 0.82);
+    g.lineStyle(3, COLORS.title, 1).strokeRect(a.x - 2, a.y - 2, a.w + 4, a.h + 4);
     if (!stage) {
       // RANDOM: question mark card
       g.fillStyle(0x4a4578, 1).fillRect(a.x + a.w / 2 - 6, a.y + a.h / 2 - 20, 12, 40);

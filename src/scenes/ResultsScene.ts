@@ -30,7 +30,20 @@ export class ResultsScene extends MenuScene {
   private plate!: Phaser.GameObjects.Graphics;
   private fx!: Phaser.GameObjects.Graphics;
   private champColor = 0xffffff;
-  private confetti: { x: number; y: number; vx: number; vy: number; c: number; r: number; vr: number }[] = [];
+  private confetti: { x: number; y: number; vx: number; vy: number; c: number; r: number; vr: number; burst?: boolean }[] = [];
+  /** A win worth celebrating (a human did not just lose): the banner slams in with a flash and confetti cannons fire. */
+  private celebrate = false;
+  private fired = false;
+  /** Drawn over everything: the cannons' confetti, sparkles and the entrance flash. */
+  private front!: Phaser.GameObjects.Graphics;
+  /** Additive copy of the banner for its shine. */
+  private titleGlow!: Phaser.GameObjects.BitmapText;
+  private titleK = 1;
+  private rowX = 0;
+  private lastTick = -1;
+  /** Gold bar behind the winner's row of the table (index into rows, -1: none). */
+  private winRow = -1;
+  private rowBand = { x: 0, w: 0, h: 0, ys: [] as number[] };
   private floor = { x: 0, y: 0, s: 1 };
 
   constructor() {
@@ -67,7 +80,8 @@ export class ResultsScene extends MenuScene {
     const chalClear = !!chal && !!r && challengeCleared(r);
     if (chal) label = chalClear ? 'CHALLENGE CLEAR!' : 'CHALLENGE FAILED';
     this.title = this.add.bitmapText(0, 0, PIXEL_FONT, label).setOrigin(0.5).setTint(r && r.winnerTeam >= 0 ? COLORS.p[r.winnerTeam] : winner >= 0 ? COLORS.p[winner % 4] : COLORS.title);
-    this.ui.add(this.title);
+    this.titleGlow = this.add.bitmapText(0, 0, PIXEL_FONT, label).setOrigin(0.5).setTint(0xffffff).setAlpha(0).setBlendMode(Phaser.BlendModes.ADD);
+    this.ui.add([this.title, this.titleGlow]);
     const timed = (chal ? challengeRules(chal) : session.rules).mode === 'time' && !arcade;
     this.head = text(this, this.ui, tr ? `TARGET SMASH  ${(characterById(tr.character)?.name ?? '').toUpperCase()}` : lr ? `LAUNCH CONTEST  ${(characterById(lr.character)?.name ?? '').toUpperCase()}` : `PLAYER    FIGHTER    KOS  FALLS  DAMAGE  COMBO  ${timed ? 'POINTS' : 'STOCKS'}`, COLORS.dim);
     this.stageG = this.add.graphics();
@@ -77,6 +91,8 @@ export class ResultsScene extends MenuScene {
     this.champLine = null;
     this.champName = null;
     this.confetti = [];
+    this.fired = false;
+    this.lastTick = -1;
     const wp = r && winner >= 0 ? r.players.find((p) => p.index === winner) : undefined;
     const wc = wp ? characterById(wp.character) : undefined;
     if (wp && wc) {
@@ -147,6 +163,10 @@ export class ResultsScene extends MenuScene {
     this.hint = text(this, this.ui, 'UP/DOWN: MOVE   J / ENTER: SELECT   K / ESC: EXIT', COLORS.dim).setOrigin(0.5);
     // a human loss in the arcade gets the sad version; everything else celebrates
     const humanLost = (arcade && winner !== 0) || (!!tr && !tr.cleared) || (!!lr && lr.distance <= 0) || (!!chal && !chalClear);
+    this.celebrate = !humanLost && (winner >= 0 || (!!tr && tr.cleared) || (!!lr && lr.distance > 0) || chalClear);
+    this.winRow = !tr && !lr && winner >= 0 && this.rows.length ? 0 : -1;
+    this.front = this.add.graphics();
+    this.ui.add(this.front);
     music.jingle(humanLost || winner < 0 ? 'lose' : 'win', wc?.id);
     if (chal) announcer.say(chalClear ? 'Challenge complete!' : 'Try again.', { pitch: 0.55 });
     else if (!tr && !lr) {
@@ -159,7 +179,9 @@ export class ResultsScene extends MenuScene {
   }
 
   protected override layoutUi(w: number, h: number, u: number): void {
-    this.title.setScale(Math.min(u * 5, (w * 0.92) / Math.max(1, textPx(this.title)) * 1)).setPosition(w / 2, h * 0.12);
+    this.titleK = Math.min(u * 5, (w * 0.92) / Math.max(1, textPx(this.title)));
+    this.title.setScale(this.titleK).setPosition(w / 2, h * 0.12);
+    this.titleGlow.setScale(this.titleK).setPosition(w / 2, h * 0.12);
     // champion on the left, the table and the menu on the right (everything centred when there is no winner)
     const side = this.champ ? w * 0.4 : w * 0.06;
     const tw = Math.max(1, textPx(this.head));
@@ -168,6 +190,8 @@ export class ResultsScene extends MenuScene {
     this.head.setScale(ts).setPosition(tx, h * 0.27);
     // rows on a 14-unit pitch: a clear gap between lines even when the table shrinks to fit
     this.rows.forEach((r, i) => r.setScale(ts).setPosition(tx, h * 0.27 + (17 + i * 14) * (ts / 1.2)));
+    this.rowX = tx;
+    this.rowBand = { x: tx - 2 * u, w: tw * ts + 4 * u, h: 12 * (ts / 1.2), ys: this.rows.map((r) => r.y - 2.5 * (ts / 1.2)) };
     const pad = 5 * u;
     const top = h * 0.27 - pad;
     const bottom = h * 0.27 + (17 + Math.max(0, this.rows.length - 1) * 14 + 8) * (ts / 1.2) + pad;
@@ -183,6 +207,13 @@ export class ResultsScene extends MenuScene {
       this.champ.setScale(s * this.champK).setPosition(this.floor.x, this.floor.y);
       this.champName?.setScale(Math.min(u * 2, (w * 0.36) / Math.max(1, textPx(this.champName)))).setPosition(this.floor.x, this.floor.y + s * 10 + 9 * u);
       if (this.champName && this.champLine) this.champLine.setScale(Math.min(u, (w * 0.38) / Math.max(1, textPx(this.champLine)))).setPosition(this.floor.x, this.champName.y + this.champName.displayHeight / 2 + 6 * u);
+      // a plate under the name and quote so they read over any stage's ground
+      if (this.champName) {
+        const last = this.champLine ?? this.champName;
+        const pw = Math.max(this.champName.displayWidth, last.displayWidth) + 12 * u;
+        const top = Math.max(this.champName.y - this.champName.displayHeight / 2 - 4 * u, this.floor.y + this.floor.s * 10 + u);
+        drawPanel(this.plate, this.floor.x - pw / 2, top, pw, last.y + last.displayHeight / 2 + 4 * u - top, u, 0.8);
+      }
     }
   }
 
@@ -191,12 +222,97 @@ export class ResultsScene extends MenuScene {
     return { planet: null };
   }
 
+  /** Ease-out 0..1 over `dur` seconds from `t0`. */
+  private ease(time: number, t0: number, dur: number): number {
+    const k = Math.max(0, Math.min(1, (time - t0) / dur));
+    return 1 - Math.pow(1 - k, 3);
+  }
+
+  /** The entrance: banner slam and shine, table rows sliding in, then (for a win) the flash and two confetti cannons. */
+  private entrance(time: number, dt: number): void {
+    const u = this.u;
+    const w = this.scale.width;
+    const h = this.scale.height;
+    const e = this.ease(time, 0.05, 0.28);
+    this.title.setScale(this.titleK * (1 + (1 - e) * 1.4)).setAlpha(e);
+    // a shine on landing, then a sweep every few seconds (a win also strobes it briefly)
+    const land = time > 0.3 && time < 0.7 ? 0.8 * (1 - (time - 0.3) / 0.4) : 0;
+    const ph = (time % 3.5) / 3.5;
+    const sweep = ph < 0.2 ? 0.45 * Math.sin((ph / 0.2) * Math.PI) : 0;
+    this.titleGlow.setScale(this.title.scaleX).setAlpha(Math.max(land, this.celebrate ? sweep : 0));
+    // the rows slide in from the right one after another; the winner's row gets a gold band
+    this.rows.forEach((r, i) => {
+      const k = this.ease(time, 0.3 + i * 0.09, 0.3);
+      r.setX(this.rowX + (1 - k) * 40 * u).setAlpha(k);
+    });
+    this.head.setAlpha(this.ease(time, 0.2, 0.3));
+    const fg = this.front.clear();
+    if (this.winRow >= 0) {
+      const k = this.ease(time, 0.3, 0.3);
+      const b = this.rowBand;
+      this.stageG.fillStyle(COLORS.hot, (0.16 + 0.06 * Math.sin(time * 5)) * k).fillRect(b.x, b.ys[this.winRow], b.w * k, b.h);
+    }
+    if (!this.celebrate) return;
+    // a white flash as the banner lands
+    if (time > 0.3 && time < 0.65) fg.fillStyle(0xffffff, 0.35 * (1 - (time - 0.3) / 0.35)).fillRect(0, 0, w, h);
+    if (!this.fired && time > 0.32) {
+      this.fired = true;
+      const cols = [this.champColor, 0xffe14a, 0xffffff, 0x7affa0, 0xff7ab0, 0x7fe8ff];
+      for (let n = 0; n < 220; n++) {
+        const left = n % 2 === 0;
+        // flung up and inward from each bottom corner
+        const ang = (left ? 1 : -1) * (0.12 + Math.random() * 0.5);
+        const sp = (480 + Math.random() * 460) * (h / 720);
+        this.confetti.push({ x: left ? 0 : w, y: h, vx: Math.sin(ang) * sp, vy: -Math.cos(ang) * sp, c: cols[n % cols.length], r: Math.random() * 6, vr: (Math.random() - 0.5) * 14, burst: true });
+      }
+    }
+    // sparkles twinkling around the champion, and a ring of light bursting out from them as the banner lands
+    if (this.champ) {
+      const { x, y, s } = this.floor;
+      if (time > 0.3 && time < 1.1) {
+        const k = (time - 0.3) / 0.8;
+        const rr = (10 + k * 70) * s;
+        this.fx.lineStyle(Math.max(2, (1 - k) * 6 * s), this.champColor, 0.8 * (1 - k)).strokeEllipse(x, y - 28 * s, rr * 2, rr * 1.6);
+        this.fx.lineStyle(Math.max(1, (1 - k) * 3 * s), 0xffffff, 0.6 * (1 - k)).strokeEllipse(x, y - 28 * s, rr * 1.6, rr * 1.28);
+      }
+      for (let i = 0; i < 7; i++) {
+        const ph2 = (time * 0.9 + i * 0.37) % 1;
+        const a = Math.sin(ph2 * Math.PI);
+        const sx = x + Math.sin(i * 2.4 + Math.floor(time * 0.9 + i * 0.37) * 1.7) * 30 * s;
+        const sy = y - 10 * s - ((i * 13 + Math.floor(time * 0.9 + i * 0.37) * 7) % 50) * s;
+        const r = (1 + a * 2.5) * (s / 2) + 1;
+        fg.fillStyle(0xffffff, a * 0.9).fillRect(sx - r, sy - 0.5, r * 2, 1.5).fillRect(sx - 0.75, sy - r, 1.5, r * 2);
+        fg.fillStyle(0xffe14a, a * 0.6).fillRect(sx - 1, sy - 1, 2, 2);
+      }
+    }
+    // the cannons' confetti: flung up from the bottom corners, slowed by the air, then fluttering down
+    const step = Math.min(0.05, dt);
+    const ps = Math.max(2, u);
+    for (const c of this.confetti) {
+      if (!c.burst) continue;
+      c.vy += 620 * (h / 720) * step;
+      c.vx *= 1 - 1.6 * step;
+      if (c.vy > 90) c.vy = 90 + (c.vy - 90) * (1 - 4 * step);
+      c.x += (c.vx + (c.vy > 0 ? Math.sin(time * 4 + c.r) * 40 : 0)) * step;
+      c.y += c.vy * step;
+      c.r += c.vr * step;
+      const cw = Math.abs(Math.cos(c.r)) * ps * 2 + 1;
+      fg.fillStyle(c.c, 1).fillRect(c.x - cw / 2, c.y, cw, ps * 2);
+    }
+    this.confetti = this.confetti.filter((c) => !c.burst || c.y < h + 10);
+  }
+
   protected override tick(time: number, dt: number): void {
     this.list.update(time);
+    // real elapsed time (the base class passes a fixed 1/60), so the confetti flies the same at any frame rate
+    const real = this.lastTick < 0 ? 1 / 60 : Math.max(0, Math.min(0.05, time - this.lastTick));
+    this.lastTick = time;
+    dt = real;
     const g = this.stageG;
     const f = this.fx;
     g.clear();
     f.clear();
+    this.entrance(time, dt);
     if (!this.champ) return;
     const { x, y, s } = this.floor;
     const pulse = 0.5 + 0.5 * Math.sin(time * 3);
@@ -211,18 +327,19 @@ export class ResultsScene extends MenuScene {
     this.champ.setY(y + Math.sin(time * 2) * 0.8);
     // confetti: a steady drizzle over the champion
     const step = Math.min(0.05, dt);
-    if (this.confetti.length < 90 && Math.random() < 0.6) {
+    if (this.confetti.filter((c) => !c.burst).length < 90 && Math.random() < 0.6) {
       const cols = [this.champColor, 0xffe14a, 0xffffff, 0x7affa0, 0xff7ab0];
       this.confetti.push({ x: x + (Math.random() - 0.5) * 120 * s, y: -10, vx: (Math.random() - 0.5) * 40, vy: 60 + Math.random() * 80, c: cols[Math.floor(Math.random() * cols.length)], r: Math.random() * 6, vr: (Math.random() - 0.5) * 8 });
     }
     for (const c of this.confetti) {
+      if (c.burst) continue;
       c.x += (c.vx + Math.sin(time * 4 + c.r) * 30) * step;
       c.y += c.vy * step;
       c.r += c.vr * step;
       const cw = Math.abs(Math.cos(c.r)) * 2.5 * (s / 2) + 1;
       g.fillStyle(c.c, 1).fillRect(c.x - cw / 2, c.y, cw, 2.5 * (s / 2) + 1);
     }
-    this.confetti = this.confetti.filter((c) => c.y < this.scale.height + 10);
+    this.confetti = this.confetti.filter((c) => c.burst || c.y < this.scale.height + 10);
   }
 
   protected onEvent(e: MenuEvent): void {

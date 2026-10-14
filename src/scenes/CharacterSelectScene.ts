@@ -1,5 +1,5 @@
 import Phaser from 'phaser';
-import { animFrameIndex, ensurePalette, fighterAnimKey, fighterTextureKey, paletteReady, portraitCrop, portraitK, releasePalettes, requestPalette, skinKey, uiTexK } from '../art/proceduralFighter';
+import { animFrameIndex, ensurePalette, fighterAnimKey, fighterTextureKey, paletteReady, portraitCrop, portraitK, releasePalettes, requestPalette, skinKey } from '../art/proceduralFighter';
 import { ALT_LOOKS, lookName, paletteCount } from '../art/palettes';
 import { PIXEL_FONT } from '../art/pixelFont';
 import { CHARACTER_LIST } from '../characters';
@@ -35,6 +35,11 @@ interface Card {
   cw: number;
   cu: number;
 }
+
+/** Card height in card units: header band, the fighter's stage, name / status / outfit, tagline, stat bars. */
+const CARD_H = 174;
+/** Height of the tagline row: short windows drop it (its text would be too small to read) and keep the fighter large. */
+const TAG_H = 16;
 
 /** Character select for 1-4 slots: devices join, pick with their own cursor, lock in; CPUs fill the rest. */
 export class CharacterSelectScene extends MenuScene {
@@ -126,7 +131,11 @@ export class CharacterSelectScene extends MenuScene {
     this.hint = text(this, this.ui, '', COLORS.dim).setOrigin(0.5);
   }
 
-  private cardW = 100;
+  /** Short window: the cards leave out the tagline row. */
+  private compact = false;
+  private get cardH(): number {
+    return this.compact ? CARD_H - TAG_H : CARD_H;
+  }
 
   protected override layoutUi(w: number, h: number, u0: number): void {
     // stacked bottom-up: controls hint, lobby message, roster strip; the cards take the space left under the title
@@ -161,29 +170,27 @@ export class CharacterSelectScene extends MenuScene {
     // the cards: as large as fits between the title and the roster (quarter-unit steps keep the pixel text even)
     const cardsTop = this.title.y + this.title.displayHeight / 2 + 7 * ru;
     const avail = stripTop - 7 * ru - cardsTop;
-    const u = Math.max(1, Math.min(u0, Math.floor((avail / 160) * 4) / 4));
+    this.compact = avail / CARD_H < 2;
+    const cardH = this.cardH;
+    const u = Math.max(1, Math.min(u0, Math.floor((avail / cardH) * 4) / 4));
     const n = this.cards.length;
     const cw = Math.min((w - 8 * u) / (n + 0.2), 112 * u * 1.1);
-    this.cardW = cw;
     this.cards.forEach((c, i) => {
       const cx = w / 2 + (i - (n - 1) / 2) * cw;
-      const top = cardsTop + Math.max(0, (avail - 160 * u) / 3);
+      const top = cardsTop + Math.max(0, (avail - cardH * u) / 3);
       const x0 = cx - (cw * 0.94) / 2;
       Object.assign(c, { cx, top, cw: cw * 0.94, cu: u });
-      c.header.setScale(u * 2).setOrigin(0, 0).setPosition(x0 + 6 * u, top + 4 * u);
-      c.device.setOrigin(1, 0).setPosition(x0 + cw * 0.94 - 6 * u, top + 4 * u);
-      c.outfit.setOrigin(1, 0).setPosition(x0 + cw * 0.94 - 6 * u, top + 12 * u).setData('u', u);
-      c.sprite.setScale(u * 0.95 * uiTexK(CHARACTER_LIST[this.lobby.slots[i].character] ?? CHARACTER_LIST[0])).setPosition(cx, top + 88 * u);
-      c.name.setScale(u * 1.5).setOrigin(0.5, 0).setPosition(cx, top + 92 * u);
-      c.status.setOrigin(0.5, 0).setPosition(cx, top + 106 * u);
-      c.tagline.setScale(u * 0.85).setOrigin(0.5, 0).setPosition(cx, top + 118 * u);
-      // top row: the original outfit's four colours; bottom row: outfit 1 (two colours), a gap, outfit 2 (two colours)
-      c.swatches.forEach((sw, k) => {
-        const col = k < 4 ? k : k < 6 ? k - 4 : k - 3.5;
-        sw.setPosition(x0 + cw * 0.94 - 8 * u - (3 - col) * 7 * u, top + (k < 4 ? 30 : 38) * u).setData('u', u);
-      });
+      c.header.setOrigin(0, 0.5).setPosition(x0 + 6 * u, top + 10.5 * u);
+      c.device.setOrigin(1, 0.5).setPosition(x0 + cw * 0.94 - 6 * u, top + 10.5 * u);
+      this.fitFighter(c, CHARACTER_LIST[this.lobby.slots[i].character] ?? CHARACTER_LIST[0]);
+      c.name.setScale(u * 1.5).setOrigin(0.5, 0).setPosition(cx, top + 95 * u);
+      c.status.setOrigin(0.5, 0).setPosition(cx, top + 107 * u);
+      c.outfit.setOrigin(0.5, 0).setPosition(cx, top + 118 * u).setData('u', u);
+      c.tagline.setScale(u * 0.85).setOrigin(0.5, 0).setPosition(cx, top + 128 * u);
+      // the outfit swatches (one per look, the fighter's own first) run down the right edge of the fighter's stage
+      c.swatches.forEach((sw, k) => sw.setPosition(x0 + cw * 0.94 - 9 * u, top + 29 * u + k * 7 * u).setData('u', u));
       c.bars.forEach((b, k) => {
-        const by = top + 134 * u + k * 5.6 * u;
+        const by = top + (this.compact ? 150 - TAG_H : 150) * u + k * 5.6 * u;
         c.barLabels[k].setScale(crisp(u * 0.64)).setOrigin(0, 0).setPosition(x0 + 6 * u, by - 0.5 * u);
         const bx = x0 + 24 * u;
         c.barW = cw * 0.94 - 31 * u;
@@ -205,17 +212,19 @@ export class CharacterSelectScene extends MenuScene {
       const slot = this.lobby.slots[i];
       const u = c.cu;
       const x0 = c.cx - c.cw / 2;
-      const H = 160 * u;
+      const H = this.cardH * u;
       const col = session.rules.teams && session.playerCount === 4 ? COLORS.p[i < 2 ? 0 : 1] : COLORS.p[i];
       drawPanel(g, x0, c.top, c.cw, H, u, slot.kind === 'empty' ? 0.7 : 0.92);
       g.fillStyle(col, slot.kind === 'empty' ? 0.1 : 0.22).fillRect(x0 + u, c.top + u, c.cw - 2 * u, 20 * u);
       g.fillStyle(col, slot.kind === 'empty' ? 0.4 : 1).fillRect(x0 + u, c.top + 20 * u, c.cw - 2 * u, u);
       if (slot.kind === 'empty') return;
       // the fighter stands on a lit disc in the player's colour
-      g.fillStyle(col, 0.08).fillEllipse(c.cx, c.top + 60 * u, c.cw * 0.7, 56 * u);
-      g.fillStyle(col, 0.3).fillEllipse(c.cx, c.top + 88 * u, 46 * u, 6 * u);
+      g.fillStyle(col, 0.1).fillEllipse(c.cx, c.top + 58 * u, c.cw * 0.8, 66 * u);
+      g.fillStyle(col, 0.06).fillEllipse(c.cx, c.top + 58 * u, c.cw * 0.55, 46 * u);
+      g.fillStyle(col, 0.35).fillEllipse(c.cx, c.top + 92 * u, c.cw * 0.5, 6 * u);
+      g.fillStyle(col, 0.7).fillRect(c.cx - c.cw * 0.2, c.top + 92 * u, c.cw * 0.4, Math.max(1, u / 2));
       // divider above the stat bars
-      g.fillStyle(PANEL.border, 1).fillRect(x0 + 6 * u, c.top + 130 * u, c.cw - 12 * u, Math.max(1, u / 2));
+      g.fillStyle(PANEL.border, 1).fillRect(x0 + 6 * u, c.top + (this.compact ? 146 - TAG_H : 146) * u, c.cw - 12 * u, Math.max(1, u / 2));
       if (slot.kind === 'human') {
         const border = slot.locked ? COLORS.good : col;
         const a = slot.locked ? 1 : 0.45 + 0.35 * Math.sin(time * 6);
@@ -248,6 +257,25 @@ export class CharacterSelectScene extends MenuScene {
     }
   }
 
+  /**
+   * The card's fighter, as large as its stage allows: the idle frame's opaque box (the sheets are trimmed) fills the
+   * space between the header band and the floor line, narrower than the card so the swatch column stays clear.
+   */
+  private fitFighter(c: Card, data: (typeof CHARACTER_LIST)[number]): void {
+    const u = c.cu;
+    const fr = c.sprite.texture.get(animFrameIndex(data, 'idle', 0));
+    const bw = Math.max(1, fr.cutWidth);
+    const bh = Math.max(1, fr.cutHeight);
+    const fw = fr.realWidth || bw;
+    const fh = fr.realHeight || bh;
+    const left = fr.x ?? 0;
+    const topPx = fr.y ?? 0;
+    const k = Math.min((64 * u) / bh, (c.cw - 34 * u) / bw);
+    c.sprite.setScale(k);
+    // origin is the bottom centre of the untrimmed frame: shift so the body's own box sits centred on the floor line
+    c.sprite.setPosition(c.cx - (left + bw / 2 - fw / 2) * k, c.top + 92 * u + (fh - (topPx + bh)) * k);
+  }
+
   private norm(v: number, lo: number, hi: number): number {
     return Math.max(0.05, Math.min(1, (v - lo) / (hi - lo)));
   }
@@ -270,7 +298,7 @@ export class CharacterSelectScene extends MenuScene {
         c.tex = skin;
         c.sprite.setTexture(fighterTextureKey(skin), 0);
         c.sprite.play(fighterAnimKey(skin, 'idle'));
-        c.sprite.setScale(c.cu * 0.95 * uiTexK(data));
+        this.fitFighter(c, data);
       }
       const looks = [data.sprite.placeholder, ...(ALT_LOOKS[data.id] ?? [])];
       c.swatches.forEach((sw, k) => {
@@ -278,37 +306,39 @@ export class CharacterSelectScene extends MenuScene {
         const on = slot.kind === 'human' && k < looks.length;
         sw.setVisible(on);
         if (!on) return;
-        sw.setTint(parseInt(looks[k].armor.slice(1), 16)).setScale(((k === pal ? 6 : 4) * su) / 4).setAlpha(k === pal ? 1 : 0.55);
+        sw.setTint(parseInt(looks[k].armor.slice(1), 16)).setScale(((k === pal ? 6 : 4) * su) / 4).setAlpha(k === pal ? 1 : 0.5);
       });
       c.outfit.setVisible(slot.kind === 'human').setText(up(lookName(data.id, pal)));
-      const dev = slot.kind === 'human' ? (inputManager.allDevices.find((d) => d.id === slot.deviceId)?.label ?? slot.deviceId ?? '') : slot.kind === 'cpu' ? `CPU LEVEL ${slot.cpuLevel}` : '';
+      const dev = slot.kind === 'human' ? (inputManager.allDevices.find((d) => d.id === slot.deviceId)?.label ?? slot.deviceId ?? '') : slot.kind === 'cpu' ? `CPU LV ${slot.cpuLevel}` : '';
       const teamTag = session.rules.teams && session.playerCount === 4 ? (i < 2 ? ' BLUE' : ' RED') : '';
       c.header.setText(up(`P${i + 1}${teamTag}`));
-      c.header.setScale(Math.min(c.cu * 2, (c.cw * 0.45) / Math.max(1, textPx(c.header))));
-      c.device.setText(up(dev.replace('Keyboard (WASD + JKLI)', 'KEYBOARD WASD').replace('Keyboard (Arrows + Numpad)', 'KEYBOARD ARROWS').slice(0, 18)));
-      // device and outfit share the header band right of the player tag: each shrinks to fit it
-      const room = c.cw - c.header.displayWidth - 16 * c.cu;
-      c.device.setScale(crispFit(Math.min(c.cu, room / Math.max(1, textPx(c.device)))));
-      c.outfit.setScale(crispFit(Math.min(c.cu * 0.8, room / Math.max(1, textPx(c.outfit)))));
+      c.header.setScale(legible(Math.min(c.cu * 2, (c.cw * 0.4) / Math.max(1, textPx(c.header)))));
+      // a short device name beside the player tag, as large as the header band allows
+      c.device.setText(up(dev.replace('Keyboard (WASD + JKLI)', 'WASD KEYS').replace('Keyboard (Arrows + Numpad)', 'ARROW KEYS').slice(0, 12)));
+      const room = c.cw - c.header.displayWidth - 18 * c.cu;
+      c.device.setScale(legible(Math.min(c.cu * 1.2, room / Math.max(1, textPx(c.device)))));
+      c.outfit.setScale(legible(Math.min(c.cu, (c.cw * 0.92) / Math.max(1, textPx(c.outfit)))));
       const shown = slot.kind !== 'empty';
       c.sprite.setVisible(shown).setAlpha(slot.kind === 'cpu' ? 0.75 : 1);
       c.name.setText(shown ? up(data.name) : '');
       c.status.setText(slot.kind === 'empty' ? 'PRESS A BUTTON' : slot.kind === 'cpu' ? 'CPU' : slot.locked ? 'READY!' : 'SELECTING')
         .setTint(slot.locked ? COLORS.good : slot.kind === 'empty' ? ((time * 2) | 0) % 2 === 0 ? COLORS.warn : COLORS.dim : COLORS.text);
       c.status.setScale(Math.min(c.cu * 1.2, (c.cw * 0.9) / Math.max(1, textPx(c.status))));
-      c.status.setY(c.top + (slot.kind === 'empty' ? 74 : 106) * c.cu);
+      c.status.setY(c.top + (slot.kind === 'empty' ? 80 : 107) * c.cu);
       const stats = [this.norm(data.stats.weight, 80, 110), this.norm(data.stats.runSpeed, 1.6, 3.3), this.norm(data.stats.jumpHeight, 55, 82), (data.difficulty ?? 3) / 5];
       c.bars.forEach((b, k) => b.setVisible(shown).setScale((stats[k] * c.barW) / 4, (4 * c.cu) / 4));
       c.barBg.forEach((b) => b.setVisible(shown));
       c.barLabels.forEach((t) => t.setVisible(shown));
-      if (shown && c.tagline.getData('src') !== data.id + this.cardW) {
+      c.tagline.setVisible(!this.compact);
+      const tagKey = `${data.id}:${c.cw}:${c.cu}`;
+      if (shown && c.tagline.getData('src') !== tagKey) {
         // wrap to the card (fixed-width font: measure one glyph), at most two lines, shrinking if needed
-        c.tagline.setData('src', data.id + this.cardW).setText('M');
+        c.tagline.setData('src', tagKey).setText('M');
         const glyph = Math.max(1, textPx(c.tagline));
         // small text keeps a whole-pixel scale so the 5x7 glyphs stay even
         let sc = crisp(c.cu * 0.85);
         let lines: string[] = [];
-        for (let tries = 0; tries < 4; tries++) {
+        for (let tries = 0; tries < 12; tries++) {
           const per = Math.max(8, Math.floor((c.cw * 0.9) / (glyph * sc)));
           lines = [];
           let line = '';
@@ -320,7 +350,8 @@ export class CharacterSelectScene extends MenuScene {
           }
           if (line) lines.push(line);
           if (lines.length <= 2) break;
-          sc = sc > 1 ? sc - 1 : sc * 0.85;
+          // quarter steps: a tagline that just misses two lines keeps most of its size instead of halving
+          sc = sc > 1 ? sc - 0.25 : sc * 0.85;
         }
         c.tagline.setText(lines.join('\n')).setScale(sc);
       } else if (!shown) {
@@ -452,9 +483,9 @@ function crisp(k: number): number {
   return k >= 1 ? Math.max(1, Math.round(k)) : k;
 }
 
-/** A whole-pixel scale no larger than `k` (for text that must stay inside its space). */
-function crispFit(k: number): number {
-  return k >= 1 ? Math.floor(k) : k;
+/** Text scale for small labels: whole pixels from 2x up (crisp), the fractional fit below that (still legible, unlike 1x). */
+function legible(k: number): number {
+  return k >= 2 ? Math.floor(k) : k;
 }
 
 function up(s: string): string {
