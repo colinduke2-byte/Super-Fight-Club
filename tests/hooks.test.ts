@@ -162,6 +162,18 @@ describe('projectiles', () => {
     expect(r.b.damage).toBe(0);
   });
 
+  it("a teammate's shot passes a reflecting barrier untouched", () => {
+    const r = rig(120);
+    r.a.team = 0;
+    r.b.team = 0;
+    r.b.startMove('shieldUp', null, r.world);
+    r.run(3);
+    const p = r.world.spawnProjectile(0, 'bullet', r.b.x - 40, r.b.y - 16, 3, 0)!;
+    r.run(14);
+    expect(r.events).not.toContain('reflect');
+    expect(p.owner).toBe(0);
+  });
+
   it('beams (moving hitboxes) sweep forward', () => {
     const r = rig(80);
     r.a.startMove('sweeper', null, r.world);

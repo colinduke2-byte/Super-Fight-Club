@@ -282,6 +282,7 @@ function reflectProjectiles(world: World): void {
     rB[3] = b.h;
     for (const p of world.projectiles) {
       if (!p.active || p.owner === f.id || p.def!.reflectable === false) continue;
+      if (world.allied(p.owner, f.id)) continue; // a teammate's shot passes by: turning it around would only waste it
       projRect(p, rA);
       if (!overlap(rA, rB)) continue;
       p.owner = f.id;
