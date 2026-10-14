@@ -17,6 +17,20 @@ export interface Track {
   lead: [string, string, string, string];
   /** Drums, 16 cells: k kick, s snare, h hat, '.' rest. */
   drums: string;
+  /** Timbre, so stages differ in colour as well as in notes. Defaults: square lead and arp, triangle bass, 7 kHz tone. */
+  sound?: TrackSound;
+}
+
+export interface TrackSound {
+  lead?: OscillatorType;
+  arp?: OscillatorType;
+  bass?: OscillatorType;
+  /** Lowpass on the whole track, Hz: lower is darker and softer. */
+  tone?: number;
+  /** Feedback (0..0.5) of a dotted-eighth echo on the lead. */
+  echo?: number;
+  /** Cents of detune between two lead oscillators (a thicker, chorused lead). */
+  detune?: number;
 }
 
 export type MusicVoice = 'lead' | 'bass' | 'arp' | 'kick' | 'snare' | 'hat';
@@ -41,6 +55,7 @@ export const TRACKS: Record<string, Track> = {
     arp: '0.1.2.3.2.1.0.1.',
     lead: ['7...12...11.7.4...', '4...7...9.7.3...', '5...9...12.9.5...', '7...11.12.14.......'],
     drums: 'k.......k.......',
+    sound: { echo: 0.25, tone: 5500 },
   },
   boss: {
     id: 'boss',
@@ -51,6 +66,7 @@ export const TRACKS: Record<string, Track> = {
     arp: '0.2.3.2.0.2.3.2.',
     lead: ['0.0.3.0.5.0.7.5.', '0.0.3.0.5.7.10.7.', '3.3.5.3.7.3.10.7.', '5.5.7.5.10.7.12.10.'],
     drums: 'khksk.hskhksk.sk',
+    sound: { lead: 'sawtooth', detune: 12, tone: 6000, bass: 'sawtooth' },
   },
   ring: {
     id: 'ring',
@@ -61,6 +77,7 @@ export const TRACKS: Record<string, Track> = {
     arp: '0.2.3.2.0.2.3.2.',
     lead: ['0..3..5..7..5..3', '0..4..7..9..7..4', '0..4..7..4..0...', '2..5..7..5..2...'],
     drums: 'k.h.s.h.k.h.s.hh',
+    sound: { tone: 6500 },
   },
   classic: {
     id: 'classic',
@@ -71,6 +88,7 @@ export const TRACKS: Record<string, Track> = {
     arp: '0.1.2.1.0.1.2.3.',
     lead: ['7.7.12.11.7...4...', '4.4.7.9.7...4...', '5.5.9.12.9.5.2.0.', '7.7.11.12.14.12.11.7.'],
     drums: 'k.hhs.hhk.hhs.hk',
+    sound: { tone: 7000 },
   },
   storm: {
     id: 'storm',
@@ -81,6 +99,7 @@ export const TRACKS: Record<string, Track> = {
     arp: '0.2.3.2.0.2.3.2.',
     lead: ['0.3.7.3.0.3.7.10.', '5.8.12.8.5.8.12.15.', '3.7.10.7.3.7.10.12.', '7.7.10.7.12.10.7.5.'],
     drums: 'k..hs.hhk.h.s.hk',
+    sound: { lead: 'sawtooth', detune: 8, tone: 5500 },
   },
   dawn: {
     id: 'dawn',
@@ -91,6 +110,7 @@ export const TRACKS: Record<string, Track> = {
     arp: '0.1.2.3.2.1.0.1.',
     lead: ['4...7...12.9...7.', '7...11.9...7.4...', '9...12.11.9...7...', '7.9.11.12.14.12.11.9.'],
     drums: 'k...s...k...s.h.',
+    sound: { lead: 'triangle', echo: 0.3, tone: 6500 },
   },
   temple: {
     id: 'temple',
@@ -101,6 +121,7 @@ export const TRACKS: Record<string, Track> = {
     arp: '0.2.3.2.0.2.3.2.',
     lead: ['12...10.7...5.7...', '7...10.12.15...12...', '5...7.10...7.5.3.', '7.5.3.0...3.5.7.'],
     drums: 'k..hk.s.k.hhk.s.',
+    sound: { lead: 'triangle', arp: 'triangle', echo: 0.35, tone: 5000 },
   },
   cove: {
     id: 'cove',
@@ -111,6 +132,7 @@ export const TRACKS: Record<string, Track> = {
     arp: '0..1..2.0..1..2.',
     lead: ['7.7.7..5.3.0.3.5', '12.12.12..10.7.3.7.10', '7.7.7..9.12.9.7.5', '7.4.0..4.7......'],
     drums: 'k..h..s.k..h..sh',
+    sound: { arp: 'triangle', tone: 6000 },
   },
   hollow: {
     id: 'hollow',
@@ -121,6 +143,7 @@ export const TRACKS: Record<string, Track> = {
     arp: '0.2.3.2.0.2.3.2.',
     lead: ['12...10.7...3.5.7.', '10...7.5...2.3.5.', '7...3.2.0...2.3.', '7.5.4.0...4.7...'],
     drums: 'k...h.s.k.k.h.s.',
+    sound: { lead: 'triangle', arp: 'triangle', echo: 0.4, tone: 3500 },
   },
   frostfang: {
     id: 'frostfang',
@@ -131,6 +154,7 @@ export const TRACKS: Record<string, Track> = {
     arp: '0.1.2.3.2.1.0.2.',
     lead: ['12.10.7.5.7...3.5.', '7.5.3.0.3...5.7.', '10.7.5.7.10.12.....', '7.5.3.5.7.......'],
     drums: 'k...h...s...h.h.',
+    sound: { lead: 'triangle', arp: 'sine', echo: 0.35, tone: 8000 },
   },
   stormrunner: {
     id: 'stormrunner',
@@ -141,6 +165,7 @@ export const TRACKS: Record<string, Track> = {
     arp: '0.2.3.2.0.2.3.2.',
     lead: ['7.7.12..119.7.4.7.', '7.9.12.9.7...4.7.', '12.12.14..1211.9.7...', '9.7.4.7.12.......'],
     drums: 'k.h.s.hkk.h.s.hs',
+    sound: { lead: 'sawtooth', detune: 10, tone: 7000 },
   },
   reactor: {
     id: 'reactor',
@@ -151,6 +176,7 @@ export const TRACKS: Record<string, Track> = {
     arp: '0.2.0.2.3.2.0.2.',
     lead: ['0.3.0.5.0.7.5.3.', '0.4.0.7.0.9.7.4.', '3.5.3.7.3.10.7.5.', '7.7.0.0.12.10.7.5.'],
     drums: 'k.hks.hkk.hks.sk',
+    sound: { detune: 15, tone: 4500, bass: 'sawtooth' },
   },
 };
 

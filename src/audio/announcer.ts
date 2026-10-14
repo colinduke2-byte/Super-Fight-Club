@@ -1,4 +1,6 @@
 import { settings } from '../settings';
+import { music } from './music';
+import { unit } from './sfx';
 
 /**
  * Announcer calls ("3, 2, 1, GO!", "GAME!", the winner's name) through the browser's built-in speech synthesis, so
@@ -8,6 +10,7 @@ import { settings } from '../settings';
 class Announcer {
   private voice: SpeechSynthesisVoice | null = null;
   private picked = false;
+  private seq = 0;
 
   private synth(): SpeechSynthesis | null {
     return typeof window !== 'undefined' && 'speechSynthesis' in window ? window.speechSynthesis : null;
@@ -26,7 +29,7 @@ class Announcer {
   say(text: string, opts: { pitch?: number; rate?: number } = {}): void {
     const s = this.synth();
     if (!s || !settings.announcer) return;
-    const vol = settings.masterVolume * settings.sfxVolume;
+    const vol = unit(settings.masterVolume) * unit(settings.sfxVolume);
     if (vol <= 0) return;
     if (!this.picked) this.voice = this.pickVoice(s);
     try {
@@ -36,6 +39,15 @@ class Announcer {
       u.pitch = opts.pitch ?? 0.6;
       u.rate = opts.rate ?? 1.08;
       u.volume = Math.min(1, vol * 1.25);
+      // dip the music under the call; onend is unreliable in some browsers, so a timer restores it too
+      const id = ++this.seq;
+      const done = (): void => {
+        if (id === this.seq) music.setSpeechDuck(false);
+      };
+      u.onstart = () => music.setSpeechDuck(true);
+      u.onend = done;
+      u.onerror = done;
+      window.setTimeout(done, 600 + text.length * 90);
       s.speak(u);
     } catch {
       /* speech unavailable: stay quiet */
@@ -43,6 +55,8 @@ class Announcer {
   }
 
   stop(): void {
+    this.seq++;
+    music.setSpeechDuck(false);
     try {
       this.synth()?.cancel();
     } catch {

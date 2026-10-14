@@ -1,5 +1,5 @@
 import { settings } from '../settings';
-import { sfx } from './sfx';
+import { sfx, unit } from './sfx';
 
 /** A continuous noise or drone layer under a stage's music. */
 interface Bed {
@@ -96,7 +96,11 @@ interface Live {
   gain: GainNode;
   bed: Bed;
   src: AudioScheduledSourceNode;
+  nodes: AudioNode[];
 }
+
+/** Seconds between envelope updates (the swells are many seconds long; 60 automation events a second is waste). */
+const UPDATE_EVERY = 0.1;
 
 /**
  * Stage ambience: looped filtered noise and drones from the SFX context (no assets), plus occasional one-shots. Call
@@ -107,32 +111,51 @@ export class Ambience {
   private theme = '';
   private live: Live[] = [];
   private out: GainNode | null = null;
+  private outCtx: BaseAudioContext | null = null;
   private next: number[] = [];
   private level = 1;
+  private lastUpdate = -1;
+  private lastTarget = -1;
 
   start(theme: string | undefined): void {
     this.stop();
     this.theme = theme ?? 'skyline';
   }
 
+  /** Fade the beds out (a hard stop of a running noise loop clicks) and free them. */
   stop(): void {
-    for (const l of this.live) {
+    const out = this.out;
+    const ctx = this.outCtx;
+    const live = this.live;
+    this.live = [];
+    this.out = null;
+    this.outCtx = null;
+    this.theme = '';
+    this.lastUpdate = -1;
+    this.lastTarget = -1;
+    if (!out || !ctx) return;
+    const t = ctx.currentTime;
+    out.gain.cancelScheduledValues(t);
+    out.gain.setValueAtTime(out.gain.value, t);
+    out.gain.linearRampToValueAtTime(0, t + 0.12);
+    for (const l of live) {
       try {
-        l.src.stop();
+        l.src.stop(t + 0.15);
       } catch {
         // already stopped
       }
-      l.gain.disconnect();
+      l.src.onended = () => {
+        for (const n of l.nodes) n.disconnect();
+      };
     }
-    this.live = [];
-    this.out?.disconnect();
-    this.out = null;
-    this.theme = '';
+    const drop = (): void => out.disconnect();
+    if (typeof window !== 'undefined') window.setTimeout(drop, 400);
+    else drop();
   }
 
   /** 1 normally; lower while paused. */
   setLevel(k: number): void {
-    this.level = k;
+    this.level = unit(k);
   }
 
   update(): void {
@@ -140,13 +163,22 @@ export class Ambience {
     const ctx = sfx.context;
     const noise = sfx.noiseBuffer;
     if (!scape || !ctx || !noise) return;
-    if (!this.out) this.build(ctx, noise, scape);
+    if (!this.out || this.outCtx !== ctx) {
+      if (!this.build(ctx, noise, scape)) return;
+    }
     const out = this.out!;
     const t = ctx.currentTime;
-    out.gain.setTargetAtTime(settings.ambience ? settings.masterVolume * settings.sfxVolume * this.level : 0, t, 0.2);
+    if (t - this.lastUpdate < UPDATE_EVERY) return;
+    this.lastUpdate = t;
+    const target = settings.ambience ? sfx.syncVolume() * this.level : 0;
+    if (target !== this.lastTarget) {
+      out.gain.setTargetAtTime(target, t, 0.2);
+      this.lastTarget = target;
+    }
     for (const l of this.live) {
       const s = l.bed.swell;
-      const k = s ? 1 - s.depth * (0.5 + 0.5 * Math.cos((t / s.period) * Math.PI * 2)) : 1;
+      if (!s) continue;
+      const k = 1 - s.depth * (0.5 + 0.5 * Math.cos((t / s.period) * Math.PI * 2));
       l.gain.gain.setTargetAtTime(l.bed.gain * k, t, 0.1);
     }
     if (this.level < 1 || !settings.ambience) return;
@@ -157,10 +189,13 @@ export class Ambience {
     });
   }
 
-  private build(ctx: AudioContext, noise: AudioBuffer, scape: Scape): void {
+  private build(ctx: BaseAudioContext, noise: AudioBuffer, scape: Scape): boolean {
+    const dest = sfx.output;
+    if (!dest) return false;
     this.out = ctx.createGain();
+    this.outCtx = ctx;
     this.out.gain.value = 0;
-    this.out.connect(ctx.destination);
+    this.out.connect(dest);
     this.next = scape.events.map((e) => ctx.currentTime + e.every * (0.3 + Math.random() * 0.7));
     for (const bed of scape.beds) {
       let src: AudioScheduledSourceNode;
@@ -181,14 +216,17 @@ export class Ambience {
       f.frequency.value = bed.freq;
       f.Q.value = bed.q ?? 0.7;
       const g = ctx.createGain();
-      g.gain.value = 0;
+      // beds without a swell sit at a fixed level; the master `out` gain does the fade-in
+      g.gain.value = bed.swell ? 0 : bed.gain;
       src.connect(f).connect(g).connect(this.out);
-      src.start();
-      this.live.push({ gain: g, bed, src });
+      if (src instanceof AudioBufferSourceNode) src.start(ctx.currentTime, Math.random() * noise.duration);
+      else src.start(ctx.currentTime);
+      this.live.push({ gain: g, bed, src, nodes: [src, f, g] });
     }
+    return true;
   }
 
-  private oneShot(ctx: AudioContext, noise: AudioBuffer, out: AudioNode, kind: Event): void {
+  private oneShot(ctx: BaseAudioContext, noise: AudioBuffer, out: AudioNode, kind: Event): void {
     const t = ctx.currentTime;
     const env = (g: GainNode, peak: number, attack: number, dur: number, at = t): void => {
       g.gain.setValueAtTime(0.0001, at);
@@ -203,6 +241,7 @@ export class Ambience {
       o.frequency.exponentialRampToValueAtTime(f1, at + dur);
       env(g, peak, Math.min(0.02, dur / 4), dur, at);
       o.connect(g).connect(out);
+      o.onended = () => g.disconnect();
       o.start(at);
       o.stop(at + dur + 0.05);
     };
@@ -216,7 +255,8 @@ export class Ambience {
       const g = ctx.createGain();
       env(g, peak, attack, dur);
       s.connect(f).connect(g).connect(out);
-      s.start(t);
+      s.onended = () => g.disconnect();
+      s.start(t, Math.random() * noise.duration);
       s.stop(t + dur + 0.05);
     };
     switch (kind) {
@@ -250,7 +290,8 @@ export class Ambience {
         const g = ctx.createGain();
         env(g, 0.03, 0.08, 1.1);
         s.connect(f).connect(g).connect(out);
-        s.start(t);
+        s.onended = () => g.disconnect();
+        s.start(t, Math.random() * noise.duration);
         s.stop(t + 1.2);
         break;
       }

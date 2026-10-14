@@ -2,20 +2,74 @@ import { settings } from '../settings';
 import type { SoundStyle } from '../engine/fxTypes';
 import type { SoundName } from './soundMap';
 
-const MAX_VOICES = 24;
-const MIN_GAP_MS = 28;
+/** Concurrent sounds (not nodes) across the whole mix; a sound is one recipe, a handful of oscillators / noise bursts. */
+const MAX_SOUNDS = 24;
+/** Concurrent copies of one sound: a fourth hit steals the oldest instead of stacking into a wall of noise. */
+const MAX_SAME = 3;
+/** The same sound retriggered within this many seconds is dropped (two fighters' identical events in one frame). */
+const MIN_GAP = 0.028;
+/** Repeats inside this window are attenuated so rapid multi-hits do not build up. */
+const STACK_WINDOW = 0.1;
+/** Sounds that always get a voice, stealing the oldest ordinary one if the mix is full. */
+const PRIORITY: ReadonlySet<SoundName> = new Set<SoundName>(['ko', 'shieldBreak', 'parry', 'charge']);
+/** Random pitch spread (fraction) per sound so repeats are not machine-gun identical; musical cues stay in tune. */
+const NO_VARY: ReadonlySet<SoundName> = new Set<SoundName>(['ding', 'menuMove', 'menuOk', 'menuBack', 'freeze']);
+const VARY = 0.06;
+
+/**
+ * Master bus dynamics. The compressor glues the mix and pulls peaks down; WebAudio's compressor adds its own make-up
+ * gain, which `trim` takes back (quiet material passes at unity; a full-scale pile-up comes out near -3 dBFS). The soft clipper after it only touches the
+ * rare transient that gets through.
+ */
+export const MIX = { threshold: -6, knee: 4, ratio: 10, attack: 0.002, release: 0.15, trim: 0.75 };
+
+/** A finite number in [0, 1]; anything else (a corrupt setting, NaN from upstream maths) falls back. */
+export function unit(v: unknown, fallback = 1): number {
+  return typeof v === 'number' && Number.isFinite(v) ? Math.max(0, Math.min(1, v)) : fallback;
+}
+
+/** Soft-knee clipper curve for the final safety stage: linear to 0.8, then saturating smoothly towards 1 (input -2..2). */
+export function softClipCurve(n = 2048): Float32Array<ArrayBuffer> {
+  const c = new Float32Array(n);
+  for (let i = 0; i < n; i++) {
+    const u = -2 + (4 * i) / (n - 1);
+    const a = Math.abs(u);
+    const y = a <= 0.8 ? a : 0.8 + 0.2 * Math.tanh((a - 0.8) / 0.2);
+    c[i] = Math.sign(u) * y * 0.5; // the shaper's input is pre-scaled by 0.5 and its output by 2
+  }
+  return c;
+}
+
+/** One playing sound: its gain (for stealing / fades) and how many of its sources are still running. */
+interface Voice {
+  name: SoundName;
+  gain: GainNode;
+  out: AudioNode;
+  live: number;
+  start: number;
+  stolen: boolean;
+}
 
 /**
  * Tiny WebAudio synth: every sound is built from oscillators + filtered noise, so there are no
  * audio assets. The AudioContext is created lazily and resumed on the first key / pointer gesture
  * (browser autoplay policy).
+ *
+ * Mix graph: sound voices -> sfx bus (sfx volume) -> mix; music and ambience also feed `output` (the mix), which runs
+ * through a compressor and a soft clipper before the speakers, so a pile-up of hits, a KO and the music never clip.
  */
 export class Sfx {
-  private ctx: AudioContext | null = null;
+  private ctx: BaseAudioContext | null = null;
+  private offline = false;
   private master: GainNode | null = null;
+  private mix: GainNode | null = null;
   private noise: AudioBuffer | null = null;
-  private voices = 0;
+  private voices: Voice[] = [];
+  private cur: Voice | null = null;
+  private pv = 1;
+  private sfxLevel = -1;
   private readonly lastPlayed = new Map<SoundName, number>();
+  private readonly recent: { name: SoundName; t: number }[] = [];
   private armed = false;
 
   /** Call once: waits for a user gesture, then creates and resumes the context. */
@@ -25,56 +79,181 @@ export class Sfx {
     // the listeners stay: browsers (Safari / iOS above all) suspend or interrupt the context again after backgrounding or a
     // locked screen, and the next gesture has to resume it
     const unlock = (): void => {
-      this.ensure();
-      if (this.ctx && this.ctx.state !== 'running') void this.ctx.resume();
+      if (this.ensure()) this.resume();
     };
     target.addEventListener('keydown', unlock);
     target.addEventListener('pointerdown', unlock);
     document.addEventListener('visibilitychange', () => {
-      if (document.visibilityState === 'visible' && this.ctx && this.ctx.state !== 'running') void this.ctx.resume();
+      const ctx = this.ctx as AudioContext | null;
+      if (!ctx || this.offline) return;
+      // hidden tabs throttle the music timer to 1 Hz, which garbles the loop: pause the whole mix instead
+      if (document.visibilityState === 'hidden') {
+        if (ctx.state === 'running') ctx.suspend().catch(() => undefined);
+      } else this.resume();
     });
   }
 
-  /** The shared context and noise buffer (null until the first user gesture); used by the music player. */
-  get context(): AudioContext | null {
-    return this.ctx && this.ctx.state === 'running' ? this.ctx : null;
+  private resume(): void {
+    const ctx = this.ctx as AudioContext | null;
+    if (!ctx || this.offline || ctx.state === 'running' || ctx.state === 'closed') return;
+    try {
+      ctx.resume().catch(() => undefined);
+    } catch {
+      /* no audio: stay silent */
+    }
+  }
+
+  /** The shared context (null until the first user gesture, or while suspended); used by the music and ambience. */
+  get context(): BaseAudioContext | null {
+    return this.ctx && (this.offline || this.ctx.state === 'running') ? this.ctx : null;
   }
   get noiseBuffer(): AudioBuffer | null {
     return this.noise;
   }
+  /** The mix input (compressed and limited); music and ambience connect here, never straight to the destination. */
+  get output(): AudioNode | null {
+    return this.mix;
+  }
 
   private ensure(): boolean {
     if (this.ctx) return true;
-    const Ctor = window.AudioContext ?? (window as unknown as { webkitAudioContext?: typeof AudioContext }).webkitAudioContext;
+    const w = typeof window !== 'undefined' ? window : undefined;
+    const Ctor = w?.AudioContext ?? (w as unknown as { webkitAudioContext?: typeof AudioContext } | undefined)?.webkitAudioContext;
     if (!Ctor) return false;
-    this.ctx = new Ctor();
-    this.master = this.ctx.createGain();
-    this.master.connect(this.ctx.destination);
-    // one second of white noise reused by every noise voice
-    const len = this.ctx.sampleRate;
-    this.noise = this.ctx.createBuffer(1, len, this.ctx.sampleRate);
+    try {
+      this.build(new Ctor({ latencyHint: 'interactive' }));
+    } catch {
+      this.ctx = null; // audio blocked or unavailable (too many contexts, sandboxed frame): the game stays silent
+      return false;
+    }
+    return true;
+  }
+
+  /** Build the mix on a given context (an OfflineAudioContext renders the same graph for analysis and tests). */
+  attach(ctx: BaseAudioContext): void {
+    this.offline = typeof OfflineAudioContext !== 'undefined' && ctx instanceof OfflineAudioContext;
+    this.build(ctx);
+  }
+
+  private build(ctx: BaseAudioContext): void {
+    this.ctx = ctx;
+    this.voices = [];
+    this.lastPlayed.clear();
+    this.recent.length = 0;
+    this.sfxLevel = -1;
+    // master chain: mix -> compressor -> soft clipper -> speakers
+    const comp = ctx.createDynamicsCompressor();
+    comp.threshold.value = MIX.threshold;
+    comp.knee.value = MIX.knee;
+    comp.ratio.value = MIX.ratio;
+    comp.attack.value = MIX.attack;
+    comp.release.value = MIX.release;
+    const trim = ctx.createGain();
+    trim.gain.value = MIX.trim * 0.5;
+    const clip = ctx.createWaveShaper();
+    clip.curve = softClipCurve();
+    clip.oversample = 'none';
+    const post = ctx.createGain();
+    post.gain.value = 2;
+    this.mix = ctx.createGain();
+    this.mix.connect(comp).connect(trim).connect(clip).connect(post).connect(ctx.destination);
+    this.master = ctx.createGain();
+    this.master.gain.value = 0;
+    this.master.connect(this.mix);
+    // two seconds of white noise reused by every noise voice (each burst starts at a random offset)
+    const len = ctx.sampleRate * 2;
+    this.noise = ctx.createBuffer(1, len, ctx.sampleRate);
     const d = this.noise.getChannelData(0);
     for (let i = 0; i < len; i++) d[i] = Math.random() * 2 - 1;
-    return true;
+  }
+
+  /** Follow the volume settings with a short glide (no zipper noise when a slider moves). Cheap to call every frame. */
+  syncVolume(): number {
+    const vol = unit(settings.masterVolume) * unit(settings.sfxVolume);
+    if (this.ctx && this.master && vol !== this.sfxLevel) {
+      const t = this.ctx.currentTime;
+      this.master.gain.cancelScheduledValues(t);
+      if (this.sfxLevel < 0) this.master.gain.setValueAtTime(vol, t);
+      else this.master.gain.setTargetAtTime(vol, t, 0.015);
+      this.sfxLevel = vol;
+    }
+    return vol;
+  }
+
+  /** Fade out every sound still ringing (scene change, quit to menu). */
+  stopAll(fade = 0.05): void {
+    const ctx = this.ctx;
+    if (!ctx) return;
+    for (const v of this.voices) this.fadeVoice(v, ctx.currentTime, fade);
+    this.voices = [];
+  }
+
+  /** Sounds currently holding a voice (for tests / perf overlays). */
+  get activeSounds(): number {
+    return this.voices.length;
+  }
+
+  private fadeVoice(v: Voice, t: number, fade: number): void {
+    v.stolen = true;
+    v.gain.gain.cancelScheduledValues(t);
+    v.gain.gain.setValueAtTime(v.gain.gain.value, t);
+    v.gain.gain.linearRampToValueAtTime(0, t + fade);
   }
 
   /** pan: -1 (left) .. 1 (right). */
   play(name: SoundName, intensity = 0.7, pan = 0, style: SoundStyle = 'plain'): void {
-    const ctx = this.ctx;
-    if (!ctx || !this.master || ctx.state !== 'running') return;
-    const vol = settings.masterVolume * settings.sfxVolume;
+    const ctx = this.context;
+    if (!ctx || !this.master) return;
+    const vol = this.syncVolume();
     if (vol <= 0) return;
-    const now = performance.now();
-    if (now - (this.lastPlayed.get(name) ?? -1e9) < MIN_GAP_MS) return;
-    if (this.voices >= MAX_VOICES) return;
-    this.lastPlayed.set(name, now);
-    this.master.gain.value = vol;
-    const out = ctx.createStereoPanner ? ctx.createStereoPanner() : null;
-    if (out) {
-      out.pan.value = Math.max(-1, Math.min(1, pan));
-      out.connect(this.master);
+    const now = ctx.currentTime;
+    if (now - (this.lastPlayed.get(name) ?? -1e9) < MIN_GAP) return;
+    const prio = PRIORITY.has(name);
+    const same = this.voices.filter((v) => v.name === name);
+    if (same.length >= MAX_SAME) this.steal(same[0], now);
+    else if (this.voices.length >= MAX_SOUNDS) {
+      const victim = prio ? this.voices.find((v) => !PRIORITY.has(v.name)) : undefined;
+      if (!victim) return;
+      this.steal(victim, now);
     }
-    this.recipe(name, Math.max(0.05, Math.min(1, intensity)), out ?? this.master, style);
+    this.lastPlayed.set(name, now);
+    // rapid repeats of one sound get progressively quieter so a flurry of hits stays readable
+    while (this.recent.length && now - this.recent[0].t > STACK_WINDOW) this.recent.shift();
+    const repeats = this.recent.reduce((n, r) => n + (r.name === name ? 1 : 0), 0);
+    this.recent.push({ name, t: now });
+    const k = unit(intensity, 0.7) * 0.95 + 0.05;
+    const gain = ctx.createGain();
+    gain.gain.value = (1 / Math.sqrt(1 + repeats)) * (0.9 + Math.random() * 0.2);
+    let out: AudioNode = gain;
+    const p = ctx.createStereoPanner ? ctx.createStereoPanner() : null;
+    if (p) {
+      p.pan.value = Number.isFinite(pan) ? Math.max(-1, Math.min(1, pan)) : 0;
+      gain.connect(p);
+      out = p;
+    }
+    out.connect(this.master);
+    const voice: Voice = { name, gain, out, live: 0, start: now, stolen: false };
+    this.voices.push(voice);
+    this.cur = voice;
+    this.pv = NO_VARY.has(name) ? 1 : 1 + (Math.random() * 2 - 1) * VARY;
+    try {
+      this.recipe(name, k, gain, style);
+    } finally {
+      this.cur = null;
+      this.pv = 1;
+    }
+    if (voice.live === 0) this.release(voice);
+  }
+
+  private steal(v: Voice, t: number): void {
+    this.fadeVoice(v, t, 0.015);
+    this.voices = this.voices.filter((x) => x !== v);
+  }
+
+  private release(v: Voice): void {
+    v.gain.disconnect();
+    if (v.out !== v.gain) v.out.disconnect();
+    if (!v.stolen) this.voices = this.voices.filter((x) => x !== v);
   }
 
   /** Swing whoosh, flavoured per fighter style. */
@@ -118,7 +297,9 @@ export class Sfx {
         this.tone(d, 'triangle', 1560, 1480, 0.06, 0.03 * k, 0.03);
         break;
       default:
-        this.noiseBurst(d, 'bandpass', 900, 300, 0.07, 0.12 * k);
+        // an airy whoosh that swells in and sweeps up, with a low push of air under it
+        this.noiseBurst(d, 'bandpass', 700, 1900, 0.12, 0.34 * k, 0, 0.03);
+        this.noiseBurst(d, 'lowpass', 500, 220, 0.09, 0.12 * k, 0, 0.02);
     }
   }
 
@@ -173,15 +354,22 @@ export class Sfx {
 
   // ---- synthesis helpers ------------------------------------------------------------------------
   private env(g: GainNode, t: number, vol: number, dur: number, attack = 0.004): void {
+    const a = Math.min(attack, dur * 0.5);
     g.gain.setValueAtTime(0.0001, t);
-    g.gain.linearRampToValueAtTime(vol, t + attack);
+    g.gain.linearRampToValueAtTime(Math.max(0.0002, vol), t + a);
     g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
   }
 
-  private track(node: AudioScheduledSourceNode, dur: number): void {
-    this.voices++;
-    node.onended = () => void this.voices--;
-    node.stop(this.ctx!.currentTime + dur + 0.05);
+  /** Schedule a source's stop and, once it has ended, disconnect its chain and free the sound's voice. */
+  private track(node: AudioScheduledSourceNode, end: number, chain: AudioNode[]): void {
+    const v = this.cur;
+    if (v) v.live++;
+    node.onended = () => {
+      node.disconnect();
+      for (const n of chain) n.disconnect();
+      if (v && --v.live === 0) this.release(v);
+    };
+    node.stop(end);
   }
 
   private tone(dest: AudioNode, type: OscillatorType, f0: number, f1: number, dur: number, vol: number, delay = 0): void {
@@ -190,15 +378,15 @@ export class Sfx {
     const o = ctx.createOscillator();
     const g = ctx.createGain();
     o.type = type;
-    o.frequency.setValueAtTime(f0, t);
-    o.frequency.exponentialRampToValueAtTime(Math.max(20, f1), t + dur);
+    o.frequency.setValueAtTime(Math.max(20, f0 * this.pv), t);
+    o.frequency.exponentialRampToValueAtTime(Math.max(20, f1 * this.pv), t + dur);
     this.env(g, t, vol, dur);
     o.connect(g).connect(dest);
     o.start(t);
-    this.track(o, dur + delay);
+    this.track(o, t + dur + 0.02, [g]);
   }
 
-  private noiseBurst(dest: AudioNode, type: BiquadFilterType, f0: number, f1: number, dur: number, vol: number, delay = 0): void {
+  private noiseBurst(dest: AudioNode, type: BiquadFilterType, f0: number, f1: number, dur: number, vol: number, delay = 0, attack = 0.004): void {
     const ctx = this.ctx!;
     const t = ctx.currentTime + delay;
     const src = ctx.createBufferSource();
@@ -206,14 +394,15 @@ export class Sfx {
     src.loop = true;
     const flt = ctx.createBiquadFilter();
     flt.type = type;
-    flt.frequency.setValueAtTime(f0, t);
-    flt.frequency.exponentialRampToValueAtTime(Math.max(30, f1), t + dur);
+    flt.frequency.setValueAtTime(Math.max(30, f0 * this.pv), t);
+    flt.frequency.exponentialRampToValueAtTime(Math.max(30, f1 * this.pv), t + dur);
     flt.Q.value = type === 'bandpass' ? 1.4 : 0.7;
     const g = ctx.createGain();
-    this.env(g, t, vol, dur);
+    this.env(g, t, vol, dur, attack);
     src.connect(flt).connect(g).connect(dest);
-    src.start(t);
-    this.track(src, dur + delay);
+    // a random point in the noise so no two bursts are sample-identical
+    src.start(t, Math.random() * 1.5);
+    this.track(src, t + dur + 0.02, [flt, g]);
   }
 
   private recipe(name: SoundName, k: number, d: AudioNode, style: SoundStyle = 'plain'): void {
@@ -279,7 +468,7 @@ export class Sfx {
         this.tone(d, 'triangle', 700, 520, 0.08, 0.25 * k);
         break;
       case 'dodge':
-        this.noiseBurst(d, 'bandpass', 1200, 500, 0.12, 0.18 * k);
+        this.noiseBurst(d, 'bandpass', 1400, 500, 0.14, 0.32 * k, 0, 0.025);
         break;
       case 'grab':
         this.tone(d, 'square', 320, 210, 0.07, 0.25 * k);

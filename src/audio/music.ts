@@ -1,10 +1,10 @@
 import { settings } from '../settings';
-import { sfx } from './sfx';
+import { sfx, unit } from './sfx';
 import { LOOP_STEPS, TRACKS, midiToHz, stepEvents, type MusicEvent, type Track } from './tracks';
 
 const LOOKAHEAD = 0.14; // seconds scheduled ahead
 const TICK_MS = 30;
-const BASE_GAIN = 0.2;
+const BASE_GAIN = 0.25;
 
 /**
  * Looping chiptune player. A timer schedules sixteenth-notes slightly ahead of the audio clock (the standard
@@ -46,14 +46,28 @@ export const FANFARES: Record<string, Fanfare> = {
   riptide: { notes: [[62, 1], [62, 1], [62, 1], [0, 1], [62, 1], [65, 1], [69, 2], [67, 1], [65, 1], [64, 1], [62, 5]], step: 0.09, wave: 'square', harmony: 4, drums: true },
 };
 
+/** Rough loudness match between waveforms, so a triangle lead sits at the same level as a square one. */
+const WAVE_GAIN: Record<OscillatorType, number> = { square: 1, sawtooth: 1.2, triangle: 1.6, sine: 1.5, custom: 1 };
+
+/** One track's signal chain: melodic voices -> tone filter -> level -> mix; drums skip the filter so hats stay crisp. */
+interface Bus {
+  ctx: BaseAudioContext;
+  gain: GainNode;
+  filter: BiquadFilterNode;
+  /** Lead send into the echo (null when the track has none). */
+  send: GainNode | null;
+  extra: AudioNode[];
+  target: number;
+}
+
 export class Music {
   private timer: number | null = null;
   private track: Track | null = null;
   private step = 0;
   private nextTime = 0;
-  private bus: GainNode | null = null;
-  private busCtx: AudioContext | null = null;
+  private bus: Bus | null = null;
   private duck = 1;
+  private speech = 1;
   private current = '';
   /** The loop stays silent until this audio time (a jingle is playing). */
   private holdUntil = 0;
@@ -63,23 +77,17 @@ export class Music {
     if (id === this.current && this.timer !== null) return;
     // notes of the old track are already scheduled up to the lookahead and long ones ring on: fade its bus out and give
     // the new track a fresh one so the two never clash
-    const ctx = sfx.context;
-    if (this.bus && ctx && this.busCtx === ctx) {
-      const old = this.bus;
-      old.gain.cancelScheduledValues(ctx.currentTime);
-      old.gain.setValueAtTime(old.gain.value, ctx.currentTime);
-      old.gain.linearRampToValueAtTime(0, ctx.currentTime + 0.06);
-      window.setTimeout(() => old.disconnect(), 400);
-      this.bus = null;
-    }
+    this.retire();
     this.current = id;
     this.track = TRACKS[id] ?? null;
     this.step = 0;
     this.nextTime = 0;
-    if (this.timer === null) this.timer = window.setInterval(() => this.pump(), TICK_MS);
+    this.holdUntil = 0;
+    if (this.timer === null && typeof window !== 'undefined') this.timer = window.setInterval(() => this.pump(), TICK_MS);
   }
 
   stop(): void {
+    this.retire();
     this.current = '';
     this.track = null;
     if (this.timer !== null) {
@@ -93,33 +101,99 @@ export class Music {
     const ctx = sfx.context;
     if (!ctx) return;
     const bus = this.ensureBus(ctx);
-    bus.gain.value = settings.masterVolume * settings.musicVolume * BASE_GAIN * this.duck;
+    if (!bus) return;
+    this.level(bus);
     const f: Fanfare = kind === 'lose' ? LOSE : (who && FANFARES[who]) || FANFARES.default;
     let at = ctx.currentTime + 0.05;
+    const w = WAVE_GAIN[f.wave];
     for (const [m, len] of f.notes) {
       const d = f.step * len;
       if (m > 0) {
-        this.osc(ctx, bus, f.wave, midiToHz(m), at, d * 0.92, 0.5);
-        if (f.harmony) this.osc(ctx, bus, f.wave, midiToHz(m + f.harmony), at, d * 0.92, 0.18);
-        this.osc(ctx, bus, 'triangle', midiToHz(m - 24), at, d * 0.95, 0.9);
-        if (f.drums && len >= 2) this.noise(ctx, bus, at, 0.12, 0.4, 1200);
+        this.osc(ctx, bus.filter, f.wave, midiToHz(m), at, d * 0.92, 0.5 * w);
+        if (f.harmony) this.osc(ctx, bus.filter, f.wave, midiToHz(m + f.harmony), at, d * 0.92, 0.18 * w);
+        this.osc(ctx, bus.filter, 'triangle', midiToHz(m - 24), at, d * 0.95, 0.9);
+        if (f.drums && len >= 2) this.noise(ctx, bus.gain, at, 0.12, 0.4, 1200);
       }
       at += d;
     }
     this.holdUntil = at + 0.4;
   }
 
-  /** Quieten the music (e.g. while paused). */
+  /** Quieten the music (e.g. while paused). Glides, so pausing never clicks. */
   setDuck(d: number): void {
-    this.duck = d;
+    this.duck = unit(d);
+    if (this.bus) this.level(this.bus);
   }
 
-  private ensureBus(ctx: AudioContext): GainNode {
-    if (!this.bus || this.busCtx !== ctx) {
-      this.bus = ctx.createGain();
-      this.bus.connect(ctx.destination);
-      this.busCtx = ctx;
+  /** Dip the music under the announcer's voice. */
+  setSpeechDuck(on: boolean): void {
+    this.speech = on ? 0.6 : 1;
+    if (this.bus) this.level(this.bus);
+  }
+
+  private targetGain(): number {
+    return unit(settings.masterVolume) * unit(settings.musicVolume) * BASE_GAIN * this.duck * this.speech;
+  }
+
+  /** Move the bus towards the current volume x duck; only reschedules when the target changes. */
+  private level(bus: Bus): number {
+    const target = this.targetGain();
+    if (target !== bus.target) {
+      const t = bus.ctx.currentTime;
+      bus.gain.gain.cancelScheduledValues(t);
+      bus.gain.gain.setTargetAtTime(target, t, bus.target < 0 ? 0.005 : 0.06);
+      bus.target = target;
     }
+    return target;
+  }
+
+  /** Fade the current bus out and tear it down once its last notes have died away. */
+  private retire(): void {
+    const bus = this.bus;
+    this.bus = null;
+    if (!bus) return;
+    const t = bus.ctx.currentTime;
+    bus.gain.gain.cancelScheduledValues(t);
+    bus.gain.gain.setTargetAtTime(0, t, 0.025);
+    const drop = (): void => {
+      for (const n of [bus.gain, bus.filter, bus.send, ...bus.extra]) n?.disconnect();
+    };
+    if (typeof window !== 'undefined') window.setTimeout(drop, 400);
+    else drop();
+  }
+
+  private ensureBus(ctx: BaseAudioContext): Bus | null {
+    if (this.bus && this.bus.ctx === ctx) return this.bus;
+    const out = sfx.output;
+    if (!out) return null;
+    const look = this.track?.sound ?? {};
+    const gain = ctx.createGain();
+    gain.gain.value = 0;
+    const filter = ctx.createBiquadFilter();
+    filter.type = 'lowpass';
+    filter.frequency.value = look.tone ?? 7000;
+    filter.Q.value = 0.5;
+    filter.connect(gain).connect(out);
+    let send: GainNode | null = null;
+    const extra: AudioNode[] = [];
+    if (look.echo && this.track) {
+      // a dotted-eighth echo on the lead: send -> delay <-> feedback, delay -> wet -> filter
+      send = ctx.createGain();
+      send.gain.value = 1;
+      const delay = ctx.createDelay(1);
+      delay.delayTime.value = Math.min(0.9, (60 / this.track.bpm) * 0.75);
+      const fb = ctx.createGain();
+      fb.gain.value = Math.min(0.5, look.echo);
+      const wet = ctx.createGain();
+      wet.gain.value = 0.45;
+      const hp = ctx.createBiquadFilter();
+      hp.type = 'highpass';
+      hp.frequency.value = 300; // keep the repeats out of the bass
+      send.connect(delay).connect(hp).connect(fb).connect(delay);
+      hp.connect(wet).connect(filter);
+      extra.push(delay, fb, wet, hp);
+    }
+    this.bus = { ctx, gain, filter, send, extra, target: -1 };
     return this.bus;
   }
 
@@ -127,9 +201,10 @@ export class Music {
     const ctx = sfx.context;
     const t = this.track;
     if (!ctx || !t) return;
+    sfx.syncVolume();
     const bus = this.ensureBus(ctx);
-    bus.gain.value = settings.masterVolume * settings.musicVolume * BASE_GAIN * this.duck;
-    if (bus.gain.value <= 0) {
+    if (!bus) return;
+    if (this.level(bus) <= 0) {
       this.nextTime = 0; // muted: do not build a backlog, just resync when audible again
       return;
     }
@@ -140,26 +215,32 @@ export class Music {
     }
     if (this.nextTime < ctx.currentTime) this.nextTime = ctx.currentTime + 0.05;
     while (this.nextTime < ctx.currentTime + LOOKAHEAD) {
-      for (const e of stepEvents(t, this.step)) this.voice(ctx, bus, e, this.nextTime, stepDur);
+      for (const e of stepEvents(t, this.step)) this.voice(ctx, bus, t, e, this.nextTime, stepDur);
       this.step = (this.step + 1) % LOOP_STEPS;
       this.nextTime += stepDur;
     }
   }
 
-  private osc(ctx: AudioContext, bus: AudioNode, type: OscillatorType, hz: number, at: number, dur: number, vol: number): void {
+  private osc(ctx: BaseAudioContext, bus: AudioNode, type: OscillatorType, hz: number, at: number, dur: number, vol: number, detune = 0, send: AudioNode | null = null): void {
     const o = ctx.createOscillator();
     const g = ctx.createGain();
     o.type = type;
     o.frequency.setValueAtTime(hz, at);
+    if (detune) o.detune.setValueAtTime(detune, at);
     g.gain.setValueAtTime(0.0001, at);
     g.gain.linearRampToValueAtTime(vol, at + 0.004);
     g.gain.exponentialRampToValueAtTime(0.0001, at + dur);
     o.connect(g).connect(bus);
+    if (send) g.connect(send);
+    o.onended = () => {
+      o.disconnect();
+      g.disconnect();
+    };
     o.start(at);
     o.stop(at + dur + 0.02);
   }
 
-  private noise(ctx: AudioContext, bus: AudioNode, at: number, dur: number, vol: number, hp: number): void {
+  private noise(ctx: BaseAudioContext, bus: AudioNode, at: number, dur: number, vol: number, hp: number): void {
     const buf = sfx.noiseBuffer;
     if (!buf) return;
     const src = ctx.createBufferSource();
@@ -168,41 +249,65 @@ export class Music {
     f.type = 'highpass';
     f.frequency.value = hp;
     const g = ctx.createGain();
-    g.gain.setValueAtTime(vol, at);
+    g.gain.setValueAtTime(0.0001, at);
+    g.gain.linearRampToValueAtTime(vol, at + 0.002);
     g.gain.exponentialRampToValueAtTime(0.0001, at + dur);
     src.connect(f).connect(g).connect(bus);
-    src.start(at);
+    src.onended = () => {
+      src.disconnect();
+      f.disconnect();
+      g.disconnect();
+    };
+    src.start(at, Math.random() * (buf.duration - dur - 0.05));
     src.stop(at + dur + 0.02);
   }
 
-  private voice(ctx: AudioContext, bus: AudioNode, e: MusicEvent, at: number, stepDur: number): void {
+  private voice(ctx: BaseAudioContext, bus: Bus, t: Track, e: MusicEvent, at: number, stepDur: number): void {
+    const look = t.sound ?? {};
     switch (e.voice) {
-      case 'lead':
-        this.osc(ctx, bus, 'square', midiToHz(e.midi), at, stepDur * e.steps * 0.9, 0.5);
+      case 'lead': {
+        const wave = look.lead ?? 'square';
+        const vol = 0.5 * WAVE_GAIN[wave];
+        const dur = stepDur * e.steps * 0.9;
+        if (look.detune) {
+          // two slightly detuned oscillators: a fatter, chorused lead
+          this.osc(ctx, bus.filter, wave, midiToHz(e.midi), at, dur, vol * 0.65, look.detune, bus.send);
+          this.osc(ctx, bus.filter, wave, midiToHz(e.midi), at, dur, vol * 0.65, -look.detune, bus.send);
+        } else this.osc(ctx, bus.filter, wave, midiToHz(e.midi), at, dur, vol, 0, bus.send);
         break;
-      case 'arp':
-        this.osc(ctx, bus, 'square', midiToHz(e.midi), at, stepDur * 0.7, 0.2);
+      }
+      case 'arp': {
+        const wave = look.arp ?? 'square';
+        this.osc(ctx, bus.filter, wave, midiToHz(e.midi), at, stepDur * 0.7, 0.2 * WAVE_GAIN[wave]);
         break;
-      case 'bass':
-        this.osc(ctx, bus, 'triangle', midiToHz(e.midi), at, stepDur * e.steps * 0.95, 0.9);
+      }
+      case 'bass': {
+        const wave = look.bass ?? 'triangle';
+        this.osc(ctx, bus.filter, wave, midiToHz(e.midi), at, stepDur * e.steps * 0.95, (0.9 * WAVE_GAIN[wave]) / WAVE_GAIN.triangle);
         break;
+      }
       case 'kick': {
         const o = ctx.createOscillator();
         const g = ctx.createGain();
         o.frequency.setValueAtTime(150, at);
         o.frequency.exponentialRampToValueAtTime(40, at + 0.12);
-        g.gain.setValueAtTime(0.9, at);
+        g.gain.setValueAtTime(0.0001, at);
+        g.gain.linearRampToValueAtTime(0.9, at + 0.002);
         g.gain.exponentialRampToValueAtTime(0.0001, at + 0.15);
-        o.connect(g).connect(bus);
+        o.connect(g).connect(bus.gain);
+        o.onended = () => {
+          o.disconnect();
+          g.disconnect();
+        };
         o.start(at);
         o.stop(at + 0.17);
         break;
       }
       case 'snare':
-        this.noise(ctx, bus, at, 0.12, 0.5, 1200);
+        this.noise(ctx, bus.gain, at, 0.12, 0.5, 1200);
         break;
       case 'hat':
-        this.noise(ctx, bus, at, 0.04, 0.25, 7000);
+        this.noise(ctx, bus.gain, at, 0.04, 0.25, 7000);
         break;
     }
   }

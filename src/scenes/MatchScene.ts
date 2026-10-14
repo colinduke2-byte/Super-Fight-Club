@@ -482,6 +482,7 @@ export class MatchScene extends Phaser.Scene {
       keyboardHub.onKeyDown = null;
       music.setDuck(1);
       ambience.stop();
+      sfx.stopAll(); // a charge loop or a KO tail fades out with the scene
       inputManager.onPadConnect = null;
       inputManager.onPadDisconnect = null;
     });
