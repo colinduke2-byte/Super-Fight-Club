@@ -17,6 +17,7 @@ export function drawObelisk(r: Raster, k: Skel, look: PlaceholderLook): void {
   const crystal = col(look.armor);
   const deepStone = col(look.armorDark);
   const glow = col(look.accent);
+  guardGlow(r, glow); // no part blooms unless it is emissive on purpose (see guardGlow)
   // the collar's bronze is kept clear of the glow colour (an orange accent would otherwise set the whole collar blooming)
   const bronze: RGB = calm([196, 150, 74], glow);
   // the limbs are rough boulders a clear step darker and cooler than the dressed stone of the shaft, so an arm swung across
@@ -531,4 +532,51 @@ function socket(r: Raster, P: Parts, at: V2, back: boolean): void {
   r.ellipse(back ? P.crystalD : P.crystal, at[0], at[1], 3, 3);
   r.ellipse(back ? P.vein : P.glow, at[0] + 0.5, at[1] - 0.5, 1.6, 1.6);
   if (!back) r.rect(P.core, at[0], at[1] - 1, 1, 1);
+}
+
+/**
+ * `x` nudged just far enough that none of the tones the shader can give it (rim light, cast shade, volume) lands within
+ * reach of the accent or its bloom white. The finishing pass treats any pixel near those as self-lit and blooms it, so
+ * without this an accent-coloured cloth, metal or stone (or, with a pale accent, the whites) read as a light source. The
+ * colour leans toward `lean` (default: darker; pale colours try a cool tint first) by the smallest step that clears;
+ * `steps` says how far it had to go (0 = untouched).
+ */
+function keepClear(x: RGB, accent: RGB, o: { flat?: boolean; soft?: boolean; lean?: RGB }): { c: RGB; steps: number } {
+  const hot = mul(accent, 1.55);
+  const far = (a: RGB, b: RGB): boolean => Math.abs(a[0] - b[0]) + Math.abs(a[1] - b[1]) + Math.abs(a[2] - b[2]) >= 50;
+  const warm: RGB = [255, 242, 214];
+  const cool: RGB = [28, 18, 72];
+  const tones = (v: RGB): RGB[] => {
+    if (o.flat) return [v];
+    const out: RGB[] = [];
+    for (const vol of [0.92, 1.06]) {
+      const b = mul(v, vol);
+      const lit = mix(mul(b, o.soft ? 1.12 : 1.3), warm, 0.1);
+      out.push(b, lit, mul(b, 1.1), mix(mul(b, o.soft ? 0.8 : 0.66), cool, 0.2), mix(mul(lit, o.soft ? 0.8 : 0.66), cool, 0.2), mix(mul(b, 0.86), cool, 0.08), mul(b, 0.92));
+    }
+    return out;
+  };
+  const ok = (v: RGB): boolean => tones(v).every((t) => far(t, accent) && far(t, hot));
+  if (ok(x)) return { c: x, steps: 0 };
+  const hues: RGB[] = o.lean ? [o.lean] : x[0] + x[1] + x[2] > 600 ? [[176, 194, 244], mul(x, 0.55)] : [mul(x, 0.55)];
+  for (let n = 1; n <= 14; n++)
+    for (const h of hues) {
+      const v = mix(x, h, Math.min(1, n * 0.07));
+      if (ok(v)) return { c: v, steps: n };
+    }
+  return { c: mul(x, 0.5), steps: 15 };
+}
+
+/**
+ * Hold every part this drawer creates (including its helpers') clear of the glow colours: only parts made emissive on
+ * purpose bloom. A pale lit part that would have to grey right down is painted flat instead, so it can stay pale.
+ */
+function guardGlow(r: Raster, accent: RGB): void {
+  const raw = r.part.bind(r);
+  r.part = (c: RGB, o: { emissive?: boolean; flat?: boolean; soft?: boolean; lean?: RGB } = {}): number => {
+    if (o.emissive) return raw(c, o);
+    const k = keepClear(c, accent, o);
+    if (k.steps > 3 && !o.flat && c[0] + c[1] + c[2] > 600) return raw(keepClear(c, accent, { flat: true }).c, { flat: true });
+    return raw(k.c, { flat: o.flat, soft: o.soft });
+  };
 }
