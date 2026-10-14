@@ -248,7 +248,9 @@ export function drawRiptide(r: Raster, k0: Skel, look: PlaceholderLook): void {
     r.seg(P.belly, el[0] + (hand[0] - el[0]) * 0.1 + uy * 3, el[1] + (hand[1] - el[1]) * 0.1 - ux * 3 + 3, el[0] + (hand[0] - el[0]) * 0.45, el[1] + (hand[1] - el[1]) * 0.45 + 3, 4, 3); // pale underside
     r.seg(P.armor, el[0] + (hand[0] - el[0]) * 0.5, el[1] + (hand[1] - el[1]) * 0.5, hand[0] - ux * 4, hand[1] - uy * 4, 12, 13);
     r.seg(P.bronze, hand[0] - ux * 5 + uy * 6, hand[1] - uy * 5 - ux * 6, hand[0] - ux * 5 - uy * 6, hand[1] - uy * 5 + ux * 6, 2, 2); // gauntlet rim
-    anchor(r, P, hand, ux, uy, k.base);
+    // standing (not running, dashing or airborne): a low anchor may be planted on the floor instead of shrunk
+    const standing = k.pose.lean <= 2 && k.pose.frontFoot[1] <= 3 && k.pose.backFoot[1] <= 3;
+    anchor(r, P, hand, ux, uy, k.base, standing);
     sharkFist(r, P, hand, ux, uy, false);
   }
 }
@@ -275,7 +277,8 @@ function sharkFist(r: Raster, P: Parts, h: V2, ux: number, uy: number, back: boo
  * Ship's anchor held by the ring: shank along the forearm (a low arm lets it hang plumb), a stock bar near the top, curved
  * flukes with barbed tips. It is drawn shorter rather than cut off where it would leave the frame or sink through the floor.
  */
-function anchor(r: Raster, P: Parts, hand: V2, ux0: number, uy0: number, base: number): void {
+function anchor(r: Raster, P: Parts, grip: V2, ux0: number, uy0: number, base: number, canPlant: boolean): void {
+  const hand = grip;
   let ux = ux0;
   let uy = uy0;
   if (uy > 0.35) {
@@ -290,7 +293,8 @@ function anchor(r: Raster, P: Parts, hand: V2, ux0: number, uy0: number, base: n
     const py = ux;
     return [b, [b[0] + px * F - ux * 12, b[1] + py * F - uy * 12], [b[0] - px * F - ux * 12, b[1] - py * F - uy * 12], [b[0] + px * F * 0.8, b[1] + py * F * 0.8], [b[0] - px * F * 0.8, b[1] - py * F * 0.8]];
   };
-  const inFrame = (q: V2): boolean => q[0] >= 9 && q[0] <= r.w - 9 && q[1] >= 8 && q[1] <= Math.min(r.h - 13, base - 9);
+  const floor = Math.min(r.h - 13, base - 9);
+  const inFrame = (q: V2): boolean => q[0] >= 9 && q[0] <= r.w - 9 && q[1] >= 8 && q[1] <= floor;
   // shorten first; if even a short anchor will not fit (a fist near the floor), swing it forward until it does
   let L = 44;
   const ox = ux;
@@ -308,8 +312,41 @@ function anchor(r: Raster, P: Parts, hand: V2, ux0: number, uy0: number, base: n
       while (L > minL && !ends(L, ux, uy).every(inFrame)) L -= 1;
       if (ends(L, ux, uy).every(inFrame)) break search;
     }
+    if (minL === 36 && !canPlant) {
+      // on the move (run, dash) a low fist has no room to hang or level it: carry the anchor raised ahead instead,
+      // full size, rather than shrinking it to a trinket
+      const fwd = ox < 0 ? -1 : 1;
+      for (let deg = 10; deg >= -50; deg -= 6) {
+        ux = fwd * Math.cos((deg * Math.PI) / 180);
+        uy = Math.sin((deg * Math.PI) / 180);
+        L = 44;
+        while (L > minL && !ends(L, ux, uy).every(inFrame)) L -= 1;
+        if (ends(L, ux, uy).every(inFrame)) break search;
+      }
+    }
+  }
+  if (canPlant && oy > 0.35 && L < 40) {
+    // a low hand (idle, crouch): rather than shrink a hanging anchor, plant it. The crown rests on the floor just in
+    // front of the fist and the shank stands up through the grip, leaning forward, clear of the forearm, so the
+    // stock and ring stand out in front of the chest: the full-size anchor, read as a gladiator leaning on his weapon.
+    const pu = Math.hypot(0.32, 0.95);
+    const dx = -0.32 / pu;
+    const dy = 0.95 / pu;
+    const a = Math.max(3, Math.min(14, (floor - 2 - grip[1]) / dy));
+    const crown: V2 = [grip[0] + dx * a, grip[1] + dy * a];
+    const ring: V2 = [crown[0] - dx * 44, crown[1] - dy * 44];
+    // flukes curl up from the crown: they need room above the floor, not below it
+    if ([ring, crown, [crown[0] - 16, crown[1] - 12] as V2, [crown[0] + 16, crown[1] - 12] as V2].every(inFrame)) {
+      drawAnchor(r, P, ring, dx, dy, 44, F, inFrame);
+      return;
+    }
   }
   while (L > 14 && !inFrame([hand[0] + ux * L, hand[1] + uy * L])) L -= 1;
+  drawAnchor(r, P, hand, ux, uy, L, F, inFrame);
+}
+
+/** The anchor itself: ring at `hand`, shank `L` long along (ux, uy), stock, crown and curved flukes. */
+function drawAnchor(r: Raster, P: Parts, hand: V2, ux: number, uy: number, L: number, F: number, inFrame: (q: V2) => boolean): void {
   const px = -uy;
   const py = ux;
   // a fluke with no room (the anchor resting on the floor) is drawn dug in: its arm shorter

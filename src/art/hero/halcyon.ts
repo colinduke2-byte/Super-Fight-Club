@@ -325,21 +325,73 @@ function wing(r: Raster, P: Parts, A: V2, spread: number, flap: number, far: boo
   r.seg(P.bone, A[0], A[1], wrist[0], wrist[1], 7, 5);
   const N = 9;
   const main = far ? P.featherU : P.feather;
-  // secondaries first (inner, behind), then primaries (outer, in front)
-  for (let pass = 0; pass < 2; pass++) {
+  // the fan as authored: each feather's root, angle (radians) and length
+  const fan = (): { rx: number; ry: number; ang: number; len: number; t: number; primary: boolean; i: number }[] => {
+    const out = [];
     for (let i = 0; i < N; i++) {
       const t = i / (N - 1); // 0 = outermost primary, 1 = innermost secondary
       const primary = i < 5;
-      if ((pass === 0) === primary) continue;
       const angFold = 98 + t * 54;
       const angOpen = 222 - t * 98;
       const ang = rad(lerp(angFold, angOpen, Math.min(1, s)) + flap * 16 + Math.sin(ph * 1.3 + i) * 2.5);
-      let len = lerp(lerp(88, 58, t), lerp(104, 64, t), Math.min(1, s)) * (far ? 0.92 : 1);
+      const len = lerp(lerp(88, 58, t), lerp(104, 64, t), Math.min(1, s)) * (far ? 0.92 : 1);
       const rootT = primary ? 0 : ((t - 0.4) / 0.6) * 0.85;
-      const rx = lerp(wrist[0], A[0], rootT);
-      const ry = lerp(wrist[1], A[1], rootT);
-      // a feather that would leave the frame is shortened (its tip is the wing's silhouette, so it is never cut off)
-      len = Math.min(len, fitLen(r, rx, ry, ang, 7));
+      out.push({ rx: lerp(wrist[0], A[0], rootT), ry: lerp(wrist[1], A[1], rootT), ang, len, t, primary, i });
+    }
+    return out;
+  };
+  const base = fan();
+  const mid = base.reduce((m, f) => m + f.ang, 0) / N;
+  // a wide spread near the frame edge is made to fit as a whole wing rather than by clipping single feathers: first the
+  // fan swings a little (up or down, wherever there is room) and closes a little, then, only if it must, every
+  // feather shortens by the same factor, so the primaries keep their staggered, tapered tips
+  const M = 7;
+  const fits = (x: number, y: number): boolean => x >= M && x <= r.w - M && y >= M && y <= r.h - M - 2;
+  const room = (f: { rx: number; ry: number }, ang: number, len: number, w: number): number => {
+    // the largest share (<= 1) of `len` for which the tip and the feather's widest points stay inside
+    let lo = 0;
+    let hi = 1;
+    const ok = (k: number): boolean => {
+      const L = len * k;
+      const c = Math.cos(ang);
+      const sn = Math.sin(ang);
+      const mx = f.rx + c * L * 0.42;
+      const my = f.ry + sn * L * 0.42;
+      return fits(f.rx + c * L, f.ry + sn * L) && fits(mx - sn * w * 0.5, my + c * w * 0.5) && fits(mx + sn * w * 0.5, my - c * w * 0.5);
+    };
+    if (ok(1)) return 1;
+    for (let it = 0; it < 12; it++) {
+      const m = (lo + hi) / 2;
+      if (ok(m)) lo = m;
+      else hi = m;
+    }
+    return lo;
+  };
+  // prefer full length, then the least distortion: a few degrees of swing, a slightly closed fan or a slightly shorter
+  // wing all cost about the same
+  const cost = (rot: number, close: number, k: number): number => (1 - k) * 1.2 + Math.abs(rot) / 160 + close / 3;
+  let best = { rot: 0, close: 0, k: 0, c: Infinity };
+  for (const close of [0, 0.1, 0.2, 0.3]) {
+    for (let rot = -24; rot <= 24; rot += 4) {
+      let k = 1;
+      for (const f of base) {
+        const ang = mid + (f.ang - mid) * (1 - close) + rad(rot);
+        k = Math.min(k, room(f, ang, f.len, 17 - f.t * 4));
+      }
+      const c = cost(rot, close, k);
+      if (c < best.c) best = { rot, close, k, c };
+    }
+  }
+  const xf = (ang: number): number => mid + (ang - mid) * (1 - best.close) + rad(best.rot);
+  const kLen = Math.max(0.45, best.k);
+  // secondaries first (inner, behind), then primaries (outer, in front)
+  for (let pass = 0; pass < 2; pass++) {
+    for (const f of base) {
+      if ((pass === 0) === f.primary) continue;
+      const { rx, ry, t, i } = f;
+      const ang = xf(f.ang);
+      // a last guard: whatever still does not fit is shortened (never cut off)
+      const len = Math.min(f.len * kLen, fitLen(r, rx, ry, ang, 7));
       const tx = rx + Math.cos(ang) * len;
       const ty = ry + Math.sin(ang) * len;
       featherPoly(r, i % 2 ? P.featherU : main, [rx, ry], [tx, ty], 17 - t * 4);
@@ -352,8 +404,8 @@ function wing(r: Raster, P: Parts, A: V2, spread: number, flap: number, far: boo
     const t = i / 4;
     const bx = lerp(wrist[0], A[0], t * 0.9);
     const by = lerp(wrist[1], A[1], t * 0.9);
-    const ang = rad(lerp(98, 222, Math.min(1, s)) - t * 40 + flap * 14);
-    const cl = Math.min(34, fitLen(r, bx, by, ang, 7));
+    const ang = xf(rad(lerp(98, 222, Math.min(1, s)) - t * 40 + flap * 14));
+    const cl = Math.min(34 * Math.min(1, kLen + 0.2), fitLen(r, bx, by, ang, 7));
     featherPoly(r, far ? P.featherF : P.covert, [bx, by], [bx + Math.cos(ang) * cl, by + Math.sin(ang) * cl], 15);
   }
 }

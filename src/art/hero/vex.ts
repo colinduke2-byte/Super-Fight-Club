@@ -53,8 +53,12 @@ export function drawVex(r: Raster, k0: Skel, look: PlaceholderLook): void {
   const boneD = r.part([176, 164, 140]);
   const oniMask = r.part(mix(accent, [200, 30, 40], 0.55));
   const oniD = r.part(mul(mix(accent, [200, 30, 40], 0.55), 0.62));
-  const hair = r.part(mix(armor, [240, 240, 250], 0.6), { soft: true });
-  const hairD = r.part(mix(armor, [200, 200, 220], 0.35), { soft: true });
+  // the mane: a pale shock of hair in a clear three-step value ladder (lit crown, body, shadowed underside)
+  const hairC = mix(armor, [236, 236, 246], 0.66);
+  const hairHi = r.part(mix(hairC, [255, 255, 255], 0.55), { soft: true });
+  const hair = r.part(hairC, { soft: true });
+  const hairD = r.part(mix(mul(hairC, 0.58), [40, 30, 60], 0.15), { soft: true });
+  const hairDeep = r.part(mix(mul(hairC, 0.34), [30, 16, 40], 0.3), { soft: true });
 
   // ---- ragged cape (behind everything) ----
   if (o !== 2) {
@@ -177,21 +181,20 @@ export function drawVex(r: Raster, k0: Skel, look: PlaceholderLook): void {
     const hy = k.head.y + 2;
     const hs = k.head.s;
     r.rect(P.deep, hx + 6, T.y - 5, hs - 10, 8); // neck
-    // a shaggy mane swept back: broad locks fanning from the crown, darker ones underneath
-    const bx = hx + hs / 2 - 2;
-    const by = hy + hs / 2 - 2;
-    for (let i = 0; i < 6; i++) {
-      const a = Math.PI - 0.1 + i * 0.26;
-      const len = 22 + ((i * 5) % 7) - (i > 3 ? 6 : 0);
-      const ex = Math.max(6, bx + Math.cos(a) * len + sw(i, 1.4));
-      const ey = Math.max(5, by + Math.sin(a) * len * 0.85);
-      const nx = -Math.sin(a) * 8;
-      const ny = Math.cos(a) * 8;
-      const mx = bx + (ex - bx) * 0.55;
-      const my = by + (ey - by) * 0.55;
-      r.poly(i % 2 ? hairD : hair, [[bx + nx, by + ny], [mx + nx * 0.55, my + ny * 0.55], [ex, ey], [mx - nx * 0.4, my - ny * 0.4], [bx - nx, by - ny]]);
-    }
-    for (let i = 0; i < 3; i++) r.poly(hairD, [[bx - 2, by + 4 + i * 3], [bx + 4, by + 8 + i * 3], [Math.max(6, bx - 20 - i * 3 + sw(i + 2, 1.5)), by + 10 + i * 5]]);
+    // a heavy mane swept back: five big curved locks in three values (deep underside, mid body, lit crown), each a
+    // broad tapered blade, so the silhouette reads as a few bold shapes rather than a fringe of thin spikes
+    const bx = hx + hs / 2 - 1;
+    const by = hy + hs / 2 - 3;
+    const locks: [number, number, number, number, number][] = [
+      // angle (0 = forward, PI = back), length, base width, curl, part
+      [Math.PI - 0.62, 30, 19, 9, hairDeep],
+      [Math.PI - 0.2, 37, 20, 9, hairD],
+      [Math.PI + 0.25, 39, 20, 8, hair],
+      [Math.PI + 0.72, 33, 18, 7, hairHi],
+      [Math.PI + 1.18, 24, 15, 6, hair],
+    ];
+    locks.forEach(([a, len, w, curl, part], i) => maneLock(r, part, bx, by, a + sw(i, 0.06), len, w, curl, i < 2 ? hairDeep : hairD, i >= 2 ? hairHi : -1));
+    r.ellipse(hairD, hx + hs / 2 - 3, hy + hs / 2, hs / 2 + 1, hs / 2);
     r.ellipse(hair, hx + hs / 2, hy + hs / 2 - 2, hs / 2 + 1, hs / 2);
     // the mask: a broad scowling face with a heavy brow ridge, cheekbones, a hooked nose and a fanged grin
     r.poly(oniMask, [[hx + 9, hy + 1], [hx + hs + 1, hy], [hx + hs + 6, hy + 7], [hx + hs + 6, hy + hs - 2], [hx + hs + 1, hy + hs + 4], [hx + 12, hy + hs + 3], [hx + 7, hy + hs / 2]]);
@@ -271,6 +274,54 @@ export function drawVex(r: Raster, k0: Skel, look: PlaceholderLook): void {
     r.rect(P.rivet, sx - 1, sy - 2, 2, 2);
     dagger(r, P, el, k.handF, 34);
     fist(r, P, el, k.handF, false);
+  }
+}
+
+/**
+ * One lock of the oni mane: a broad blade from the crown curving back and down to a point, with a darker
+ * band along its underside so each lock keeps its own light/dark read. It is drawn shorter rather than clipped
+ * where the tip would leave the frame.
+ */
+function maneLock(r: Raster, part: number, bx: number, by: number, ang: number, len0: number, w: number, curl: number, under: number, shine: number): void {
+  let len = len0;
+  const at = (L: number, t: number): V2 => {
+    // a quadratic curve: out along the angle, then curling downward (gravity) by `curl`
+    const dx = Math.cos(ang);
+    const dy = Math.sin(ang);
+    return [bx + dx * L * t, by + dy * L * t + curl * t * t];
+  };
+  while (len > 8) {
+    const [tx, ty] = at(len, 1);
+    if (tx >= 8 && ty >= 8 && tx <= r.w - 8) break;
+    len -= 1;
+  }
+  const nx = -Math.sin(ang);
+  const ny = Math.cos(ang);
+  const side = ny >= 0 ? 1 : -1; // the normal pointing (mostly) downward: the lock's shaded underside
+  const n = 8;
+  const L: V2[] = [];
+  const R: V2[] = [];
+  const U: V2[] = [];
+  for (let i = 0; i <= n; i++) {
+    const t = i / n;
+    const [x, y] = at(len, t);
+    const hw = (w / 2) * Math.pow(1 - t, 0.85) * (t < 0.25 ? 0.75 + t : 1);
+    L.push([x - nx * hw * side, y - ny * hw * side]);
+    R.push([x + nx * hw * side, y + ny * hw * side]);
+    U.push([x + nx * hw * side * 0.15, y + ny * hw * side * 0.15]);
+  }
+  r.poly(part, [...L, ...R.slice().reverse()]);
+  r.poly(under, [...U.slice(1, n), ...R.slice(1, n).reverse()]);
+  if (shine >= 0) {
+    // a lit streak along the upper face of the lock
+    const S: V2[] = [];
+    for (let i = 1; i <= 5; i++) {
+      const t = i / 8;
+      const [x, y] = at(len, t);
+      const hw = (w / 2) * Math.pow(1 - t, 0.85);
+      S.push([x - nx * hw * side * 0.45, y - ny * hw * side * 0.45]);
+    }
+    for (let i = 0; i + 1 < S.length; i++) r.seg(shine, S[i][0], S[i][1], S[i + 1][0], S[i + 1][1], 3 - i * 0.45, 2.6 - i * 0.45);
   }
 }
 
@@ -355,10 +406,13 @@ function leg(r: Raster, P: Parts, hip: V2, kn: V2, ankle: V2, back: boolean): vo
   }
   const bx = ankle[0];
   const by = ankle[1];
-  // soft boot with a pointed, slightly upturned toe and a folded cuff
-  r.poly(back ? P.deep : P.strap, [[bx - 7, by - 8], [bx + 6, by - 8], [bx + 7, by - 1], [bx + 14, by + 3], [bx + 18, by + 4], [bx + 16, by + 8], [bx - 8, by + 8]]);
-  r.rect(back ? P.strap : P.armor, bx - 8, by - 10, 15, 4);
-  r.rect(P.seam, bx - 8, by - 7, 15, 1);
-  r.poly(P.steelD, [[bx + 11, by + 3], [bx + 18, by + 4], [bx + 16, by + 8], [bx + 11, by + 8]]); // metal toe cap
-  r.rect(P.deep, bx - 8, by + 7, 24, 2);
+  // a lean split-toe tabi boot: wrapped ankle, a low soft foot tapering to the toe, a pale wrap band (it used to be a
+  // tall square boot, the heaviest dark mass on a fighter who should read light on his feet)
+  r.poly(back ? P.deep : P.strap, [[bx - 6, by - 6], [bx + 5, by - 6], [bx + 8, by], [bx + 14, by + 2], [bx + 17, by + 5], [bx + 16, by + 8], [bx - 7, by + 8], [bx - 8, by + 2]]);
+  r.rect(back ? P.strap : P.clothL, bx - 7, by - 9, 13, 4); // ankle wrap
+  r.rect(P.seam, bx - 7, by - 6, 13, 1);
+  r.rect(back ? P.seam : P.mark, bx - 6, by - 8, 11, 1);
+  r.poly(P.steelD, [[bx + 12, by + 2], [bx + 17, by + 5], [bx + 16, by + 8], [bx + 12, by + 8]]); // metal toe cap
+  r.rect(P.seam, bx + 11, by + 3, 1, 5); // the split toe
+  r.rect(P.deep, bx - 7, by + 7, 23, 2);
 }
