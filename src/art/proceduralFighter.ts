@@ -554,6 +554,22 @@ export function requestPalette(scene: Phaser.Scene, data: CharacterData, palette
   });
 }
 
+/**
+ * Free the sheets of alternate outfits that are no longer needed (each is several MB): every outfit texture and its
+ * animations, except the skins listed in `keep` (e.g. the outfits the players picked).
+ */
+export function releasePalettes(scene: Phaser.Scene, keep: Iterable<string>): void {
+  const kept = new Set(keep);
+  for (const key of scene.textures.getTextureKeys()) {
+    if (!key.startsWith('fighter:') || !key.includes('~')) continue;
+    const skin = key.slice('fighter:'.length);
+    if (kept.has(skin)) continue;
+    for (const a of scene.anims.toJSON().anims) if (a.key.startsWith(`${skin}:`)) scene.anims.remove(a.key);
+    scene.textures.remove(key);
+  }
+  readyOutfits.clear();
+}
+
 /** True when ensurePalette can return without building a sheet on the main thread. */
 export function paletteReady(scene: Phaser.Scene, data: CharacterData, palette: number): boolean {
   const key = skinKey(data.id, palette);

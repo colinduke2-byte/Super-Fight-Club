@@ -1,5 +1,5 @@
 import Phaser from 'phaser';
-import { animFrameIndex, ensurePalette, fighterAnimKey, fighterTextureKey, paletteReady, portraitCrop, portraitK, requestPalette, uiTexK } from '../art/proceduralFighter';
+import { animFrameIndex, ensurePalette, fighterAnimKey, fighterTextureKey, paletteReady, portraitCrop, portraitK, releasePalettes, requestPalette, skinKey, uiTexK } from '../art/proceduralFighter';
 import { ALT_LOOKS, lookName, paletteCount } from '../art/palettes';
 import { PIXEL_FONT } from '../art/pixelFont';
 import { CHARACTER_LIST } from '../characters';
@@ -48,6 +48,8 @@ export class CharacterSelectScene extends MenuScene {
   }
 
   protected build(): void {
+    // leaving the lobby frees every outfit sheet that was only browsed (the picked ones stay for the match)
+    this.events.once('shutdown', () => releasePalettes(this, (session.players ?? []).filter((p) => (p.palette ?? 0) > 0).map((p) => skinKey(p.character, p.palette))));
     this.cards = [];
     this.roster = [];
     this.palettes = (session.players.length ? session.players.map((p) => (p.type === 'human' ? (p.palette ?? 0) : 0)) : []).concat([0, 0, 0, 0]).slice(0, 4);
