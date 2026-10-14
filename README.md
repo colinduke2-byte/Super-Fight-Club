@@ -31,7 +31,8 @@ Title -> Main Menu (Versus / Arcade Ladder / Target Smash / Launch Contest / Cha
 gamepad: confirm = Attack or Jump (J / I / Enter / Space / pad face buttons), back = Special or Shield (K / L / Esc),
 alt = Grab (U / Tab: add CPU in the lobby), Start = pad Start. In the character lobby each device presses confirm to
 join the next free slot; empty slots are filled with CPUs (a warning says so). Players 3-4 need controllers.
-Settings holds audio, the announcer, stage ambience (surf, rain and thunder, the reactor's hum, birdsong; `src/audio/ambience.ts`), particles, FPS counter, fullscreen, tap-jump, smash mode and deadzone, with a one-line
+Settings holds audio, the announcer, stage ambience (surf, rain and thunder, the reactor's hum, birdsong; `src/audio/ambience.ts`), particles, resolution (SHARP renders at full device resolution; AUTO and PERFORMANCE cap
+the canvas near 1440p / 720p and upscale it crisply, for slow machines; `src/display.ts`), FPS counter, fullscreen, tap-jump, smash mode and deadzone, with a one-line
 explanation of the selected option; **Controls** rebinds both keyboard schemes and both gamepad profiles (saved to localStorage),
 and opened from the pause menu it runs over the paused match and returns to it. **How to Play** is a ten-page guide (the goal,
 moving, attacking, defending, grabs, advanced tech, physics, items and stages, the fighters) with an animated fighter on each page (`src/game/howToPlay.ts`). Menus fade
