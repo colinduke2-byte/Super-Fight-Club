@@ -1,5 +1,6 @@
 export type SmashMode = 'flick' | 'button';
 export type ParticleQuality = 'low' | 'medium' | 'high';
+export type RenderQuality = 'auto' | 'sharp' | 'fast';
 
 export interface Settings {
   /** Radial stick deadzone, 0..0.9. */
@@ -9,6 +10,8 @@ export interface Settings {
   /** How smash attacks are triggered (wired up in the combat milestone). */
   smashMode: SmashMode;
   particleQuality: ParticleQuality;
+  /** Canvas resolution: SHARP (default) renders at full device resolution; AUTO caps it near 1440p and FAST near 720p, upscaled crisply, for slow machines. */
+  renderQuality: RenderQuality;
   showPerf: boolean;
   /** Drop particle quality automatically (for the current session only) when the frame rate cannot hold. */
   autoQuality: boolean;
@@ -35,6 +38,7 @@ export const DEFAULT_SETTINGS: Settings = {
   tapJump: true,
   smashMode: 'flick',
   particleQuality: 'high',
+  renderQuality: 'sharp',
   showPerf: false,
   autoQuality: true,
   rumble: true,

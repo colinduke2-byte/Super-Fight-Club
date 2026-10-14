@@ -2,7 +2,8 @@ import Phaser from 'phaser';
 import { PIXEL_FONT, up } from '../art/pixelFont';
 import { sfx } from '../audio/sfx';
 import type { MenuEvent } from '../input/menuInput';
-import { saveSettings, settings, type ParticleQuality, type SmashMode } from '../settings';
+import { saveSettings, settings, type ParticleQuality, type RenderQuality, type SmashMode } from '../settings';
+import { applySize } from '../display';
 import { COLORS, MenuList, MenuScene, text, type MenuBackdrop } from '../ui/menuKit';
 
 const QUALITY: ParticleQuality[] = ['low', 'medium', 'high'];
@@ -56,6 +57,13 @@ export class SettingsScene extends MenuScene {
         onRight: () => { settings.particleQuality = cycle(QUALITY, settings.particleQuality, 1); saveSettings(); },
         onConfirm: () => { settings.particleQuality = cycle(QUALITY, settings.particleQuality, 1); saveSettings(); },
       },
+      {
+        label: 'RESOLUTION', hint: 'SHARP renders at full screen resolution. On a slow machine AUTO caps it near 1440p and PERFORMANCE near 720p.',
+        value: () => ({ auto: 'AUTO', fast: 'PERFORMANCE', sharp: 'SHARP' })[settings.renderQuality],
+        onLeft: () => this.setRender(-1),
+        onRight: () => this.setRender(1),
+        onConfirm: () => this.setRender(1),
+      },
       { label: 'FPS COUNTER', hint: 'Show the frame rate in the corner during matches.', value: () => (settings.showPerf ? 'ON' : 'OFF'), onLeft: toggle('showPerf'), onRight: toggle('showPerf'), onConfirm: toggle('showPerf') },
       { label: 'SCREEN SHAKE', hint: 'How hard the camera kicks on big hits.', value: () => pct(settings.screenShake), onLeft: step('screenShake', -0.25, 0, 1), onRight: step('screenShake', 0.25, 0, 1) },
       { label: 'REDUCE FLASHES', hint: 'Softer white flashes on KOs, hits and ultimates.', value: () => (settings.reduceFlashes ? 'ON' : 'OFF'), onLeft: toggle('reduceFlashes'), onRight: toggle('reduceFlashes'), onConfirm: toggle('reduceFlashes') },
@@ -80,6 +88,13 @@ export class SettingsScene extends MenuScene {
     ]);
     this.desc = text(this, this.ui, '', COLORS.accent).setOrigin(0.5);
     this.hint = text(this, this.ui, 'UP/DOWN: MOVE   LEFT/RIGHT: CHANGE   K / ESC: BACK', COLORS.dim).setOrigin(0.5);
+  }
+
+  private setRender(dir: number): void {
+    const order: RenderQuality[] = ['sharp', 'auto', 'fast'];
+    settings.renderQuality = order[(order.indexOf(settings.renderQuality) + dir + order.length) % order.length];
+    saveSettings();
+    applySize(); // the resize event re-lays out this screen
   }
 
   protected override layoutUi(w: number, h: number, u: number): void {
