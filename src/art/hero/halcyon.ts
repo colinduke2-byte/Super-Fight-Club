@@ -10,7 +10,10 @@ const lerp = (a: number, b: number, t: number): number => a + (b - a) * t;
  * Halcyon: a storm-winged lancer. Feathered wings (folded on the ground, flared in the air, spread to glide), a long gold-bladed spear
  * held two-handed along an aim axis, silver cuirass with gold trim, azure pteruges skirt, winged boots and a winged helm with a streaming ponytail.
  */
-export function drawHalcyon(r: Raster, k: Skel, look: PlaceholderLook): void {
+export function drawHalcyon(r: Raster, k0: Skel, look: PlaceholderLook): void {
+  // limb ends pulled inside the frame so a gauntlet is never cut off at an edge
+  const fit = (q: V2, mx: number, top: number, bot: number): V2 => [Math.max(mx, Math.min(k0.W - mx, q[0])), Math.max(top, Math.min(k0.H - bot, q[1]))];
+  const k: Skel = { ...k0, handF: fit(k0.handF, 12, 12, 12), handB: fit(k0.handB, 12, 12, 12), elbowF: fit(k0.elbowF, 9, 10, 10), elbowB: fit(k0.elbowB, 9, 10, 10) };
   const armor = col(look.armor);
   const dark = col(look.armorDark);
   const deep = mul(dark, 0.55);
@@ -20,8 +23,8 @@ export function drawHalcyon(r: Raster, k: Skel, look: PlaceholderLook): void {
   // outfits: 1 = Valkyrie (crested helm with a horsehair plume, a cape, braids), 2 = Raven (black wings, hood and beak mask)
   const o = look.outfit ?? 0;
   const azure: RGB = o === 2 ? mix(dark, [40, 40, 60], 0.4) : [58, 126, 216];
-  const feather: RGB = o === 2 ? [58, 58, 74] : [246, 249, 255];
-  const featherU: RGB = o === 2 ? [34, 34, 46] : [172, 196, 232];
+  const feather: RGB = o === 2 ? [92, 92, 112] : [246, 249, 255];
+  const featherU: RGB = o === 2 ? [52, 52, 68] : [172, 196, 232];
   const P = {
     armor: r.part(armor),
     light: r.part(mix(armor, [255, 255, 255], 0.35)),
@@ -60,7 +63,8 @@ export function drawHalcyon(r: Raster, k: Skel, look: PlaceholderLook): void {
   const sway = (i: number, a = 2): number => Math.sin(ph * 1.2 + i * 0.8) * a;
   const plume = r.part(mix(gold, [220, 40, 50], 0.6), { soft: true });
   const plumeD = r.part(mul(mix(gold, [220, 40, 50], 0.6), 0.7), { soft: true });
-  const beak = r.part(mix(gold, [60, 50, 40], 0.5));
+  const beak = r.part(mix([226, 216, 196], gold, 0.15));
+  const beakD = r.part(mul(mix([226, 216, 196], gold, 0.15), 0.7));
 
   // ---- wings (behind everything): far wing darker, near wing brighter ----
   const root: V2 = [T.x + 10, T.y + 8];
@@ -75,9 +79,28 @@ export function drawHalcyon(r: Raster, k: Skel, look: PlaceholderLook): void {
     r.poly(plume, [[T.x + 4, top], [T.x + 12, top], [T.x + 4 - run * 12 + sway(1, 2), hem - 4], [T.x - 4 - run * 14 + sway(2, 2), hem - 2]]);
   }
 
+  // a shadowed fold where the wings meet the back, so the white plumage never melts into the silver cuirass
+  r.seg(P.featherF, T.x - 1, T.y + 2, T.x - 2, T.y + T.h - 4, 10, 8);
+
   // ---- grips: the front hand holds the spear, the back hand grips along the shaft ----
   const G = k.handF;
-  const bg: V2 = [G[0] - u[0] * 34, G[1] - u[1] * 34];
+  // the shaft is foreshortened rather than cut off where it would leave the frame (or sink through the floor)
+  const reach = (sgn: number, want: number, m: number, floor: number): number => {
+    let L = want;
+    const ok = (t: number): boolean => {
+      const x = G[0] + u[0] * t * sgn;
+      const y = G[1] + u[1] * t * sgn;
+      return x >= m && x <= r.w - m && y >= m && y <= r.h - floor;
+    };
+    while (L > 4 && !ok(L)) L -= 1;
+    return L;
+  };
+  // the back hand slides up the shaft when the butt end is short (a low grip near the floor)
+  const backL = reach(-1, 52, 10, 13);
+  let bgL = Math.max(10, Math.min(34, backL - 8));
+  const inGrip = (t: number): boolean => G[1] - u[1] * t <= r.h - 12 && G[0] - u[0] * t >= 12 && G[0] - u[0] * t <= r.w - 12 && G[1] - u[1] * t >= 12;
+  while (bgL > 6 && !inGrip(bgL)) bgL -= 1;
+  const bg: V2 = fit([G[0] - u[0] * bgL, G[1] - u[1] * bgL], 12, 12, 12);
   const aB = solveLimb(k.shB, bg, k.armBone, 1);
 
   // ---- back leg + boot ----
@@ -145,11 +168,16 @@ export function drawHalcyon(r: Raster, k: Skel, look: PlaceholderLook): void {
       r.ellipse(P.featherF, hx + hs / 2 + 1, hy + hs / 2 + 1, hs / 2 + 7, hs / 2 + 6);
       r.ellipse(P.feather, hx + hs / 2 + 2, hy + hs / 2 - 1, hs / 2 + 5, hs / 2 + 4);
       for (let i = 0; i < 4; i++) featherPoly(r, i % 2 ? P.featherU : P.feather, [hx + 2, hy + 4 + i * 4], [hx - 14 - i * 2 - sway(i, 1.5), hy + 10 + i * 6], 7);
+      // the hood's opening, and a pale bone beak mask filling it: brow plate, a dark socket with the eye glinting, and a long curved beak
       r.ellipse(P.deep, hx + hs / 2 + 5, hy + hs / 2 + 2, hs / 2 - 1, hs / 2 - 2);
-      r.poly(beak, [[hx + hs - 4, hy + 8], [hx + hs + 4, hy + 9], [hx + hs + 18, hy + hs + 2], [hx + hs + 2, hy + hs - 2], [hx + hs - 4, hy + hs - 2]]);
-      r.seg(P.goldFlat, hx + hs, hy + 10, hx + hs + 16, hy + hs + 1, 1, 1);
-      r.ellipse(P.eye, hx + hs - 3, hy + 9, 2, 2);
-      r.ellipse(P.glow, hx + hs - 3, hy + 9, 1, 1);
+      r.poly(beak, [[hx + 8, hy + 6], [hx + hs - 2, hy + 4], [hx + hs + 4, hy + 8], [hx + hs + 3, hy + hs - 4], [hx + hs - 6, hy + hs], [hx + 10, hy + hs - 2]]);
+      r.poly(beakD, [[hx + 8, hy + 12], [hx + 12, hy + 10], [hx + 14, hy + hs - 2], [hx + 10, hy + hs - 2]]);
+      r.ellipse(P.deep, hx + hs - 4, hy + 11, 4, 3.4);
+      r.ellipse(P.eye, hx + hs - 3, hy + 11, 2.2, 2);
+      r.rect(P.glow, hx + hs - 3, hy + 10, 1, 1);
+      r.poly(beak, [[hx + hs - 1, hy + 13], [hx + hs + 6, hy + 13], [hx + hs + 20, hy + hs + 4], [hx + hs + 4, hy + hs], [hx + hs - 3, hy + hs - 2]]);
+      r.poly(beakD, [[hx + hs + 1, hy + hs - 3], [hx + hs + 12, hy + hs + 0.5], [hx + hs + 20, hy + hs + 4], [hx + hs + 4, hy + hs]]);
+      r.seg(P.goldFlat, hx + hs + 1, hy + 14, hx + hs + 17, hy + hs + 2, 1, 1);
     } else {
     // helm: dome, cheek guard, gold circlet
     r.poly(P.armor, [[hx + 2, hy + 10], [hx + 6, hy], [hx + hs - 2, hy - 2], [hx + hs + 3, hy + 6], [hx + hs - 4, hy + 8], [hx + 8, hy + 8]]);
@@ -180,8 +208,9 @@ export function drawHalcyon(r: Raster, k: Skel, look: PlaceholderLook): void {
 
   // ---- the spear ----
   {
-    const butt: V2 = [G[0] - u[0] * 52, G[1] - u[1] * 52];
-    const tip: V2 = [G[0] + u[0] * 88, G[1] + u[1] * 88];
+    const butt: V2 = [G[0] - u[0] * backL, G[1] - u[1] * backL];
+    const tipL = reach(1, 88, 10, 12);
+    const tip: V2 = [G[0] + u[0] * tipL, G[1] + u[1] * tipL];
     const nx = -u[1];
     const ny = u[0];
     r.seg(P.shaft, butt[0], butt[1], tip[0] - u[0] * 20, tip[1] - u[1] * 20, 4.5, 4);
@@ -202,26 +231,39 @@ export function drawHalcyon(r: Raster, k: Skel, look: PlaceholderLook): void {
     let rx = b0[0];
     let ry = b0[1];
     for (let i = 0; i < 6; i++) {
-      const nxp = rx - u[0] * 3 - 4 + sway(i, 2.2);
-      const nyp = ry - u[1] * 3 + 3 + sway(i + 2, 2);
+      const nxp = Math.max(7, Math.min(r.w - 7, rx - u[0] * 3 - 4 + sway(i, 2.2)));
+      const nyp = Math.max(7, Math.min(r.h - 9, ry - u[1] * 3 + 3 + sway(i + 2, 2)));
       r.seg(P.ribbon, rx, ry, nxp, nyp, 5 - i * 0.5, 4.5 - i * 0.5);
       rx = nxp;
       ry = nyp;
     }
     // back hand over the shaft
-    r.ellipse(P.gold, bg[0], bg[1], 5.5, 5.5);
-    r.ellipse(P.skin, bg[0], bg[1], 3.5, 3.5);
+    gauntlet(r, P, bg, u, aB.mid, true);
   }
 
   // ---- front arm: pauldron, vambrace, gauntlet ----
   {
     const [sx, sy] = k.shF;
     const el = k.elbowF;
+    // a dark backing a little wider than the arm cuts it out of the cuirass behind it
+    r.seg(P.deep, sx, sy + 1, el[0], el[1] + 1, 13, 11);
+    r.seg(P.deep, el[0], el[1] + 1, G[0], G[1] + 1, 11, 10);
     r.seg(P.armor, sx, sy, el[0], el[1], 11, 9);
-    r.seg(P.armor, el[0], el[1], G[0], G[1], 9, 8);
-    r.seg(P.gold, el[0] + (G[0] - el[0]) * 0.35, el[1] + (G[1] - el[1]) * 0.35, el[0] + (G[0] - el[0]) * 0.6, el[1] + (G[1] - el[1]) * 0.6, 10, 10);
-    r.ellipse(P.gold, G[0], G[1], 6, 6);
-    r.ellipse(P.skin, G[0], G[1], 3.8, 3.8);
+    r.seg(P.light, el[0], el[1], G[0], G[1], 9, 8);
+    // vambrace: two thin gold bands round the forearm (the cuff at the wrist carries the colour)
+    {
+      let dx = G[0] - el[0];
+      let dy = G[1] - el[1];
+      const l = Math.hypot(dx, dy) || 1;
+      dx /= l;
+      dy /= l;
+      for (const t of [0.32, 0.5]) {
+        const mx = el[0] + (G[0] - el[0]) * t;
+        const my = el[1] + (G[1] - el[1]) * t;
+        r.seg(P.goldFlat, mx + dy * 5, my - dx * 5, mx - dy * 5, my + dx * 5, 1.6, 1.6);
+      }
+    }
+    gauntlet(r, P, G, u, el, false);
     // feather-layered pauldron
     r.ellipse(P.deep, sx + 1, sy - 1, 10, 7);
     r.ellipse(P.armor, sx, sy - 2, 9, 6);
@@ -231,7 +273,36 @@ export function drawHalcyon(r: Raster, k: Skel, look: PlaceholderLook): void {
   }
 }
 
+/**
+ * An armoured gauntlet closed round the spear shaft: a gold cuff on the wrist, the fist in silver plate with the
+ * knuckle ridge across the shaft and bare fingertips curled under it.
+ */
+function gauntlet(r: Raster, P: Parts, g: V2, u: V2, el: V2, back: boolean): void {
+  let dx = g[0] - el[0];
+  let dy = g[1] - el[1];
+  const l = Math.hypot(dx, dy) || 1;
+  dx /= l;
+  dy /= l;
+  r.seg(back ? P.goldFlat : P.gold, g[0] - dx * 7, g[1] - dy * 7, g[0] - dx * 3, g[1] - dy * 3, 9, 9); // cuff
+  r.ellipse(back ? P.dark : P.armor, g[0], g[1], 5.6, 5.6); // fist
+  // fingers wrapped round the shaft: three skin knuckles stepping along it
+  for (let i = -1; i <= 1; i++) r.ellipse(back ? P.skinD : P.skin, g[0] + u[0] * i * 2.6 + dx * 2.4, g[1] + u[1] * i * 2.6 + dy * 2.4, 1.7, 1.7);
+  r.seg(P.seam, g[0] - u[0] * 4, g[1] - u[1] * 4, g[0] + u[0] * 4, g[1] + u[1] * 4, 1, 1); // knuckle ridge
+}
+
 type Parts = Record<'skinD' | 'sclera' | 'line' | 'iris' | 'armor' | 'light' | 'dark' | 'deep' | 'gold' | 'goldL' | 'goldFlat' | 'skin' | 'hair' | 'hairD' | 'azure' | 'azureD' | 'feather' | 'featherU' | 'featherF' | 'covert' | 'bone' | 'steel' | 'shaft' | 'glow' | 'eye' | 'ribbon' | 'seam', number>;
+
+/** How far a ray from (x, y) at angle `ang` can run before it comes within `m` px of the frame edge. */
+function fitLen(r: Raster, x: number, y: number, ang: number, m: number): number {
+  const c = Math.cos(ang);
+  const sn = Math.sin(ang);
+  let L = 999;
+  if (c < -1e-3) L = Math.min(L, (x - m) / -c);
+  if (c > 1e-3) L = Math.min(L, (r.w - m - x) / c);
+  if (sn < -1e-3) L = Math.min(L, (y - m) / -sn);
+  if (sn > 1e-3) L = Math.min(L, (r.h - m - 2 - y) / sn);
+  return Math.max(8, L);
+}
 
 /** A leaf-shaped feather from `a` to `b`, widest about 40% along. */
 function featherPoly(r: Raster, part: number, a: V2, b: V2, w: number): void {
@@ -263,17 +334,17 @@ function wing(r: Raster, P: Parts, A: V2, spread: number, flap: number, far: boo
       const angFold = 98 + t * 54;
       const angOpen = 222 - t * 98;
       const ang = rad(lerp(angFold, angOpen, Math.min(1, s)) + flap * 16 + Math.sin(ph * 1.3 + i) * 2.5);
-      const len = lerp(lerp(88, 58, t), lerp(104, 64, t), Math.min(1, s)) * (far ? 0.92 : 1);
+      let len = lerp(lerp(88, 58, t), lerp(104, 64, t), Math.min(1, s)) * (far ? 0.92 : 1);
       const rootT = primary ? 0 : ((t - 0.4) / 0.6) * 0.85;
       const rx = lerp(wrist[0], A[0], rootT);
       const ry = lerp(wrist[1], A[1], rootT);
+      // a feather that would leave the frame is shortened (its tip is the wing's silhouette, so it is never cut off)
+      len = Math.min(len, fitLen(r, rx, ry, ang, 7));
       const tx = rx + Math.cos(ang) * len;
       const ty = ry + Math.sin(ang) * len;
       featherPoly(r, i % 2 ? P.featherU : main, [rx, ry], [tx, ty], 17 - t * 4);
-      if (!far) {
-        r.seg(P.featherF, rx + (tx - rx) * 0.15, ry + (ty - ry) * 0.15 + 3, rx + (tx - rx) * 0.7, ry + (ty - ry) * 0.7 + 3, 2.5, 1.5);
-        r.rect(P.goldFlat, tx - 1, ty - 1, 3, 3);
-      }
+      // the quill down each feather's middle
+      if (!far) r.seg(P.featherF, rx + (tx - rx) * 0.15, ry + (ty - ry) * 0.15, rx + (tx - rx) * 0.72, ry + (ty - ry) * 0.72, 1.6, 1);
     }
   }
   // coverts along the arm
@@ -282,12 +353,17 @@ function wing(r: Raster, P: Parts, A: V2, spread: number, flap: number, far: boo
     const bx = lerp(wrist[0], A[0], t * 0.9);
     const by = lerp(wrist[1], A[1], t * 0.9);
     const ang = rad(lerp(98, 222, Math.min(1, s)) - t * 40 + flap * 14);
-    featherPoly(r, far ? P.featherF : P.covert, [bx, by], [bx + Math.cos(ang) * 34, by + Math.sin(ang) * 34], 15);
+    const cl = Math.min(34, fitLen(r, bx, by, ang, 7));
+    featherPoly(r, far ? P.featherF : P.covert, [bx, by], [bx + Math.cos(ang) * cl, by + Math.sin(ang) * cl], 15);
   }
 }
 
-function leg(r: Raster, P: Parts, hip: V2, kn: V2, ankle: V2, back: boolean, ph: number): void {
-  r.seg(back ? P.deep : P.armor, hip[0], hip[1], kn[0], kn[1], 15, 12);
+function leg(r: Raster, P: Parts, hip: V2, kn0: V2, ankle0: V2, back: boolean, ph: number): void {
+  // a deep crouch can fold the knee (or a foot) under the floor line: keep them above it
+  const kn: V2 = [kn0[0], Math.min(r.h - 16, kn0[1])];
+  const ankle: V2 = [ankle0[0], Math.min(r.h - 13, ankle0[1])];
+  // azure leggings on the thigh (so the hips read apart from the cuirass) and a plated silver greave on the shin
+  r.seg(back ? P.deep : P.azure, hip[0], hip[1], kn[0], kn[1], 15, 12);
   r.seg(back ? P.dark : P.armor, kn[0], kn[1], ankle[0], ankle[1], 12, 9);
   if (!back) {
     r.ellipse(P.gold, kn[0] + 3, kn[1], 5.5, 5.5); // knee cop
@@ -298,6 +374,6 @@ function leg(r: Raster, P: Parts, hip: V2, kn: V2, ankle: V2, back: boolean, ph:
   r.poly(back ? P.deep : P.azureD, [[bx - 7, by - 9], [bx + 7, by - 9], [bx + 7, by - 2], [bx + 17, by + 4], [bx + 17, by + 8], [bx - 8, by + 8]]);
   r.rect(P.gold, bx - 8, by - 10, 15, 3);
   r.rect(P.deep, bx - 8, by + 7, 26, 2);
-  // little ankle wings flicking back
-  for (let i = 0; i < 3; i++) r.seg(i === 1 ? P.feather : P.featherU, bx - 6, by - 6 + i * 2, bx - 22 - i * 3 - Math.sin(ph * 1.8 + i) * 2, by - 12 + i * 3, 5, 2);
+  // little ankle wings flicking back: two layered feathers
+  for (let i = 1; i >= 0; i--) featherPoly(r, i ? P.featherU : P.feather, [bx - 5, by - 6 + i * 2], [Math.max(7, bx - 20 - i * 3 - Math.sin(ph * 1.8 + i) * 2), by - 13 + i * 4], 7);
 }
