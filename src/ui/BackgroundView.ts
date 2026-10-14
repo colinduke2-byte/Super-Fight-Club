@@ -1,5 +1,5 @@
 import Phaser from 'phaser';
-import { COVE_LAMP } from '../art/stageTextures';
+import { COVE_LAMP, GROUND_LAYERS, INDUSTRY_VENTS, ensureGroundTextures } from '../art/stageTextures';
 import { settings } from '../settings';
 import { addCanvasTexture } from '../art/canvasTexture';
 
@@ -25,9 +25,21 @@ export interface Backdrop {
   bankTex?: string;
   /** The scenery streams past (a moving stage): art px per second at the far layer; nearer layers move faster. */
   scroll?: number;
+  /** Ground below the near skyline: textures `${ground}-0..2` (far floor, mid ridge, foreground), each nearer one parallaxing faster. */
+  ground?: string;
+  /** Light playing on water / lava in the far ground layer (art rows y0..y1 of `${ground}-0`): a moon's reflected path, or scattered glints. */
+  glint?: { cols: number[]; y0: number; y1: number; path?: boolean; alpha?: number };
+  /** Colours (low, high) and strength of the 'glow' extra's horizon haze. */
+  glowCol?: [number, number];
+  glowAlpha?: number;
+  /** An overcast of cloud undersides hung across the top of the sky (a cloud-bank texture, flipped). */
+  overcast?: string;
 }
 
-export type Extra = 'rain' | 'flash' | 'sun' | 'birds' | 'godrays' | 'shooting' | 'clouds' | 'embers' | 'glow' | 'lightning' | 'beams' | 'grid' | 'motes' | 'aurora' | 'airships' | 'moon' | 'beacon' | 'ceiling' | 'drips' | 'snow';
+export type Extra = 'rain' | 'flash' | 'sun' | 'birds' | 'godrays' | 'shooting' | 'clouds' | 'embers' | 'glow' | 'lightning' | 'beams' | 'grid' | 'motes' | 'aurora' | 'airships' | 'moon' | 'beacon' | 'ceiling' | 'drips' | 'snow' | 'smoke' | 'shafts' | 'fireflies';
+
+/** Horizontal parallax of the three ground layers (the near skyline is 0.26, so the far floor stays planted under it). */
+const GROUND_PARALLAX = [0.26, 0.34, 0.45];
 
 export const BACKDROPS: Record<string, Backdrop> = {
   skyline: { sky: SKY, planet: true, nebula: 0xffffff, far: 0xffffff, near: 0xffffff, tiles: 0xffffff, extras: ['aurora', 'clouds', 'shooting', 'airships'] },
@@ -52,6 +64,8 @@ export const BACKDROPS: Record<string, Backdrop> = {
     farTex: 'bg-spires-far',
     nearTex: 'bg-spires-near',
     bankTex: 'bg-stormbank',
+    ground: 'bg-storm-sea',
+    overcast: 'bg-stormbank',
     stars: false,
     extras: ['flash', 'rain'],
   },
@@ -79,9 +93,10 @@ export const BACKDROPS: Record<string, Backdrop> = {
     farTex: 'bg-jungle-far',
     nearTex: 'bg-jungle-near',
     bankTex: 'bg-mist',
+    ground: 'bg-jungle-ground',
     stars: true,
     nebulaOn: false,
-    extras: ['godrays', 'motes', 'birds'],
+    extras: ['godrays', 'motes', 'birds', 'fireflies'],
   },
   tide: {
     sky: ['#03060f', '#071226', '#0c1e3a', '#14304e', '#1e4862', '#215a6e', '#0c2a3c'],
@@ -93,6 +108,8 @@ export const BACKDROPS: Record<string, Backdrop> = {
     farTex: 'bg-cove-far',
     nearTex: 'bg-cove-near',
     bankTex: 'bg-surf',
+    ground: 'bg-cove-sea',
+    glint: { cols: [0xe6f2ff, 0x9ad0ff], y0: 1, y1: 160, path: true },
     nebulaOn: false,
     extras: ['moon', 'beacon', 'shooting', 'motes'],
   },
@@ -106,9 +123,13 @@ export const BACKDROPS: Record<string, Backdrop> = {
     farTex: 'bg-geode-far',
     nearTex: 'bg-geode-near',
     bankTex: 'bg-cavemist',
+    ground: 'bg-geode-ground',
+    glint: { cols: [0xd8b8ff, 0x7af0e8, 0xa868e0], y0: 10, y1: 100 },
+    glowCol: [0x3a1470, 0x8a4ad0],
+    glowAlpha: 0.22,
     stars: false,
     nebulaOn: false,
-    extras: ['ceiling', 'drips', 'motes'],
+    extras: ['glow', 'shafts', 'ceiling', 'drips', 'motes'],
   },
   frost: {
     sky: ['#0a1430', '#122248', '#1c3462', '#2e4c7c', '#4a6a96', '#7a92b4', '#c0cce0'],
@@ -120,6 +141,8 @@ export const BACKDROPS: Record<string, Backdrop> = {
     farTex: 'bg-peaks-far',
     nearTex: 'bg-shrine-near',
     bankTex: 'bg-snowbank',
+    ground: 'bg-frost-ground',
+    glint: { cols: [0xf0f8ff, 0xb8d8ff], y0: 12, y1: 64, path: true, alpha: 0.7 },
     nebulaOn: false,
     extras: ['moon', 'aurora', 'snow'],
   },
@@ -147,7 +170,9 @@ export const BACKDROPS: Record<string, Backdrop> = {
     tiles: 0xffc8a8,
     farTex: 'bg-industry-far',
     nearTex: 'bg-industry-near',
-    extras: ['lightning', 'glow', 'embers'],
+    ground: 'bg-reactor-ground',
+    glint: { cols: [0xfff0a0, 0xffb040, 0xff7a1a], y0: 6, y1: 80, alpha: 0.9 },
+    extras: ['lightning', 'glow', 'smoke', 'embers'],
   },
 };
 
@@ -181,6 +206,22 @@ export class BackgroundView {
   private bankOn = false;
   private readonly gBack: Phaser.GameObjects.Graphics;
   private readonly gFront: Phaser.GameObjects.Graphics;
+  /** Normal-blend drawing between the far and near skylines (smoke from the far stacks). */
+  private readonly gFar: Phaser.GameObjects.Graphics;
+  /** Additive light over the ground layers (reflections on water, glints on lava). */
+  private readonly gGlint: Phaser.GameObjects.Graphics;
+  private readonly grounds: Phaser.GameObjects.TileSprite[];
+  private readonly overcast: Phaser.GameObjects.TileSprite;
+  private groundOn = false;
+  private overcastOn = false;
+  private glint: Backdrop['glint'];
+  private glowCol: [number, number] = [0xff5a10, 0xff8a28];
+  private glowAlpha = 0.34;
+  /** Screen y of the far ground layer's top and its scale (device px per art px), for effects drawn over it. */
+  private groundTop = 0;
+  private groundS = 1;
+  /** Brightness of the current lightning flash (0..1), which lights the overcast from inside. */
+  private flashNow = 0;
   private extras: Extra[] = [];
   private scroll = 0;
   private sky = SKY;
@@ -199,13 +240,17 @@ export class BackgroundView {
     this.planet = scene.add.image(0, 0, 'bg-planet').setOrigin(0.5, 0.5);
     this.far = scene.add.tileSprite(0, 0, 1, 192, 'bg-ruins-far').setOrigin(0, 0);
     this.near = scene.add.tileSprite(0, 0, 1, 192, 'bg-ruins-near').setOrigin(0, 0);
+    this.grounds = GROUND_LAYERS.map((l) => scene.add.tileSprite(0, 0, 1, l.h, 'bg-ruins-near').setOrigin(0, 0).setVisible(false));
+    this.overcast = scene.add.tileSprite(0, 0, 1, 128, 'bg-cloudsea').setOrigin(0, 0).setFlipY(true).setVisible(false);
+    this.gFar = scene.add.graphics();
+    this.gGlint = scene.add.graphics().setBlendMode(1 /* ADD */);
     this.skirt = scene.add.rectangle(0, 0, 1, 1, 0x000000).setOrigin(0, 0).setVisible(false);
     this.clouds = scene.add.tileSprite(0, 0, 1, 64, 'bg-clouds').setOrigin(0, 0).setVisible(false);
     this.gBack = scene.add.graphics().setBlendMode(1 /* ADD */);
     this.gFront = scene.add.graphics().setBlendMode(1 /* ADD */);
     this.bank = scene.add.tileSprite(0, 0, 1, 128, 'bg-cloudsea').setOrigin(0, 0).setVisible(false);
     this.gMid = scene.add.graphics();
-    layer.add([this.nebula, this.starsA, this.starsB, this.planet, this.gBack, this.clouds, this.far, this.near, this.skirt, this.gMid, this.bank, this.gFront]);
+    layer.add([this.nebula, this.starsA, this.starsB, this.planet, this.gBack, this.overcast, this.clouds, this.far, this.gFar, this.near, ...this.grounds, this.skirt, this.gGlint, this.gMid, this.bank, this.gFront]);
   }
 
   setTheme(id: string | undefined): void {
@@ -217,7 +262,20 @@ export class BackgroundView {
     this.near.setTint(b.near);
     this.far.setTexture(b.farTex ?? 'bg-ruins-far');
     this.near.setTexture(b.nearTex ?? 'bg-ruins-near');
-    const ground = this.bottomColour(b.nearTex ?? 'bg-ruins-near', b.near);
+    if (b.ground) ensureGroundTextures(this.scene, b.ground);
+    this.groundOn = !!b.ground;
+    this.grounds.forEach((t, i) => {
+      t.setVisible(this.groundOn);
+      if (b.ground) t.setTexture(`${b.ground}-${i}`);
+    });
+    this.overcastOn = !!b.overcast;
+    this.overcast.setVisible(this.overcastOn);
+    if (b.overcast) this.overcast.setTexture(b.overcast);
+    this.glint = b.glint;
+    this.glowCol = b.glowCol ?? [0xff5a10, 0xff8a28];
+    this.glowAlpha = b.glowAlpha ?? 0.34;
+    // below everything drawn, the ground continues in the colour of its last row
+    const ground = b.ground ? this.bottomColour(`${b.ground}-${this.grounds.length - 1}`, 0xffffff) : this.bottomColour(b.nearTex ?? 'bg-ruins-near', b.near);
     this.skirt.setVisible(ground !== null);
     if (ground !== null) this.skirt.setFillStyle(ground);
     this.extras = b.extras ?? [];
@@ -331,9 +389,35 @@ export class BackgroundView {
       t.setPosition(0, (baseY - cy * f) * zoom + H / 2 - 192 * s);
       t.tilePositionX = (cx * f * zoom) / s + time * this.scroll * (f / 0.12);
     }
+    // the ground layers hang rigidly from the near skyline's base and slide past one another, nearer ones faster
+    let bottom = this.near.y + this.near.height;
+    if (this.groundOn) {
+      const s = zoom * 0.5 * 0.85;
+      const base = Math.floor(this.near.y + this.near.height) - 1;
+      this.groundTop = base;
+      this.groundS = s;
+      this.grounds.forEach((t, i) => {
+        const L = GROUND_LAYERS[i];
+        const f = GROUND_PARALLAX[i];
+        t.setTileScale(s, s);
+        t.setSize(W, Math.ceil(L.h * s) + 1);
+        t.setPosition(0, Math.floor(base + L.top * s));
+        t.tilePositionX = (cx * f * zoom) / s + time * this.scroll * (f / 0.12);
+      });
+      const last = this.grounds[this.grounds.length - 1];
+      bottom = last.y + GROUND_LAYERS[GROUND_LAYERS.length - 1].h * s;
+    }
     if (this.skirt.visible) {
-      const top = Math.floor(this.near.y + this.near.height) - 1;
+      const top = Math.floor(bottom) - 1;
       this.skirt.setPosition(0, top).setSize(W, Math.max(0, H - top));
+    }
+    if (this.overcastOn) {
+      // cloud undersides scudding across the top of the sky, faster than the far scenery
+      const k = ps * 2;
+      this.overcast.setTileScale(k, k);
+      this.overcast.setSize(W, 128 * k);
+      this.overcast.setPosition(0, -k * 40 - Math.max(0, cy) * 0.03 * zoom);
+      this.overcast.tilePositionX = (cx * 0.06 * zoom + time * 14 * ps) / k;
     }
 
     if (this.bankOn) {
@@ -353,6 +437,9 @@ export class BackgroundView {
     gb.clear();
     gf.clear();
     this.gMid.clear();
+    this.gFar.clear();
+    this.gGlint.clear();
+    this.flashNow = 0;
     const gm = this.gMid;
     const W = this.w;
     const H = this.h;
@@ -380,6 +467,19 @@ export class BackgroundView {
             const s = Math.max(1, Math.round(ps * (depth > 0.9 ? 1.6 : 1)));
             gf.fillStyle(0xffffff, depth > 0.9 ? 0.8 : 0.45).fillRect(x, y, s, s);
           }
+          // a few big flakes tumbling past close to the camera
+          for (let i = 0; i < 22; i++) {
+            const sp = 0.16 + hash(i * 9 + 701) * 0.08;
+            const ph = (time * sp + hash(i * 9 + 702)) % 1;
+            const sway = Math.sin(time * (1.1 + hash(i * 9 + 703)) + i) * 18 * ps;
+            const span = W + 120;
+            const x = (((hash(i * 9 + 704) * span + sway - ph * 60 * ps - cx * 0.5 * zoom) % span) + span) % span - 60;
+            const y = ph * (H + 40) - 20;
+            const s = ps * 2;
+            gf.fillStyle(0xe8f4ff, 0.35).fillRect(x - ps, y, s + ps * 2, s);
+            gf.fillStyle(0xe8f4ff, 0.35).fillRect(x, y - ps, s, s + ps * 2);
+            gf.fillStyle(0xffffff, 0.85).fillRect(x, y, s, s);
+          }
           break;
         }
         case 'rain': {
@@ -402,6 +502,7 @@ export class BackgroundView {
           const d = time - slot * 5.5 - off;
           if (d > 0 && d < 0.55 && hash(slot * 3 + 4) > 0.2) {
             const fade = d < 0.08 ? 1 : d < 0.18 ? 0.25 : d < 0.28 ? 0.8 : Math.max(0, 1 - d * 1.9);
+            this.flashNow = fade * (settings.reduceFlashes ? 0.2 : 1);
             gb.fillStyle(0xcfe8ff, 0.14 * fade * (settings.reduceFlashes ? 0.2 : 1));
             gb.fillRect(0, 0, W, H);
             const bx = W * (0.15 + hash(slot * 3 + 9) * 0.7) - cx * 0.02 * zoom;
@@ -428,22 +529,100 @@ export class BackgroundView {
           const top = -H * 0.02 - cy * 0.05 * zoom;
           const step = 6 * ps;
           const shift = cx * 0.08 * zoom;
-          gm.fillStyle(0x0a0710, 1);
+          // rock lit from below by the crystals: a pale rim along the underside and the lit flank of each spike
+          const ROCK = 0x140e20;
+          const RIM = 0x2e1f4a;
           for (let x = -step; x < W + step; x += step) {
             const u = Math.floor((x + shift) / step);
             const d = H * (0.05 + 0.03 * hash(u * 3 + 1));
-            gm.fillRect(x - (shift % step), top, step + 1, d);
+            const x0 = x - (shift % step);
+            gm.fillStyle(ROCK, 1).fillRect(x0, top - H, step + 1, d + H);
+            gm.fillStyle(RIM, 1).fillRect(x0, top + d - ps, step + 1, ps);
             if (hash(u * 7 + 2) > 0.72) {
               // a stalactite: a narrow downward spike
               const len = H * (0.06 + 0.1 * hash(u * 5 + 3));
-              const sx = x - (shift % step) + step / 2;
-              gm.fillTriangle(sx - step * 0.9, top + d - 1, sx + step * 0.9, top + d - 1, sx, top + d + len);
+              const sx = x0 + step / 2;
+              gm.fillStyle(ROCK, 1).fillTriangle(sx - step * 0.9, top + d - 1, sx + step * 0.9, top + d - 1, sx, top + d + len);
+              gm.fillStyle(RIM, 1).fillTriangle(sx - step * 0.9, top + d - 1, sx - step * 0.45, top + d - 1, sx, top + d + len);
               if (hash(u * 11 + 4) > 0.5) {
                 gf.fillStyle(0xc898f6, 0.35 + 0.2 * Math.sin(time * 1.3 + u));
                 gf.fillRect(sx - ps, top + d + len * 0.4, ps * 2, ps * 2);
-                gm.fillStyle(0x0a0710, 1);
               }
             }
+          }
+          break;
+        }
+        case 'shafts': {
+          // pale light falling through cracks in the cave roof, breathing slowly, dust turning in it
+          const top = -H * 0.02 - cy * 0.05 * zoom;
+          for (let i = 0; i < 4; i++) {
+            const ox = W * (0.1 + i * 0.27 + hash(i + 70) * 0.06) - cx * 0.08 * zoom;
+            const lean = W * (0.05 + hash(i + 80) * 0.05);
+            const len = H * (0.8 + hash(i + 90) * 0.25);
+            const w0 = W * (0.008 + 0.008 * hash(i + 95));
+            const w1 = w0 * 5;
+            const breathe = 0.65 + 0.35 * Math.sin(time * 0.35 + i * 1.9);
+            const col = i % 2 ? 0xb890ff : 0x8ae0ff;
+            const a0 = 0.13 * breathe;
+            const ax = ox - w0;
+            const bx = ox + w0;
+            const cxL = ox + lean - w1;
+            const dxR = ox + lean + w1;
+            const by = top + len;
+            gb.fillGradientStyle(col, col, col, col, a0, a0, 0, 0);
+            gb.fillTriangle(ax, top, bx, top, cxL, by);
+            gb.fillGradientStyle(col, col, col, col, a0, 0, 0, 0);
+            gb.fillTriangle(bx, top, cxL, by, dxR, by);
+            // a brighter core
+            gb.fillGradientStyle(0xffffff, 0xffffff, 0xffffff, 0xffffff, a0 * 0.4, a0 * 0.4, 0, 0);
+            gb.fillTriangle(ox - w0 * 0.4, top, ox + w0 * 0.4, top, ox + lean * 0.6, top + len * 0.6);
+            for (let k = 0; k < 9; k++) {
+              const u = (time * (0.012 + hash(i * 20 + k) * 0.02) + hash(i * 20 + k + 5)) % 1;
+              const side = hash(i * 20 + k + 9) - 0.5 + Math.sin(time * 0.6 + k) * 0.1;
+              const x = ox + lean * u + side * 2 * (w0 + (w1 - w0) * u);
+              const y = top + len * u;
+              gb.fillStyle(0xf0e4ff, 0.5 * breathe * Math.sin(u * Math.PI));
+              gb.fillRect(Math.round(x), Math.round(y), ps, ps);
+            }
+          }
+          break;
+        }
+        case 'smoke': {
+          // steam from the far cooling towers and smoke from the stacks, lit from below by the furnace glow
+          const s = zoom * 0.5 * 0.55;
+          const tile = 512 * s;
+          const tp = this.far.tilePositionX;
+          const top = this.far.y;
+          INDUSTRY_VENTS.forEach((v, vi) => {
+            const first = ((((v.x - tp) * s) % tile) + tile) % tile;
+            for (let lx = first - tile; lx < W + 20 * s; lx += tile) {
+              if (lx < -120 * s) continue;
+              for (let k = 0; k < 8; k++) {
+                const ph = (time * (v.steam ? 0.07 : 0.1) + k / 8 + hash(vi * 17 + 3)) % 1;
+                const rise = ph * (v.steam ? 64 : 84);
+                const drift = ph * ph * 56 + Math.sin(time * 0.7 + k * 1.3 + vi) * 2;
+                const r = (v.w * (v.steam ? 0.3 : 0.4) + ph * (v.steam ? 15 : 10)) * s;
+                const a = Math.min(1, ph * 7) * (1 - ph) * (v.steam ? 0.34 : 0.42);
+                const col = v.steam ? (ph < 0.3 ? 0xc07a5a : 0x7a4a40) : ph < 0.25 ? 0x4a2216 : 0x24120e;
+                this.gFar.fillStyle(col, a).fillCircle(lx + drift * s, top + (v.y - rise) * s, r);
+              }
+            }
+          });
+          break;
+        }
+        case 'fireflies': {
+          // fireflies over the jungle below, winking on and off as they wander
+          const base = this.groundOn ? this.groundTop : H * 0.6;
+          const s = this.groundOn ? this.groundS : zoom * 0.425;
+          for (let i = 0; i < 34; i++) {
+            const blink = Math.max(0, Math.sin(time * (0.9 + hash(i * 3 + 300)) + hash(i * 3 + 301) * 6.28));
+            if (blink < 0.05) continue;
+            const wx = hash(i * 3 + 302) * (W + 200) + Math.sin(time * 0.3 + i) * 24 * ps - cx * 0.3 * zoom;
+            const x = ((wx % (W + 200)) + W + 200) % (W + 200) - 100;
+            const y = base + (-30 + hash(i * 3 + 303) * 220) * s + Math.sin(time * 0.5 + i * 2) * 8 * ps;
+            const a = blink * blink;
+            gf.fillStyle(0xc8ff60, 0.18 * a).fillRect(Math.round(x - ps), Math.round(y - ps), ps * 4, ps * 4);
+            gf.fillStyle(0xf0ffa0, 0.85 * a).fillRect(Math.round(x), Math.round(y), ps * 2, ps * 2);
           }
           break;
         }
@@ -608,12 +787,14 @@ export class BackgroundView {
         case 'glow': {
           const pulse = 0.75 + 0.25 * Math.sin(time * 1.4);
           const top = H * 0.5;
-          gb.fillGradientStyle(0xff5a10, 0xff5a10, 0xff8a28, 0xff8a28, 0, 0, 0.34 * pulse, 0.34 * pulse);
+          const [lo, hi] = this.glowCol;
+          const ga = this.glowAlpha * pulse;
+          gb.fillGradientStyle(lo, lo, hi, hi, 0, 0, ga, ga);
           gb.fillRect(0, top, W, H - top);
           // molten sun/core low on the horizon, drifting with the camera
           const gx = W * 0.5 - cx * 0.03 * zoom;
           for (let r = 4; r >= 1; r--) {
-            gb.fillStyle(0xff7a20, 0.05 * pulse);
+            gb.fillStyle(hi, (0.05 * pulse * this.glowAlpha) / 0.34);
             gb.fillCircle(gx, H * 0.78, r * H * 0.12);
           }
           break;
@@ -672,6 +853,63 @@ export class BackgroundView {
           }
           break;
         }
+      }
+    }
+    if (this.overcastOn) {
+      // the cloud ceiling lights up from inside when lightning flashes
+      const f = this.flashNow;
+      const c = (a: number): number => Math.round(a + (255 - a) * f);
+      this.overcast.setTint((c(0x9a) << 16) | (c(0xa8) << 8) | c(0xc0));
+    }
+    this.drawGlint(cx, zoom, time);
+  }
+
+  /** Light on the water or lava of the far ground layer: a moon's broken reflection, or glints winking in and out. */
+  private drawGlint(cx: number, zoom: number, time: number): void {
+    const gl = this.glint;
+    if (!gl || !this.groundOn) return;
+    const g = this.gGlint;
+    const s = this.groundS;
+    const W = this.w;
+    const H = this.h;
+    const y0 = this.groundTop + gl.y0 * s;
+    const y1 = Math.min(H, this.groundTop + gl.y1 * s);
+    if (y1 <= y0) return;
+    const A = gl.alpha ?? 1;
+    if (gl.path) {
+      // under the moon: rows of short dashes that widen toward the viewer and shiver a few times a second
+      const mx = W * 0.24 - cx * 0.015 * zoom;
+      const step = Math.max(2, Math.round(s * 2));
+      const slot = Math.floor(time * 5);
+      for (let y = Math.round(y0); y < y1; y += step) {
+        const u = (y - y0) / Math.max(1, this.groundTop + gl.y1 * s - y0);
+        const row = Math.floor((y - this.groundTop) / step);
+        const half = H * (0.014 + 0.05 * u);
+        for (let k = 0; k < 3; k++) {
+          const h = hash(row * 7 + k * 31 + slot * 101);
+          const len = half * (0.25 + 0.6 * hash(row * 13 + k + slot * 57));
+          const x = mx + (h - 0.5) * 2 * half * (k === 0 ? 0.5 : 1);
+          g.fillStyle(gl.cols[k % gl.cols.length], A * (0.4 - 0.25 * u) * (k === 0 ? 1 : 0.55));
+          g.fillRect(Math.round(x - len / 2), y, Math.max(1, Math.round(len)), Math.max(1, Math.round(step * 0.5)));
+        }
+      }
+      return;
+    }
+    // glints fixed to the far ground layer, so they ride along with it as it scrolls
+    const tile = 512 * s;
+    const tp = this.grounds[0].tilePositionX;
+    const sz = Math.max(1, Math.round(s));
+    for (let i = 0; i < 80; i++) {
+      const a = Math.sin(time * (0.7 + hash(i * 3 + 502) * 1.4) + hash(i * 3 + 503) * 6.28);
+      if (a <= 0.25) continue;
+      const ax = hash(i * 3 + 500) * 512;
+      const ay = gl.y0 + hash(i * 3 + 501) * (gl.y1 - gl.y0);
+      const y = Math.round(this.groundTop + ay * s);
+      if (y > H) continue;
+      const col = gl.cols[i % gl.cols.length];
+      const w = sz * (hash(i + 900) > 0.6 ? 3 : 2);
+      for (let x = ((((ax - tp) * s) % tile) + tile) % tile; x < W; x += tile) {
+        g.fillStyle(col, A * (a - 0.25) * 0.8).fillRect(Math.round(x), y, w, sz);
       }
     }
   }

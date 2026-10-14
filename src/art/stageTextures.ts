@@ -441,7 +441,10 @@ function ruins(seed: number, body: string, light: string, dark: string, windows:
  * Horizontally-tileable industrial skyline for the reactor: hyperbolic cooling towers, banded smokestacks, pipe bridges,
  * gantries, and glowing vents. `glow` is the molten light colour.
  */
-function industry(seed: number, body: string, light: string, dark: string, glow: string, W = 512, H = 192): HTMLCanvasElement {
+/** Where the far refinery skyline's cooling towers (steam) and smokestacks (smoke) vent, in its art pixels; filled when it is drawn. */
+export const INDUSTRY_VENTS: { x: number; y: number; w: number; steam: boolean }[] = [];
+
+function industry(seed: number, body: string, light: string, dark: string, glow: string, W = 512, H = 192, vents?: typeof INDUSTRY_VENTS): HTMLCanvasElement {
   const [c, g] = canvas(W, H);
   const rnd = mulberry32(seed);
   const spans: [number, number, number][] = [];
@@ -466,6 +469,7 @@ function industry(seed: number, body: string, light: string, dark: string, glow:
       // steam crown + glowing rim
       px(g, glow, x + Math.floor(bw * 0.2), H - h, Math.floor(bw * 0.6), 2);
       spans.push([x + bw / 2, H - h + 10, bw]);
+      vents?.push({ x: x + bw / 2, y: H - h, w: bw * 0.6, steam: true });
       x += bw + 8 + Math.floor(rnd() * 10);
     } else if (kind < 0.75) {
       // smokestack with warning bands
@@ -478,6 +482,7 @@ function industry(seed: number, body: string, light: string, dark: string, glow:
       px(g, body, x - 2, H - h - 3, sw + 4, 4);
       px(g, glow, x - 2, H - h - 4, sw + 4, 1);
       spans.push([x + sw / 2, H - h + 30, sw]);
+      vents?.push({ x: x + sw / 2, y: H - h - 4, w: sw, steam: false });
       x += sw + 10 + Math.floor(rnd() * 14);
     } else {
       // blocky reactor hall with vent slits
@@ -1208,6 +1213,782 @@ function bubbleTex(): HTMLCanvasElement {
   return c;
 }
 
+// ---------------------------------------------------------------------------------------------
+// Ground planes: what lies below the near skyline, in three overlapping layers (far floor, mid ridge, foreground).
+// Each nearer layer has a ragged opaque top edge that covers the seam with the one behind it as they parallax apart.
+// ---------------------------------------------------------------------------------------------
+
+/** The three ground layers: art-pixel height and where each one's top sits below the near skyline's base. */
+export const GROUND_LAYERS = [
+  { h: 160, top: 0 },
+  { h: 200, top: 64 },
+  { h: 240, top: 130 },
+] as const;
+const GW = 512;
+
+const BAY = [0, 8, 2, 10, 12, 4, 14, 6, 3, 11, 1, 9, 15, 7, 13, 5];
+/** Ordered-dither threshold in [0,1) for an art pixel. */
+const bay = (x: number, y: number): number => BAY[((y & 3) << 2) | (x & 3)] / 16;
+const clampI = (v: number, n: number): number => Math.max(0, Math.min(n - 1, Math.floor(v)));
+
+/** Direct pixel painter (0xRRGGBB colours, alpha blending); x wraps so everything drawn is horizontally tileable. */
+class Pix {
+  readonly d: Uint8ClampedArray;
+  constructor(
+    readonly W: number,
+    readonly H: number,
+  ) {
+    this.d = new Uint8ClampedArray(W * H * 4);
+  }
+  private at(x: number, y: number): number {
+    const yi = Math.round(y);
+    if (yi < 0 || yi >= this.H) return -1;
+    const xi = ((Math.round(x) % this.W) + this.W) % this.W;
+    return (yi * this.W + xi) * 4;
+  }
+  set(x: number, y: number, col: number, a = 1): void {
+    const o = this.at(x, y);
+    if (o < 0 || a <= 0) return;
+    const d = this.d;
+    const r = (col >> 16) & 255;
+    const g = (col >> 8) & 255;
+    const b = col & 255;
+    if (a >= 1) {
+      d[o] = r;
+      d[o + 1] = g;
+      d[o + 2] = b;
+      d[o + 3] = 255;
+      return;
+    }
+    const da = d[o + 3] / 255;
+    const k = da * (1 - a);
+    const oa = a + k;
+    d[o] = (r * a + d[o] * k) / oa;
+    d[o + 1] = (g * a + d[o + 1] * k) / oa;
+    d[o + 2] = (b * a + d[o + 2] * k) / oa;
+    d[o + 3] = oa * 255;
+  }
+  /** Tint an already-painted pixel toward `col` (light falling on it); leaves empty pixels empty. */
+  lit(x: number, y: number, col: number, a: number): void {
+    const o = this.at(x, y);
+    if (o < 0 || this.d[o + 3] === 0) return;
+    this.set(x, y, col, a);
+  }
+  opaque(x: number, y: number): boolean {
+    const o = this.at(x, y);
+    return o >= 0 && this.d[o + 3] > 0;
+  }
+  rect(x: number, y: number, w: number, h: number, col: number, a = 1): void {
+    const x0 = Math.round(x);
+    const y0 = Math.round(y);
+    for (let j = 0; j < h; j++) for (let i = 0; i < w; i++) this.set(x0 + i, y0 + j, col, a);
+  }
+  /** Fill every column from `top(x)` to the bottom with `fn(x, y, depth below top)`. */
+  body(top: (x: number) => number, fn: (x: number, y: number, k: number) => number): void {
+    for (let x = 0; x < this.W; x++) {
+      const t = Math.round(top(x));
+      for (let y = Math.max(0, t); y < this.H; y++) this.set(x, y, fn(x, y, y - t));
+    }
+  }
+  /** A pool of light on the ground: an ellipse (flattened by perspective) of dithered, stepped falloff. */
+  halo(cx: number, cy: number, r: number, col: number, a: number, flat = 0.45): void {
+    const ry = r * flat;
+    for (let y = Math.floor(-ry); y <= ry; y++) {
+      for (let x = Math.floor(-r); x <= r; x++) {
+        const d = Math.hypot(x / r, y / ry);
+        if (d >= 1) continue;
+        const q = Math.floor((1 - d) * (1 - d) * 3 + bay(cx + x, cy + y) - 0.25);
+        if (q > 0) this.lit(cx + x, cy + y, col, (a * q) / 3);
+      }
+    }
+  }
+  /** A fan of pointed crystal prisms from (bx, by): two-tone facets, a bright spine and a white-hot tip. */
+  crystals(bx: number, by: number, n: number, len: number, wid: number, xt: number[], rnd: () => number, spread = 0.38): void {
+    for (let j = 0; j < n; j++) {
+      const ang = -Math.PI / 2 + (j - (n - 1) / 2) * spread + (rnd() - 0.5) * 0.25;
+      const L = Math.round(len * (0.55 + rnd() * 0.45) * (j === Math.floor(n / 2) ? 1.25 : 1));
+      const ca = Math.cos(ang);
+      const sa = Math.sin(ang);
+      for (let k = 0; k < L; k++) {
+        const ww = Math.max(1, Math.round(wid * (k < L * 0.75 ? 1 : (L - k) / (L * 0.25))));
+        for (let i = 0; i < ww; i++) {
+          const off = i - (ww - 1) / 2;
+          const x = bx + ca * k - sa * off;
+          const y = by + sa * k + ca * off;
+          const c = k >= L - 2 ? xt[3] : i === 0 && ww > 2 ? xt[0] : off < 0 ? xt[2] : xt[1];
+          this.set(x, y, c);
+        }
+        if (ww > 2 && k % 6 === 3) this.set(bx + ca * k, by + sa * k, xt[3]);
+      }
+    }
+  }
+  canvas(): HTMLCanvasElement {
+    const [c, g] = canvas(this.W, this.H);
+    const img = g.createImageData(this.W, this.H);
+    img.data.set(this.d);
+    g.putImageData(img, 0, 0);
+    return c;
+  }
+}
+
+/** A tileable ragged skyline for a ground layer: coarse swells plus finer roughness (noise period 8 over W = 512). */
+function ridgeOf(seed: number, base: number, amp: number, rough: number): number[] {
+  const n = makeNoise(seed, 8);
+  const out: number[] = [];
+  for (let x = 0; x < GW; x++) out.push(Math.round(base + (n(x / 64, 0.5) - 0.5) * amp + (n(x / 16, 3.5) - 0.5) * rough + (n(x / 4, 6.5) - 0.5) * rough * 0.3));
+  return out;
+}
+
+const layers = (): [Pix, Pix, Pix] => GROUND_LAYERS.map((l) => new Pix(GW, l.h)) as [Pix, Pix, Pix];
+
+/**
+ * The finished layers. Each nearer layer must be opaque everywhere below the bottom of the one behind it (or the sky would
+ * show through between them): any pixel still empty there takes the colour of the first painted pixel beneath it.
+ */
+function sealed(ps: Pix[]): HTMLCanvasElement[] {
+  ps.forEach((P, i) => {
+    if (i === 0) return;
+    const prev = GROUND_LAYERS[i - 1];
+    const from = Math.max(0, prev.top + prev.h - GROUND_LAYERS[i].top - 3);
+    for (let x = 0; x < P.W; x++) {
+      for (let y = P.H - 1, fill = -1; y >= from; y--) {
+        const o = (y * P.W + x) * 4;
+        if (P.d[o + 3] === 255) fill = o;
+        else if (fill >= 0) {
+          P.d[o] = P.d[fill];
+          P.d[o + 1] = P.d[fill + 1];
+          P.d[o + 2] = P.d[fill + 2];
+          P.d[o + 3] = 255;
+        }
+      }
+    }
+  });
+  return ps.map((P) => P.canvas());
+}
+
+/** Amethyst Hollow: an underground lake glowing with crystal reflections, crystal-studded ledges and great foreground shards. */
+function geodeGround(): HTMLCanvasElement[] {
+  const [A, B, C] = layers();
+  const rnd = mulberry32(611);
+  const n = makeNoise(612, 8);
+  const ROCK = [0x05030a, 0x08060e, 0x0d0a15, 0x13101e, 0x1b1529, 0x251c38, 0x34284e, 0x4a3a6a];
+  const PURP = [0x2a1650, 0x6a34a0, 0xa868e0, 0xf4e8ff];
+  const CYAN = [0x0e3a44, 0x1c8a94, 0x40e0d8, 0xe0fffa];
+  const pal = (): number[] => (rnd() > 0.3 ? PURP : CYAN);
+
+  // A: far shore, then a still lake mirroring the crystal light, then a rubble shore
+  const lakeTop = (x: number): number => 9 + (n(x / 16, 1.5) - 0.5) * 6;
+  const lakeBot = (x: number): number => 92 + (n(x / 64, 2.5) - 0.5) * 44 + (n(x / 8, 4.5) - 0.5) * 8;
+  const refl = Array.from({ length: 9 }, () => ({ x: rnd() * GW, w: 4 + rnd() * 10, c: rnd() > 0.35 ? PURP : CYAN }));
+  A.body(
+    () => 0,
+    (x, y) => {
+      const t = lakeTop(x);
+      const b = lakeBot(x);
+      if (y < t) return ROCK[clampI(2 + (n(x / 8, y / 3) - 0.3) * 2 + bay(x, y) * 0.8, ROCK.length)];
+      if (y >= b) {
+        const k = y - b;
+        return ROCK[clampI(4.2 - k / 22 + (n(x / 8, y / 6) - 0.5) * 1.6 + bay(x, y) * 0.9, ROCK.length)];
+      }
+      return 0x0a0616;
+    },
+  );
+  for (let x = 0; x < GW; x++) {
+    const t = Math.round(lakeTop(x));
+    const b = Math.round(lakeBot(x));
+    A.set(x, t - 1, ROCK[6]); // lit lip of the far shore
+    for (let y = t; y < b; y++) {
+      const u = (y - t) / Math.max(1, b - t);
+      // water darkens toward the viewer, faint sky-glow near the far edge
+      A.set(x, y, u < 0.12 ? 0x1c1236 : u < 0.3 && bay(x, y) > u * 2.6 ? 0x150c2a : 0x0c0718);
+      // reflected crystal columns, broken into ripples that lengthen with depth
+      for (const r of refl) {
+        let dx = Math.abs(x - r.x);
+        if (dx > GW / 2) dx = GW - dx;
+        const w = r.w * (1 + u * 0.8);
+        if (dx > w) continue;
+        const ripple = (y + Math.floor(n(x / 4, y * 0.5) * 3)) % 3 !== 0;
+        if (!ripple) continue;
+        const e = 1 - dx / w;
+        A.set(x, y, e > 0.75 && u < 0.6 ? r.c[2] : e > 0.35 ? r.c[1] : r.c[0], 0.85 - u * 0.4);
+      }
+      // stray ripple glints
+      if ((n(x / 4, y * 0.9) > 0.74 && y % 2 === 0) || (bay(x * 3, y) > 0.97 && u > 0.2)) A.set(x, y, 0x3a2a5a);
+    }
+    A.set(x, b, 0x04020a); // wet dark waterline
+  }
+  for (let i = 0; i < 14; i++) {
+    const x = rnd() * GW;
+    const y = 112 + rnd() * 44;
+    const xt = pal();
+    A.halo(x, y, 16, xt[2], 0.35);
+    A.crystals(x, y, 2 + Math.floor(rnd() * 3), 6 + rnd() * 6, 2, xt, rnd);
+  }
+  for (let i = 0; i < 90; i++) {
+    const x = Math.floor(rnd() * GW);
+    const y = 100 + Math.floor(rnd() * 58);
+    if (!A.opaque(x, y - 2)) continue;
+    A.rect(x, y, 2, 1, ROCK[5]);
+    A.set(x, y + 1, ROCK[1]);
+  }
+
+  // B: a ledge of rock with stalagmites and glowing clusters along its crest
+  const rb = ridgeOf(620, 34, 34, 12);
+  // stalagmite stumps poking above the crest
+  for (let i = 0; i < 9; i++) {
+    const cx = Math.floor(((i + rnd()) / 9) * GW);
+    const h = 14 + Math.floor(rnd() * 22);
+    const w = 6 + Math.floor(rnd() * 8);
+    const base = rb[cx] + 4;
+    for (let k = 0; k < h; k++) {
+      const ww = Math.max(1, Math.round(w * Math.pow(k / h, 0.7)));
+      for (let i2 = 0; i2 < ww; i2++) B.set(cx - Math.floor(ww / 2) + i2, base - h + k, i2 === 0 ? ROCK[6] : i2 < ww * 0.35 ? ROCK[5] : i2 >= ww - 1 ? ROCK[1] : ROCK[3]);
+      if (k % 7 === 3) B.rect(cx - Math.floor(ww / 2), base - h + k, ww, 1, ROCK[2]);
+    }
+  }
+  B.body(
+    (x) => rb[x],
+    (x, y, k) => {
+      if (k === 0) return ROCK[7];
+      if (k < 3) return ROCK[6];
+      const strata = (y + Math.round((n(x / 16, 9.5) - 0.5) * 10)) % 19 === 0 ? -1.2 : 0;
+      return ROCK[clampI(5 - k / 26 + (n(x / 8, y / 7) - 0.5) * 1.4 + bay(x, y) * 0.9 + strata, ROCK.length)];
+    },
+  );
+  for (let i = 0; i < 11; i++) {
+    const x = Math.floor(rnd() * GW);
+    const y = rb[x] + 3 + rnd() * 6;
+    const xt = pal();
+    B.halo(x, y + 6, 32, xt[2], 0.42);
+    B.crystals(x, y, 3 + Math.floor(rnd() * 3), 16 + rnd() * 16, 4, xt, rnd);
+  }
+  // glowing toadstools in clumps on the ledge and in its cracks
+  for (let i = 0; i < 9; i++) {
+    const x0 = Math.floor(rnd() * GW);
+    const y0 = rb[x0] + 6 + Math.floor(rnd() * 60);
+    B.halo(x0, y0, 14, CYAN[2], 0.3);
+    for (let m = 0; m < 3 + Math.floor(rnd() * 3); m++) {
+      const x = x0 + Math.floor((rnd() - 0.5) * 12);
+      const h = 2 + Math.floor(rnd() * 4);
+      const cw = 3 + Math.floor(rnd() * 3);
+      B.rect(x, y0 - h, 1, h, 0x9ad0d0);
+      B.rect(x - Math.floor(cw / 2), y0 - h - 1, cw, 1, CYAN[1]);
+      B.rect(x - Math.floor(cw / 2) + 1, y0 - h - 2, Math.max(1, cw - 2), 1, CYAN[2]);
+      B.set(x, y0 - h - 2, CYAN[3]);
+    }
+  }
+
+  // C: foreground boulders, near-black against the glow, with great shards of amethyst
+  const rc = ridgeOf(630, 84, 80, 18);
+  C.body(
+    (x) => rc[x],
+    (x, y, k) => (k === 0 ? ROCK[5] : k < 2 ? ROCK[3] : ROCK[clampI(2.2 - k / 40 + (n(x / 8, y / 9) - 0.5) * 1.2 + bay(x, y) * 0.8, 3)]),
+  );
+  const peaksC: number[] = [];
+  for (let x = 0; x < GW; x += 4) if (rc[x] < rc[(x + GW - 12) % GW] && rc[x] <= rc[(x + 12) % GW]) peaksC.push(x);
+  for (let i = 0; i < 6; i++) {
+    const x = peaksC.length ? peaksC[Math.floor(rnd() * peaksC.length)] : Math.floor(rnd() * GW);
+    const y = rc[x] + 6;
+    const xt = i % 3 === 2 ? CYAN : PURP;
+    C.halo(x, y + 12, 60, xt[1], 0.5);
+    C.crystals(x, y, 3 + Math.floor(rnd() * 2), 44 + rnd() * 40, 9, xt, rnd, 0.3);
+  }
+  return sealed([A, B, C]);
+}
+
+/** Ember Reactor: a river of lava below the refinery, a lit tank-and-pipe deck, and foreground girders and mains. */
+function reactorGround(): HTMLCanvasElement[] {
+  const [A, B, C] = layers();
+  const rnd = mulberry32(711);
+  const n = makeNoise(712, 8);
+  const G = [0x070302, 0x0d0504, 0x150806, 0x1f0c08, 0x2c120a, 0x3e1a0e, 0x5a2814];
+  const L = [0x4a1006, 0x8a2408, 0xd04a0c, 0xff7a1a, 0xffb040, 0xffe890];
+  const M = [0x100604, 0x1e0e08, 0x341a10, 0x522a18, 0x8a4626, 0xe0843a];
+  const HAZ = [0xffc030, 0x1a0c06];
+
+  // A: dark bank, the lava river (cooling crust, bright seams), and a scorched shore lit by it
+  const lt = (x: number): number => 5 + (n(x / 16, 1.5) - 0.5) * 6;
+  const lb = (x: number): number => 74 + (n(x / 64, 2.5) - 0.5) * 36 + (n(x / 8, 3.5) - 0.5) * 6;
+  A.body(
+    () => 0,
+    (x, y) => {
+      const t = lt(x);
+      const b = lb(x);
+      if (y < t) return G[clampI(1 + y / 3 + bay(x, y), 4)];
+      if (y < b) {
+        const u = (y - t) / (b - t);
+        // mostly dark cooling crust, broken by glowing cracks; the open channels burn hottest in their middles
+        const v = n(x / 32, y / (2.5 + u * 5)) * 0.7 + n(x / 8, y / (1.5 + u * 2.5)) * 0.3;
+        if (v < 0.54) return v < 0.44 ? G[2] : v < 0.5 ? G[3] : G[5];
+        if (v < 0.565) return L[1];
+        return L[clampI(2 + (v - 0.565) * 16 + (bay(x, y) - 0.5) * 0.8 - u * 0.8, L.length)];
+      }
+      const k = y - b;
+      return G[clampI(6 - k / 7 + (n(x / 8, y / 5) - 0.5) * 1.4 + bay(x, y) * 0.9, G.length)];
+    },
+  );
+  for (let x = 0; x < GW; x++) {
+    A.set(x, Math.round(lt(x)) - 1, L[1]);
+    A.set(x, Math.round(lb(x)), L[3]);
+  }
+  // lava falls / outflow pipes feeding the river from the far bank
+  for (let i = 0; i < 6; i++) {
+    const x = Math.floor(rnd() * GW);
+    A.rect(x - 3, 0, 7, 3, M[2]);
+    A.rect(x - 3, 0, 7, 1, M[4]);
+    A.rect(x - 1, 3, 3, Math.round(lt(x)) + 2, L[4]);
+    A.set(x, 3, L[5]);
+  }
+  // slag heaps on the near shore
+  for (let i = 0; i < 10; i++) {
+    const x = Math.floor(rnd() * GW);
+    const y = Math.round(lb(x)) + 18 + Math.floor(rnd() * 40);
+    const w = 10 + Math.floor(rnd() * 16);
+    for (let k = 0; k < w / 2; k++) {
+      const ww = Math.round(w * (k / (w / 2)));
+      A.rect(x - Math.floor(ww / 2), y - w / 2 + k, ww, 1, k === 0 ? G[6] : G[3]);
+      A.set(x - Math.floor(ww / 2), y - w / 2 + k, G[6]);
+    }
+  }
+
+  // B: the refinery deck: railings, storage tanks with warning lamps, pipe runs
+  const deck = 64;
+  for (let i = 0; i < 5; i++) {
+    const x = Math.floor(((i + 0.2 + rnd() * 0.6) / 5) * GW);
+    const w = 30 + Math.floor(rnd() * 26);
+    const h = 26 + Math.floor(rnd() * 22);
+    const top = deck - h;
+    const dome = Math.round(w * 0.18);
+    for (let xx = 0; xx < w; xx++) {
+      const u = xx / (w - 1);
+      const col = u < 0.08 ? M[5] : u < 0.22 ? M[4] : u < 0.55 ? M[3] : u < 0.88 ? M[2] : M[1];
+      const dy = Math.round(dome * (1 - Math.sqrt(1 - Math.pow(u * 2 - 1, 2))));
+      B.rect(x + xx, top + dy, 1, h - dy, col);
+      B.set(x + xx, top + dy, u < 0.5 ? M[5] : M[4]);
+      // hazard band and seams
+      for (let k = 0; k < 4; k++) B.set(x + xx, top + Math.round(h * 0.55) + k, (xx + k) % 6 < 3 ? HAZ[0] : HAZ[1]);
+      if (xx % 9 === 0) B.rect(x + xx, top + dy + 2, 1, h - dy - 2, M[1]);
+    }
+    B.rect(x + Math.floor(w / 2) - 1, top - 3, 3, 3, 0xff3a20);
+    B.set(x + Math.floor(w / 2), top - 3, 0xffd0a0);
+    // ladder
+    for (let k = top + 4; k < deck; k += 3) B.rect(x + w - 6, k, 4, 1, M[1]);
+  }
+  for (let x = 0; x < GW; x++) {
+    if (x % 14 === 0) B.rect(x, deck - 12, 2, 12, M[2]);
+    if (!B.opaque(x, deck - 12)) B.set(x, deck - 12, M[4]);
+    if (!B.opaque(x, deck - 7)) B.set(x, deck - 7, M[2]);
+  }
+  B.body(
+    () => deck,
+    (x, y, k) => {
+      if (k === 0) return M[5];
+      if (k < 3) return M[3];
+      // grating: a perspective lattice that opens up toward the viewer
+      const gy = Math.floor(3 + k / 14);
+      const grid = x % 6 === 0 || k % gy === 0;
+      return grid ? M[0] : G[clampI(4 - k / 40 + bay(x, y) * 0.9, 5)];
+    },
+  );
+  const pipe = (P: Pix, y0: number, d: number, hot: number): void => {
+    for (let x = 0; x < GW; x++) {
+      const heat = Math.max(0, Math.sin((x / GW) * Math.PI * 2 * 3 + hot) - 0.6) * 2.5;
+      for (let k = 0; k < d; k++) {
+        const u = k / (d - 1);
+        let c = u < 0.12 ? M[5] : u < 0.3 ? M[4] : u < 0.6 ? M[3] : u < 0.85 ? M[2] : M[1];
+        if (heat > 0.4 && u > 0.25 && u < 0.75) c = heat > 0.9 ? L[3] : L[2];
+        P.set(x, y0 + k, c);
+      }
+      if (x % 48 === 0) P.rect(x - 1, y0 - 1, 4, d + 2, M[4]);
+      if (x % 48 === 2) P.rect(x, y0 - 1, 1, d + 2, M[1]);
+      if (x % 96 === 30) for (let k = y0 + d; k < P.H; k += 1) P.rect(x, k, 3, 1, k % 4 ? M[1] : M[2]);
+    }
+  };
+  pipe(B, 86, 7, 0);
+  pipe(B, 122, 11, 2);
+  for (let i = 0; i < 8; i++) {
+    const x = Math.floor(rnd() * GW);
+    const y = 140 + Math.floor(rnd() * 50);
+    B.rect(x, y, 6, 2, L[3]);
+    B.set(x, y, L[5]);
+    B.halo(x + 3, y + 1, 12, L[2], 0.35);
+  }
+
+  // C: foreground: I-beam columns, a great main with valve wheels, and trusses below
+  const main = 96;
+  for (let i = 0; i < 6; i++) {
+    const x = Math.floor(((i + 0.15 + rnd() * 0.7) / 6) * GW);
+    const top = 24 + Math.floor(rnd() * 46);
+    const w = 10;
+    for (let y = top; y < C.H; y++) {
+      C.rect(x, y, w, 1, M[1]);
+      C.set(x, y, M[4]);
+      C.set(x + 1, y, M[3]);
+      C.set(x + w - 1, y, M[0]);
+      if (y % 12 === 0) C.rect(x + 3, y, 4, 1, M[0]);
+    }
+    C.rect(x - 2, top, w + 4, 3, M[2]);
+    C.rect(x - 2, top, w + 4, 1, M[5]);
+    for (let k = 0; k < 8; k++) C.set(x + k + 1, top + 6 + (k % 2), k < 4 ? HAZ[0] : HAZ[1]);
+  }
+  pipe(C, main, 22, 4);
+  for (let i = 0; i < 4; i++) {
+    const x = Math.floor(rnd() * GW);
+    for (let a = 0; a < Math.PI * 2; a += 0.08) C.set(x + Math.cos(a) * 7, main - 9 + Math.sin(a) * 7, a < Math.PI ? M[2] : M[5]);
+    C.rect(x - 7, main - 9, 15, 1, M[3]);
+    C.rect(x, main - 16, 1, 15, M[3]);
+    C.rect(x - 1, main - 2, 3, 3, M[2]);
+  }
+  C.body(
+    () => main + 22,
+    (x, y, k) => {
+      const truss = (x + k) % 40 < 2 || (x - k + 400) % 40 < 2 || k % 40 < 2;
+      return truss ? M[2] : G[clampI(1.8 - k / 60 + bay(x, y) * 0.7, 3)];
+    },
+  );
+  return sealed([A, B, C]);
+}
+
+/** Frostfang: a frozen lake under the shrine woods, a drift ridge with pines and stone lanterns, and deep foreground snow. */
+function frostGround(): HTMLCanvasElement[] {
+  const [A, B, C] = layers();
+  const rnd = mulberry32(811);
+  const n = makeNoise(812, 8);
+  const S = [0x5a7098, 0x7a90b4, 0x9cb0d0, 0xbccce4, 0xd8e4f4, 0xeef4fc, 0xffffff];
+  const I = [0x23395e, 0x2e4a74, 0x3a5a86, 0x4a6c98, 0x6484ac, 0x8aa6c8, 0xd8ecff];
+  const PINE = [0x0a1622, 0x12222f, 0x1c3448, 0x2a4a64];
+  const GLOW = 0xffd08a;
+
+  // A: snowy far shore, a frozen lake, a drifted snowfield
+  const it = (x: number): number => 10 + (n(x / 16, 1.5) - 0.5) * 8;
+  const ib = (x: number): number => 70 + (n(x / 64, 2.5) - 0.5) * 30 + (n(x / 8, 3.5) - 0.5) * 5;
+  A.body(
+    () => 0,
+    (x, y) => {
+      const t = it(x);
+      const b = ib(x);
+      if (y < t) return y < t - 2 ? S[5] : S[3];
+      if (y < b) {
+        const u = (y - t) / (b - t);
+        // polished ice: bands of mirrored sky, wind streaks, darker toward us
+        const streak = n(x / 16, y / (1.5 + u * 3));
+        return I[clampI(4.6 - u * 2.6 + (streak - 0.5) * 2.2 + bay(x, y) * 0.8, I.length - 1)];
+      }
+      const k = y - b;
+      // drift ridges: a bright crest line with a blue shadow falling away below it
+      const ry = (y + Math.round((n(x / 16, 7.5) - 0.5) * 14)) % 26;
+      if (k < 2) return S[3];
+      if (ry < 1) return S[6];
+      return S[clampI(2.2 + Math.min(2.3, (ry - 1) / 4) + (bay(x, y) - 0.5) * 0.8, S.length)];
+    },
+  );
+  // cracks across the ice and snow dusting
+  for (let i = 0; i < 18; i++) {
+    let x = rnd() * GW;
+    let y = it(x) + 3 + rnd() * 40;
+    let a = (rnd() - 0.5) * 0.6;
+    for (let k = 0; k < 20 + rnd() * 40; k++) {
+      if (y >= ib(x) - 1 || y <= it(x) + 1) break;
+      A.set(x, y, I[6], 0.8);
+      A.set(x, y + 1, I[0], 0.6);
+      a += (rnd() - 0.5) * 0.5;
+      x += Math.cos(a);
+      y += Math.sin(a) * 0.4;
+    }
+  }
+  for (let i = 0; i < 26; i++) {
+    const x0 = rnd() * GW;
+    const y0 = it(x0) + 4 + rnd() * 50;
+    for (let k = 0; k < 30; k++) {
+      const x = x0 + (rnd() - 0.5) * 18;
+      const y = y0 + (rnd() - 0.5) * 3;
+      if (y > it(x) + 1 && y < ib(x) - 1) A.set(x, y, S[4], 0.7);
+    }
+  }
+  // a little torii and lanterns on the far shore of the snowfield
+  for (let i = 0; i < 5; i++) {
+    const x = Math.floor(rnd() * GW);
+    const y = Math.round(ib(x)) + 22 + Math.floor(rnd() * 40);
+    A.halo(x, y, 14, GLOW, 0.35);
+    A.rect(x - 2, y - 1, 5, 1, PINE[2]);
+    A.rect(x - 1, y - 5, 3, 4, PINE[1]);
+    A.set(x, y - 4, GLOW);
+    A.rect(x - 2, y - 6, 5, 1, S[6]);
+  }
+
+  // B: the drift ridge, with snow-laden pines and lit stone lanterns
+  const rb = ridgeOf(820, 40, 36, 8);
+  const pine = (P: Pix, x: number, base: number, h: number): void => {
+    const tiers = Math.max(3, Math.round(h / 9));
+    P.rect(x - 1, base - Math.round(h * 0.2), 3, Math.round(h * 0.2) + 2, PINE[0]);
+    for (let k = 0; k < h; k++) {
+      const tt = k / h; // 0 top
+      const tierT = (tt * tiers) % 1;
+      const w = Math.max(1, Math.round((h * 0.42) * (0.25 + 0.75 * tt) * (0.55 + 0.45 * tierT)));
+      const y = base - Math.round(h * 0.15) - h + k;
+      for (let i = -w; i <= w; i++) {
+        const snowy = tierT < 0.28 || (i < -w * 0.4 && tierT < 0.5);
+        P.set(x + i, y, snowy ? (i < 0 ? S[6] : S[4]) : i < -w * 0.5 ? PINE[3] : i < w * 0.3 ? PINE[2] : PINE[1]);
+      }
+    }
+  };
+  for (let i = 0; i < 9; i++) {
+    const x = Math.floor(((i + rnd() * 0.8) / 9) * GW);
+    pine(B, x, rb[x] + 6, 26 + Math.floor(rnd() * 26));
+    if (rnd() > 0.5) pine(B, x + 10, rb[(x + 10) % GW] + 8, 16 + Math.floor(rnd() * 12));
+  }
+  B.body(
+    (x) => rb[x],
+    (x, y, k) => {
+      if (k < 2) return S[6];
+      const ry = (k + Math.round((n(x / 16, 9.5) - 0.5) * 18)) % 34;
+      if (ry < 1) return S[6];
+      return S[clampI(2 + Math.min(2.4, (ry - 1) / 5) - k / 200 + (bay(x, y) - 0.5) * 0.8, S.length)];
+    },
+  );
+  for (let i = 0; i < 4; i++) {
+    const x = Math.floor(rnd() * GW);
+    const y = rb[x] + 14 + Math.floor(rnd() * 20);
+    B.halo(x, y + 2, 26, GLOW, 0.45);
+    // ishidoro: base, post, firebox, wide snowy roof
+    B.rect(x - 4, y - 2, 9, 3, PINE[2]);
+    B.rect(x - 1, y - 10, 3, 8, PINE[2]);
+    B.rect(x - 4, y - 16, 9, 6, PINE[1]);
+    B.rect(x - 2, y - 15, 5, 4, GLOW);
+    B.set(x, y - 14, 0xfff4d8);
+    B.rect(x - 6, y - 18, 13, 2, PINE[2]);
+    B.rect(x - 6, y - 19, 13, 1, S[6]);
+    B.rect(x - 1, y - 21, 3, 2, S[5]);
+  }
+  // a trail of footprints winding down the slope
+  for (let k = 0; k < 40; k++) {
+    const x = 300 + Math.sin(k * 0.25) * 30 + k * 2;
+    const y = rb[Math.round(x) % GW] + 10 + k * 4;
+    B.rect(x + (k % 2) * 3, y, 2, 1, S[2]);
+  }
+
+  // C: the deep foreground bank, a few snow-capped rocks
+  const rc = ridgeOf(830, 92, 70, 14);
+  C.body(
+    (x) => rc[x],
+    (x, y, k) => {
+      if (k < 2) return S[6];
+      if (k < 5) return S[5];
+      // broad wind-carved hollows in blue shadow, deepening toward the bottom of the view
+      return S[clampI(4.3 - k / 45 + (n(x / 16, y / 16) - 0.5) * 2.2 + (bay(x, y) - 0.5) * 0.8, S.length)];
+    },
+  );
+  for (let i = 0; i < 5; i++) {
+    const x = Math.floor(rnd() * GW);
+    const y = rc[x] + 10;
+    const w = 18 + Math.floor(rnd() * 20);
+    for (let k = 0; k < w * 0.6; k++) {
+      const ww = Math.round(w * Math.sqrt(k / (w * 0.6)));
+      for (let i2 = 0; i2 < ww; i2++) C.set(x - Math.floor(ww / 2) + i2, y - w * 0.6 + k, k < 3 ? S[6] : i2 < ww * 0.3 ? PINE[3] : PINE[1]);
+    }
+  }
+  return sealed([A, B, C]);
+}
+
+/** Sunken Temple: a jungle valley with a winding river, a ridge of crowns with a ruined stupa, and dark foreground foliage. */
+function jungleGround(): HTMLCanvasElement[] {
+  const [A, B, C] = layers();
+  const rnd = mulberry32(911);
+  const n = makeNoise(912, 8);
+  const LF = [0x061208, 0x0a1a0e, 0x0e2414, 0x14301a, 0x1c4022, 0x26502a, 0x346834, 0x4a8640, 0x6aa450];
+  const WT = [0x0e2a2c, 0x184440, 0x24605a, 0x4a9a8a, 0xb8f0d8];
+  const ST = [0x1e2a26, 0x2e403a, 0x42584e, 0x5e7a66, 0x86a088, 0xc8a060];
+  const crown = (P: Pix, cx: number, cy: number, r: number, base: number, shade = 0): void => {
+    for (let y = -r; y <= r; y++) {
+      for (let x = -r; x <= r; x++) {
+        const d = Math.hypot(x, y * 1.15) / r;
+        if (d > 1) continue;
+        // lit from the upper right (the sun behind the temple), leafy clumps from noise
+        const lit = (x * 0.55 - y * 0.85) / r + (n((cx + x) / 4, (cy + y) / 4) - 0.5) * 0.9;
+        const v = base + lit * 1.6 - d * 0.8 + (bay(cx + x, cy + y) - 0.5) * 0.7 - shade;
+        P.set(cx + x, cy + y, LF[clampI(v, LF.length)]);
+      }
+    }
+  };
+
+  // A: canopy carpet with the river cutting through, mist pooled over the water
+  A.body(
+    () => 0,
+    (x, y) => LF[clampI(2.2 - y / 120 + (n(x / 8, y / 4) - 0.5) * 1.5 + bay(x, y) * 0.8, LF.length)],
+  );
+  const items: [number, number, number][] = [];
+  for (let i = 0; i < 260; i++) {
+    const y = 4 + rnd() * 150;
+    items.push([rnd() * GW, y, Math.round(3 + (y / 150) * 9 + rnd() * 3)]);
+  }
+  items.sort((a, b) => a[1] - b[1]);
+  const riverC = (x: number): number => 40 + Math.sin((x / GW) * Math.PI * 2 * 2) * 16 + Math.sin((x / GW) * Math.PI * 2 * 5 + 1) * 5;
+  const riverW = (x: number): number => 9 + Math.sin((x / GW) * Math.PI * 2 * 3 + 2) * 3;
+  for (const [x, y, r] of items) {
+    const c = riverC(x);
+    if (Math.abs(y - c) < riverW(x) + r * 0.6) continue; // keep the river open
+    crown(A, Math.round(x), Math.round(y), r, 3.4 + (y / 150) * 0.8);
+  }
+  for (let x = 0; x < GW; x++) {
+    const c = riverC(x);
+    const w = riverW(x);
+    for (let y = Math.round(c - w); y <= c + w; y++) {
+      const u = (y - (c - w)) / (2 * w);
+      const glint = n(x / 4, y * 0.8) > 0.7 && y % 2 === 0;
+      A.set(x, y, glint ? WT[4] : u < 0.2 ? WT[3] : WT[clampI(2.4 - u * 2 + bay(x, y) * 0.8, 3)]);
+    }
+    A.set(x, Math.round(c - w) - 1, LF[1]);
+    A.set(x, Math.round(c + w) + 1, LF[0]);
+    // mist lying over the water
+    for (let y = Math.round(c - w - 6); y < c + w; y++) {
+      const m = 1 - Math.abs(y - (c - w * 0.3)) / (w + 6);
+      if (m > 0 && bay(x, y) < m * 0.5) A.set(x, y, 0xb8e0c8, 0.22);
+    }
+  }
+
+  // B: a ridge of big crowns with a ruined stupa and broken columns among them
+  const rb = ridgeOf(920, 36, 30, 6);
+  B.body(
+    (x) => rb[x] + 14,
+    (x, y, k) => LF[clampI(3 - k / 60 + (n(x / 8, y / 6) - 0.5) * 1.6 + bay(x, y) * 0.8, LF.length)],
+  );
+  for (let i = 0; i < 2; i++) {
+    const x = Math.floor(GW * (0.2 + i * 0.5) + rnd() * 40);
+    const base = rb[x] + 30;
+    // a stepped stupa: three tiers and a finial, mossy on top
+    for (let t = 0; t < 3; t++) {
+      const w = 34 - t * 9;
+      const h = 9 - t;
+      const y = base - (t + 1) * 9;
+      for (let xx = 0; xx < w; xx++) {
+        const u = xx / w;
+        B.rect(x - w / 2 + xx, y, 1, h, u > 0.7 ? ST[3] : u > 0.25 ? ST[2] : ST[1]);
+        B.set(x - w / 2 + xx, y, LF[6]);
+        if ((xx + t) % 5 === 0) B.set(x - w / 2 + xx, y + h - 2, ST[0]);
+      }
+    }
+    B.rect(x - 2, base - 38, 4, 11, ST[3]);
+    B.rect(x - 1, base - 42, 2, 4, ST[5]);
+    B.halo(x, base - 22, 16, ST[5], 0.25, 1);
+  }
+  for (let i = 0; i < 4; i++) {
+    const x = Math.floor(rnd() * GW);
+    const h = 12 + Math.floor(rnd() * 16);
+    const base = rb[x] + 24;
+    B.rect(x, base - h, 6, h, ST[2]);
+    B.rect(x + 4, base - h, 2, h, ST[3]);
+    B.rect(x, base - h, 6, 1, ST[4]);
+    for (let k = 0; k < h; k += 4) B.set(x + 1, base - h + k, ST[0]);
+    for (let k = 0; k < 8; k++) B.set(x + (k % 3) * 2, base - h + 1 + k * 2, LF[5]); // vines
+  }
+  for (let i = 0; i < 40; i++) {
+    const x = (i / 40) * GW + rnd() * 10;
+    const r = 11 + Math.floor(rnd() * 9);
+    crown(B, Math.round(x), rb[Math.round(x) % GW] + r - 2 + Math.floor(rnd() * 8), r, 4.6);
+  }
+  for (let i = 0; i < 60; i++) {
+    const x = rnd() * GW;
+    const y = 60 + rnd() * 130;
+    crown(B, Math.round(x), Math.round(y), 9 + Math.floor(rnd() * 8), 3.2 - y / 120);
+  }
+
+  // C: big dark foreground crowns and fronds that frame the bottom of the view
+  const rc = ridgeOf(930, 96, 60, 10);
+  C.body(
+    (x) => rc[x] + 14,
+    (x, y, k) => LF[clampI(1.4 - k / 80 + (n(x / 8, y / 6) - 0.5) * 1.2 + bay(x, y) * 0.8, 4)],
+  );
+  for (let i = 0; i < 24; i++) {
+    const x = (i / 24) * GW + rnd() * 12;
+    const r = 18 + Math.floor(rnd() * 14);
+    crown(C, Math.round(x), rc[Math.round(x) % GW] + r, r, 2.6, 0.4);
+  }
+  for (let i = 0; i < 9; i++) {
+    // fern fronds arching up out of the dark
+    const x0 = rnd() * GW;
+    const y0 = rc[Math.floor(x0)] + 30;
+    const dir = rnd() > 0.5 ? 1 : -1;
+    for (let k = 0; k < 40; k++) {
+      const t = k / 40;
+      const x = x0 + dir * k * 0.9;
+      const y = y0 - Math.sin(t * Math.PI * 0.8) * 26;
+      C.set(x, y, LF[5]);
+      if (k % 3 === 0) for (let l = 1; l < 7 * (1 - t); l++) C.set(x + dir * l * 0.4, y + l, LF[4]);
+    }
+  }
+  return sealed([A, B, C]);
+}
+
+/** A wind-whipped sea below the stage: rows of whitecaps that grow toward the viewer, rock stacks wreathed in foam. */
+function seaGround(seed: number, W: number[], foam: number, rough: number, rock: number[]): HTMLCanvasElement[] {
+  const [A, B, C] = layers();
+  const rnd = mulberry32(seed);
+  const n = makeNoise(seed + 1, 8);
+  const sea = (P: Pix, top: (x: number) => number, y0: number, lit: number): void => {
+    P.body(top, (x, y, k) => {
+      const t = (y0 + y) / 400; // depth across all three layers
+      // long, thin swells: stretched across, squashed down, opening up toward the viewer
+      const Y = y0 + y;
+      const v = n(x / (t > 0.35 ? 64 : 32), Y / (0.7 + t * 2.4)) * 0.75 + n(x / 16, Y / (0.5 + t * 1.5)) * 0.25;
+      if (k < 1) return foam;
+      if (v > 0.78 - rough * 0.03) return bay(x, y) > 0.3 ? foam : W[5];
+      if (v > 0.7) return W[5];
+      if (v > 0.64) return W[4];
+      if (v < 0.32) return W[0];
+      return W[clampI(lit - t * 2.2 + (v - 0.48) * 2.5 + bay(x, y) * 0.8, 4)];
+    });
+  };
+  const stack = (P: Pix, x: number, base: number, h: number, w: number): void => {
+    for (let k = 0; k < h; k++) {
+      const ww = Math.max(2, Math.round(w * (0.5 + 0.5 * Math.pow(k / h, 0.6))));
+      for (let i = 0; i < ww; i++) P.set(x - Math.floor(ww / 2) + i, base - h + k, i < 2 ? rock[2] : i > ww - 3 ? rock[0] : rock[1]);
+      if (k % 9 === 5) P.rect(x - Math.floor(ww / 2), base - h + k, ww, 1, rock[0]);
+    }
+    for (let i = -w; i <= w; i++) if (bay(x + i, base) > Math.abs(i) / (w * 1.1)) P.set(x + i, base - 1 + (i % 2), foam);
+  };
+  // A: open water to the horizon, a few distant stacks
+  sea(A, () => 0, 0, 3.4);
+  for (let x = 0; x < GW; x++) A.set(x, 0, W[5]);
+  for (let i = 0; i < 4; i++) {
+    const x = Math.floor(rnd() * GW);
+    stack(A, x, 30 + Math.floor(rnd() * 40), 16 + Math.floor(rnd() * 16), 8 + Math.floor(rnd() * 6));
+  }
+  // B: a long swell with spray on its crest and a big stack
+  const swell = (s: number, base: number, amp: number): number[] =>
+    Array.from({ length: GW }, (_, x) => Math.round(base + Math.sin((x / GW) * Math.PI * 2 * 3 + s) * amp + Math.sin((x / GW) * Math.PI * 2 * 7 + s * 2) * amp * 0.3 + (n(x / 16, s) - 0.5) * 6));
+  const rb = swell(1, 40, 7);
+  for (let i = 0; i < 2; i++) {
+    const x = Math.floor(GW * (0.3 + i * 0.45) + rnd() * 30);
+    stack(B, x, rb[x] + 8, 40 + Math.floor(rnd() * 20), 18 + Math.floor(rnd() * 8));
+  }
+  sea(B, (x) => rb[x], 64, 3);
+  for (let x = 0; x < GW; x++) for (let k = 1; k < 5; k++) if (bay(x, rb[x] - k) < 0.4 / k) B.set(x, rb[x] - k, foam, 0.8);
+  // C: the nearest swell, dark and heaving, flecked with foam
+  const rc = swell(4, 100, 12);
+  sea(C, (x) => rc[x], 150, 2.4);
+  for (let x = 0; x < GW; x++) {
+    for (let k = 1; k < 7; k++) if (bay(x, rc[x] - k) < 0.5 / k) C.set(x, rc[x] - k, foam, 0.9);
+    C.set(x, rc[x] + 1, W[4]);
+  }
+  return sealed([A, B, C]);
+}
+
+const GROUND_BUILDERS: Record<string, () => HTMLCanvasElement[]> = {
+  'bg-geode-ground': geodeGround,
+  'bg-reactor-ground': reactorGround,
+  'bg-frost-ground': frostGround,
+  'bg-jungle-ground': jungleGround,
+  'bg-storm-sea': () => seaGround(1011, [0x070e1a, 0x0c1828, 0x122236, 0x1a3048, 0x2c4c6c, 0x4a7096], 0xb8d8f0, 2, [0x08101c, 0x16243a, 0x2c4462]),
+  'bg-cove-sea': () => seaGround(1111, [0x041018, 0x061a28, 0x0a2434, 0x0e2e42, 0x245470, 0x4a86a6], 0xb0e0f0, 0, [0x0a1218, 0x1a2a32, 0x34505c]),
+};
+
+/** Make sure a ground set's textures (`${key}-0..2`) exist, generating them now if the idle-time prebuild hasn't reached them yet. */
+export function ensureGroundTextures(scene: Phaser.Scene, key: string): void {
+  const build = GROUND_BUILDERS[key];
+  if (!build || scene.textures.exists(`${key}-0`)) return;
+  build().forEach((c, i) => addCanvasTexture(scene, `${key}-${i}`, c));
+}
+
 /** Generates all stage / background / effect textures. */
 export function buildStageTextures(scene: Phaser.Scene): void {
   const add = (key: string, c: HTMLCanvasElement): void => {
@@ -1239,7 +2020,8 @@ export function buildStageTextures(scene: Phaser.Scene): void {
   add('bg-stars-b', stars(19, 34, 5));
   add('bg-ruins-far', ruins(21, '#2e1f55', '#4a3585', '#241848', ['#ffcf6a', '#7fe8ff'], 0.18, 512, 192));
   add('bg-ruins-near', ruins(44, '#1a1033', '#32215e', '#120a26', ['#ffcf6a', '#ff8a5a', '#7fe8ff'], 0.3, 512, 192));
-  add('bg-industry-far', industry(52, '#4a1c14', '#8a3a1c', '#2a0c0a', '#ff8a30', 512, 192));
+  INDUSTRY_VENTS.length = 0;
+  add('bg-industry-far', industry(52, '#4a1c14', '#8a3a1c', '#2a0c0a', '#ff8a30', 512, 192, INDUSTRY_VENTS));
   add('bg-industry-near', industry(77, '#2a0e0c', '#5a2414', '#160606', '#ffb040', 512, 192));
   add('bg-pylons-far', pylons(31, '#1c4a64', '#4a9ac0', '#0e2a3c', '#7ff0ff', 512, 192));
   add('bg-pylons-near', pylons(63, '#0e2c42', '#2a6a90', '#08182a', '#bffcff', 512, 192));
@@ -1262,6 +2044,20 @@ export function buildStageTextures(scene: Phaser.Scene): void {
   add('bg-peaks-far', peaks(13, '#3a4a68', '#5a6e90', '#24304a', '#e8f2ff', '#a8bcd8', 512, 192));
   add('bg-shrine-near', shrineWoods(29, '#14283a', '#24405a', '#0a1622', '#e8f2ff', '#b02a30', '#6a1418', '#ffd08a', 512, 192));
   add('bg-snowbank', cloudBank(23, '#c8d8ec', '#f4f8ff', '#8aa0c0', 512, 128));
+  // the ground planes are only needed by the stage being played: build them in idle time after boot, one set per slice
+  const keys = Object.keys(GROUND_BUILDERS);
+  const idle = (fn: () => void): void => {
+    const ric = (globalThis as { requestIdleCallback?: (cb: () => void, o?: { timeout: number }) => number }).requestIdleCallback;
+    if (ric) ric(fn, { timeout: 2000 });
+    else setTimeout(fn, 50);
+  };
+  const next = (): void => {
+    const key = keys.shift();
+    if (!key) return;
+    ensureGroundTextures(scene, key);
+    idle(next);
+  };
+  idle(next);
   add('bg-thunderheads-far', thunderheads(41, '#4e2e5c', '#7a4670', '#b8687a', '#eaa290', 512, 192));
   add('spark', sparkTex());
   add('ring', ringTex());
