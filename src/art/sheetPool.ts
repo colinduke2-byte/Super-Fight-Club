@@ -3,6 +3,8 @@
  * so the main thread never stalls on the pixel work. Falls back to building inline where workers are unavailable.
  */
 import { packedHeroSheet, type PackedSheet, type SheetSpec } from './sheetPixels';
+// a static import: the worker source is embedded in the bundle (the single-file build has no separate chunks)
+import SheetWorker from './sheetWorker?worker&inline';
 
 type Pending = { resolve: (px: PackedSheet) => void; reject: (e: unknown) => void };
 
@@ -27,7 +29,6 @@ async function startPool(): Promise<Worker[] | null> {
     return null;
   }
   try {
-    const { default: SheetWorker } = await import('./sheetWorker?worker&inline');
     const n = Math.max(1, Math.min(6, (navigator.hardwareConcurrency || 4) - 1));
     workers = Array.from({ length: n }, () => {
       const w = new SheetWorker();
