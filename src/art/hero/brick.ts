@@ -1,6 +1,6 @@
 import type { PlaceholderLook } from '../../engine/types';
 import { col, mix, mul, type Raster, type RGB, type V2 } from './raster';
-import type { Skel } from './skeleton';
+import { solveLimb, type Skel } from './skeleton';
 
 /** Brick: a heavy blue bruiser in layered plate armour with a piston fist, reactor core, hazard belt and back exhausts. */
 export function drawBrick(r: Raster, k: Skel, look: PlaceholderLook): void {
@@ -13,6 +13,8 @@ export function drawBrick(r: Raster, k: Skel, look: PlaceholderLook): void {
   const steel: RGB = [169, 180, 204];
   const steelD: RGB = [106, 117, 146];
   const black: RGB = [20, 22, 36];
+  // the dark mechanical frame under the plates (joints, neck, waist): the darkest value, so every plate parts from its neighbour
+  const frame: RGB = mix(mul(dark, 0.42), [22, 24, 34], 0.5);
   const P = {
     armor: r.part(armor),
     plate: r.part(plate),
@@ -26,6 +28,8 @@ export function drawBrick(r: Raster, k: Skel, look: PlaceholderLook): void {
     stripeB: r.part(black, { flat: true }),
     seam: r.part(deep, { flat: true }),
     rivet: r.part(steel, { flat: true }),
+    frame: r.part(frame),
+    frameL: r.part(mix(frame, steelD, 0.45)),
   };
   const T = k.torso;
   const pulse = k.phase % 2;
@@ -34,22 +38,34 @@ export function drawBrick(r: Raster, k: Skel, look: PlaceholderLook): void {
   const horn = r.part([236, 226, 200]);
   const hornD = r.part([170, 156, 128]);
   const glass = r.part(mix(accent, [200, 240, 255], 0.5), { emissive: true });
+  // keep the gauntlets and boots inside the frame on the widest reaches (they are the biggest pieces at a limb's end)
+  const handF = clampV(k.handF, 17, r.w - 19, 17, r.h - 17);
+  const handB = clampV(k.handB, 19, r.w - 19, 17, r.h - 17);
+  const ankleF = clampV(k.ankleF, 15, r.w - 23, 0, k.base - 8);
+  const ankleB = clampV(k.ankleB, 15, r.w - 23, 0, k.base - 8);
+  // a hand pulled in re-solves its elbow, so the arm folds naturally instead of stretching to the old joint
+  const elbowF = clampV(handF === k.handF ? k.elbowF : solveLimb(k.shF, handF, k.armBone, 1).mid, 14, r.w - 13, 12, r.h - 12);
+  const elbowB = clampV(handB === k.handB ? k.elbowB : solveLimb(k.shB, handB, k.armBone, 1).mid, 14, r.w - 13, 12, r.h - 12);
+  const kneeF = clampV(k.kneeF, 14, r.w - 14, 0, r.h - 16);
+  const kneeB = clampV(k.kneeB, 14, r.w - 14, 0, r.h - 16);
 
-  // ---- back arm ----
+  // ---- back arm: a dark frame upper arm, an elbow joint, a plated forearm ----
   {
-    const el = k.elbowB;
-    r.seg(P.deep, k.shB[0], k.shB[1], el[0], el[1], 18, 15);
-    r.seg(P.dark, el[0], el[1], k.handB[0], k.handB[1], 15, 14);
-    r.ellipse(P.armor, el[0], el[1], 8, 7);
-    fist(r, P, k.handB, true);
+    const el = elbowB;
+    r.seg(P.frame, k.shB[0], k.shB[1], el[0], el[1], 13, 11);
+    r.seg(P.deep, lerp(k.shB, el, 0.15)[0], lerp(k.shB, el, 0.15)[1], lerp(k.shB, el, 0.7)[0], lerp(k.shB, el, 0.7)[1], 16, 14);
+    r.seg(P.dark, el[0], el[1], handB[0], handB[1], 15, 13);
+    r.seg(P.deep, lerp(el, handB, 0.55)[0], lerp(el, handB, 0.55)[1], handB[0], handB[1], 15, 13);
+    r.ellipse(P.frame, el[0], el[1], 7, 6.5);
+    fist(r, P, handB, el, true);
   }
 
   // ---- back leg ----
-  leg(r, P, k.hipB, k.kneeB, k.ankleB, true);
+  leg(r, P, k.hipB, kneeB, ankleB, true);
 
   if (o === 2) {
     // ---- an air tank on the back with a hose up to the helmet ----
-    const bx = T.x - 10;
+    const bx = Math.max(T.x - 10, 7); // tucked in on a deep wind-up so it stays in the frame
     const by = T.y + 2;
     r.ellipse(P.steelD, bx + 6, by + 2, 8, 5);
     r.rect(P.steelD, bx - 2, by + 2, 16, 26);
@@ -61,7 +77,7 @@ export function drawBrick(r: Raster, k: Skel, look: PlaceholderLook): void {
   } else {
   // ---- back exhausts ----
   {
-    const bx = T.x - 9;
+    const bx = Math.max(T.x - 9, 11); // tucked in on a deep wind-up so the pipes stay in the frame
     const by = T.y + 4;
     r.rect(P.dark, bx, by, 14, 30);
     r.rect(P.deep, bx, by + 22, 14, 8);
@@ -79,8 +95,10 @@ export function drawBrick(r: Raster, k: Skel, look: PlaceholderLook): void {
     const top = T.y;
     const w = T.w;
     const h = T.h;
-    // waist + belt block
-    r.rect(P.deep, x0 + 10, top + h - 16, w - 20, 16);
+    // the dark frame at the neck and the waist, so the chest shell sits apart from the head and the belt
+    r.rect(P.frame, x0 + 12, top - 2, w - 22, 8);
+    r.rect(P.frame, x0 + 8, top + h - 18, w - 16, 18);
+    for (let i = 0; i < 3; i++) r.rect(P.frameL, x0 + 12, top + h - 16 + i * 3, w - 24, 1);
     // chest shell
     r.poly(P.armor, [[x0 + 6, top], [x0 + w - 4, top], [x0 + w + 4, top + 10], [x0 + w - 8, top + h - 12], [x0 + 10, top + h - 12], [x0 - 2, top + 10]]);
     r.poly(P.dark, [[x0 - 2, top + 10], [x0 + 6, top], [x0 + 16, top + 2], [x0 + 18, top + h - 14], [x0 + 10, top + h - 12]]);
@@ -128,14 +146,14 @@ export function drawBrick(r: Raster, k: Skel, look: PlaceholderLook): void {
   }
 
   // ---- front leg ----
-  leg(r, P, k.hipF, k.kneeF, k.ankleF, false);
+  leg(r, P, k.hipF, kneeF, ankleF, false);
 
   if (o === 1) {
     // ---- head: a horned great helm with a T-shaped eye slit ----
     const hx = k.head.x;
     const hy = k.head.y;
     const hs = k.head.s;
-    r.rect(P.deep, hx + 8, T.y - 4, hs - 12, 8); // neck
+    r.rect(P.frame, hx + 8, T.y - 4, hs - 12, 8); // neck
     // horns: thick at the root, curving up and forward
     for (const [bx, dir] of [[hx + 2, -1], [hx + hs - 2, 1]] as const) {
       let px = bx;
@@ -172,12 +190,15 @@ export function drawBrick(r: Raster, k: Skel, look: PlaceholderLook): void {
     r.ellipse(P.plate, cx - 4, cy - 6, R * 0.5, R * 0.35);
     // front port: a thick ring, glass with a glowing face behind it, a cross guard
     const fx = cx + R * 0.45;
-    r.ellipse(P.steelD, fx, cy + 1, 9, 9);
-    r.ellipse(P.steel, fx - 0.5, cy + 0.5, 7.6, 7.6);
-    r.ellipse(glass, fx, cy + 1, 6, 6);
-    r.rect(P.glow, fx - 3, cy - 1, 6, 2);
-    r.rect(P.steelD, fx - 6, cy, 12, 1);
-    r.rect(P.steelD, fx, cy - 5, 1, 12);
+    r.ellipse(P.frame, fx + 0.5, cy + 1.5, 11, 11);
+    r.ellipse(P.steel, fx - 0.5, cy + 0.5, 9.6, 9.6);
+    r.ellipse(P.frame, fx, cy + 1, 7.4, 7.4);
+    // dark glass with two glowing eyes looking out of it, a top bar and a glint
+    r.rect(P.glow, fx - 4, cy, 3, 3);
+    r.rect(P.glow, fx + 2, cy, 3, 3);
+    r.rect(P.steelD, fx - 6, cy - 4, 12, 2);
+    r.rect(glass, fx - 4, cy - 6, 2, 1);
+    for (let i = 0; i < 4; i++) r.rect(P.rivet, fx + Math.cos(i * 1.57 + 0.78) * 9.4 - 1, cy + 0.5 + Math.sin(i * 1.57 + 0.78) * 9.4 - 1, 2, 2);
     // top port and bolts around the collar
     r.ellipse(P.steelD, cx - 3, cy - R + 5, 4, 3.4);
     r.ellipse(glass, cx - 3, cy - R + 5, 2.6, 2.2);
@@ -188,7 +209,7 @@ export function drawBrick(r: Raster, k: Skel, look: PlaceholderLook): void {
     const hx = k.head.x;
     const hy = k.head.y;
     const hs = k.head.s;
-    r.rect(P.deep, hx + 8, T.y - 4, hs - 12, 8); // neck
+    r.rect(P.frame, hx + 8, T.y - 4, hs - 12, 8); // neck
     // crest fin
     r.poly(P.dark, [[hx + 6, hy + 4], [hx + 10, hy - 8], [hx + hs - 4, hy - 7], [hx + hs - 2, hy + 4]]);
     r.rect(P.stripeA, hx + 12, hy - 6, hs - 18, 2);
@@ -204,38 +225,48 @@ export function drawBrick(r: Raster, k: Skel, look: PlaceholderLook): void {
     r.rect(P.glow, hx + scan, hy + 12, 3, 6);
     // cheek / jaw
     r.poly(P.dark, [[hx + 10, hy + 22], [hx + hs + 4, hy + 22], [hx + hs - 2, hy + hs], [hx + 6, hy + hs - 2]]);
-    r.rect(P.steelD, hx + hs - 6, hy + hs - 8, 8, 4);
-    r.rect(P.rivet, hx + 14, hy + 24, 2, 2);
+    // a steel mouth grille on the jaw and a bolted ear disc at the side, so the head reads as a face in profile
+    r.rect(P.steelD, hx + hs - 8, hy + hs - 9, 11, 6);
+    for (let i = 0; i < 3; i++) r.rect(P.frame, hx + hs - 7 + i * 4, hy + hs - 8, 1, 4);
+    r.ellipse(P.frame, hx + 5, hy + 16, 5, 5);
+    r.ellipse(P.steelD, hx + 5, hy + 16, 3.6, 3.6);
+    r.rect(P.frame, hx + 3, hy + 15.5, 4, 1);
   }
   }
 
-  // ---- front arm: pauldron, sleeve, piston, fist ----
+  // ---- front arm: pauldron, frame upper arm with a bicep plate, elbow joint, piston forearm, fist ----
   {
     const [sx, sy] = k.shF;
-    const el = k.elbowF;
-    r.seg(P.dark, sx, sy, el[0], el[1], 20, 17);
+    const el = elbowF;
+    const hand = handF;
+    r.seg(P.frame, sx, sy, el[0], el[1], 14, 12);
+    const b0 = lerp(k.shF, el, 0.2);
+    const b1 = lerp(k.shF, el, 0.72);
+    r.seg(P.dark, b0[0], b0[1], b1[0], b1[1], 19, 16);
     // piston forearm: housing + exposed rod
-    const mx = el[0] + (k.handF[0] - el[0]) * 0.45;
-    const my = el[1] + (k.handF[1] - el[1]) * 0.45;
-    r.seg(P.armor, el[0], el[1], mx, my, 18, 16);
-    r.seg(P.steelD, mx, my, k.handF[0], k.handF[1], 9, 9);
-    r.seg(P.steel, mx, my - 1, k.handF[0], k.handF[1] - 1, 4, 4);
-    for (let i = 0; i < 3; i++) {
-      const t = 0.15 + i * 0.28;
-      const px = mx + (k.handF[0] - mx) * t;
-      const py = my + (k.handF[1] - my) * t;
-      r.ellipse(P.stripeA, px, py, 2.5, 6);
+    const mx = el[0] + (hand[0] - el[0]) * 0.5;
+    const my = el[1] + (hand[1] - el[1]) * 0.5;
+    r.seg(P.armor, el[0], el[1], mx, my, 19, 17);
+    r.seg(P.plate, el[0] - 1, el[1] - 3, mx - 1, my - 3, 6, 5);
+    r.seg(P.frame, mx, my, hand[0], hand[1], 10, 10);
+    r.seg(P.steel, mx, my - 1, hand[0], hand[1] - 1, 4, 4);
+    for (let i = 0; i < 2; i++) {
+      const t = 0.25 + i * 0.35;
+      const px = mx + (hand[0] - mx) * t;
+      const py = my + (hand[1] - my) * t;
+      r.ellipse(P.stripeA, px, py, 2.5, 5);
     }
-    r.ellipse(P.dark, el[0], el[1], 10, 9);
-    r.ellipse(P.armor, el[0] - 1, el[1] - 1, 8, 7);
-    fist(r, P, k.handF, false);
+    r.ellipse(P.frame, el[0], el[1], 8, 7.5);
+    r.ellipse(P.armor, el[0] - 0.5, el[1] - 1, 5.5, 5);
+    fist(r, P, hand, el, false);
     // pauldron: sits low and outboard so the visor stays readable
     const px = sx + 5;
     const py = sy + 1;
-    r.ellipse(P.deep, px + 1, py - 4, 16, 12);
+    r.ellipse(P.frame, px + 1, py - 3, 16, 12);
     r.ellipse(P.armor, px, py - 5, 15, 10);
     r.poly(P.plate, [[px - 11, py - 10], [px + 9, py - 12], [px + 13, py - 5], [px - 9, py - 3]]);
-    r.rect(P.stripeA, px - 13, py + 2, 26, 3);
+    r.rect(P.dark, px - 14, py + 1, 28, 5);
+    r.rect(P.stripeA, px - 13, py + 2, 26, 2);
     r.rect(P.rivet, px - 6, py - 8, 2, 2);
     r.rect(P.rivet, px + 5, py - 9, 2, 2);
     if (o === 1) {
@@ -248,38 +279,87 @@ export function drawBrick(r: Raster, k: Skel, look: PlaceholderLook): void {
   }
 }
 
-type Parts = Record<'armor' | 'plate' | 'dark' | 'deep' | 'steel' | 'steelD' | 'accent' | 'glow' | 'stripeA' | 'stripeB' | 'seam' | 'rivet', number>;
+type Parts = Record<'armor' | 'plate' | 'dark' | 'deep' | 'steel' | 'steelD' | 'accent' | 'glow' | 'stripeA' | 'stripeB' | 'seam' | 'rivet' | 'frame' | 'frameL', number>;
 
-function fist(r: Raster, P: Parts, h: V2, back: boolean): void {
+function lerp(a: V2, b: V2, t: number): V2 {
+  return [a[0] + (b[0] - a[0]) * t, a[1] + (b[1] - a[1]) * t];
+}
+
+/** `v` kept inside the box; the same object back when it already was (so callers can tell whether it moved). */
+function clampV(v: V2, x0: number, x1: number, y0: number, y1: number): V2 {
+  const x = Math.max(x0, Math.min(x1, v[0]));
+  const y = Math.max(y0, Math.min(y1, v[1]));
+  return x === v[0] && y === v[1] ? v : [x, y];
+}
+
+/**
+ * An armoured gauntlet closed into a fist: a dark cuff across the wrist, a back-of-hand plate, four finger rolls curled
+ * on the striking face with dark gaps between them, steel knuckle studs and a thumb laid over the top.
+ */
+function fist(r: Raster, P: Parts, h: V2, el: V2, back: boolean): void {
   const [x, y] = h;
-  const base = back ? P.dark : P.armor;
-  // armoured gauntlet: cuff, rounded mitt, a row of knuckle plates on the striking face and a thumb guard
-  r.rect(P.deep, x - 9, y - 13, 18, 6);
-  r.rect(P.accent, x - 9, y - 11, 18, 2);
-  r.ellipse(P.deep, x + 1, y + 1, 13, 12);
-  r.ellipse(base, x, y, 12, 11);
-  r.ellipse(back ? P.armor : P.plate, x - 2, y - 4, 8, 5);
+  let dx = x - el[0];
+  let dy = y - el[1];
+  const l = Math.hypot(dx, dy) || 1;
+  dx /= l;
+  dy /= l;
+  const nx = -dy;
+  const ny = dx;
+  const shell = back ? P.dark : P.armor;
+  const lit = back ? P.armor : P.plate;
+  // cuff across the wrist, square to the forearm
+  const cx = x - dx * 9;
+  const cy = y - dy * 9;
+  r.seg(P.frame, cx - nx * 9, cy - ny * 9, cx + nx * 9, cy + ny * 9, 7, 7);
+  r.seg(P.accent, cx - nx * 8 + dx * 1.5, cy - ny * 8 + dy * 1.5, cx + nx * 8 + dx * 1.5, cy + ny * 8 + dy * 1.5, 1.5, 1.5);
+  // the hand: a dark underside, the plated back, a lit top edge
+  r.ellipse(P.frame, x + 1, y + 1, 12.5, 11.5);
+  r.ellipse(shell, x - 1, y, 11, 10.5);
+  r.ellipse(lit, x - 3, y - 4, 7, 4.5);
+  // fingers curled on the front face (always the side facing forward), separated by dark gaps
+  r.rect(P.frame, x + 2, y - 10, 10, 20);
   for (let i = 0; i < 4; i++) {
-    r.ellipse(P.steelD, x + 9, y - 7 + i * 5, 4, 2.6);
-    r.ellipse(P.steel, x + 8.5, y - 7.5 + i * 5, 3, 1.6);
+    const fy = y - 8 + i * 5;
+    r.seg(i % 2 ? shell : lit, x + 3, fy, x + 9, fy, 4.4, 4.4);
+    r.rect(P.steel, x + 10, fy - 1, 2, 2);
   }
-  r.ellipse(P.dark, x - 4, y + 6, 6, 4); // thumb
-  r.rect(P.rivet, x - 7, y - 2, 2, 2);
+  // thumb over the top of the fingers
+  r.seg(P.frame, x - 4, y - 8, x + 6, y - 11, 6, 5.5);
+  r.seg(back ? P.deep : P.dark, x - 4, y - 9, x + 6, y - 11.5, 4.4, 4);
+  r.rect(P.rivet, x - 7, y + 1, 2, 2);
 }
 
 function leg(r: Raster, P: Parts, hip: V2, kn: V2, ankle: V2, back: boolean): void {
-  const c = back ? P.deep : P.armor;
-  r.seg(back ? P.deep : P.dark, hip[0], hip[1], kn[0], kn[1], 26, 21);
-  r.seg(c, kn[0], kn[1], ankle[0], ankle[1], 21, 17);
+  const plate = back ? P.deep : P.armor;
+  const thigh = back ? P.deep : P.armor;
+  // the frame: a dark hydraulic thigh and shin under the plates
+  r.seg(P.frame, hip[0], hip[1], kn[0], kn[1], 18, 16);
+  r.seg(P.frame, kn[0], kn[1], ankle[0], ankle[1], 15, 13);
+  // thigh plate (upper two thirds of the thigh), shin greave
+  const t0 = lerp(hip, kn, 0.05);
+  const t1 = lerp(hip, kn, 0.7);
+  r.seg(thigh, t0[0], t0[1], t1[0], t1[1], 25, 21);
+  if (!back) r.seg(P.plate, t0[0] - 5, t0[1] + 1, t1[0] - 5, t1[1], 5, 4);
+  const s0 = lerp(kn, ankle, 0.22);
+  const s1 = lerp(kn, ankle, 0.92);
+  r.seg(plate, s0[0], s0[1], s1[0], s1[1], 21, 17);
   if (!back) {
-    r.ellipse(P.plate, kn[0] + 4, kn[1] - 1, 9, 8);
-    r.rect(P.rivet, kn[0] + 3, kn[1] - 1, 3, 3);
+    r.seg(P.plate, s0[0] + 4, s0[1], s1[0] + 3, s1[1] - 2, 5, 4);
     r.rect(P.stripeA, ankle[0] - 8, ankle[1] - 6, 16, 2);
   }
-  // boot
+  // knee: a pointed poleyn plate over the joint
+  const kx = kn[0] + 3;
+  const ky = kn[1];
+  r.poly(P.frame, [[kx - 9, ky - 8], [kx + 6, ky - 9], [kx + 11, ky], [kx + 6, ky + 9], [kx - 9, ky + 8]]);
+  r.poly(back ? P.dark : P.plate, [[kx - 7, ky - 6], [kx + 5, ky - 7], [kx + 9, ky], [kx + 5, ky + 6], [kx - 7, ky + 5]]);
+  if (!back) r.rect(P.armor, kx - 7, ky + 2, 13, 3);
+  r.rect(P.rivet, kx - 1, ky - 3, 2, 2);
+  // boot: a heavy sabaton with a toe cap and a thick sole; its sole sits on the ankle line + 8 (the floor)
   const bx = ankle[0];
   const by = ankle[1];
-  r.poly(back ? P.deep : P.dark, [[bx - 10, by - 4], [bx + 8, by - 4], [bx + 18, by + 4], [bx + 18, by + 10], [bx - 12, by + 10]]);
-  r.rect(back ? P.deep : P.armor, bx - 11, by - 4, 20, 4);
-  r.rect(P.deep, bx - 12, by + 8, 31, 3);
+  r.poly(back ? P.frame : P.deep, [[bx - 10, by - 5], [bx + 7, by - 5], [bx + 17, by + 1], [bx + 18, by + 6], [bx - 12, by + 6]]);
+  r.poly(back ? P.deep : P.dark, [[bx + 6, by - 2], [bx + 16, by + 2], [bx + 17, by + 5], [bx + 6, by + 5]]);
+  r.rect(back ? P.deep : P.armor, bx - 11, by - 6, 19, 4);
+  r.rect(P.frame, bx - 12, by + 5, 31, 4);
+  r.rect(P.frameL, bx - 11, by + 5, 29, 1);
 }

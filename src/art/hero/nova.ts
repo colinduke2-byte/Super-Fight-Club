@@ -1,7 +1,7 @@
 import type { PlaceholderLook } from '../../engine/types';
 import { drawFace } from './face';
 import { col, mix, mul, type Raster, type RGB, type V2 } from './raster';
-import type { Skel } from './skeleton';
+import { solveLimb, type Skel } from './skeleton';
 
 /** Nova: an aether mage in a flowing violet robe and cloak, wide-brimmed pointed hat, and a staff crowned with a living orb. */
 export function drawNova(r: Raster, k: Skel, look: PlaceholderLook): void {
@@ -16,6 +16,8 @@ export function drawNova(r: Raster, k: Skel, look: PlaceholderLook): void {
   const P = {
     robe: r.part(armor, { soft: true }),
     robeL: r.part(mix(armor, [220, 200, 255], 0.22), { soft: true }),
+    robeD: r.part(mul(armor, 0.74), { flat: true }),
+    sleeve: r.part(mix(armor, [236, 222, 255], 0.3), { soft: true }),
     cloak: r.part(dark, { soft: true }),
     cloakD: r.part(deep, { soft: true }),
     skin: r.part(skin, { soft: true }),
@@ -43,6 +45,13 @@ export function drawNova(r: Raster, k: Skel, look: PlaceholderLook): void {
   // outfits: 1 = Stargazer (deep hood, a star circlet, a crescent moon on the staff), 2 = Witch (huge crooked hat, patched robe)
   const o = look.outfit ?? 0;
   const patch = r.part(mix(armor, [180, 150, 110], 0.45), { flat: true });
+  // hands stay inside the frame on the widest reaches, boots stay on the floor line
+  const handF = clampV(k.handF, 10, r.w - 12, 10, r.h - 12);
+  const handB = clampV(k.handB, 10, r.w - 12, 10, r.h - 12);
+  const elbowF = handF === k.handF ? k.elbowF : solveLimb(k.shF, handF, k.armBone, 1).mid;
+  const elbowB = handB === k.handB ? k.elbowB : solveLimb(k.shB, handB, k.armBone, 1).mid;
+  const ankleF = clampV(k.ankleF, 12, r.w - 20, 0, k.base - 8);
+  const ankleB = clampV(k.ankleB, 12, r.w - 20, 0, k.base - 8);
 
   // ---- cloak behind everything ----
   {
@@ -72,14 +81,22 @@ export function drawNova(r: Raster, k: Skel, look: PlaceholderLook): void {
 
   // ---- back arm (wide sleeve) ----
   {
-    const el = k.elbowB;
+    const el = elbowB;
+    const hand = handB;
+    const [dx, dy] = unit(el, hand);
+    const cx = hand[0] - dx * 4;
+    const cy = hand[1] - dy * 4;
     r.seg(P.cloakD, k.shB[0], k.shB[1], el[0], el[1], 11, 12);
-    r.seg(P.cloak, el[0], el[1], k.handB[0], k.handB[1] - 3, 12, 15);
-    r.ellipse(P.skin, k.handB[0], k.handB[1] + 1, 4.5, 4.5);
+    r.seg(P.cloakD, el[0], el[1], cx, cy, 13, 16);
+    r.seg(P.cloak, el[0] - 0.5, el[1] - 0.5, cx - dx, cy - dy, 10, 13);
+    // an open hand at the end of the wide sleeve
+    r.ellipse(P.skinD, hand[0] + 0.5, hand[1] + 0.5, 4.4, 4.4);
+    r.ellipse(P.skin, hand[0], hand[1], 3.6, 3.6);
+    r.seg(P.skin, hand[0], hand[1], hand[0] + dx * 5 + 1, hand[1] + dy * 5, 2.4, 2);
   }
 
   // ---- boots (peek out under the robe) ----
-  for (const [a, back] of [[k.ankleB, true], [k.ankleF, false]] as const) {
+  for (const [a, back] of [[ankleB, true], [ankleF, false]] as const) {
     r.poly(back ? P.cloakD : P.boot, [[a[0] - 8, a[1] - 2], [a[0] + 8, a[1] - 2], [a[0] + 15, a[1] + 5], [a[0] + 15, a[1] + 8], [a[0] - 9, a[1] + 8]]);
     r.rect(P.gold, a[0] - 8, a[1] - 3, 16, 2);
   }
@@ -98,6 +115,17 @@ export function drawNova(r: Raster, k: Skel, look: PlaceholderLook): void {
     // darker back fold and a lit front panel
     r.poly(P.cloak, [[x0 - 2, top + 10], [x0 + 6, top + 4], [x0 + 12, top + 6], [x0 + 6 - flare, hem], [x0 - 2 - flare, hem]]);
     r.poly(P.robeL, [[x0 + 16, top + 6], [x0 + w - 8, top + 6], [x0 + w - 4, hem - 6], [x0 + 12, hem - 6]]);
+    // deep folds falling from the sash to the hem, fanning out with the flare
+    const folds: [number, number, number][] = [[x0 + 6, x0 + 2 - flare * 0.7, 0], [x0 + 13, x0 + 9 - flare * 0.3, 1], [x0 + w - 4, x0 + w + flare * 0.5, 2]];
+    for (const [fx0, fx1, i] of folds) {
+      const y0 = top + T.h - 2;
+      for (let y = y0; y < hem - 3; y++) {
+        const t = (y - y0) / (hem - 3 - y0);
+        const x = fx0 + (fx1 - fx0) * t + sway(i + 1) * 0.4 * t;
+        r.inlay(P.robe, P.robeD, (set) => set(x, y));
+        r.inlay(P.robeL, P.robeD, (set) => set(x, y));
+      }
+    }
     // front trim down the opening and a scalloped hem of glowing glyphs
     r.rect(P.trim, x0 + w / 2 + 2, top + 8, 2, hem - top - 14);
     for (let i = 0; i < 7; i++) {
@@ -146,8 +174,26 @@ export function drawNova(r: Raster, k: Skel, look: PlaceholderLook): void {
     // long silver hair framing the face and falling behind the shoulder
     r.poly(P.hairD, [[hx - 4, hy + 4], [hx + 10, hy + 2], [hx + 12, hy + hs - 2], [hx - 10 - sway(4), hy + hs + 18], [hx - 12, hy + 14]]);
     r.poly(P.hair, [[hx - 2, hy + 4], [hx + 8, hy + 3], [hx + 9, hy + hs - 4], [hx - 6 - sway(5), hy + hs + 14]]);
+    // loose locks at the ends, then strands combed down the hair
+    for (let i = 0; i < 3; i++) {
+      const lx = hx - 8 - sway(5) + i * 4;
+      const ly = hy + hs + 10 - i * 3;
+      r.seg(i === 1 ? P.hair : P.hairD, lx + 2, ly - 6, lx - 1 - sway(i + 6) * 0.4, ly + 3, 3.4, 1.4);
+    }
+    for (let i = 0; i < 2; i++) {
+      const ax = hx + 2 + i * 4;
+      const bx2 = hx - 6 - sway(5) + i * 5;
+      for (let y = hy + 6; y < hy + hs + 12; y++) {
+        const t = (y - hy - 6) / (hs + 6);
+        r.inlay(P.hair, P.hairD, (set) => set(ax + (bx2 - ax) * t, y));
+      }
+    }
     // face
     drawFace(r, { skin: P.skin, skinD: P.skinD, eye: P.eye, pupil: P.eye, line: P.line }, hx + 4, hy + 4, hs, hs - 2, { eyeLit: true, mouth: true });
+    // a bushy silver brow over the glowing eye and a cheek shadow under it
+    r.seg(P.hairD, hx + 4 + hs * 0.46, hy + 4 + (hs - 2) * 0.27, hx + 4 + hs * 0.94, hy + 4 + (hs - 2) * 0.3, 3, 2.6);
+    r.seg(P.hair, hx + 4 + hs * 0.46, hy + 3.4 + (hs - 2) * 0.27, hx + 4 + hs * 0.9, hy + 3.4 + (hs - 2) * 0.29, 2, 1.6);
+    r.rect(P.skinD, hx + 4 + hs * 0.56, hy + 4 + (hs - 2) * 0.52, hs * 0.22, 1);
     if (o === 1) {
       // a deep hood pulled up over the hair, and a gold circlet with a star on the brow
       // the hood's front lip over the brow, open at the face
@@ -185,13 +231,9 @@ export function drawNova(r: Raster, k: Skel, look: PlaceholderLook): void {
   // ---- front arm: sleeve, hand, staff ----
   {
     const [sx, sy] = k.shF;
-    const el = k.elbowF;
-    r.seg(P.robe, sx, sy, el[0], el[1], 12, 13);
-    r.seg(P.robeL, el[0], el[1], k.handF[0], k.handF[1] - 2, 14, 17);
-    r.rect(P.gold, k.handF[0] - 8, k.handF[1] - 2, 16, 2);
-    // the staff: wood shaft, gold rings, a claw cradling the orb
-    let dx = k.handF[0] - el[0];
-    let dy = k.handF[1] - el[1];
+    // the staff's direction: along the forearm, aimed by the move, or planted upright at rest
+    let dx = handF[0] - elbowF[0];
+    let dy = handF[1] - elbowF[1];
     const ln = Math.hypot(dx, dy) || 1;
     dx /= ln;
     dy /= ln;
@@ -204,11 +246,44 @@ export function drawNova(r: Raster, k: Skel, look: PlaceholderLook): void {
       dx = 0.1;
       dy = -1; // resting: planted upright
     }
-    const len = 64;
-    const tx = k.handF[0] + dx * len;
-    const ty = k.handF[1] + dy * len;
-    const bx = k.handF[0] - dx * 26;
-    const by = k.handF[1] - dy * 26;
+    // a staff pointed at the frame edge from close by: the hand draws back so the orb still fits
+    let hand = handF;
+    let el = elbowF;
+    const room = reach(r, hand, dx, dy, 16);
+    if (room < 20) {
+      hand = [hand[0] - dx * (20 - room), hand[1] - dy * (20 - room)];
+      el = solveLimb(k.shF, hand, k.armBone, 1).mid;
+    }
+    // and an orb that would still graze an edge across the staff's line (a level staff held low) lifts the hand with it
+    {
+      const l0 = Math.max(14, Math.min(64, reach(r, hand, dx, dy, 16) - 3)) + 3;
+      const ox = hand[0] + dx * l0;
+      const oy = hand[1] + dy * l0;
+      const sx2 = Math.max(16, Math.min(r.w - 17, ox)) - ox;
+      const sy2 = Math.max(16, Math.min(r.h - 17, oy)) - oy;
+      if (sx2 || sy2) {
+        hand = [hand[0] + sx2, hand[1] + sy2];
+        el = solveLimb(k.shF, hand, k.armBone, 1).mid;
+      }
+    }
+    // a lighter sleeve with a dark rim, so the arm parts from the robe; a bell cuff with a gold band at the wrist
+    const [ax, ay] = unit(el, hand);
+    const cx = hand[0] - ax * 5;
+    const cy = hand[1] - ay * 5;
+    r.seg(P.cloakD, sx, sy + 1, el[0], el[1] + 1, 14, 15);
+    r.seg(P.cloakD, el[0], el[1] + 1, cx + ax, cy + ay + 1, 15, 19);
+    r.seg(P.sleeve, sx, sy, el[0], el[1], 12, 13);
+    r.seg(P.sleeve, el[0], el[1], cx, cy, 13, 17);
+    r.seg(P.robe, el[0] + 1, el[1] + 2, cx + 1, cy + 2, 5, 8);
+    r.seg(P.gold, cx - ay * 8, cy + ax * 8, cx + ay * 8, cy - ax * 8, 2.6, 2.6);
+    // the staff: wood shaft, gold rings, a claw cradling the orb
+    // the staff keeps its length unless the orb (or the butt) would leave the frame, then it is held shorter
+    const len = Math.max(14, Math.min(64, reach(r, hand, dx, dy, 16) - 3));
+    const tail = Math.max(4, Math.min(26, reach(r, hand, -dx, -dy, 7)));
+    const tx = hand[0] + dx * len;
+    const ty = hand[1] + dy * len;
+    const bx = hand[0] - dx * tail;
+    const by = hand[1] - dy * tail;
     r.seg(P.wood, bx, by, tx, ty, 5, 4);
     r.seg(P.woodL, bx - 1, by, tx - 1, ty, 1, 1);
     for (const t of [0.28, 0.55, 0.82]) r.ellipse(P.gold, bx + (tx - bx) * t, by + (ty - by) * t, 3.5, 3.5);
@@ -233,11 +308,44 @@ export function drawNova(r: Raster, k: Skel, look: PlaceholderLook): void {
     const pulse = 0.5 + 0.5 * Math.sin(k.phase * 1.7);
     r.ellipse(P.accent, tx + dx * 3, ty + dy * 3, 8, 8);
     r.ellipse(P.glow, tx + dx * 2, ty + dy * 2, 3.5 + pulse * 1.5, 3.5 + pulse * 1.5);
-    r.ellipse(P.skin, k.handF[0], k.handF[1], 4.5, 4.5); // fingers over the shaft
+    // the hand closed round the shaft: knuckles, finger creases across the staff, a thumb on top
+    r.ellipse(P.skinD, hand[0] + 0.5, hand[1] + 0.5, 5.2, 5.2);
+    r.ellipse(P.skin, hand[0], hand[1], 4.4, 4.4);
+    for (let i = -1; i <= 1; i++) {
+      const fx = hand[0] + dx * i * 2.4;
+      const fy = hand[1] + dy * i * 2.4;
+      r.seg(P.skinD, fx + nx * 1.5, fy + ny * 1.5, fx + nx * 4, fy + ny * 4, 1, 1);
+    }
+    r.ellipse(P.skin, hand[0] - nx * 3 + dx * 2, hand[1] - ny * 3 + dy * 2, 2, 2);
     // orbiting motes
     for (let i = 0; i < 3; i++) {
       const a = k.phase * 0.9 + i * 2.1;
-      r.rect(P.star, tx + dx * 3 + Math.cos(a) * 12, ty + dy * 3 + Math.sin(a) * 12, 2, 2);
+      const mx = tx + dx * 3 + Math.cos(a) * 12;
+      const my = ty + dy * 3 + Math.sin(a) * 12;
+      if (mx >= 7 && my >= 7 && mx <= r.w - 9 && my <= r.h - 9) r.rect(P.star, mx, my, 2, 2);
     }
   }
+}
+
+/** How far from `p` along the unit direction (dx, dy) stays at least `m` pixels inside the frame. */
+function reach(r: Raster, p: V2, dx: number, dy: number, m: number): number {
+  let t = Infinity;
+  if (dx > 1e-6) t = Math.min(t, (r.w - 1 - m - p[0]) / dx);
+  if (dx < -1e-6) t = Math.min(t, (m - p[0]) / dx);
+  if (dy > 1e-6) t = Math.min(t, (r.h - 1 - m - p[1]) / dy);
+  if (dy < -1e-6) t = Math.min(t, (m - p[1]) / dy);
+  return Math.max(0, t);
+}
+
+function clampV(v: V2, x0: number, x1: number, y0: number, y1: number): V2 {
+  const x = Math.max(x0, Math.min(x1, v[0]));
+  const y = Math.max(y0, Math.min(y1, v[1]));
+  return x === v[0] && y === v[1] ? v : [x, y];
+}
+
+function unit(a: V2, b: V2): V2 {
+  const dx = b[0] - a[0];
+  const dy = b[1] - a[1];
+  const l = Math.hypot(dx, dy) || 1;
+  return [dx / l, dy / l];
 }
