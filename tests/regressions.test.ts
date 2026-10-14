@@ -337,3 +337,21 @@ describe('timed scoring', () => {
     expect(m.scores[0].kos - m.scores[0].falls).toBe(0);
   });
 });
+
+describe('ledge', () => {
+  it('grabbing a ledge gives no invincibility', () => {
+    const world = new World(classicStage);
+    const f = new Fighter(0, CHARACTERS.brick);
+    world.addFighter(f);
+    const ledge = world.ledges[0];
+    f.spawn(ledge.x + ledge.side * 20, ledge.y + 30, 1);
+    f.invuln = 0;
+    const ins = [makeInput()];
+    for (let i = 0; i < 120 && f.state !== 'ledge'; i++) {
+      f.x = ledge.x + ledge.side * 6;
+      world.step(ins);
+    }
+    expect(f.state).toBe('ledge');
+    expect(f.invuln).toBe(0);
+  });
+});

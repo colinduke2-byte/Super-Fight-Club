@@ -136,8 +136,6 @@ export const HITSTUN_FALL_GRAVITY = 0.9;
 export const DI_MAX_ANGLE = 0.3;
 const LEDGE_MAX_HANG = 300;
 const LEDGE_ACTION_DELAY = 8;
-const LEDGE_BASE_INVULN = 60;
-const LEDGE_INVULN_LOSS_PER_GRAB = 14;
 const LEDGE_REGRAB_COOLDOWN = 30;
 const LEDGE_CLIMB_FRAMES = 24;
 const DROP_NUDGE = 3;
@@ -2224,9 +2222,8 @@ export class Fighter implements Body {
     this.facing = (-l.side) as 1 | -1;
     this.jumpsLeft = this.stats.doubleJumps;
     this.fastFalling = false;
-    // anti-stall: every consecutive grab (without touching ground) gives less invincibility
-    // (an Aegis Core keeps its own invincibility running)
-    this.invuln = Math.max(0, LEDGE_BASE_INVULN - LEDGE_INVULN_LOSS_PER_GRAB * (this.ledgeGrabs - 1), this.aegisFrames);
+    // grabbing the ledge grants no invincibility: a hanging fighter can be hit (any invincibility already running,
+    // from a respawn or an Aegis Core, simply carries on)
     this.setState('ledge');
     world.emit('ledgeGrab', this, this.x, this.y, 0, 0);
     this.data.behavior?.onLedgeGrab?.(this, world);

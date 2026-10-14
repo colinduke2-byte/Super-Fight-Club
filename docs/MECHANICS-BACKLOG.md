@@ -106,7 +106,7 @@ Missing:
 - **Ground friction / ice / conveyor** surface types do not exist (see map list).
 
 ### B4. Movement and stage interaction [CORE]
-- **Ledge:** grab, hang with decaying invincibility, get-up / roll / attack / jump *(exist)*. Missing **ledge trump**, **ledge-hop**, **neutral get-up vs slow get-up by damage**, **ledge-hang animation / dangling**, and **ledge-grab on moving platforms** (check).
+- **Ledge:** grab (no invincibility: a hanging fighter can be hit), hang, get-up / roll / attack / jump *(exist)*. Missing **ledge trump**, **ledge-hop**, **neutral get-up vs slow get-up by damage**, **ledge-hang animation / dangling**, and **ledge-grab on moving platforms** (check).
 - **Platform behaviour:** pass-through, drop-through *(exist)*; missing **platform-edge ledges**, **platform-slide momentum**, **moving-platform momentum transfer** on jump and on launch, **platform-landing leniency windows** and **tipping / edge balance** poses.
 - **Wall jump** (data flag `wallJump`, Vex only) and **wall cling**. Decide if other characters get walls and how stages mark "climbable" surfaces.
 - **Ceiling interactions** (hitting a ceiling ends upward travel; solid ceilings on maps).
