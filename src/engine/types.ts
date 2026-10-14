@@ -201,6 +201,8 @@ export interface CharacterPersona {
   intro: string;
   taunt: string;
   epilogue: string;
+  /** A short line under the champion on the results screen. */
+  victory?: string;
 }
 
 export interface CharacterData {

@@ -65,6 +65,7 @@ export const vex: CharacterData = {
     intro: 'Vex came for the vault beneath the arena. The only door is the Ladder, and the Ladder only opens for winners.',
     taunt: 'Catch me if you can. You cannot.',
     epilogue: 'The vault was empty, except for a single note: "Thanks for the distraction." Vex laughs all the way up the stairs.',
+    victory: 'Too slow. Again.',
   },
   stats: {
     weight: 107,

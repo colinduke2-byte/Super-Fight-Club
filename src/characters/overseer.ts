@@ -29,6 +29,7 @@ export const overseer: CharacterData = {
     intro: '',
     taunt: 'Challenger. The arena has counted every blow you threw, and has decided that you are surplus.',
     epilogue: '',
+    victory: 'Surplus removed.',
   },
   stats: {
     weight: 300,

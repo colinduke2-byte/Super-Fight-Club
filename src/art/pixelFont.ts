@@ -6,7 +6,7 @@ import { addCanvasTexture } from './canvasTexture';
  * 'pix'. Glyph pixels are white (so BitmapText.setTint recolours them); outline pixels are near-black.
  * Uppercase only: use `up()` on strings.
  */
-const CHARS = " ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789%!?.,:-+/'()=@*[]<>|_#";
+const CHARS = " ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789%!?.,:-+/'()=@*[]<>|_#\"";
 const CELL_W = 7;
 const CELL_H = 9;
 const PER_ROW = 16;
@@ -58,6 +58,7 @@ const G: Record<string, string> = {
   '+': '00000 00100 00100 11111 00100 00100 00000',
   '/': '00001 00010 00010 00100 01000 01000 10000',
   "'": '00100 00100 01000 00000 00000 00000 00000',
+  '"': '01010 01010 10100 00000 00000 00000 00000',
   '(': '00010 00100 01000 01000 01000 00100 00010',
   ')': '01000 00100 00010 00010 00010 00100 01000',
   '=': '00000 00000 11111 00000 11111 00000 00000',

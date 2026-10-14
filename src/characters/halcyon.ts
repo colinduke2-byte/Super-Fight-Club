@@ -54,6 +54,7 @@ export const halcyon: CharacterData = {
     intro: 'Halcyon kept the sky-gate until the storm took the sky. The only way back up is the Ladder, one bout at a time.',
     taunt: 'You fight on the ground. I fight where the wind starts.',
     epilogue: 'At the top of the Ladder the roof tore open. Halcyon spread both wings, caught the first real wind in years, and did not look down.',
+    victory: 'The sky keeps what it takes.',
   },
   stats: {
     weight: 101,

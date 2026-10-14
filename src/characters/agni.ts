@@ -45,6 +45,7 @@ export const agni: CharacterData = {
     intro: 'Agni was a festival bonfire once, lit for a forgotten god. The arena asked who would dare to burn, and the flame stood up.',
     taunt: 'I do not need to win quickly. I only need to burn longer than you.',
     epilogue: 'The last light in the Hollow is no longer the arena\'s. Agni cups it in both hands and walks out into the night.',
+    victory: 'Still burning. You are not.',
   },
   stats: {
     weight: 92,

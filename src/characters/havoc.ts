@@ -76,6 +76,7 @@ export const havoc: CharacterData = {
     intro: 'Havoc was sent in to shut the arena down quietly. Quiet is not really his style.',
     taunt: 'Fire in the hole. That means you.',
     epilogue: 'Havoc radios in: "Arena neutralised." Behind him the Hollow lights up like a festival. Mission accomplished, loudly.',
+    victory: 'Mission complete. Collateral: you.',
   },
   stats: {
     weight: 96,

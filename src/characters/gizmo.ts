@@ -114,6 +114,7 @@ export const gizmo: CharacterData = {
     intro: 'Gizmo wired the arena\'s first brain on a rainy Tuesday. Now the brain will not let anyone leave, and Gizmo feels responsible.',
     taunt: 'One turret. Two turrets. You are outnumbered.',
     epilogue: 'Gizmo pulls the last cable. The arena sighs and goes quiet. "Okay," he says to nobody. "Version two will have a snooze button."',
+    victory: 'Recalibrating... still winning!',
   },
   stats: {
     weight: 88,

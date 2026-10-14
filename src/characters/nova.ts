@@ -75,6 +75,7 @@ export const nova: CharacterData = {
     intro: 'Nova felt her stolen Aether humming from the arena core, loud as a second heartbeat. She follows the sound.',
     taunt: 'The stars said you would come. They laughed.',
     epilogue: 'The Aether returns to her staff like a lost bird. The Hollow glows blue for one long minute, and every lamp in the city remembers the sky.',
+    victory: 'Written in the stars. Twice.',
   },
   stats: {
     weight: 100,

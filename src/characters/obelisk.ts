@@ -50,6 +50,7 @@ export const obelisk: CharacterData = {
     intro: 'Obelisk slept under the arena for ten thousand years, until someone built a fighting pit on its roof. It has come up to complain.',
     taunt: 'Get out of my cave.',
     epilogue: 'Obelisk tore the Super Fight Club down to the bedrock and grew a mountain over the hole. It is quiet now. That is how it likes it.',
+    victory: 'Stone remembers. You won\'t.',
   },
   stats: {
     weight: 90,

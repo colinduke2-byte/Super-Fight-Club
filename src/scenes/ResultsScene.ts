@@ -1,7 +1,7 @@
 import { announcer } from '../audio/announcer';
 import { challengeById, challengeCleared, challengeRules } from '../game/challenges';
 import Phaser from 'phaser';
-import { PIXEL_FONT } from '../art/pixelFont';
+import { PIXEL_FONT, up } from '../art/pixelFont';
 import { music } from '../audio/music';
 import { formatTicks } from '../game/records';
 import { characterById } from '../characters';
@@ -22,6 +22,7 @@ export class ResultsScene extends MenuScene {
   private head!: Phaser.GameObjects.BitmapText;
   /** Winner showcase: the champion on a lit pedestal with confetti. */
   private champ: Phaser.GameObjects.Sprite | null = null;
+  private champLine: Phaser.GameObjects.BitmapText | null = null;
   private champK = 1;
   private champName: Phaser.GameObjects.BitmapText | null = null;
   private stageG!: Phaser.GameObjects.Graphics;
@@ -73,6 +74,7 @@ export class ResultsScene extends MenuScene {
     this.fx = this.add.graphics().setBlendMode(Phaser.BlendModes.ADD);
     this.ui.add([this.stageG, this.fx]);
     this.champ = null;
+    this.champLine = null;
     this.champName = null;
     this.confetti = [];
     const wp = r && winner >= 0 ? r.players.find((p) => p.index === winner) : undefined;
@@ -96,6 +98,7 @@ export class ResultsScene extends MenuScene {
       this.time.addEvent({ delay: 4200, loop: true, callback: strike });
       this.ui.add(this.champ);
       this.champName = text(this, this.ui, wc.name.replace('The ', '').toUpperCase(), this.champColor).setOrigin(0.5);
+      if (wc.persona?.victory) this.champLine = text(this, this.ui, up(`"${wc.persona.victory}"`), COLORS.dim).setOrigin(0.5);
     }
     if (lr) {
       const m = (v: number | null): string => (v !== null && v > 0 ? `${v.toFixed(1)} M` : '--');
@@ -178,6 +181,7 @@ export class ResultsScene extends MenuScene {
       this.floor = { x: w * 0.23, y: h * 0.76, s };
       this.champ.setScale(s * this.champK).setPosition(this.floor.x, this.floor.y);
       this.champName?.setScale(Math.min(u * 2, (w * 0.36) / Math.max(1, textPx(this.champName)))).setPosition(this.floor.x, this.floor.y + s * 10 + 9 * u);
+      if (this.champName && this.champLine) this.champLine.setScale(Math.min(u, (w * 0.38) / Math.max(1, textPx(this.champLine)))).setPosition(this.floor.x, this.champName.y + this.champName.displayHeight / 2 + 6 * u);
     }
   }
 

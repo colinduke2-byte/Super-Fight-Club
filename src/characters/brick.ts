@@ -33,6 +33,7 @@ export const brick: CharacterData = {
     intro: 'Brick was built to guard a gate that fell long ago. Tonight he chooses to break the line instead of holding it.',
     taunt: 'Not many get past me. Fewer get up.',
     epilogue: 'Brick sets his shield down on the cracked floor. For the first time in years there is nothing left to guard, and he does not mind.',
+    victory: 'Shake it off. Or don\'t.',
   },
   stats: {
     weight: 108,

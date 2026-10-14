@@ -58,6 +58,7 @@ export const rime: CharacterData = {
     intro: 'Rime guarded the Frostfang Shrine for a hundred winters. The arena stole its bell, so the snow came down to fetch it.',
     taunt: 'You will not feel the cut until spring.',
     epilogue: 'The bell rings once at the top of the mountain. Rime is already gone; only footprints in the snow remember the fight.',
+    victory: 'Winter always wins.',
   },
   stats: {
     weight: 80,

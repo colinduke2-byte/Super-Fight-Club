@@ -46,6 +46,7 @@ export const riptide: CharacterData = {
     intro: 'Riptide was bred in the flooded pits under the arena, a gladiator in a shark\'s skin. The tide has risen. So has he.',
     taunt: 'You can swim, right? Doesn\'t matter.',
     epilogue: 'At the top of the Ladder Riptide broke the floodgates open. The whole arena went under, and for the first time in years he was home.',
+    victory: 'Tide\'s out. So are you.',
   },
   stats: {
     weight: 102,
