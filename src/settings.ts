@@ -40,7 +40,7 @@ export const DEFAULT_SETTINGS: Settings = {
   particleQuality: 'high',
   renderQuality: 'sharp',
   showPerf: false,
-  autoQuality: true,
+  autoQuality: false, // full effects by default; players on slow machines can opt in
   rumble: true,
   screenShake: 1,
   reduceFlashes: false,
