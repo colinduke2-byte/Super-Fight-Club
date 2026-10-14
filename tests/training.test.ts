@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { brick } from '../src/characters/brick';
+import { havoc } from '../src/characters/havoc';
 import { makeProtoBase } from '../src/characters/proto';
 import { makeInput } from '../src/engine/buttons';
 import { Fighter } from '../src/engine/fighter';
@@ -110,5 +111,19 @@ describe('training scenarios', () => {
     expect(text).toContain('Piston Jab 1');
     expect(text).toContain(`startup ${brick.moves.jab1.startup}`);
     expect(text).toContain('LAST HIT');
+  });
+
+  it('a reset clears explosives in flight without setting them off on the reset dummy', () => {
+    const { world, p, d, runner } = setup(havoc);
+    runner.reset();
+    world.step([makeInput(), makeInput()]);
+    const g = world.spawnProjectile(p.id, 'grenade', d.x, d.y - d.h - 22, 0, 0)!; // over the dummy's head: in blast range, not touching
+    world.step([makeInput(), makeInput()]);
+    expect(g.active).toBe(true);
+    runner.reset();
+    const before = d.damage;
+    world.step([makeInput(), makeInput()]);
+    expect(d.damage).toBe(before);
+    expect(d.state).not.toBe('hitstun');
   });
 });

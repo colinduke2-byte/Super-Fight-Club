@@ -379,8 +379,8 @@ export class CpuController implements Controller {
       if (c.air !== undefined && c.air !== !self.grounded) continue;
       if (c.into === '@jump' && !(tgt.y < self.y - 20)) continue;
       if (Math.abs(tgt.x - self.x) > 140) continue;
-      // never cancel into a lunge (Charge Shoulder, Shark Lunge) that would carry us off the stage
-      if (self.grounded && this.lungesOff(self, travel(self.data.moves[c.into], attackDecel(self.data)), c.dir === 'side' ? (tgt.x >= self.x ? 1 : -1) : c.dir === 'back' ? -self.facing : self.facing)) continue;
+      // never cancel into a lunge (Charge Shoulder, Shark Lunge, Agni's Spin Kick variants) that would carry us off the stage
+      if (self.grounded && this.lungesOff(self, travel(this.slotMove(self, self.resolveVariant(c.into)), attackDecel(self.data)), c.dir === 'side' ? (tgt.x >= self.x ? 1 : -1) : c.dir === 'back' ? -self.facing : self.facing)) continue;
       if (this.rnd() < 1 / ++n) pick = i; // reservoir pick
     }
     if (pick < 0) return;

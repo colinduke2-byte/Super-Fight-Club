@@ -176,7 +176,8 @@ function tryTether(f: Fighter, angle: number, range: number, speed: number, grab
     const py = oy + dy * d;
     if (grabsOpponents) {
       for (const v of world.fighters) {
-        if (v === f || v.state === 'ko' || v.invuln > 0 || v.state === 'grabbed' || world.allied(f.id, v.id)) continue;
+        // the same rule as a grab hitbox: fighters in hitstun or hanging on a ledge cannot be grabbed (no hitstun chain-grabs)
+        if (v === f || v.state === 'ko' || v.invuln > 0 || v.state === 'grabbed' || v.state === 'hitstun' || v.state === 'ledge' || world.allied(f.id, v.id)) continue;
         hurtRect(v, tmpRect);
         if (px >= tmpRect[0] && px <= tmpRect[0] + tmpRect[2] && py >= tmpRect[1] && py <= tmpRect[1] + tmpRect[3]) {
           world.emit('tether', f, px, py, 1, v.id);

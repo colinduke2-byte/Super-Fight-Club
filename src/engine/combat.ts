@@ -237,10 +237,13 @@ function applyHit(world: World, c: Candidate): void {
     def.releaseGrab();
     def.grabbedBy = -1;
     def.receiveHit({ damage: c.damage, base: hb.base, scaling: hb.scaling, angle: hb.angle, direction, moveWeight: hb.weight, hitlag: 0, attackerId: atk.id, kbMult }, world);
+    def.lastHitFx = hb.fx ?? '';
     atk.grabTarget = -1;
     atk.gainMeter(c.damage, world);
     atk.gainResourcesDealt(c.damage);
     atk.data.behavior?.onHitDealt?.(atk, def, hb, c.damage, world);
+    // a throw's own status (a soaking / chilling throw) sticks after the hooks, so a wring-out bonus spends only the old soak
+    if (hb.status) def.applyStatus(hb.status, world);
     world.emit('throw', def, def.x, midY, 0, c.damage);
     atk.data.behavior?.onThrow?.(atk, def, world);
     return;

@@ -111,11 +111,11 @@ function updateProjectiles(world: World): void {
       if (!overlap(rA, rB)) continue;
       const pillar = plat.dynamic ? world.deployables.find((d) => d.plat === plat && d.active) : undefined;
       if (pillar) {
-        // a crystal pillar: its owner's shots shatter it into shards, anyone else's chip at it
+        // a crystal pillar: its owner's shots shatter it into shards, a rival's chip at it (a teammate's are only stopped)
         if (p.owner === pillar.owner) {
           pillar.shatter = true;
           pillar.deactivate();
-        } else {
+        } else if (!world.allied(p.owner, pillar.owner)) {
           pillar.hp -= def.hit.damage * p.dmgMult;
           if (pillar.hp <= 0) destroyDeployable(world, pillar, p.owner);
         }
@@ -169,13 +169,20 @@ function updateDeployables(world: World): void {
         }
       }
       if (d.y > world.blast.bottom) d.deactivate();
-    } else if (d.grounded && def.gravity) {
-      // keep following a moving platform it rests on
+    } else if (d.grounded && def.gravity && d.attached < 0) {
+      // keep following a moving platform it rests on; with nothing underneath any more (a shattered pillar) it falls again
+      let supported = false;
       for (const plat of world.platforms) {
-        if (plat.moving && d.x >= plat.x && d.x <= plat.right && Math.abs(d.y - plat.prevY) < 1) {
+        if (d.x < plat.x || d.x > plat.right) continue;
+        if (plat.moving && Math.abs(d.y - plat.prevY) < 1) {
           d.x += plat.dx;
           d.y = plat.top;
-        }
+          supported = true;
+        } else if (Math.abs(d.y - plat.top) < 1) supported = true;
+      }
+      if (!supported) {
+        d.grounded = false;
+        d.vy = 0;
       }
     }
     if (d.attached >= 0) {

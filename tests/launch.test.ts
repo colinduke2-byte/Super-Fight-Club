@@ -61,4 +61,16 @@ describe('Launch Contest', () => {
     expect(lc.over).toBe(true);
     expect(lc.distance).toBe(0);
   });
+
+  it('a dummy flown off the end of the runway scores the point where it went out, not the tick before', () => {
+    const { world, bag, lc } = setup(0);
+    run(world, lc, inp(), LAUNCH_TIMER);
+    bag.x = bag.prevX = launchStage.blast.right - 60;
+    bag.y = -200;
+    bag.launch(20, 0, 60);
+    for (let i = 0; i < 10 && bag.state !== 'ko'; i++) run(world, lc, inp());
+    expect(bag.state).toBe('ko');
+    expect(lc.over).toBe(true);
+    expect(lc.distance).toBeGreaterThanOrEqual((launchStage.blast.right - LAUNCH_EDGE) / 4);
+  });
 });

@@ -286,9 +286,19 @@ export class World {
   private stepCinematic(): void {
     const c = this.cinematic!;
     const cin = c.move.cinematic!;
+    if (c.victim.state !== 'grabbed' || c.attacker.state !== 'attack' || c.attacker.move !== c.move) {
+      // the cutscene lost its cast (a stamina KO mid-way, sudden death respawning everyone, another hit landing on the
+      // victim or the caster the tick it started): stop it instead of pinning and hitting whoever is standing there now
+      this.cinematic = null;
+      c.victim.releaseGrab(); // a victim still pinned (the caster was the one interrupted) is let go
+      this.emit('cinematicEnd', c.attacker, c.attacker.x, c.attacker.y, 0, c.victim.id);
+      return;
+    }
     c.frame++;
     c.victim.x = c.attacker.x + c.attacker.facing * 18;
     c.victim.y = c.attacker.y;
+    c.victim.grounded = c.attacker.grounded;
+    c.victim.groundPlat = c.attacker.groundPlat;
     c.victim.snapped = true;
     for (const h of cin.hits) {
       if (h.frame !== c.frame) continue;
@@ -357,6 +367,10 @@ export class World {
       }
       v.x = a.x + a.facing * GRAB_DISTANCE;
       v.y = a.y;
+      // held at the captor's feet: standing if the captor stands, airborne if it is (an air grab carries a grounded victim
+      // off the floor, and on release it must fall from there, not snap back down to where it was grabbed)
+      v.grounded = a.grounded;
+      v.groundPlat = a.groundPlat;
       v.facing = (-a.facing) as 1 | -1;
       v.snapped = true;
     }

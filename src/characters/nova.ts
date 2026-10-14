@@ -35,8 +35,9 @@ const behavior: CharacterBehavior = {
   onMoveEvent(f, name) {
     if (name === 'cycle') f.res.element = nextElement(f.res.element);
   },
-  onHitDealt(f, victim, _hb, _damage, world) {
-    if (!f.move || !ELEMENTAL_MOVES.has(f.move.id)) return;
+  onHitDealt(f, victim, hb, _damage, world) {
+    // only the elemental move's own hitboxes (not a bolt or rune landing while Nova is mid-swing)
+    if (!f.move || !ELEMENTAL_MOVES.has(f.move.id) || !f.move.hitboxes.includes(hb)) return;
     switch (ELEMENTS[f.res.element]) {
       case 'fire':
         victim.applyStatus({ type: 'burn', frames: 100, value: 0.05 }, world);

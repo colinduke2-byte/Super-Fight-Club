@@ -491,6 +491,9 @@ export class Fighter implements Body {
     this.airDodgeUsed = false;
     this.wallJumps = 0;
     this.clingFrames = 0;
+    // a fresh airtime: the glide / jet budgets of the last life (KO'd mid-glide) do not carry over
+    this.glideFrames = this.jetFrames = 0;
+    this.gliding = this.jetting = false;
     this.climbAttack = false;
     this.releaseLedge();
     this.invuln = 120;
@@ -1686,6 +1689,8 @@ export class Fighter implements Body {
       this.setState('landing');
       return;
     }
+    // a throw started in the air (after an air grab) plays out on the ground: landing must not drop the victim for free
+    if (m.kind === 'throw') return;
     const f = this.moveFrame;
     const activeFrom = m.startup + 1;
     const activeTo = m.startup + m.active;
@@ -2200,6 +2205,9 @@ export class Fighter implements Body {
   grabLedge(l: Ledge, world: World): void {
     this.endMoveState();
     this.helpless = false;
+    // a ledge snap can start from the stage itself: hanging is never standing (or a ledge jump would pop up onto the top)
+    this.grounded = false;
+    this.groundPlat = null;
     this.ledge = l;
     this.climbAttack = false;
     this.airDodgeUsed = false;
@@ -2217,7 +2225,8 @@ export class Fighter implements Body {
     this.jumpsLeft = this.stats.doubleJumps;
     this.fastFalling = false;
     // anti-stall: every consecutive grab (without touching ground) gives less invincibility
-    this.invuln = Math.max(0, LEDGE_BASE_INVULN - LEDGE_INVULN_LOSS_PER_GRAB * (this.ledgeGrabs - 1));
+    // (an Aegis Core keeps its own invincibility running)
+    this.invuln = Math.max(0, LEDGE_BASE_INVULN - LEDGE_INVULN_LOSS_PER_GRAB * (this.ledgeGrabs - 1), this.aegisFrames);
     this.setState('ledge');
     world.emit('ledgeGrab', this, this.x, this.y, 0, 0);
     this.data.behavior?.onLedgeGrab?.(this, world);
@@ -2288,7 +2297,7 @@ export class Fighter implements Body {
     this.grabCooldown = LEDGE_REGRAB_COOLDOWN + 20;
     this.vx = l.side * 1.6;
     this.vy = 0.5;
-    this.invuln = 0;
+    this.invuln = this.aegisFrames; // the ledge invincibility is gone (an Aegis Core's is not)
     this.setState('air');
     world.emit('trump', this, this.x, this.y - this.h / 2, 0, 0);
   }

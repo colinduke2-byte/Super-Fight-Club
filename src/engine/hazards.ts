@@ -110,8 +110,7 @@ function stepStump(world: World, i: number, h: HazardDef, tick: number): void {
       f.y = plat.top;
       f.prevY = Math.min(f.prevY, f.y);
       f.vy = 0;
-      f.grounded = true;
-      f.groundPlat = plat;
+      if (f.grounded) f.groundPlat = plat; // an airborne fighter lands on it through their own collision (see stepPillars' lift)
     }
   } else if (!alive && plat) {
     world.hazardPlats[i] = null;

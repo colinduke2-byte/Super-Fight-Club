@@ -53,8 +53,9 @@ function lift(world: World, d: Deployable, p: Platform): void {
       f.y = p.top;
       f.prevY = Math.min(f.prevY, f.y + 4);
       f.vy = 0;
-      f.grounded = true;
-      f.groundPlat = p;
+      // someone standing is carried up; someone airborne is only set on top, and lands on it through their own collision
+      // this tick (marking them grounded here would skip the landing and leave them stuck in the air state on the pillar)
+      if (f.grounded) f.groundPlat = p;
     }
     const bit = 1 << f.id;
     if (pd.riseHit && f.id !== d.owner && !world.allied(d.owner, f.id) && f.invuln <= 0 && !(d.riseMask & bit)) {

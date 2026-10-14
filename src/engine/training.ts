@@ -149,7 +149,10 @@ export class TrainingRunner {
   reset(): void {
     const sc = this.current;
     const w = this.world;
-    for (const p of w.projectiles) p.deactivate();
+    for (const p of w.projectiles) {
+      p.deactivate();
+      p.exploded = true; // cleared away, not set off: a grenade in flight must not burst on the reset dummy next tick
+    }
     for (const d of w.deployables) d.deactivate();
     w.cinematic = null;
     const ground = w.platforms[0];

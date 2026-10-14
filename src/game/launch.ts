@@ -49,7 +49,8 @@ export class LaunchContest {
     this.t++;
     const b = this.bag;
     if (b.state === 'ko') {
-      // past the blast line: score what it reached
+      // past the blast line: score what it reached, including the last tick's travel out to where it was KO'd
+      if (this.phase === 'flying') this.distance = Math.max(this.distance, Math.max(0, b.koX - LAUNCH_EDGE) / LAUNCH_PX_PER_M);
       this.phase = 'done';
       return;
     }
