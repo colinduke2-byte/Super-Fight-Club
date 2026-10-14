@@ -84,7 +84,11 @@ export class UltCutIn {
     this.sprite.setScale(sc * this.k).setPosition(slide, cy + bh * 0.62).setAlpha(fade);
     const slam = 1 + Math.max(0, 1 - p / 0.12) * 0.8;
     this.name.setScale(1);
-    const fit = Math.min(u * 3.2, (w * 0.5) / Math.max(1, this.name.getTextBounds().local.width));
-    this.name.setScale(fit * slam).setPosition(this.dir > 0 ? w * 0.62 : w * 0.38, cy).setTint(0xffffff).setAlpha(fade);
+    const tw = Math.max(1, this.name.getTextBounds().local.width);
+    const fit = Math.min(u * 3.2, (w * 0.5) / tw);
+    // the slam-in overshoot stays on screen: a long name near the edge is nudged inwards while it is oversized
+    const half = (tw * fit * slam) / 2;
+    const nx = Phaser.Math.Clamp(this.dir > 0 ? w * 0.62 : w * 0.38, Math.min(w / 2, half + 4 * u), Math.max(w / 2, w - half - 4 * u));
+    this.name.setScale(fit * slam).setPosition(nx, cy).setTint(0xffffff).setAlpha(fade);
   }
 }

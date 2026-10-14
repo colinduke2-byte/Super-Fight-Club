@@ -80,6 +80,37 @@ const HELP_TRAINING = [
 ];
 const HELP_MATCH = ['ESC / START: PAUSE   1 DEBUG   F FULLSCREEN   H HIDE THIS'];
 
+/** Re-wraps help lines to at most `max` characters, breaking between their double-spaced entries where it can. */
+function wrapHelp(lines: string[], max: number): string {
+  const out: string[] = [];
+  for (const l of lines) {
+    if (l.length <= max) {
+      out.push(l);
+      continue;
+    }
+    // entries too long on their own break between words
+    const parts = l.split(/ {2,}/).flatMap((e) => {
+      if (e.length <= max) return [e];
+      const words: string[] = [];
+      for (const word of e.split(' ')) {
+        const last = words.length - 1;
+        if (last >= 0 && words[last].length + 1 + word.length <= max) words[last] += ` ${word}`;
+        else words.push(word);
+      }
+      return words;
+    });
+    let cur = '';
+    for (const part of parts) {
+      if (cur && cur.length + 2 + part.length > max) {
+        out.push(cur);
+        cur = part;
+      } else cur = cur ? `${cur}  ${part}` : part;
+    }
+    if (cur) out.push(cur);
+  }
+  return out.join('\n');
+}
+
 function resolveCharacter(id: string): CharacterData {
   return characterById(id) ?? CHARACTERS.brick;
 }
@@ -110,6 +141,8 @@ export class MatchScene extends Phaser.Scene {
   private readonly ts = new FixedTimestep();
   private readonly cam = new MultiTargetCamera({ ...DEFAULT_CAMERA, bounds: { x: 0, y: 0, w: 1, h: 1 } });
   private readonly camTargets: CamPoint[] = [];
+  /** World rectangle the world camera shows this frame (see render). */
+  private readonly view = new Phaser.Geom.Rectangle();
 
   private bgLayer!: Phaser.GameObjects.Layer;
   private worldLayer!: Phaser.GameObjects.Layer;
@@ -368,7 +401,8 @@ export class MatchScene extends Phaser.Scene {
     this.bubbles = new OffscreenBubbles(this, this.uiLayer, this.fighters, this.views, tagColors);
     this.fighters.forEach((f, i) => {
       const label = labels[i];
-      this.huds.push(new FighterHud(this, this.uiLayer, f.data, f.team >= 0 ? (f.team === 0 ? 'BLUE' : 'RED') : label, f.team >= 0 ? f.team : i, this.skins[i]));
+      // team battles: the plate keeps the fighter's own name (as on its tag) and takes the team colour
+      this.huds.push(new FighterHud(this, this.uiLayer, f.data, label, f.team >= 0 ? f.team : i, this.skins[i]));
     });
     if (cfg.mode === 'stamina') this.huds.forEach((h) => (h.hpMax = cfg.staminaHp ?? 150));
     this.helpText = this.add.bitmapText(0, 0, PIXEL_FONT, up((this.isTraining ? HELP_TRAINING : HELP_MATCH).join('\n'))).setOrigin(0, 1).setTint(0xb8b0e8);
@@ -910,8 +944,14 @@ export class MatchScene extends Phaser.Scene {
 
     const sx = this.shake > 0 ? (Math.random() - 0.5) * this.shake * 2 : 0;
     const sy = this.shake > 0 ? (Math.random() - 0.5) * this.shake * 2 : 0;
-    this.worldCam.setZoom(zoom * (1 + this.punch));
+    const zp = zoom * (1 + this.punch);
+    this.worldCam.setZoom(zp);
     this.worldCam.centerOn(cx + sx, cy + sy);
+    // what the world camera shows this frame (its worldView only catches up in its pre-render, a frame late, so screen-space
+    // tags and bubbles placed from it trailed the fighters and jittered against them under screen shake)
+    const vw = this.scale.width / zp;
+    const vh = this.scale.height / zp;
+    this.view.setTo(cx + sx - vw / 2, cy + sy - vh / 2, vw, vh);
     this.bg.update(cx, cy, zoom, this.time.now / 1000);
 
     this.stageView.update(alpha);
@@ -939,8 +979,8 @@ export class MatchScene extends Phaser.Scene {
     this.updateClock();
     this.koBlast.update(Math.min(frameMs, 50) / 1000, this.scale.width, this.scale.height);
     const hu = this.hudUnit(this.scale.height);
-    this.tags.update(this.worldCam.worldView, this.scale.width, this.scale.height, hu);
-    this.bubblesSay.update(performance.now(), this.worldCam.worldView, this.scale.width, this.scale.height, hu);
+    this.tags.update(this.view, this.scale.width, this.scale.height, hu);
+    this.bubblesSay.update(performance.now(), this.view, this.scale.width, this.scale.height, hu);
     // an ultimate starting: cut-in banner (once per activation)
     this.fighters.forEach((f, i) => {
       const ult = f.state === 'attack' && f.move?.kind === 'ultimate';
@@ -951,7 +991,7 @@ export class MatchScene extends Phaser.Scene {
       this.ultOn[i] = ult;
     });
     this.cutIn.update(this.paused ? 0 : Math.min(frameMs, 50) / 1000, this.scale.width, this.scale.height, hu);
-    this.bubbles.update(this.worldCam.worldView, this.scale.width, this.scale.height, hu, this.scale.height - Math.round(8 * this.dpr()) - 40 * hu);
+    this.bubbles.update(this.view, this.scale.width, this.scale.height, hu, this.scale.height - Math.round(8 * this.dpr()) - 40 * this.hudU);
     if (this.bannerPop > 0) this.bannerPop = Math.max(0, this.bannerPop - frameMs / 16.7);
     // long banners (challenge titles, TEAM BLUE WINS) shrink to fit narrow windows
     const fit = Math.min(this.bannerBase, (this.scale.width * 0.92) / Math.max(1, textPx(this.banner)));
@@ -1173,6 +1213,9 @@ export class MatchScene extends Phaser.Scene {
     this.trainText.setPosition(m, y);
   }
 
+  /** Device pixels per art pixel of the fighter plates (hudUnit, or less when the window is too narrow for them). */
+  private hudU = 2;
+
   /** Device pixels per HUD art pixel (integer, >= 2). */
   private hudUnit(h: number): number {
     return Math.max(2, Math.round(h / 360));
@@ -1222,6 +1265,7 @@ export class MatchScene extends Phaser.Scene {
             e.burst(f.x, top, 10, 70, 0xff5ab0, 0.3, 2);
             v.afterimage(f.x - f.facing * 14, f.y, 0xff5ab0, 8);
             this.entranceFx[i] = done | 3;
+            this.tags.entrance(i, 0, 0, 1);
             return;
           }
           break;
@@ -1278,6 +1322,7 @@ export class MatchScene extends Phaser.Scene {
       if (start) this.entranceFx[i] = (this.entranceFx[i] ?? 0) | 1;
       if (arrive) this.entranceFx[i] = (this.entranceFx[i] ?? 0) | 2;
       v.entrance(dx, dy, a, sy);
+      this.tags.entrance(i, dx, dy, a);
     });
   }
 
@@ -1285,6 +1330,7 @@ export class MatchScene extends Phaser.Scene {
   private stepCountdown(): void {
     const c = --this.countdown;
     if (c === 0) {
+      this.tags.endEntrances();
       this.banner.setText('GO!').setVisible(true).setTint(0x7affa0);
       announcer.say('Go!', { pitch: 0.7, rate: 1.2 });
       // the controls reminder steps aside once the fight is under way (H brings it back)
@@ -1361,6 +1407,8 @@ export class MatchScene extends Phaser.Scene {
     this.bg.resize(w, h);
     this.perf.layout(w, m);
     this.debug.layout(w, m);
+    // the training key list wraps to the window instead of running off its right edge (7 art px per character)
+    this.helpText.setText(up(wrapHelp(this.isTraining ? HELP_TRAINING : HELP_MATCH, Math.max(20, Math.floor((w - 2 * m) / (7 * u))))));
     this.helpText.setScale(u).setPosition(m, m);
     this.helpText.setOrigin(0, 0);
     this.toast.setScale(u * 2).setPosition(w / 2, m * 4);
@@ -1373,8 +1421,17 @@ export class MatchScene extends Phaser.Scene {
     this.banner.setScale(u * 4).setPosition(w / 2, h * 0.3);
     this.clock.setScale(u * 2.5).setPosition(w / 2, m);
     const n = this.huds.length;
-    this.huds.forEach((hud, i) => hud.layout((w * (i + 1)) / (n + 1), h - m, u));
+    // HUD plates (112 art px wide) spread evenly; a window too narrow for them at the HUD scale packs them edge to edge, and
+    // only if they still do not fit drops to the largest half-step scale that does
+    const gap = 2 * u;
+    const avail = w - 2 * m;
+    let hu = u;
+    while (hu > 1 && n * 112 * hu + (n - 1) * gap > avail) hu -= 0.5;
+    this.hudU = hu;
+    const spread = w / (n + 1) >= 112 * hu + gap;
+    const slot = avail / Math.max(1, n);
+    this.huds.forEach((hud, i) => hud.layout(Math.round(spread ? (w * (i + 1)) / (n + 1) : m + slot * (i + 0.5)), h - m, hu));
     // the camera frames the fighters above the HUD plates instead of letting the floor fight hide behind them
-    this.cam.cfg.bottomInset = n > 0 ? Math.min(0.3, (40 * u + m) / h) : 0;
+    this.cam.cfg.bottomInset = n > 0 ? Math.min(0.3, (40 * hu + m) / h) : 0;
   }
 }

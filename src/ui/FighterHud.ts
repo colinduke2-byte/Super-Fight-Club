@@ -2,13 +2,50 @@ import Phaser from 'phaser';
 import { fighterTextureKey, animFrameIndex, portraitCrop, portraitK } from '../art/proceduralFighter';
 import { PIXEL_FONT, up } from '../art/pixelFont';
 import type { CharacterData } from '../engine/types';
+import { addCanvasTexture } from '../art/canvasTexture';
 
 const MAX_PIPS = 5;
-/** Status icon colours in the order burn, slow, freeze, stun. */
-const STATUS_COLORS = [0xff8a30, 0x8aa0ff, 0x9fe9ff, 0xffff60, 0x3aa8ff];
 const PLAYER_COLORS = [0x4aa3ff, 0xff6a5a, 0x5fe08a, 0xffd04a];
-/** Stock pips text by count ("@ @ @"), built once. */
+/** Stock pips text by count: spaced ("@ @ @") while three fit beside the name, packed ("@@@@@") for bigger stock counts. */
 const PIPS = Array.from({ length: MAX_PIPS + 1 }, (_, n) => '@'.repeat(n).split('').join(' '));
+const PIPS_PACKED = Array.from({ length: MAX_PIPS + 1 }, (_, n) => '@'.repeat(n));
+/** Right edge of the readout (art px from the plate's left): pips, INF / OUT and the timed score line up on it. */
+const READOUT_RIGHT = 108;
+
+/**
+ * Status badges (7x7 art px, drawn with a dark outline into one 9x9 cell each), in the order burn, slow, freeze, chill,
+ * stun, soak. 'a' = main colour, 'b' = highlight.
+ */
+const STATUS_ICONS: { a: string; b: string; px: string[] }[] = [
+  { a: '#ff7a24', b: '#ffe08a', px: ['...a...', '..aa...', '..aba..', '.aabba.', '.abbba.', '.abbba.', '..aaa..'] }, // burn: flame
+  { a: '#8aa0ff', b: '#d6deff', px: ['aaaaaaa', '.abbba.', '..aba..', '...a...', '..a.a..', '.a...a.', 'aaaaaaa'] }, // slow: hourglass
+  { a: '#7fd8ff', b: '#e8fbff', px: ['aaaaaaa', 'abbaaaa', 'abaaaaa', 'aaaaaaa', 'aaaaaba', 'aaaabba', 'aaaaaaa'] }, // freeze: ice block
+  { a: '#bfeaff', b: '#ffffff', px: ['...b...', 'a.aba.a', '.a.b.a.', 'bbbbbbb', '.a.b.a.', 'a.aba.a', '...b...'] }, // chill: snowflake
+  { a: '#ffef50', b: '#fffbd0', px: ['...a...', '..aba..', 'aaabaaa', '.abbba.', '..aaa..', '.aa.aa.', 'a.....a'] }, // stun: star
+  { a: '#5ab8ff', b: '#e0f6ff', px: ['...a...', '...a...', '..aaa..', '.aaaaa.', '.baaaa.', '.bbaaa.', '..aaa..'] }, // soak: droplet
+];
+
+/** Builds the status badge sheet once ('hud-status', frames 0..5). */
+function ensureStatusTexture(scene: Phaser.Scene): void {
+  if (scene.textures.exists('hud-status')) return;
+  const c = document.createElement('canvas');
+  c.width = 9 * STATUS_ICONS.length;
+  c.height = 9;
+  const g = c.getContext('2d')!;
+  STATUS_ICONS.forEach((ic, i) => {
+    const on = (x: number, y: number): boolean => x >= 0 && y >= 0 && x < 7 && y < 7 && ic.px[y][x] !== '.';
+    g.fillStyle = '#0c0b18';
+    for (let y = -1; y <= 7; y++) for (let x = -1; x <= 7; x++) if (!on(x, y) && (on(x - 1, y) || on(x + 1, y) || on(x, y - 1) || on(x, y + 1) || on(x - 1, y - 1) || on(x + 1, y + 1) || on(x - 1, y + 1) || on(x + 1, y - 1))) g.fillRect(i * 9 + 1 + x, 1 + y, 1, 1);
+    for (let y = 0; y < 7; y++) for (let x = 0; x < 7; x++) {
+      const ch = ic.px[y][x];
+      if (ch === '.') continue;
+      g.fillStyle = ch === 'b' ? ic.b : ic.a;
+      g.fillRect(i * 9 + 1 + x, 1 + y, 1, 1);
+    }
+  });
+  const tex = addCanvasTexture(scene, 'hud-status', c);
+  for (let i = 0; i < STATUS_ICONS.length; i++) tex.add(i, 0, i * 9, 0, 9, 9);
+}
 /** One 60 Hz frame, the unit the pop / jolt decay rates were tuned in. */
 const FRAME_MS = 1000 / 60;
 
@@ -19,6 +56,8 @@ export class FighterHud {
   private readonly portrait: Phaser.GameObjects.Image;
   private readonly name: Phaser.GameObjects.BitmapText;
   private readonly percent: Phaser.GameObjects.BitmapText;
+  /** Stamina mode: the small "HP" after the hit-point number (kept out of the big digits so 3-digit HP fits the plate). */
+  private readonly hpTag: Phaser.GameObjects.BitmapText;
   private readonly sub: Phaser.GameObjects.BitmapText;
   private readonly meter: Phaser.GameObjects.Image;
   private readonly seam: Phaser.GameObjects.Image;
@@ -37,10 +76,16 @@ export class FighterHud {
   private shownValue = NaN;
   private shownHp = false;
   private shownPips = -1;
+  /** Most stocks seen: decides spaced or packed pips for the whole match (so the spacing does not jump as stocks are lost). */
+  private maxPips = 0;
+  private left = 0;
+  private top = 0;
   /** Timed matches: the score shown where the stock pips go (null in stock / stamina matches). */
   timedScore: number | null = null;
   private shownScore: number | null = null;
   private u = 3;
+  /** Whole-pixel scale of the small texts (u rounded down). */
+  private tu = 3;
   private texK = 1;
   private crop: [number, number, number, number] = [6, 0, 40, 40];
 
@@ -61,46 +106,56 @@ export class FighterHud {
     this.texK = portraitK(data);
     this.name = scene.add.bitmapText(0, 0, PIXEL_FONT, up(label)).setTint(PLAYER_COLORS[index % 4]);
     this.percent = scene.add.bitmapText(0, 0, PIXEL_FONT, '0%').setOrigin(0, 0);
-    this.sub = scene.add.bitmapText(0, 0, PIXEL_FONT, '').setTint(0x9a96d8);
+    this.hpTag = scene.add.bitmapText(0, 0, PIXEL_FONT, 'HP').setOrigin(0, 0).setVisible(false);
+    this.sub = scene.add.bitmapText(0, 0, PIXEL_FONT, '').setTint(0x9a96d8).setOrigin(1, 0);
     this.hudDef = data.hud;
     this.meter = scene.add.image(0, 0, 'px').setOrigin(0, 0).setTint(0x34d6d0);
     this.seam = scene.add.image(0, 0, 'px').setOrigin(0, 0).setVisible(false);
     this.seamGlow = scene.add.image(0, 0, 'px').setOrigin(0, 0).setVisible(false).setBlendMode(Phaser.BlendModes.ADD);
-    this.pips = scene.add.bitmapText(0, 0, PIXEL_FONT, '').setTint(PLAYER_COLORS[index % 4]);
-    layer.add([this.panel, this.accent, this.portrait, this.name, this.percent, this.sub, this.pips, this.meter, this.seam, this.seamGlow]);
+    this.pips = scene.add.bitmapText(0, 0, PIXEL_FONT, '').setTint(PLAYER_COLORS[index % 4]).setOrigin(1, 0);
+    layer.add([this.panel, this.accent, this.portrait, this.name, this.percent, this.hpTag, this.sub, this.pips, this.meter, this.seam, this.seamGlow]);
     for (const _ of data.hud?.marks ?? []) {
       const m = scene.add.image(0, 0, 'px').setOrigin(0, 0).setTint(0xffffff).setAlpha(0.8);
       this.marks.push(m);
       layer.add(m);
     }
-    for (let i = 0; i < STATUS_COLORS.length; i++) {
-      const ic = scene.add.image(0, 0, 'px').setOrigin(0, 0).setTint(STATUS_COLORS[i]).setVisible(false);
+    ensureStatusTexture(scene);
+    for (let i = 0; i < STATUS_ICONS.length; i++) {
+      const ic = scene.add.image(0, 0, 'hud-status', i).setOrigin(0, 0).setVisible(false);
       this.statusIcons.push(ic);
       layer.add(ic);
     }
   }
 
-  /** `u` = device pixels per HUD art pixel (integer); (cx, bottom) = plate bottom-centre. */
+  /**
+   * `u` = device pixels per HUD art pixel (integer, or a half step when the window is too narrow for the plates at full size);
+   * (cx, bottom) = plate bottom-centre. The small 1x texts and the status badges keep a whole-pixel scale either way.
+   */
   layout(cx: number, bottom: number, u: number): void {
     this.u = u;
+    const tu = (this.tu = Math.max(1, Math.floor(u)));
+    const ty = (u - tu) * 4; // a smaller text scale stays centred on its row
     const left = cx - 56 * u;
     const top = bottom - 40 * u;
+    this.left = left;
+    this.top = top;
     this.panel.setPosition(cx, bottom).setScale(u);
     this.accent.setPosition(left + 4 * u, top + 2 * u).setScale((32 * u) / 4, (1 * u) / 4);
     // 40x40 crop of the idle frame shown at 0.8 => fills the 32x32 well; crop origin offsets the image
     const k = 0.8 * u;
     this.portrait.setScale(k * this.texK).setPosition(left + 4 * u - this.crop[0] * k * this.texK, top + 4 * u - this.crop[1] * k * this.texK);
-    this.name.setPosition(left + 41 * u, top + 8 * u).setScale(u);
+    this.name.setPosition(left + 41 * u, top + 8 * u + ty).setScale(tu);
     this.percent.setPosition(left + 41 * u, top + 16 * u).setScale(u * 2);
     this.percentAt = [left + 41 * u, top + 16 * u];
-    this.sub.setPosition(left + 78 * u, top + 8 * u).setScale(u);
-    this.pips.setScale(u).setPosition(left + 78 * u, top + 8 * u);
+    this.sub.setPosition(left + READOUT_RIGHT * u, top + 8 * u + ty).setScale(tu);
+    this.pips.setScale(tu).setPosition(left + READOUT_RIGHT * u, top + 8 * u + ty);
+    this.hpTag.setScale(tu);
     this.meter.setPosition(left + 41 * u, top + 3 * u);
     this.seam.setPosition(left + 40 * u, top + 35 * u);
     this.seamGlow.setPosition(left + 40 * u, top + 34 * u);
     const hm = this.hudDef;
     this.marks.forEach((m, i) => m.setPosition(left + 40 * u + ((68 * u) * (hm!.marks![i] ?? 0)) / hm!.max, top + 33 * u).setScale(u / 4, (4 * u) / 4));
-    this.statusIcons.forEach((ic, i) => ic.setPosition(left + 78 * u + i * 7 * u, top + 22 * u).setScale((5 * u) / 4, (5 * u) / 4));
+    for (const ic of this.statusIcons) ic.setScale(tu);
   }
 
   /** @param meterFrac ultimate meter 0..1 (drawn over the plate's conduit; pulses gold when full) */
@@ -134,9 +189,11 @@ export class FighterHud {
       if (left !== this.shownValue || !this.shownHp) {
         this.shownValue = left;
         this.shownHp = true;
-        this.percent.setText(`${left}HP`);
+        this.percent.setText(String(left));
       }
-      this.percent.setTint(low ? 0xffffff : f > 0.5 ? 0x7affa0 : f > 0.25 ? 0xffe14a : 0xff5a4a);
+      const col = low ? 0xffffff : f > 0.5 ? 0x7affa0 : f > 0.25 ? 0xffe14a : 0xff5a4a;
+      this.percent.setTint(col);
+      this.hpTag.setTint(col);
     } else {
       const shown = Math.floor(damage);
       if (shown !== this.shownValue || this.shownHp) {
@@ -149,6 +206,9 @@ export class FighterHud {
     this.percent.setScale(this.u * 2 * (1 + this.pop * 0.25));
     const j = this.jolt * this.u * 2.5;
     this.percent.setPosition(this.percentAt[0] + (tick & 1 ? j : -j), this.percentAt[1] + ((tick >> 1) & 1 ? j * 0.6 : -j * 0.6));
+    // "HP" sits on the digits' baseline, just after them
+    this.hpTag.setVisible(this.hpMax > 0);
+    if (this.hpMax > 0) this.hpTag.setPosition(this.percent.x + this.percent.width + this.u, this.percentAt[1] + 16 * this.u - 8 * this.tu);
     this.sub.setText(training ? 'INF' : out ? 'OUT' : '');
     this.sub.setVisible(training || out);
     if (this.timedScore !== null) {
@@ -163,7 +223,8 @@ export class FighterHud {
       const pips = !training && !out ? Math.max(0, Math.min(stocks, MAX_PIPS)) : 0;
       if (pips !== this.shownPips) {
         this.shownPips = pips;
-        this.pips.setText(PIPS[pips]);
+        this.maxPips = Math.max(this.maxPips, pips);
+        this.pips.setText((this.maxPips > 3 ? PIPS_PACKED : PIPS)[pips]);
       }
     }
     this.portrait.setAlpha(out ? 0.35 : 1);
@@ -179,10 +240,19 @@ export class FighterHud {
       this.seamGlow.setVisible(hot || !!hd.colors).setScale(((68 * this.u) / 4) * frac, (4 * this.u) / 4).setTint(col).setAlpha(hd.colors ? 0.4 : bright ? 0.7 : 0.35);
     }
     if (status) {
+      // active statuses line up along the bottom of the portrait well (a second row above it if there are more than four)
       const blinkOn = ((tick >> 2) & 1) === 0;
+      const u = this.u;
+      let n = 0;
       for (let i = 0; i < this.statusIcons.length; i++) {
-        const t = i === 0 ? status.burn : i === 1 ? status.slow : i === 2 ? Math.max(status.freeze, status.chill ? 41 : 0) : i === 3 ? status.stun : (status.soak ?? 0);
-        this.statusIcons[i].setVisible(t > 0 && (t > 40 || blinkOn));
+        const t = i === 0 ? status.burn : i === 1 ? status.slow : i === 2 ? status.freeze : i === 3 ? (status.chill ? 41 : 0) : i === 4 ? status.stun : (status.soak ?? 0);
+        const ic = this.statusIcons[i];
+        if (t <= 0) {
+          ic.setVisible(false);
+          continue;
+        }
+        ic.setPosition(this.left + (3 + (n % 4) * 8) * u, this.top + (28 - Math.floor(n / 4) * 8) * u).setVisible(t > 40 || blinkOn);
+        n++;
       }
     }
     const full = meterFrac >= 1;

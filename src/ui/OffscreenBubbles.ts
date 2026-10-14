@@ -48,9 +48,11 @@ export class OffscreenBubbles {
       }
       const far = Math.hypot(Math.max(0, -sx, sx - sw), Math.max(0, -sy, sy - sh)) / Math.max(sw, sh);
       const R = 22 * u * Math.max(0.6, 1 - far * 0.8);
-      const bottom = Math.min(sh, hudTop) - R - margin;
-      const bx = Phaser.Math.Clamp(sx, R + margin, sw - R - margin);
-      const by = Phaser.Math.Clamp(sy, R + margin, Math.max(R + margin, bottom));
+      // keep the whole bubble, pointer tip included (7u past the rim), on screen and clear of the HUD plates
+      const edge = 8 * u;
+      const bottom = Math.min(sh, hudTop) - R - edge;
+      const bx = Phaser.Math.Clamp(sx, R + edge, sw - R - edge);
+      const by = Phaser.Math.Clamp(sy, R + edge, Math.max(R + edge, bottom));
       const col = this.colors[f.id];
       // pointer towards the fighter
       const a = Math.atan2(sy - by, sx - bx);
