@@ -20,14 +20,15 @@ export class ModeSelectScene extends MenuScene {
   private floorY = 0;
   private readonly descriptions = [
     'FREE-FOR-ALL FOR 2-4 FIGHTERS. HUMANS AND CPUS.',
-    'FIGHT 5 ESCALATING OPPONENTS THEN A BOSS.',
+    'EIGHT ESCALATING FIGHTS, THEN THE BOSS.',
     'BREAK TEN TARGETS AGAINST THE CLOCK. BEAT YOUR BEST TIME.',
     'TEN SECONDS TO PILE ON DAMAGE, THEN LAUNCH THE DUMMY. HOW FAR?',
-    'TEN HAND-MADE FIGHTS WITH A TWIST. CLEAR THEM ALL.',
+    'FOURTEEN HAND-MADE FIGHTS WITH A TWIST. CLEAR THEM ALL.',
     'PRACTICE WITH A DUMMY, HITBOXES AND FRAME DATA.',
     'CONTROLS, MOVES AND TECHNIQUES, PAGE BY PAGE.',
     'YOUR WINS, KOS, BEST TIMES AND DISTANCES PER FIGHTER.',
     'CONTROLS, AUDIO, VIDEO AND FULLSCREEN.',
+    'WHO IS WHO, WHERE THEY FIGHT AND HOW IT WAS MADE.',
   ];
 
   constructor() {
@@ -47,6 +48,7 @@ export class ModeSelectScene extends MenuScene {
       { label: 'HOW TO PLAY', onConfirm: () => this.go('HowToPlay') },
       { label: 'RECORDS', onConfirm: () => this.go('Records') },
       { label: 'SETTINGS', onConfirm: () => this.go('Settings', { back: 'ModeSelect' }) },
+      { label: 'CREDITS', onConfirm: () => this.go('Credits') },
     ]);
     this.glow = this.add.graphics().setBlendMode(Phaser.BlendModes.ADD);
     this.ui.add(this.glow);
