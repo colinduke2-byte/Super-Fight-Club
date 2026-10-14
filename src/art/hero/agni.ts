@@ -116,8 +116,13 @@ export function drawAgni(r: Raster, k0: Skel, look: PlaceholderLook): void {
     // the turned-away side in shade
     r.poly(P.skinD, [[x0 + 4, top + 5], [x0 + 10, top + 6], [x0 + 12, top + 20], [x0 + 10, waist + 2], [x0 + 6, waist + 2], [x0 + 3, top + 28], [x0 - 1, top + 18], [x0 - 2, top + 10]]);
     // pecs: a lit plate with a shadow line under it
-    r.poly(P.skinL, [[cx - 6, top + 7], [x0 + w - 2, top + 9], [x0 + w + 1, top + 16], [x0 + w - 4, top + 20], [cx + 1, top + 20], [cx - 4, top + 17]]);
-    r.seg(P.abs, cx - 4, top + 20, x0 + w - 4, top + 21, 1.4, 1.4);
+    // (rounded: the near pec catches the light along its top, the far one turns away into a narrower, plainer shape)
+    r.ellipse(P.skinL, cx + 6.5, top + 14, 8.5, 5.5);
+    r.ellipse(P.skin, cx + 7, top + 16, 7, 3.6);
+    r.ellipse(P.skinL, cx - 3, top + 14, 3.6, 4.2);
+    r.seg(P.abs, cx - 5, top + 18.5, cx - 1, top + 20, 1.4, 1.4);
+    r.seg(P.abs, cx + 1, top + 20, cx + 9, top + 20.5, 1.6, 1.6);
+    r.seg(P.abs, cx + 9, top + 20.5, x0 + w - 2, top + 18, 1.4, 1.4);
     r.seg(P.absL, cx, top + 9, cx, top + 18, 1.5, 1.5);
     // abs: a central groove and two rows of lit blocks (a six-pack read by its highlights, not a grid of lines)
     r.rect(P.absL, cx + 2, top + 23, 1, waist - top - 24);
@@ -134,7 +139,8 @@ export function drawAgni(r: Raster, k0: Skel, look: PlaceholderLook): void {
     r.seg(P.absL, cx - 6, top + 5, cx - 1, top + 6, 1.5, 1.5);
     r.seg(P.absL, cx + 4, top + 6, x0 + w - 6, top + 7, 1.5, 1.5);
     // flame tattoo licking up the shaded flank: three continuous tongues, thick at the waist and tapering to a point
-    r.inlay(P.skinD, P.ink, (s) => {
+    // (the Inferno's magma fissures take its place: both at once drown the torso in orange)
+    if (o !== 1) r.inlay(P.skinD, P.ink, (s) => {
       for (let j = 0; j < 3; j++) {
         const len = 12 + j * 6;
         const x0j = x0 + 2 + j * 4;
@@ -148,12 +154,11 @@ export function drawAgni(r: Raster, k0: Skel, look: PlaceholderLook): void {
       }
     });
     if (o === 1) {
-      // magma cracks splitting the skin, glowing from inside
-      const cracks: [number, number, number, number][] = [[w / 2 + 2, 8, w / 2 - 3, 16], [w / 2 - 3, 16, w / 2 + 2, 24], [w / 2 + 2, 24, w / 2 - 2, h - 14], [w - 6, 12, w - 3, 20], [10, 18, 14, 26]];
-      for (const [ax, ay, bx, by] of cracks) {
-        r.seg(P.flame, x0 + ax, top + ay, x0 + bx, top + by, 2, 1.5);
-        r.seg(P.glow, x0 + ax, top + ay, x0 + bx, top + by, 0.8, 0.8);
-      }
+      // a few magma fissures splitting the skin: dark-lipped, glowing thinly from inside, kept off the abs so the
+      // anatomy still reads under the fire
+      const cracks: [number, number, number, number][] = [[w / 2 + 2, 7, w / 2 - 1, 13], [w / 2 - 1, 13, w / 2 + 1, 17], [w - 6, 12, w - 3, 19], [w - 3, 19, w - 5, 24], [9, 17, 12, 24]];
+      for (const [ax, ay, bx, by] of cracks) r.seg(P.skinDD, x0 + ax, top + ay, x0 + bx, top + by, 2.6, 2);
+      for (const [ax, ay, bx, by] of cracks) r.seg(P.flame, x0 + ax, top + ay, x0 + bx, top + by, 1.3, 1.1);
     }
     if (o === 2) {
       // a kasaya robe draped over the back shoulder and across the chest
@@ -409,13 +414,30 @@ function leg(r: Raster, P: Parts, hip0: V2, kn0: V2, ankle: V2, back: boolean): 
   // a bare foot: a heel, the ankle bone, an arched instep sloping down to the toes, a dark sole line;
   // a cloth stirrup wrap round the ankle and the arch leaves the toes and the heel bare
   const sk = back ? P.skinD : P.skin;
-  r.poly(sk, [[bx - 4, by - 3], [bx + 3, by - 3], [bx + 4, by + 1], [bx + 9, by + 4], [bx + 13, by + 5.5], [bx + 14.5, by + 7.5], [bx + 14, by + 9], [bx - 6, by + 9], [bx - 6.5, by + 6], [bx - 5, by + 3]]);
-  if (!back) r.seg(P.skinL, bx + 3, by + 1.5, bx + 11, by + 5, 1.2, 1); // the lit instep
-  r.rect(back ? P.skinDD : P.skinD, bx - 6, by + 8, 20, 2); // the sole in shadow
+  const under = r.id.slice();
+  const underC = r.over.slice();
+  // a bare foot in profile: a narrow ankle, a rounded heel, the instep sloping down to a row of toes, an arch lifted
+  // off the ground between the heel and the ball of the foot
+  r.poly(sk, [[bx - 3, by - 3], [bx + 3, by - 3], [bx + 4, by + 3], [bx + 8, by + 5.5], [bx + 10.5, by + 6.5], [bx + 10.5, by + 10], [bx - 4, by + 10], [bx - 6, by + 8.5], [bx - 5.5, by + 5], [bx - 4, by + 2]]);
+  if (!back) {
+    r.seg(P.skinL, bx + 3.5, by + 2.5, bx + 9, by + 5.5, 1.6, 1.2); // the lit instep
+    r.seg(P.skinL, bx - 4, by + 3, bx - 4, by + 7, 1.4, 1.4); // the heel's rim light
+  }
+  // toes: rounded tips stepping down to the big toe in front, alternating tones so each one parts from the next
+  const toes: [number, number, number][] = [[10.2, 8.4, 1.7], [11.9, 8.5, 1.6], [13.5, 8.6, 1.6]];
+  toes.forEach(([tx, ty, tr], i) => r.ellipse(back ? (i % 2 ? P.skinDD : P.skinD) : i % 2 ? P.skinL : P.skin, bx + tx, by + ty, tr, tr));
+  // the sole in shadow under the heel and the ball, with the arch cut away between them
+  r.rect(back ? P.skinDD : P.skinD, bx - 4, by + 9, 6, 1);
+  r.rect(back ? P.skinDD : P.skinD, bx + 6, by + 9, 5, 1);
+  for (let x = Math.round(bx + 2); x < bx + 6; x++) {
+    const i = Math.round(by + 9) * r.w + x;
+    if (i >= 0 && i < r.id.length) {
+      r.id[i] = under[i];
+      r.over[i] = underC[i];
+    }
+  }
   r.ellipse(back ? P.skinDD : P.skinD, bx - 1.5, by + 3, 1.2, 1.2); // the ankle bone
-  // toes: the big toe's knuckle and the gaps between the small ones
-  for (let i = 0; i < 3; i++) r.rect(P.skinDD, bx + 8.5 + i * 2, by + 5 + i * 0.5, 1, 2);
   // a thin cloth wrap round the ankle, just under the cuff
-  r.rect(back ? P.wrapD : P.wrap, bx - 5, by - 2, 9, 2);
-  r.rect(P.wrapD, bx - 5, by - 1, 9, 1);
+  r.rect(back ? P.wrapD : P.wrap, bx - 4, by - 2, 8, 2);
+  r.rect(P.wrapD, bx - 4, by - 1, 8, 1);
 }

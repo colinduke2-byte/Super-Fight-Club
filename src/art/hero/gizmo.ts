@@ -64,8 +64,9 @@ export function drawGizmo(r: Raster, k0: Skel, look: PlaceholderLook): void {
   const silk = r.part([34, 30, 36]);
   const silkL = r.part([72, 64, 76]);
   const steam = r.part([236, 240, 246], { soft: true });
-  const bowl = r.part(mix(accent, [120, 186, 236], 0.88), { soft: true });
-  const bowlL = r.part(mix(accent, [186, 226, 252], 0.9), { soft: true });
+  // the glass is a mid blue, a clear step below the dome inside it (a white Apollo dome otherwise melts into it)
+  const bowl = r.part(mix(accent, [78, 130, 196], 0.88), { soft: true });
+  const bowlL = r.part(mix(accent, [140, 190, 236], 0.9), { soft: true });
   /** A ring of short segments: a thin outline (bubble glass) around (x, y). */
   const ring = (part: number, x: number, y: number, rx: number, ry: number, from: number, to: number, w: number): void => {
     let px = x + Math.cos(from) * rx;
@@ -97,7 +98,8 @@ export function drawGizmo(r: Raster, k0: Skel, look: PlaceholderLook): void {
   // ---- backpack ----
   {
     const bx = L - 13;
-    const by = Math.min(top - 2, k.H - 34);
+    // the pack rides high, so its lid, handle and top hardware show over the chassis shoulder behind the head
+    const by = Math.min(top - 8, k.H - 40);
     if (o === 1) {
       // a brass boiler with a chimney puffing steam
       r.ellipse(brassD, bx + 10, by + 15, 11, 16);
@@ -302,8 +304,15 @@ export function drawGizmo(r: Raster, k0: Skel, look: PlaceholderLook): void {
     const [sx, sy] = k.shF;
     const el = k.elbowF;
     const [hX, hY] = k.handF;
-    r.seg(P.gun, sx, sy, el[0], el[1], 6, 6); // piston upper arm
-    r.seg(P.armor, el[0], el[1], hX, hY, 9, 10); // armoured forearm
+    // piston upper arm: a dark housing with a lit rod down its top, so a long reach reads as one solid limb
+    r.seg(P.gunD, sx, sy, el[0], el[1], 8.5, 7.5);
+    r.seg(P.gun, sx, sy - 0.5, el[0], el[1] - 0.5, 5, 4.5);
+    r.seg(P.steel, sx + (el[0] - sx) * 0.2, sy + (el[1] - sy) * 0.2 - 1.5, sx + (el[0] - sx) * 0.8, sy + (el[1] - sy) * 0.8 - 1.5, 1.4, 1.4);
+    // armoured forearm over a dark under-frame
+    // (dropped a pixel below the plate only while the arm is clear of the floor rows)
+    const low = Math.max(el[1], hY) > k.H - 15;
+    r.seg(P.deep, el[0] + (low ? 1 : 0), el[1] + (low ? 0 : 1), hX + (low ? 1 : 0), hY + (low ? 0 : 1), low ? 10 : 11, low ? 10.5 : 11.5);
+    r.seg(P.armor, el[0], el[1], hX, hY, 9.5, 10);
     r.seg(P.light, el[0], el[1], el[0] + (hX - el[0]) * 0.5, el[1] + (hY - el[1]) * 0.5, 3, 3);
     r.ellipse(P.gunD, el[0], el[1], 4.5, 4.5);
     r.ellipse(P.gun, el[0] - 0.5, el[1] - 0.5, 2.6, 2.6);

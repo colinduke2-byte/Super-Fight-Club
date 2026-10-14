@@ -71,7 +71,22 @@ export function drawHavoc(r: Raster, k: Skel, look: PlaceholderLook): void {
   const elbowF = handF === k.handF ? k.elbowF : solveLimb(k.shF, handF, k.armBone, 1).mid;
   const elbowB = handB === k.handB ? k.elbowB : solveLimb(k.shB, handB, k.armBone, 1).mid;
 
-  // ---- the long gun slung across the back (behind everything): a rocket launcher, or the sniper's scoped rifle ----
+  // ---- radio pack with a whip antenna (behind the long gun, so the gun crosses over it and reads) ----
+  {
+    const bx = T.x - 11;
+    const by = T.y + 1;
+    r.rect(P.web, bx - 1, by - 1, 15, 23);
+    r.rect(P.vest, bx, by, 13, 21);
+    r.rect(P.vestL, bx + 1, by + 1, 11, 3);
+    r.rect(P.dark, bx + 1, by + 14, 11, 6);
+    r.rect(P.seam, bx + 2, by + 7, 9, 1);
+    r.rect(P.accent, bx + 3, by + 3, 2, 2);
+    r.rect(P.steel, bx + 8, by + 3, 2, 2); // a dial
+    r.seg(P.web, bx + 3, by + 1, bx - 1 + sw(1, 2), by - 30, 2, 1.2);
+    r.ellipse(P.glow, bx - 1 + sw(1, 2), by - 31, 1.7, 1.7);
+  }
+
+  // ---- the long gun slung across the back, over the radio pack: a rocket launcher, or the sniper's scoped rifle ----
   {
     if (o === 1) {
       // the long rifle slung muzzle-up behind the back shoulder: stock low at the hip, a big scope, a long barrel
@@ -96,8 +111,10 @@ export function drawHavoc(r: Raster, k: Skel, look: PlaceholderLook): void {
       r.seg(P.armor, lx0, ly0, lx1, ly1, 9, 9);
       r.seg(P.light, lx0 - 1, ly0 - 2.5, lx1 + 1, ly1 - 2.5, 2.4, 2.4);
       r.seg(P.dark, lx0 + 1, ly0 + 2.5, lx1 + 1, ly1 + 2.5, 2, 2);
-      r.seg(P.gun, lx1 + 1, ly1 + 1, lx1 - 2, ly1 - 2, 12, 12); // muzzle bell
-      r.ellipse(P.web, lx1 - 2, ly1 - 2, 3.4, 3.4);
+      r.seg(P.web, lx1 + 1.5, ly1 + 1.5, lx1 - 2, ly1 - 2, 13.5, 13.5); // muzzle bell: a dark rim,
+      r.seg(P.gunL, lx1 + 1, ly1 + 1, lx1 - 2, ly1 - 2, 12, 12); // a lit steel flare
+      r.ellipse(P.web, lx1 - 2.5, ly1 - 2.5, 3.8, 3.8); // and the dark bore
+      r.seg(P.web, lx1 + 4, ly1 + 6, lx1 + 8, ly1 + 2, 1.5, 1.5); // the seam behind the flare
       r.rect(P.mark, lx1 + 7, ly1 + 2, 3, 3); // warning band
       r.rect(P.gun, lx1 + 10, ly1 - 1, 4, 3); // sight block
     }
@@ -109,21 +126,6 @@ export function drawHavoc(r: Raster, k: Skel, look: PlaceholderLook): void {
       const len = 8 + ((i * 5) % 7);
       r.seg(ghillie[i % 3], gx, T.y - 1, gx - 3 + sw(i, 1.5), T.y + len, 3, 1.5);
     }
-  }
-
-  // ---- radio pack with a whip antenna ----
-  {
-    const bx = T.x - 11;
-    const by = T.y + 1;
-    r.rect(P.web, bx - 1, by - 1, 15, 23);
-    r.rect(P.vest, bx, by, 13, 21);
-    r.rect(P.vestL, bx + 1, by + 1, 11, 3);
-    r.rect(P.dark, bx + 1, by + 14, 11, 6);
-    r.rect(P.seam, bx + 2, by + 7, 9, 1);
-    r.rect(P.accent, bx + 3, by + 3, 2, 2);
-    r.rect(P.steel, bx + 8, by + 3, 2, 2); // a dial
-    r.seg(P.web, bx + 3, by + 1, bx - 1 + sw(1, 2), by - 30, 2, 1.2);
-    r.ellipse(P.glow, bx - 1 + sw(1, 2), by - 31, 1.7, 1.7);
   }
 
   // ---- back arm ----
@@ -208,6 +210,10 @@ export function drawHavoc(r: Raster, k: Skel, look: PlaceholderLook): void {
     }
   }
 
+  // ---- the front upper arm goes under the head while it hangs below the shoulder (raised, it crosses in front) ----
+  const armUnder = elbowF[1] > k.shF[1] - 2;
+  if (armUnder) arm(r, P, k.shF, elbowF, handF, false, o, 'upper');
+
   // ---- head: a strong profile face under the helmet, goggles over the eyes ----
   {
     const hx = k.head.x;
@@ -217,7 +223,7 @@ export function drawHavoc(r: Raster, k: Skel, look: PlaceholderLook): void {
     // the face: brow, nose, a square jaw (drawn a touch larger than the head box so the jaw reads)
     const fy = hy + 7;
     const fh = hs - 1;
-    soldierFace(r, P, hx + 2, fy, hs - 1, fh);
+    soldierFace(r, P, hx + 2, fy, hs - 1, fh, o === 2);
     // stubble over the jaw and chin
     r.inlay(P.skin, P.stubble, (set) => {
       for (let y = fy + fh * 0.72; y < fy + fh; y++) for (let x = hx + hs * 0.35; x < hx + hs + 2; x++) if ((x + y * 3) % 4 === 0) set(x, y);
@@ -272,7 +278,7 @@ export function drawHavoc(r: Raster, k: Skel, look: PlaceholderLook): void {
   }
 
   // ---- front arm with a combat knife ----
-  arm(r, P, k.shF, elbowF, handF, false, o);
+  arm(r, P, k.shF, elbowF, handF, false, o, armUnder ? 'lower' : 'all');
 }
 
 interface Parts {
@@ -320,7 +326,7 @@ function clampV(v: V2, x0: number, x1: number, y0: number, y1: number): V2 {
  * A hard profile face looking right in the box (x, y, w, h): a heavy brow ridge, a broken boxer's nose, a set mouth and a
  * square jutting chin; the cheek, the underside of the jaw and the eye socket fall into shade, with an ear at the side.
  */
-function soldierFace(r: Raster, P: Parts, x: number, y: number, w: number, h: number): void {
+function soldierFace(r: Raster, P: Parts, x: number, y: number, w: number, h: number, shades: boolean): void {
   const p = (u: number, v: number): V2 => [x + u * w, y + v * h];
   r.poly(P.skin, [p(0.02, 0), p(0.9, 0.02), p(0.98, 0.22), p(0.95, 0.34), p(1.0, 0.48), p(1.15, 0.65), p(1.0, 0.69), p(0.98, 0.74), p(1.02, 0.82), p(1.04, 0.93), p(0.94, 1.0), p(0.36, 1.0), p(0.12, 0.88), p(0, 0.66)]);
   // the turned-away side of the face, the hollow under the cheekbone and the underside of the jaw
@@ -331,10 +337,13 @@ function soldierFace(r: Raster, P: Parts, x: number, y: number, w: number, h: nu
   r.seg(P.skinD, x + w * 0.98, y + h * 0.67, x + w * 1.08, y + h * 0.67, 1.2, 1.2);
   r.rect(P.line, x + w * 0.96, y + h * 0.65, 1, 1);
   // the socket under the brow, the eye, and a brow ridge pushed down to the nose
-  r.rect(P.skinD, x + w * 0.56, y + h * 0.32, w * 0.4, h * 0.14);
-  r.rect(P.eye, x + w * 0.74, y + h * 0.36, w * 0.18, 2);
-  r.rect(P.line, x + w * 0.84, y + h * 0.36, w * 0.08, 2);
-  r.seg(P.line, x + w * 0.54, y + h * 0.27, x + w * 0.96, y + h * 0.33, 2.2, 2.6);
+  // (under shades only the brow's frown shows, as a crease pressed into the top of the frame)
+  if (!shades) {
+    r.rect(P.skinD, x + w * 0.56, y + h * 0.32, w * 0.4, h * 0.14);
+    r.rect(P.eye, x + w * 0.74, y + h * 0.36, w * 0.18, 2);
+    r.rect(P.line, x + w * 0.84, y + h * 0.36, w * 0.08, 2);
+    r.seg(P.line, x + w * 0.54, y + h * 0.27, x + w * 0.96, y + h * 0.33, 2.2, 2.6);
+  } else r.rect(P.skinD, x + w * 0.6, y + h * 0.3, w * 0.34, 1);
   // a set mouth with a hard corner, a chin cleft
   r.rect(P.line, x + w * 0.76, y + h * 0.79, w * 0.24, 1);
   r.rect(P.line, x + w * 0.76, y + h * 0.77, 1, 2);
@@ -360,7 +369,7 @@ function grenade(r: Raster, P: Parts, x: number, y: number): void {
  * underside and a buttoned cuff; the commando rolls it up to the bare forearm), and a gloved fist with knuckle rolls and
  * a thumb. The front fist holds the knife.
  */
-function arm(r: Raster, P: Parts, sh: V2, el: V2, hand: V2, back: boolean, o: number): void {
+function arm(r: Raster, P: Parts, sh: V2, el: V2, hand: V2, back: boolean, o: number, stage: 'upper' | 'lower' | 'all' = 'all'): void {
   const sleeve = back ? P.shirtD : P.shirt;
   const under = back ? P.web : P.shirtD;
   // the side of a bone that faces down the screen gets the shadow
@@ -374,11 +383,21 @@ function arm(r: Raster, P: Parts, sh: V2, el: V2, hand: V2, back: boolean, o: nu
     }
     return [nx, ny];
   };
-  // upper sleeve
-  const [ux, uy] = shadeSide(sh, el);
-  r.seg(under, sh[0], sh[1] + 1, el[0], el[1] + 1, 12, 11);
-  r.seg(sleeve, sh[0], sh[1], el[0], el[1], 11, 9.5);
-  if (!back) r.seg(P.shirtD, sh[0] + ux * 3.5, sh[1] + uy * 3.5, el[0] + ux * 3, el[1] + uy * 3, 3, 2.5);
+  // upper sleeve (with its unit patch); for the front arm it can be drawn before the head, so the jaw sits over the
+  // shoulder instead of being cut off by it
+  if (stage !== 'lower') {
+    const [ux, uy] = shadeSide(sh, el);
+    r.seg(under, sh[0], sh[1] + 1, el[0], el[1] + 1, 12, 11);
+    r.seg(sleeve, sh[0], sh[1], el[0], el[1], 11, 9.5);
+    if (!back) {
+      r.seg(P.shirtD, sh[0] + ux * 3.5, sh[1] + uy * 3.5, el[0] + ux * 3, el[1] + uy * 3, 3, 2.5);
+      const px = sh[0] + (el[0] - sh[0]) * 0.4;
+      const py = sh[1] + (el[1] - sh[1]) * 0.4;
+      r.rect(P.web, px - 2.5, py - 2, 5, 4);
+      r.rect(P.mark, px - 1.5, py - 1, 3, 2);
+    }
+  }
+  if (stage === 'upper') return;
   let dx = hand[0] - el[0];
   let dy = hand[1] - el[1];
   const l = Math.hypot(dx, dy) || 1;
@@ -405,10 +424,6 @@ function arm(r: Raster, P: Parts, sh: V2, el: V2, hand: V2, back: boolean, o: nu
     r.seg(under, wx - fx * 4.5, wy - fy * 4.5, wx + fx * 4.5, wy + fy * 4.5, 3, 3); // cuff
   }
   if (!back) {
-    // a shoulder patch on the sleeve
-    r.ellipse(P.shirt, sh[0], sh[1], 7, 6.5);
-    r.rect(P.web, sh[0] - 3, sh[1] - 3, 6, 5);
-    r.rect(P.mark, sh[0] - 2, sh[1] - 2, 4, 3);
     knife(r, P, dx, dy, hand);
   }
   gloveFist(r, P, hand, dx, dy, back);
