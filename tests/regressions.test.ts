@@ -355,3 +355,34 @@ describe('ledge', () => {
     expect(f.invuln).toBe(0);
   });
 });
+
+describe('team sudden death', () => {
+  it('teams tied at the bell play sudden death, and the last team standing wins', async () => {
+    const { Match } = await import('../src/engine/match');
+    const world = new World(classicStage);
+    const fs = ['brick', 'vex', 'nova', 'gizmo'].map((c, i) => {
+      const f = new Fighter(i, CHARACTERS[c]);
+      f.team = i < 2 ? 0 : 1;
+      world.addFighter(f);
+      f.spawn(-90 + i * 60, -1, 1);
+      return f;
+    });
+    const m = new Match(world, { mode: 'time', stocks: 3, timeLimitSec: 1, respawnDelay: 70 });
+    m.onRespawn = (f) => f.spawn(0, -1, 1);
+    const ins = fs.map(() => makeInput());
+    for (let i = 0; i < 120 && !m.suddenDeath; i++) {
+      world.step(ins);
+      m.step();
+    }
+    expect(m.suddenDeath).toBe(true);
+    expect(m.over).toBe(false);
+    expect(m.contenders.length).toBe(4);
+    for (const f of [fs[2], fs[3]]) {
+      f.forceKo(world);
+      m.onKo(f, 0);
+    }
+    m.step();
+    expect(m.over).toBe(true);
+    expect(m.winnerTeam).toBe(0);
+  });
+});

@@ -97,8 +97,11 @@ export class Match {
     }
     if (this.suddenDeath) {
       const alive = this.contenders.filter((i) => !this.scores[i].eliminated);
-      if (alive.length <= 1 || ++this.sdTicks >= Match.SUDDEN_DEATH_TICKS) {
-        this.winner = alive.length === 1 ? alive[0] : -1;
+      const team0 = alive.length ? w.fighters[alive[0]].team : -1;
+      const oneTeam = team0 >= 0 && alive.every((i) => w.fighters[i].team === team0);
+      if (alive.length <= 1 || oneTeam || ++this.sdTicks >= Match.SUDDEN_DEATH_TICKS) {
+        this.winner = alive.length === 1 || oneTeam ? alive[0] : -1;
+        this.winnerTeam = oneTeam ? team0 : -1;
         this.over = true;
       }
     } else if (this.cfg.mode === 'time') {
@@ -139,7 +142,13 @@ export class Match {
           tie = false;
         } else if (v === best) tie = true;
       }
-      this.winnerTeam = tie ? -1 : bestTeam;
+      if (tie) {
+        // tied teams play it out: every member of each tied team comes back for sudden death
+        const tied = new Set([...sums].filter(([, v]) => v === best).map(([t]) => t));
+        this.startSuddenDeath(this.scores.map((_, i) => i).filter((i) => tied.has(this.world.fighters[i].team)));
+        return;
+      }
+      this.winnerTeam = bestTeam;
       const mine = this.scores.map((_, i) => i).filter((i) => this.world.fighters[i].team === bestTeam);
       this.winner = tie ? -1 : mine.sort((a, b) => this.scores[b].kos - this.scores[a].kos)[0];
       return;
