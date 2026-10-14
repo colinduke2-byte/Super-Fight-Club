@@ -394,6 +394,8 @@ export class FighterView {
     const s = this.sprite;
     s.setPosition(s.x + dx, s.y + dy).setAlpha(s.alpha * alpha).setScale(s.scaleX, s.scaleY * sy);
     this.shadow.setAlpha(this.shadowA * alpha * (dy < -6 ? 0.5 : 1));
+    // companions (a resource counter, a floating orb) arrive with the body, not before it
+    for (const o of [this.counter, this.orb, this.orbGlow]) if (o) o.setPosition(o.x + dx, o.y + dy).setAlpha(o.alpha * alpha);
   }
 
   afterimage(x: number, y: number, tint = 0xffffff, life = 7): void {
@@ -459,7 +461,7 @@ export class FighterView {
       this.lastCount = v;
       c.setText(String(v));
     }
-    c.setPosition(this.x, this.y - f.h * f.sizeMul - 6).setVisible(f.state !== 'ko');
+    c.setPosition(this.x, this.y - f.h * f.sizeMul - 6).setVisible(f.state !== 'ko').setAlpha(1);
   }
 
   /** Floating companion orb: lags behind the fighter, bobs, and takes the colour of the current element. */
@@ -478,8 +480,8 @@ export class FighterView {
     this.orbY += (ty - this.orbY) * follow;
     const col = c.colors[Math.max(0, Math.min(c.colors.length - 1, Math.round(f.res[c.resource] ?? 0)))];
     const pulse = 0.9 + 0.1 * Math.sin(tick * 0.25);
-    orb.setPosition(this.orbX, this.orbY).setTint(col).setScale(0.5 * pulse).setVisible(f.state !== 'ko');
-    this.orbGlow.setPosition(this.orbX, this.orbY).setTint(col).setVisible(f.state !== 'ko');
+    orb.setPosition(this.orbX, this.orbY).setTint(col).setScale(0.5 * pulse).setVisible(f.state !== 'ko').setAlpha(1);
+    this.orbGlow.setPosition(this.orbX, this.orbY).setTint(col).setVisible(f.state !== 'ko').setAlpha(0.55);
   }
 
   destroy(): void {
