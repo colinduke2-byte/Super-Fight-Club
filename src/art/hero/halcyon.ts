@@ -18,6 +18,15 @@ export function drawHalcyon(r: Raster, k0: Skel, look: PlaceholderLook): void {
   const dark = col(look.armorDark);
   const deep = mul(dark, 0.55);
   const gold = col(look.accent);
+  // every lit or painted part is held clear of the glow colours; only the parts made emissive on purpose bloom
+  // (a pale lit part that would have to grey right down to clear the bloom white is painted flat instead: a flat white
+  // only has to keep its own colour clear, so it can stay white)
+  const part = (c: RGB, o: { emissive?: boolean; flat?: boolean; soft?: boolean; lean?: RGB } = {}): number => {
+    if (o.emissive) return r.part(c, o);
+    const k = keepClear(c, gold, o);
+    if (k.steps > 3 && !o.flat && c[0] + c[1] + c[2] > 600) return r.part(keepClear(c, gold, { flat: true }).c, { flat: true });
+    return r.part(k.c, { flat: o.flat, soft: o.soft });
+  };
   const goldL = mix(gold, [255, 250, 220], 0.55);
   const skin = col(look.skin);
   // outfits: 1 = Valkyrie (crested helm with a horsehair plume, a cape, braids), 2 = Raven (black wings, hood and beak mask)
@@ -26,33 +35,33 @@ export function drawHalcyon(r: Raster, k0: Skel, look: PlaceholderLook): void {
   const feather: RGB = o === 2 ? [92, 92, 112] : [246, 249, 255];
   const featherU: RGB = o === 2 ? [52, 52, 68] : [172, 196, 232];
   const P = {
-    armor: r.part(armor),
-    light: r.part(mix(armor, [255, 255, 255], 0.35)),
-    dark: r.part(dark),
-    deep: r.part(deep),
-    gold: r.part(gold),
-    goldL: r.part(goldL, { flat: true }),
-    goldFlat: r.part(gold, { flat: true }),
-    skin: r.part(skin, { soft: true }),
-    skinD: r.part(mul(skin, 0.8), { soft: true }),
-    sclera: r.part([246, 246, 255], { flat: true }),
-    line: r.part(mul(skin, 0.4), { flat: true }),
-    iris: r.part([60, 130, 235], { flat: true }),
-    hair: r.part([246, 226, 160], { soft: true }),
-    hairD: r.part([205, 176, 108], { soft: true }),
-    azure: r.part(azure, { soft: true }),
-    azureD: r.part(mul(azure, 0.66), { soft: true }),
-    feather: r.part(feather, { soft: true }),
-    featherU: r.part(featherU, { soft: true }),
-    featherF: r.part(mix(featherU, [90, 120, 190], 0.5), { soft: true }),
-    covert: r.part(mix(feather, azure, 0.28), { soft: true }),
-    bone: r.part(mul(armor, 0.8)),
-    steel: r.part([226, 234, 248]),
-    shaft: r.part([92, 76, 120]),
-    glow: r.part(goldL, { emissive: true }),
-    eye: r.part([70, 150, 255], { emissive: true }),
-    ribbon: r.part([255, 96, 120], { soft: true }),
-    seam: r.part(deep, { flat: true }),
+    armor: part(armor),
+    light: part(mix(armor, [255, 255, 255], 0.35)),
+    dark: part(dark),
+    deep: part(deep),
+    gold: part(gold, { lean: [150, 116, 36] }), // burnished: a deeper gold than the glowing accent, same hue
+    goldL: part(goldL, { flat: true, lean: [214, 186, 112] }),
+    goldFlat: part(gold, { flat: true, lean: [150, 116, 36] }),
+    skin: part(skin, { soft: true }),
+    skinD: part(mul(skin, 0.8), { soft: true }),
+    sclera: part([246, 246, 255], { flat: true }),
+    line: part(mul(skin, 0.4), { flat: true }),
+    iris: part([60, 130, 235], { flat: true }),
+    hair: part([246, 226, 160], { soft: true }),
+    hairD: part([205, 176, 108], { soft: true }),
+    azure: part(azure, { soft: true }),
+    azureD: part(mul(azure, 0.66), { soft: true }),
+    feather: part(feather, { soft: true }),
+    featherU: part(featherU, { soft: true }),
+    featherF: part(mix(featherU, [90, 120, 190], 0.5), { soft: true }),
+    covert: part(mix(feather, azure, 0.28), { soft: true }),
+    bone: part(mul(armor, 0.8)),
+    steel: part([226, 234, 248]),
+    shaft: part([92, 76, 120]),
+    glow: part(goldL, { emissive: true }),
+    eye: part([70, 150, 255], { emissive: true }),
+    ribbon: part([255, 96, 120], { soft: true }),
+    seam: part(deep, { flat: true }),
   };
   const T = k.torso;
   const ph = k.phase;
@@ -61,10 +70,10 @@ export function drawHalcyon(r: Raster, k0: Skel, look: PlaceholderLook): void {
   const aim = rad(k.pose.aim ?? -78);
   const u: V2 = [Math.cos(aim), Math.sin(aim)];
   const sway = (i: number, a = 2): number => Math.sin(ph * 1.2 + i * 0.8) * a;
-  const plume = r.part(mix(gold, [220, 40, 50], 0.6), { soft: true });
-  const plumeD = r.part(mul(mix(gold, [220, 40, 50], 0.6), 0.7), { soft: true });
-  const beak = r.part(mix([226, 216, 196], gold, 0.15));
-  const beakD = r.part(mul(mix([226, 216, 196], gold, 0.15), 0.7));
+  const plume = part(mix(gold, [220, 40, 50], 0.6), { soft: true });
+  const plumeD = part(mul(mix(gold, [220, 40, 50], 0.6), 0.7), { soft: true });
+  const beak = part(mix([226, 216, 196], gold, 0.15));
+  const beakD = part(mul(mix([226, 216, 196], gold, 0.15), 0.7));
 
   // ---- wings (behind everything): far wing darker, near wing brighter ----
   const root: V2 = [T.x + 10, T.y + 8];
@@ -115,7 +124,7 @@ export function drawHalcyon(r: Raster, k0: Skel, look: PlaceholderLook): void {
   }
 
   // ---- back arm ----
-  r.seg(P.armor, k.shB[0], k.shB[1], aB.mid[0], aB.mid[1], 10, 9);
+  r.seg(P.azureD, k.shB[0], k.shB[1], aB.mid[0], aB.mid[1], 10, 9); // azure undersleeve: a second material between the silver plates
   r.seg(P.dark, aB.mid[0], aB.mid[1], aB.end[0], aB.end[1], 9, 8);
 
   // ---- torso: silver cuirass, gold trim, feather relief ----
@@ -248,7 +257,10 @@ export function drawHalcyon(r: Raster, k0: Skel, look: PlaceholderLook): void {
     // a dark backing a little wider than the arm cuts it out of the cuirass behind it
     r.seg(P.deep, sx, sy + 1, el[0], el[1] + 1, 13, 11);
     r.seg(P.deep, el[0], el[1] + 1, G[0], G[1] + 1, 11, 10);
-    r.seg(P.armor, sx, sy, el[0], el[1], 11, 9);
+    // an azure sleeve on the upper arm (the same cloth as the leggings), so the arm parts from the silver cuirass and
+    // the white wings instead of joining one pale mass; the plate starts at the elbow
+    r.seg(P.azure, sx, sy, el[0], el[1], 11, 9);
+    r.seg(P.azureD, sx + (el[0] - sx) * 0.55 + 2, sy + (el[1] - sy) * 0.55 + 2, el[0] + 1, el[1] + 2, 3, 3);
     r.seg(P.light, el[0], el[1], G[0], G[1], 9, 8);
     // vambrace: two thin gold bands round the forearm (the cuff at the wrist carries the colour)
     {
@@ -428,4 +440,37 @@ function leg(r: Raster, P: Parts, hip: V2, kn0: V2, ankle0: V2, back: boolean, p
   r.rect(P.deep, bx - 8, by + 7, 26, 2);
   // little ankle wings flicking back: two layered feathers
   for (let i = 1; i >= 0; i--) featherPoly(r, i ? P.featherU : P.feather, [bx - 5, by - 6 + i * 2], [Math.max(7, bx - 20 - i * 3 - Math.sin(ph * 1.8 + i) * 2), by - 13 + i * 4], 7);
+}
+
+/**
+ * `x` nudged just far enough that none of the tones the shader can give it (rim light, cast shade, volume) lands within
+ * reach of the accent or its bloom white. The finishing pass treats any pixel near those as self-lit and blooms it, so
+ * without this a pale accent set the whites glowing and an accent-coloured cloth or metal read as a light source. The
+ * colour leans toward `lean` (default: darker; pale colours try a cool tint first) by the smallest step that clears;
+ * `steps` says how far it had to go (0 = untouched).
+ */
+function keepClear(x: RGB, accent: RGB, o: { flat?: boolean; soft?: boolean; lean?: RGB }): { c: RGB; steps: number } {
+  const hot = mul(accent, 1.55);
+  const far = (a: RGB, b: RGB): boolean => Math.abs(a[0] - b[0]) + Math.abs(a[1] - b[1]) + Math.abs(a[2] - b[2]) >= 50;
+  const warm: RGB = [255, 242, 214];
+  const cool: RGB = [28, 18, 72];
+  const tones = (v: RGB): RGB[] => {
+    if (o.flat) return [v];
+    const out: RGB[] = [];
+    for (const vol of [0.92, 1.06]) {
+      const b = mul(v, vol);
+      const lit = mix(mul(b, o.soft ? 1.12 : 1.3), warm, 0.1);
+      out.push(b, lit, mul(b, 1.1), mix(mul(b, o.soft ? 0.8 : 0.66), cool, 0.2), mix(mul(lit, o.soft ? 0.8 : 0.66), cool, 0.2), mix(mul(b, 0.86), cool, 0.08), mul(b, 0.92));
+    }
+    return out;
+  };
+  const ok = (v: RGB): boolean => tones(v).every((t) => far(t, accent) && far(t, hot));
+  if (ok(x)) return { c: x, steps: 0 };
+  const hues: RGB[] = o.lean ? [o.lean] : x[0] + x[1] + x[2] > 600 ? [[176, 194, 244], mul(x, 0.55)] : [mul(x, 0.55)];
+  for (let n = 1; n <= 14; n++)
+    for (const h of hues) {
+      const v = mix(x, h, Math.min(1, n * 0.07));
+      if (ok(v)) return { c: v, steps: n };
+    }
+  return { c: mul(x, 0.5), steps: 15 };
 }

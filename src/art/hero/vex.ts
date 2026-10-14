@@ -15,33 +15,48 @@ export function drawVex(r: Raster, k0: Skel, look: PlaceholderLook): void {
   const dark = col(look.armorDark);
   const deep = mul(dark, 0.5);
   const accent = col(look.accent);
+  // every lit or painted part is held clear of the glow colours; only the parts made emissive on purpose bloom
+  // (a pale lit part that would have to grey right down to clear the bloom white is painted flat instead: a flat white
+  // only has to keep its own colour clear, so it can stay white)
+  const part = (c: RGB, o: { emissive?: boolean; flat?: boolean; soft?: boolean; lean?: RGB } = {}): number => {
+    if (o.emissive) return r.part(c, o);
+    const k = keepClear(c, accent, o);
+    if (k.steps > 3 && !o.flat && c[0] + c[1] + c[2] > 600) return r.part(keepClear(c, accent, { flat: true }).c, { flat: true });
+    return r.part(k.c, { flat: o.flat, soft: o.soft });
+  };
   const glow = mix(accent, [255, 245, 250], 0.6);
   const skin = col(look.skin);
   const steel: RGB = [200, 210, 230];
   const steelD: RGB = [112, 124, 152];
   const P = {
-    armor: r.part(armor),
-    light: r.part(mix(armor, [200, 245, 255], 0.22)),
-    dark: r.part(dark),
-    deep: r.part(deep),
-    skin: r.part(skin, { soft: true }),
-    cloth: r.part(mix(armor, dark, 0.45), { soft: true }),
-    clothL: r.part(mix(armor, [200, 245, 255], 0.2), { soft: true }),
-    cape: r.part(mix(dark, [10, 10, 30], 0.25), { soft: true }),
-    capeIn: r.part(mix(mul(accent, 0.45), dark, 0.55), { soft: true }),
-    scarf: r.part(accent, { soft: true }),
-    scarfD: r.part(mul(accent, 0.68), { soft: true }),
-    accent: r.part(accent, { emissive: true }),
-    glow: r.part(glow, { emissive: true }),
-    steel: r.part(steel),
-    steelD: r.part(steelD),
-    edge: r.part([255, 255, 255], { flat: true }),
-    strap: r.part(mul(dark, 0.4), { soft: true }),
-    mark: r.part(accent, { flat: true }),
-    rivet: r.part(steel, { flat: true }),
-    seam: r.part(mul(deep, 0.8), { flat: true }),
-    glove: r.part(mix(mul(dark, 0.55), [40, 30, 30], 0.4)),
-    gloveL: r.part(mix(mul(dark, 0.55), [200, 190, 200], 0.3), { soft: true }),
+    armor: part(armor),
+    light: part(mix(armor, [200, 245, 255], 0.22)),
+    dark: part(dark),
+    deep: part(deep),
+    skin: part(skin, { soft: true }),
+    cloth: part(mix(armor, dark, 0.45), { soft: true }),
+    clothL: part(mix(armor, [200, 245, 255], 0.2), { soft: true }),
+    cape: part(mix(dark, [10, 10, 30], 0.25), { soft: true }),
+    capeIn: part(mix(mul(accent, 0.45), dark, 0.55), { soft: true }),
+    scarf: part(accent, { soft: true }),
+    scarfD: part(mul(accent, 0.68), { soft: true }),
+    accent: part(accent, { emissive: true }),
+    glow: part(glow, { emissive: true }),
+    steel: part(steel),
+    steelD: part(steelD),
+    edge: part([255, 255, 255], { flat: true }),
+    strap: part(mul(dark, 0.4), { soft: true }),
+    mark: part(accent, { emissive: true }), // the neon trim lines glow on purpose
+    rivet: part(steel, { flat: true }),
+    seam: part(mul(deep, 0.8), { flat: true }),
+    glove: part(mix(mul(dark, 0.55), [40, 30, 30], 0.4)),
+    gloveL: part(mix(mul(dark, 0.55), [200, 190, 200], 0.3), { soft: true }),
+    // a second material under the jacket: charcoal trousers and pale linen shin wraps, so the figure is not one hue
+    // from cowl to boot and the legs read light and quick
+    pant: part(mix(mul(dark, 0.8), [44, 42, 54], 0.6), { soft: true }),
+    pantB: part(mix(mul(dark, 0.55), [26, 24, 34], 0.6), { soft: true }),
+    wrap: part(mix([214, 206, 192], armor, 0.1), { soft: true }),
+    wrapD: part(mix(mul(mix([214, 206, 192], armor, 0.1), 0.62), [40, 30, 60], 0.2), { soft: true }),
   };
   const T = k.torso;
   const run = k.pose.lean > 2;
@@ -49,16 +64,16 @@ export function drawVex(r: Raster, k0: Skel, look: PlaceholderLook): void {
   const sw = (i: number, a = 2): number => Math.sin(k.phase * 1.25 + i * 0.7) * a;
   // outfits: 1 = Oni (wild hair, a horned demon mask with fangs), 2 = Cyber (visor helmet, neon circuit lines, no cape)
   const o = look.outfit ?? 0;
-  const bone = r.part([236, 228, 210]);
-  const boneD = r.part([176, 164, 140]);
-  const oniMask = r.part(mix(accent, [200, 30, 40], 0.55));
-  const oniD = r.part(mul(mix(accent, [200, 30, 40], 0.55), 0.62));
+  const bone = part([236, 228, 210]);
+  const boneD = part([176, 164, 140]);
+  const oniMask = part(mix(accent, [200, 30, 40], 0.55), { lean: [120, 12, 34] }); // lacquered red, a step off the glowing accent
+  const oniD = part(mul(mix(accent, [200, 30, 40], 0.55), 0.62), { lean: [70, 6, 24] });
   // the mane: a pale shock of hair in a clear three-step value ladder (lit crown, body, shadowed underside)
   const hairC = mix(armor, [236, 236, 246], 0.66);
-  const hairHi = r.part(mix(hairC, [255, 255, 255], 0.55), { soft: true });
-  const hair = r.part(hairC, { soft: true });
-  const hairD = r.part(mix(mul(hairC, 0.58), [40, 30, 60], 0.15), { soft: true });
-  const hairDeep = r.part(mix(mul(hairC, 0.34), [30, 16, 40], 0.3), { soft: true });
+  const hairHi = part(mix(hairC, [255, 255, 255], 0.55), { soft: true });
+  const hair = part(hairC, { soft: true });
+  const hairD = part(mix(mul(hairC, 0.58), [40, 30, 60], 0.15), { soft: true });
+  const hairDeep = part(mix(mul(hairC, 0.34), [30, 16, 40], 0.3), { soft: true });
 
   // ---- ragged cape (behind everything) ----
   if (o !== 2) {
@@ -130,7 +145,7 @@ export function drawVex(r: Raster, k0: Skel, look: PlaceholderLook): void {
   }
 
   // ---- back leg ----
-  leg(r, P, k.hipB, k.kneeB, k.ankleB, true);
+  leg(r, P, k.hipB, k.kneeB, k.ankleB, true, o !== 2);
 
   // ---- split tabard behind the hips ----
   r.poly(P.cloth, [[T.x + 2, T.y + T.h - 8], [T.x + 14, T.y + T.h - 8], [T.x + 9 + sw(1), Math.min(T.y + T.h + 22, r.h - 10)], [T.x - 3 + sw(2), Math.min(T.y + T.h + 26, r.h - 8)]]);
@@ -173,7 +188,7 @@ export function drawVex(r: Raster, k0: Skel, look: PlaceholderLook): void {
   }
 
   // ---- front leg ----
-  leg(r, P, k.hipF, k.kneeF, k.ankleF, false);
+  leg(r, P, k.hipF, k.kneeF, k.ankleF, false, o !== 2);
 
   if (o === 1) {
     // ---- head: a wild mane of hair and a red oni mask with horns and fangs ----
@@ -343,7 +358,7 @@ function fist(r: Raster, P: Parts, el: V2, h: V2, back: boolean): void {
   }
 }
 
-type Parts = Record<'armor' | 'light' | 'dark' | 'deep' | 'skin' | 'cloth' | 'clothL' | 'cape' | 'scarf' | 'scarfD' | 'accent' | 'glow' | 'steel' | 'steelD' | 'edge' | 'strap' | 'mark' | 'rivet' | 'seam' | 'glove' | 'gloveL', number>;
+type Parts = Record<'armor' | 'light' | 'dark' | 'deep' | 'skin' | 'cloth' | 'clothL' | 'cape' | 'scarf' | 'scarfD' | 'accent' | 'glow' | 'steel' | 'steelD' | 'edge' | 'strap' | 'mark' | 'rivet' | 'seam' | 'glove' | 'gloveL' | 'pant' | 'pantB' | 'wrap' | 'wrapD', number>;
 
 function bracer(r: Raster, P: Parts, el: V2, hand: V2, back: boolean): void {
   const mx = el[0] + (hand[0] - el[0]) * 0.62;
@@ -387,32 +402,88 @@ function dagger(r: Raster, P: Parts, el: V2, hand: V2, len0: number): void {
   r.ellipse(P.glow, tx, ty, 1.6, 1.6);
 }
 
-function leg(r: Raster, P: Parts, hip: V2, kn: V2, ankle: V2, back: boolean): void {
+function leg(r: Raster, P: Parts, hip: V2, kn: V2, ankle: V2, back: boolean, wraps: boolean): void {
   // a deep crouch can fold the knee under the floor line: keep the cloth above it
   const lowY = r.h - 14;
   kn = [kn[0], Math.min(lowY, kn[1])];
   ankle = [ankle[0], Math.min(ankle[1], r.h - 12)]; // the sole never sinks below the floor line
-  // trousers a step darker than the jacket (so the hips read apart from the torso), lighter wrapped shins
-  const pant = back ? P.deep : P.dark;
-  r.seg(pant, hip[0], hip[1], kn[0], kn[1], 14, 11);
-  r.seg(back ? P.deep : P.cloth, kn[0], kn[1], ankle[0], ankle[1], 11, 8);
-  if (!back) {
-    r.ellipse(P.armor, kn[0] + 3, kn[1], 5, 5); // knee guard
-    r.rect(P.mark, kn[0] + 1, kn[1] - 1, 6, 1);
-    for (let i = 0; i < 3; i++) {
-      const t = 0.3 + i * 0.22;
-      r.rect(P.mark, kn[0] + (ankle[0] - kn[0]) * t - 5, kn[1] + (ankle[1] - kn[1]) * t, 10, 1); // shin wraps
+  if (wraps) {
+    // charcoal trousers, then the shin bound in pale linen: a shaded underlayer, the lit wrap over it and the diagonal
+    // turns of the binding (the far leg sits a step down the value ladder)
+    r.seg(back ? P.pantB : P.pant, hip[0], hip[1], kn[0], kn[1], 14, 11);
+    r.seg(back ? P.pantB : P.wrapD, kn[0], kn[1], ankle[0], ankle[1], 11, 8);
+    if (!back) {
+      r.seg(P.wrap, kn[0] - 1, kn[1] + 2, ankle[0] - 1, ankle[1] - 3, 8, 6);
+      for (let i = 0; i < 4; i++) {
+        const t = 0.22 + i * 0.19;
+        const x = kn[0] + (ankle[0] - kn[0]) * t;
+        const y = kn[1] + (ankle[1] - kn[1]) * t;
+        r.seg(P.seam, x - 4, y + 1.5, x + 4, y - 1.5, 1, 1);
+      }
+      r.ellipse(P.armor, kn[0] + 3, kn[1], 5, 5); // knee guard
+      r.rect(P.mark, kn[0] + 1, kn[1] - 1, 6, 1);
+    } else {
+      for (let i = 0; i < 3; i++) {
+        const t = 0.3 + i * 0.22;
+        r.rect(P.seam, kn[0] + (ankle[0] - kn[0]) * t - 4, kn[1] + (ankle[1] - kn[1]) * t, 8, 1);
+      }
+    }
+  } else {
+    // trousers a step darker than the jacket (so the hips read apart from the torso), lighter wrapped shins
+    const pant = back ? P.deep : P.dark;
+    r.seg(pant, hip[0], hip[1], kn[0], kn[1], 14, 11);
+    r.seg(back ? P.deep : P.cloth, kn[0], kn[1], ankle[0], ankle[1], 11, 8);
+    if (!back) {
+      r.ellipse(P.armor, kn[0] + 3, kn[1], 5, 5); // knee guard
+      r.rect(P.mark, kn[0] + 1, kn[1] - 1, 6, 1);
+      for (let i = 0; i < 3; i++) {
+        const t = 0.3 + i * 0.22;
+        r.rect(P.mark, kn[0] + (ankle[0] - kn[0]) * t - 5, kn[1] + (ankle[1] - kn[1]) * t, 10, 1); // shin wraps
+      }
     }
   }
   const bx = ankle[0];
   const by = ankle[1];
   // a lean split-toe tabi boot: wrapped ankle, a low soft foot tapering to the toe, a pale wrap band (it used to be a
   // tall square boot, the heaviest dark mass on a fighter who should read light on his feet)
-  r.poly(back ? P.deep : P.strap, [[bx - 6, by - 6], [bx + 5, by - 6], [bx + 8, by], [bx + 14, by + 2], [bx + 17, by + 5], [bx + 16, by + 8], [bx - 7, by + 8], [bx - 8, by + 2]]);
-  r.rect(back ? P.strap : P.clothL, bx - 7, by - 9, 13, 4); // ankle wrap
-  r.rect(P.seam, bx - 7, by - 6, 13, 1);
-  r.rect(back ? P.seam : P.mark, bx - 6, by - 8, 11, 1);
+  r.poly(back ? P.deep : P.strap, [[bx - 6, by - 5], [bx + 5, by - 5], [bx + 8, by + 1], [bx + 14, by + 2.5], [bx + 17, by + 5], [bx + 16, by + 8], [bx - 7, by + 8], [bx - 8, by + 2]]);
+  r.rect(wraps ? (back ? P.wrapD : P.wrap) : back ? P.strap : P.clothL, bx - 7, by - 9, 13, 5); // ankle wrap (the linen binding runs down into it)
+  r.rect(P.seam, bx - 7, by - 5, 13, 1);
+  r.rect(back || wraps ? P.seam : P.mark, bx - 6, by - 8, 11, 1);
   r.poly(P.steelD, [[bx + 12, by + 2], [bx + 17, by + 5], [bx + 16, by + 8], [bx + 12, by + 8]]); // metal toe cap
   r.rect(P.seam, bx + 11, by + 3, 1, 5); // the split toe
   r.rect(P.deep, bx - 7, by + 7, 23, 2);
+}
+
+/**
+ * `x` nudged just far enough that none of the tones the shader can give it (rim light, cast shade, volume) lands within
+ * reach of the accent or its bloom white. The finishing pass treats any pixel near those as self-lit and blooms it, so
+ * without this a pale accent set the whites glowing and an accent-coloured cloth or metal read as a light source. The
+ * colour leans toward `lean` (default: darker; pale colours try a cool tint first) by the smallest step that clears;
+ * `steps` says how far it had to go (0 = untouched).
+ */
+function keepClear(x: RGB, accent: RGB, o: { flat?: boolean; soft?: boolean; lean?: RGB }): { c: RGB; steps: number } {
+  const hot = mul(accent, 1.55);
+  const far = (a: RGB, b: RGB): boolean => Math.abs(a[0] - b[0]) + Math.abs(a[1] - b[1]) + Math.abs(a[2] - b[2]) >= 50;
+  const warm: RGB = [255, 242, 214];
+  const cool: RGB = [28, 18, 72];
+  const tones = (v: RGB): RGB[] => {
+    if (o.flat) return [v];
+    const out: RGB[] = [];
+    for (const vol of [0.92, 1.06]) {
+      const b = mul(v, vol);
+      const lit = mix(mul(b, o.soft ? 1.12 : 1.3), warm, 0.1);
+      out.push(b, lit, mul(b, 1.1), mix(mul(b, o.soft ? 0.8 : 0.66), cool, 0.2), mix(mul(lit, o.soft ? 0.8 : 0.66), cool, 0.2), mix(mul(b, 0.86), cool, 0.08), mul(b, 0.92));
+    }
+    return out;
+  };
+  const ok = (v: RGB): boolean => tones(v).every((t) => far(t, accent) && far(t, hot));
+  if (ok(x)) return { c: x, steps: 0 };
+  const hues: RGB[] = o.lean ? [o.lean] : x[0] + x[1] + x[2] > 600 ? [[176, 194, 244], mul(x, 0.55)] : [mul(x, 0.55)];
+  for (let n = 1; n <= 14; n++)
+    for (const h of hues) {
+      const v = mix(x, h, Math.min(1, n * 0.07));
+      if (ok(v)) return { c: v, steps: n };
+    }
+  return { c: mul(x, 0.5), steps: 15 };
 }

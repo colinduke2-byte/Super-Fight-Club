@@ -15,32 +15,41 @@ export function drawRiptide(r: Raster, k0: Skel, look: PlaceholderLook): void {
   const dark = col(look.armorDark);
   const deep = mul(dark, 0.6);
   const accent = col(look.accent);
+  // every lit or painted part is held clear of the glow colours; only the parts made emissive on purpose bloom
+  // (a pale lit part that would have to grey right down to clear the bloom white is painted flat instead: a flat white
+  // only has to keep its own colour clear, so it can stay white)
+  const part = (c: RGB, o: { emissive?: boolean; flat?: boolean; soft?: boolean; lean?: RGB } = {}): number => {
+    if (o.emissive) return r.part(c, o);
+    const k = keepClear(c, accent, o);
+    if (k.steps > 3 && !o.flat && c[0] + c[1] + c[2] > 600) return r.part(keepClear(c, accent, { flat: true }).c, { flat: true });
+    return r.part(k.c, { flat: o.flat, soft: o.soft });
+  };
   const hide = col(look.skin);
   const belly: RGB = mix(hide, [244, 248, 252], 0.72);
   const leather: RGB = [104, 70, 48];
   const steel: RGB = [196, 210, 222];
   const P = {
-    hide: r.part(hide, { soft: true }),
-    hideD: r.part(mul(hide, 0.74), { soft: true }),
-    hideDeep: r.part(mul(hide, 0.52), { soft: true }),
-    belly: r.part(belly, { soft: true }),
-    bellyLine: r.part(mul(belly, 0.8), { flat: true }),
-    gill: r.part(mul(hide, 0.4), { flat: true }),
-    armor: r.part(armor),
-    light: r.part(mix(armor, [220, 245, 255], 0.35)),
-    dark: r.part(dark),
-    deep: r.part(deep),
-    leather: r.part(leather, { soft: true }),
-    leatherD: r.part(mul(leather, 0.7), { soft: true }),
-    bronze: r.part(accent),
-    accent: r.part(accent, { emissive: true }),
-    eye: r.part(mix(accent, [255, 240, 200], 0.4), { emissive: true }),
-    tooth: r.part([248, 248, 240], { flat: true }),
-    mouth: r.part([40, 16, 24], { flat: true }),
-    steel: r.part(steel),
-    steelD: r.part(mul(steel, 0.66)),
-    chain: r.part(mul(steel, 0.8), { flat: true }),
-    rivet: r.part(mix(accent, [255, 255, 255], 0.3), { flat: true }),
+    hide: part(hide, { soft: true }),
+    hideD: part(mul(hide, 0.74), { soft: true }),
+    hideDeep: part(mul(hide, 0.52), { soft: true }),
+    belly: part(belly, { soft: true }),
+    bellyLine: part(mul(belly, 0.8), { flat: true }),
+    gill: part(mul(hide, 0.4), { flat: true }),
+    armor: part(armor),
+    light: part(mix(armor, [220, 245, 255], 0.35)),
+    dark: part(dark),
+    deep: part(deep),
+    leather: part(leather, { soft: true }),
+    leatherD: part(mul(leather, 0.7), { soft: true }),
+    bronze: part(accent, { lean: mix(mul(accent, 0.5), [120, 70, 30], 0.4) }), // metal in the accent hue, held off the glow
+    accent: part(accent, { emissive: true }),
+    eye: part(mix(accent, [255, 240, 200], 0.4), { emissive: true }),
+    tooth: part([248, 248, 240], { flat: true }),
+    mouth: part([40, 16, 24], { flat: true }),
+    steel: part(steel),
+    steelD: part(mul(steel, 0.66)),
+    chain: part(mul(steel, 0.8), { flat: true }),
+    rivet: part(mix(accent, [255, 255, 255], 0.3), { flat: true }),
   };
   const T = k.torso;
   const ph = k.phase;
@@ -48,10 +57,10 @@ export function drawRiptide(r: Raster, k0: Skel, look: PlaceholderLook): void {
   const sway = (i: number, a = 2): number => Math.sin(ph * 1.25 + i * 0.9) * a;
   // outfits: 1 = Pirate (tricorn, eyepatch, a long coat with brass buttons), 2 = Hammerhead (a hammer-shaped head, heavy gladiator plate)
   const o = look.outfit ?? 0;
-  const coat = r.part(armor, { soft: true });
-  const coatD = r.part(mul(armor, 0.7), { soft: true });
-  const black = r.part([30, 26, 32]);
-  const gold = r.part([230, 190, 90]);
+  const coat = part(armor, { soft: true });
+  const coatD = part(mul(armor, 0.7), { soft: true });
+  const black = part([30, 26, 32]);
+  const gold = part([230, 190, 90], { lean: [170, 104, 40] });
 
   // ---- shark tail (behind): sweeps back from the lower spine to a crescent caudal fin ----
   {
@@ -248,8 +257,10 @@ export function drawRiptide(r: Raster, k0: Skel, look: PlaceholderLook): void {
     r.seg(P.belly, el[0] + (hand[0] - el[0]) * 0.1 + uy * 3, el[1] + (hand[1] - el[1]) * 0.1 - ux * 3 + 3, el[0] + (hand[0] - el[0]) * 0.45, el[1] + (hand[1] - el[1]) * 0.45 + 3, 4, 3); // pale underside
     r.seg(P.armor, el[0] + (hand[0] - el[0]) * 0.5, el[1] + (hand[1] - el[1]) * 0.5, hand[0] - ux * 4, hand[1] - uy * 4, 12, 13);
     r.seg(P.bronze, hand[0] - ux * 5 + uy * 6, hand[1] - uy * 5 - ux * 6, hand[0] - ux * 5 - uy * 6, hand[1] - uy * 5 + ux * 6, 2, 2); // gauntlet rim
-    // standing (not running, dashing or airborne): a low anchor may be planted on the floor instead of shrunk
-    const standing = k.pose.lean <= 2 && k.pose.frontFoot[1] <= 3 && k.pose.backFoot[1] <= 3;
+    // at rest (idle, crouch, walk: upright, feet under him, the fist hanging near the hip): a low anchor is planted on
+    // the floor instead of shrunk. Attacks keep it in the swing, so an animation never pops between the two holds.
+    const q = k.pose;
+    const standing = q.lean === 0 && Math.abs(q.frontFoot[0]) <= 7 && q.frontFoot[1] <= 3 && q.backFoot[1] <= 3 && Math.abs(q.frontHand[0]) <= 6 && q.frontHand[1] >= -4 && q.frontHand[1] <= 2;
     anchor(r, P, hand, ux, uy, k.base, standing);
     sharkFist(r, P, hand, ux, uy, false);
   }
@@ -312,7 +323,7 @@ function anchor(r: Raster, P: Parts, grip: V2, ux0: number, uy0: number, base: n
       while (L > minL && !ends(L, ux, uy).every(inFrame)) L -= 1;
       if (ends(L, ux, uy).every(inFrame)) break search;
     }
-    if (minL === 36 && !canPlant) {
+    if (minL === 36 && !canPlant && oy > 0.35) {
       // on the move (run, dash) a low fist has no room to hang or level it: carry the anchor raised ahead instead,
       // full size, rather than shrinking it to a trinket
       const fwd = ox < 0 ? -1 : 1;
@@ -412,4 +423,37 @@ function leg(r: Raster, P: Parts, hip: V2, kn0: V2, ankle0: V2, back: boolean): 
   r.poly(back ? P.leatherD : P.leather, [[bx - 7, by - 4], [bx + 7, by - 4], [bx + 17, by + 4], [bx + 17, by + 8], [bx - 8, by + 8]]);
   r.rect(back ? P.deep : P.bronze, bx + 10, by + 3, 7, 5);
   r.rect(P.deep, bx - 9, by + 7, 27, 2);
+}
+
+/**
+ * `x` nudged just far enough that none of the tones the shader can give it (rim light, cast shade, volume) lands within
+ * reach of the accent or its bloom white. The finishing pass treats any pixel near those as self-lit and blooms it, so
+ * without this a pale accent set the whites glowing and an accent-coloured cloth or metal read as a light source. The
+ * colour leans toward `lean` (default: darker; pale colours try a cool tint first) by the smallest step that clears;
+ * `steps` says how far it had to go (0 = untouched).
+ */
+function keepClear(x: RGB, accent: RGB, o: { flat?: boolean; soft?: boolean; lean?: RGB }): { c: RGB; steps: number } {
+  const hot = mul(accent, 1.55);
+  const far = (a: RGB, b: RGB): boolean => Math.abs(a[0] - b[0]) + Math.abs(a[1] - b[1]) + Math.abs(a[2] - b[2]) >= 50;
+  const warm: RGB = [255, 242, 214];
+  const cool: RGB = [28, 18, 72];
+  const tones = (v: RGB): RGB[] => {
+    if (o.flat) return [v];
+    const out: RGB[] = [];
+    for (const vol of [0.92, 1.06]) {
+      const b = mul(v, vol);
+      const lit = mix(mul(b, o.soft ? 1.12 : 1.3), warm, 0.1);
+      out.push(b, lit, mul(b, 1.1), mix(mul(b, o.soft ? 0.8 : 0.66), cool, 0.2), mix(mul(lit, o.soft ? 0.8 : 0.66), cool, 0.2), mix(mul(b, 0.86), cool, 0.08), mul(b, 0.92));
+    }
+    return out;
+  };
+  const ok = (v: RGB): boolean => tones(v).every((t) => far(t, accent) && far(t, hot));
+  if (ok(x)) return { c: x, steps: 0 };
+  const hues: RGB[] = o.lean ? [o.lean] : x[0] + x[1] + x[2] > 600 ? [[176, 194, 244], mul(x, 0.55)] : [mul(x, 0.55)];
+  for (let n = 1; n <= 14; n++)
+    for (const h of hues) {
+      const v = mix(x, h, Math.min(1, n * 0.07));
+      if (ok(v)) return { c: v, steps: n };
+    }
+  return { c: mul(x, 0.5), steps: 15 };
 }
