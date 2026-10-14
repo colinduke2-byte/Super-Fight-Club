@@ -84,11 +84,11 @@ export class VersusSetupScene extends MenuScene {
     // the lineup chips under the title, then the rules list down to the footer
     const cw = Math.min(60 * u, (w * 0.9 - 18 * u) / 4);
     const gap = 6 * u;
-    const ch = 30 * u;
+    const ch = 34 * u;
     const total = cw * 4 + gap * 3;
     this.chipBox = { x: w / 2 - total / 2, y: this.title.y + this.title.displayHeight / 2 + 9 * u, w: cw, h: ch, gap };
-    this.chipLabels.forEach((t, i) => t.setScale(u * 2).setPosition(this.chipBox.x + i * (cw + gap) + cw / 2, this.chipBox.y + 8 * u));
-    this.chipInfo.forEach((t, i) => t.setPosition(this.chipBox.x + i * (cw + gap) + cw / 2, this.chipBox.y + 23.5 * u));
+    this.chipLabels.forEach((t, i) => t.setScale(u * 2).setPosition(this.chipBox.x + i * (cw + gap) + cw / 2, this.chipBox.y + 10 * u));
+    this.chipInfo.forEach((t, i) => t.setPosition(this.chipBox.x + i * (cw + gap) + cw / 2, this.chipBox.y + 27 * u));
     const footTop = this.placeFooter(this.hint, this.desc);
     this.list.layout(w / 2, this.chipBox.y + ch + 14 * u, u, 220, footTop - 10 * u);
   }
@@ -118,8 +118,8 @@ export class VersusSetupScene extends MenuScene {
       const x0 = cx - w / 2;
       const y0 = y + ch / 2 - h / 2;
       drawPanel(g, x0, y0, w, h, u, 0.55 + 0.35 * a);
-      g.fillStyle(col, 0.08 + 0.22 * a).fillRect(x0 + u, y0 + u, w - 2 * u, 15 * u * pop);
-      g.fillStyle(col, 0.25 + 0.75 * a).fillRect(x0 + u, y0 + 16 * u * pop, w - 2 * u, u);
+      g.fillStyle(col, 0.08 + 0.22 * a).fillRect(x0 + u, y0 + u, w - 2 * u, 18 * u * pop);
+      g.fillStyle(col, 0.25 + 0.75 * a).fillRect(x0 + u, y0 + 19 * u * pop, w - 2 * u, u);
       this.chipLabels[i].setTint(col).setAlpha(0.35 + 0.65 * a).setScale(u * 2 * pop);
       const t = this.chipInfo[i];
       t.setText(info).setTint(!on ? 0x5a5680 : r.mode === 'stock' ? COLORS.hot : COLORS.accent).setAlpha(0.5 + 0.5 * a);
