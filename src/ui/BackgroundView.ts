@@ -23,6 +23,8 @@ export interface Backdrop {
   nebulaOn?: boolean;
   /** A band of cloud tops across the bottom of the screen. */
   bankTex?: string;
+  /** Multiplicative tint for the bottom cloud/snow bank (night scenes dim it so pale fighters still read against it). */
+  bankTint?: number;
   /** The scenery streams past (a moving stage): art px per second at the far layer; nearer layers move faster. */
   scroll?: number;
   /** Ground below the near skyline: textures `${ground}-0..2` (far floor, mid ridge, foreground), each nearer one parallaxing faster. */
@@ -36,13 +38,25 @@ export interface Backdrop {
   overcast?: string;
 }
 
-export type Extra = 'rain' | 'flash' | 'sun' | 'birds' | 'godrays' | 'shooting' | 'clouds' | 'embers' | 'glow' | 'lightning' | 'beams' | 'grid' | 'motes' | 'aurora' | 'airships' | 'moon' | 'beacon' | 'ceiling' | 'drips' | 'snow' | 'smoke' | 'shafts' | 'fireflies';
+export type Extra = 'rain' | 'flash' | 'sun' | 'birds' | 'godrays' | 'shooting' | 'clouds' | 'embers' | 'glow' | 'lightning' | 'beams' | 'grid' | 'motes' | 'aurora' | 'airships' | 'moon' | 'beacon' | 'ceiling' | 'drips' | 'snow' | 'smoke' | 'shafts' | 'fireflies' | 'searchlights' | 'traffic' | 'datastream' | 'wisps' | 'petals' | 'flare' | 'wind';
 
 /** Horizontal parallax of the three ground layers (the near skyline is 0.26, so the far floor stays planted under it). */
 const GROUND_PARALLAX = [0.26, 0.34, 0.45];
 
 export const BACKDROPS: Record<string, Backdrop> = {
-  skyline: { sky: SKY, planet: true, nebula: 0xffffff, far: 0xffffff, near: 0xffffff, tiles: 0xffffff, extras: ['aurora', 'clouds', 'shooting', 'airships'] },
+  skyline: {
+    sky: SKY,
+    planet: true,
+    nebula: 0xffffff,
+    far: 0xffffff,
+    near: 0xffffff,
+    tiles: 0xffffff,
+    ground: 'bg-city-ground',
+    glint: { cols: [0xffcf6a, 0x7fe8ff, 0xff8a5a, 0xff7ae0], y0: 4, y1: 150, alpha: 0.9 },
+    glowCol: [0x5a1a7a, 0xd060c0],
+    glowAlpha: 0.16,
+    extras: ['glow', 'searchlights', 'aurora', 'clouds', 'shooting', 'traffic', 'airships'],
+  },
   void: {
     sky: ['#030a14', '#061424', '#0a2236', '#103350', '#1a4d6e', '#2a6e8a', '#4a9aa8'],
     planet: false,
@@ -52,7 +66,9 @@ export const BACKDROPS: Record<string, Backdrop> = {
     tiles: 0xb8e8ff,
     farTex: 'bg-pylons-far',
     nearTex: 'bg-pylons-near',
-    extras: ['beams', 'grid', 'shooting', 'motes'],
+    glowCol: [0x0a3a5a, 0x2ab8e0],
+    glowAlpha: 0.14,
+    extras: ['glow', 'beams', 'grid', 'datastream', 'shooting', 'motes'],
   },
   storm: {
     sky: ['#050912', '#0a1426', '#102038', '#1a3050', '#244260', '#2c5470', '#3a6a88'],
@@ -81,7 +97,7 @@ export const BACKDROPS: Record<string, Backdrop> = {
     bankTex: 'bg-cloudsea',
     stars: false,
     nebulaOn: false,
-    extras: ['sun', 'godrays', 'clouds', 'birds'],
+    extras: ['sun', 'godrays', 'clouds', 'wisps', 'birds', 'petals', 'flare'],
   },
   temple: {
     sky: ['#081a1e', '#0e2a2c', '#163c3a', '#245448', '#3a6e52', '#6a8a5a', '#c8a060'],
@@ -135,12 +151,14 @@ export const BACKDROPS: Record<string, Backdrop> = {
     sky: ['#0a1430', '#122248', '#1c3462', '#2e4c7c', '#4a6a96', '#7a92b4', '#c0cce0'],
     planet: false,
     nebula: 0x9fd0ff,
-    far: 0xffffff,
-    near: 0xffffff,
+    // the moonlit snow is dimmed a little so pale fighters stand out against it
+    far: 0xbcc8dc,
+    near: 0xb4c2da,
     tiles: 0xe8f2ff,
     farTex: 'bg-peaks-far',
     nearTex: 'bg-shrine-near',
     bankTex: 'bg-snowbank',
+    bankTint: 0xa0b2d0,
     ground: 'bg-frost-ground',
     glint: { cols: [0xf0f8ff, 0xb8d8ff], y0: 12, y1: 64, path: true, alpha: 0.7 },
     nebulaOn: false,
@@ -159,7 +177,7 @@ export const BACKDROPS: Record<string, Backdrop> = {
     stars: false,
     nebulaOn: false,
     scroll: 26,
-    extras: ['sun', 'clouds', 'birds', 'flash'],
+    extras: ['sun', 'clouds', 'wisps', 'birds', 'flash', 'wind', 'flare'],
   },
   reactor: {
     sky: ['#120404', '#240808', '#3a0e0a', '#5a1a0c', '#8a2c0c', '#c0501a', '#f08a30'],
@@ -287,6 +305,7 @@ export class BackgroundView {
     this.bankOn = !!b.bankTex;
     this.bank.setVisible(this.bankOn);
     if (b.bankTex) this.bank.setTexture(b.bankTex);
+    this.bank.setTint(b.bankTint ?? 0xffffff);
     if (this.w > 1) this.resize(this.w, this.h);
   }
 
@@ -550,6 +569,138 @@ export class BackgroundView {
               }
             }
           }
+          break;
+        }
+        case 'searchlights': {
+          // beams swinging up out of the city below, crossing now and then
+          for (let i = 0; i < 4; i++) {
+            const ox = W * (0.08 + i * 0.29) - cx * 0.1 * zoom;
+            const oy = H * 0.98 - cy * 0.1 * zoom;
+            const ang = -Math.PI / 2 + Math.sin(time * (0.22 + i * 0.05) + i * 1.7) * 0.55;
+            const len = H * 1.25;
+            const half = 0.035;
+            const tx = ox + Math.cos(ang) * len;
+            const ty = oy + Math.sin(ang) * len;
+            const lx = ox + Math.cos(ang - half) * len;
+            const ly = oy + Math.sin(ang - half) * len;
+            const rx = ox + Math.cos(ang + half) * len;
+            const ry = oy + Math.sin(ang + half) * len;
+            const col = i % 2 ? 0xffd8f0 : 0xd8f0ff;
+            gb.fillGradientStyle(col, col, col, col, 0.1, 0, 0, 0);
+            gb.fillTriangle(ox, oy, lx, ly, rx, ry);
+            gb.fillGradientStyle(0xffffff, 0xffffff, 0xffffff, 0xffffff, 0.06, 0, 0, 0);
+            gb.fillTriangle(ox, oy, (lx + tx) / 2, (ly + ty) / 2, (rx + tx) / 2, (ry + ty) / 2);
+          }
+          break;
+        }
+        case 'traffic': {
+          // lanes of flying traffic threading between the towers: headlights one way, tail lights the other
+          const s = zoom * 0.5 * 0.55;
+          const base = this.far.y + 192 * s;
+          for (let lane = 0; lane < 4; lane++) {
+            const y = base - (30 + lane * 16) * s;
+            const dir = lane % 2 ? -1 : 1;
+            const sp = (40 + lane * 14) * ps;
+            const span = W + 80;
+            for (let k = 0; k < 9; k++) {
+              const x0 = hash(lane * 40 + k) * span + dir * time * sp - cx * (0.16 + lane * 0.02) * zoom;
+              const x = ((x0 % span) + span) % span - 40;
+              const col = dir > 0 ? 0xfff2c8 : 0xff4a5a;
+              this.gFar.fillStyle(col, 0.85).fillRect(Math.round(x), Math.round(y), ps * 2, ps);
+              this.gFar.fillStyle(col, 0.25).fillRect(Math.round(x - dir * ps * 6), Math.round(y), ps * 6, ps);
+            }
+          }
+          break;
+        }
+        case 'datastream': {
+          // packets of light climbing the pylons' field of view: short vertical dashes rising and fading
+          const s = zoom * 0.5 * 0.55;
+          const base = this.far.y + 192 * s;
+          for (let i = 0; i < 40; i++) {
+            const sp = 0.25 + hash(i * 3 + 400) * 0.35;
+            const ph = (time * sp + hash(i * 3 + 401)) % 1;
+            const span = W + 40;
+            const x = (((hash(i * 3 + 402) * span - cx * 0.14 * zoom) % span) + span) % span - 20;
+            const y = base - ph * 150 * s;
+            const a = Math.sin(ph * Math.PI) * 0.7;
+            this.gFar.fillStyle(0x7ff0ff, a * 0.35).fillRect(Math.round(x), Math.round(y), ps, ps * 8);
+            this.gFar.fillStyle(0xe0ffff, a).fillRect(Math.round(x), Math.round(y), ps, ps * 2);
+          }
+          break;
+        }
+        case 'wisps': {
+          // soft cloud wisps drifting through the middle distance (racing past when the scenery streams)
+          const speed = (6 + this.scroll * 5) * ps;
+          for (let i = 0; i < 7; i++) {
+            const span = W + 600;
+            const x0 = hash(i * 5 + 600) * span - time * speed * (0.7 + hash(i * 5 + 601) * 0.6) - cx * (0.3 + hash(i * 5 + 602) * 0.15) * zoom;
+            const x = ((x0 % span) + span) % span - 300;
+            const y = H * (0.42 + hash(i * 5 + 603) * 0.38) - cy * 0.2 * zoom;
+            const w = H * (0.35 + hash(i * 5 + 604) * 0.4);
+            const h = w * 0.09;
+            gm.fillStyle(0xfff0e8, 0.07).fillEllipse(x, y, w, h);
+            gm.fillStyle(0xfff6f0, 0.08).fillEllipse(x + w * 0.12, y - h * 0.25, w * 0.6, h * 0.8);
+            gm.fillStyle(0xffffff, 0.06).fillEllipse(x - w * 0.15, y + h * 0.1, w * 0.45, h * 0.6);
+          }
+          break;
+        }
+        case 'petals': {
+          // blossom petals carried on the breeze, tumbling as they drift
+          for (let i = 0; i < 34; i++) {
+            const depth = hash(i * 7 + 800) > 0.6 ? 1 : 0.6;
+            const sp = (0.05 + hash(i * 7 + 801) * 0.05) * (depth + 0.3);
+            const ph = (time * sp + hash(i * 7 + 802)) % 1;
+            const span = W + 80;
+            const x = (((hash(i * 7 + 803) * span - ph * W * 0.5 + Math.sin(time * 1.3 + i) * 12 * ps - cx * 0.35 * zoom * depth) % span) + span) % span - 40;
+            const y = ph * (H + 40) - 20 + Math.sin(time * 2 + i * 1.7) * 6 * ps;
+            const flip = Math.sin(time * (3 + hash(i * 7 + 804) * 3) + i);
+            const s = Math.max(1, Math.round(ps * (depth > 0.9 ? 1.5 : 1)));
+            const col = i % 3 === 0 ? 0xfff4f8 : 0xffb8d0;
+            const a = depth > 0.9 ? 0.85 : 0.5;
+            if (Math.abs(flip) > 0.4) gf.fillStyle(col, a * 0.7).fillRect(Math.round(x), Math.round(y), s * 2, s);
+            else gf.fillStyle(col, a * 0.7).fillRect(Math.round(x), Math.round(y), s, s * 2);
+            gf.fillStyle(0xffffff, a * 0.5).fillRect(Math.round(x), Math.round(y), s, s);
+          }
+          break;
+        }
+        case 'wind': {
+          // speed lines: thin streaks of air rushing past the moving ship
+          for (let i = 0; i < 26; i++) {
+            const sp = 1.2 + hash(i * 3 + 950) * 1.4;
+            const ph = (time * sp * 0.35 + hash(i * 3 + 951)) % 1;
+            const len = (40 + hash(i * 3 + 952) * 90) * ps;
+            const x = W + len - ph * (W + len * 2);
+            const y = H * (0.08 + hash(i * 3 + 953) * 0.84) - cy * 0.3 * zoom;
+            const a = Math.sin(ph * Math.PI) * 0.16;
+            gf.fillGradientStyle(0xffffff, 0xffffff, 0xffffff, 0xffffff, a, 0, a, 0);
+            gf.fillRect(Math.round(x), Math.round(y), len, Math.max(1, Math.round(ps * 0.6)));
+          }
+          break;
+        }
+        case 'flare': {
+          // the low sun's lens flare: a string of tinted ghosts mirrored through the middle of the view
+          const sx = W * 0.7 - cx * 0.015 * zoom;
+          const sy = H * 0.36 - cy * 0.01 * zoom;
+          const dx = W / 2 - sx;
+          const dy = H / 2 - sy;
+          const ghosts: [number, number, number, number][] = [
+            [0.45, 0.018, 0xffd0a0, 0.08],
+            [0.8, 0.035, 0xff9ab0, 0.05],
+            [1.15, 0.012, 0xffffff, 0.1],
+            [1.5, 0.06, 0xb8a0ff, 0.035],
+            [1.85, 0.025, 0xffe0a0, 0.06],
+          ];
+          for (const [t, r, col, a] of ghosts) {
+            const x = sx + dx * t;
+            const y = sy + dy * t;
+            gf.fillStyle(col, a).fillCircle(x, y, H * r);
+            gf.fillStyle(col, a * 0.6).fillCircle(x, y, H * r * 0.6);
+          }
+          // a horizontal streak through the sun
+          gf.fillGradientStyle(0xffe8c8, 0xffe8c8, 0xffe8c8, 0xffe8c8, 0, 0.14, 0, 0.14);
+          gf.fillRect(sx - W * 0.3, sy - ps, W * 0.3, ps * 2);
+          gf.fillGradientStyle(0xffe8c8, 0xffe8c8, 0xffe8c8, 0xffe8c8, 0.14, 0, 0.14, 0);
+          gf.fillRect(sx, sy - ps, W * 0.3, ps * 2);
           break;
         }
         case 'shafts': {
@@ -839,6 +990,18 @@ export class BackgroundView {
             const f = ((k + ((time * 0.35 + cx * 0.0004) % 1)) / 8) ** 2;
             const y = hy + (H - hy) * f;
             gb.lineBetween(0, y, W, y);
+          }
+          // a glowing horizon line, and a bright scan pulse sweeping out of it toward us every few seconds
+          gb.fillGradientStyle(0x4ad8ff, 0x4ad8ff, 0x4ad8ff, 0x4ad8ff, 0, 0, 0.22, 0.22);
+          gb.fillRect(0, hy - H * 0.05, W, H * 0.05);
+          gb.fillStyle(0xbffcff, 0.45).fillRect(0, hy - Math.max(1, ps * 0.5), W, Math.max(1, ps));
+          const sp = (time % 3.2) / 1.6;
+          if (sp < 1) {
+            const y = hy + (H - hy) * sp * sp;
+            const a = 0.5 * (1 - sp);
+            gb.fillGradientStyle(0x6ae8ff, 0x6ae8ff, 0x6ae8ff, 0x6ae8ff, 0, 0, a, a);
+            gb.fillRect(0, y - 10 * ps * (0.3 + sp), W, 10 * ps * (0.3 + sp));
+            gb.fillStyle(0xe0ffff, a).fillRect(0, y, W, Math.max(1, ps));
           }
           break;
         }

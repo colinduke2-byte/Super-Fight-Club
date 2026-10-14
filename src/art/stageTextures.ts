@@ -1654,8 +1654,9 @@ function frostGround(): HTMLCanvasElement[] {
   const [A, B, C] = layers();
   const rnd = mulberry32(811);
   const n = makeNoise(812, 8);
-  const S = [0x5a7098, 0x7a90b4, 0x9cb0d0, 0xbccce4, 0xd8e4f4, 0xeef4fc, 0xffffff];
-  const I = [0x23395e, 0x2e4a74, 0x3a5a86, 0x4a6c98, 0x6484ac, 0x8aa6c8, 0xd8ecff];
+  // moonlit snow at night: blue-grey, well below the brightness of pale fighters (the crests catch the moon)
+  const S = [0x2c3a58, 0x3a4c70, 0x4c6088, 0x60769e, 0x7890b4, 0x96acca, 0xc0d0e6];
+  const I = [0x16244a, 0x1e3058, 0x283e6a, 0x324c7a, 0x46648e, 0x6684ae, 0xb0cce8];
   const PINE = [0x0a1622, 0x12222f, 0x1c3448, 0x2a4a64];
   const GLOW = 0xffd08a;
 
@@ -1973,7 +1974,144 @@ function seaGround(seed: number, W: number[], foam: number, rough: number, rock:
   return sealed([A, B, C]);
 }
 
+/** Neon Skyline: the city sprawling far below: hazy lit blocks and glowing streets, towers with neon signs, and dark rooftops. */
+function cityGround(): HTMLCanvasElement[] {
+  const [A, B, C] = layers();
+  const rnd = mulberry32(1211);
+  const n = makeNoise(1212, 8);
+  const BODY = [0x0a0618, 0x100a22, 0x171030, 0x20163e, 0x2c1e52, 0x3c2a6a];
+  const WIN = [0xffcf6a, 0xff8a5a, 0x7fe8ff, 0xffe8b0];
+  const NEON = [0xff4ab0, 0x4af0ff, 0xc070ff, 0xffd040];
+  const HAZE = 0x6a3080;
+  /** A block of building: shaded body, a lit roof edge and a grid of windows (some dark). */
+  const block = (P: Pix, x: number, base: number, w: number, h: number, body: number, lit: number, wp: number, haze: number): void => {
+    for (let k = 0; k < h; k++) {
+      const y = base - h + k;
+      for (let i = 0; i < w; i++) {
+        let c = i === 0 ? BODY[clampI(body + 1, BODY.length)] : i >= w - 1 ? BODY[Math.max(0, body - 1)] : BODY[body];
+        if (k === 0) c = BODY[clampI(body + 2, BODY.length)];
+        P.set(x + i, y, c);
+        const win = k > 1 && i > 0 && i < w - 1 && k % wp === 1 && i % 2 === 1;
+        if (win && rnd() < lit) P.set(x + i, y, WIN[Math.floor(rnd() * 3.4)]);
+      }
+    }
+    if (haze > 0) for (let k = 0; k < h; k++) for (let i = 0; i < w; i++) P.lit(x + i, base - h + k, HAZE, haze);
+  };
+
+  // A: the far sprawl: rows of low blocks in perspective, streets glowing between them, haze over the distance
+  A.body(
+    () => 0,
+    (x, y) => BODY[clampI(0.6 + (n(x / 16, y / 6) - 0.5) + bay(x, y) * 0.6, 3)],
+  );
+  for (let row = 0, y = 6; y < 170; row++) {
+    const gap = 5 + Math.floor(y / 14);
+    // a street: a line of amber lamps, with car lights here and there
+    for (let x = 0; x < GW; x++) {
+      if (x % 3 === 0) A.set(x, y + 1, 0xffb060, 0.8);
+      if (rnd() < 0.02) A.set(x, y + 1, rnd() > 0.5 ? 0xffffff : 0xff4a5a);
+    }
+    A.halo(rnd() * GW, y + 1, 30, 0xffb060, 0.25, 0.3);
+    let x = Math.floor(rnd() * 6);
+    while (x < GW) {
+      const w = 4 + Math.floor(rnd() * (5 + y / 12));
+      const h = 4 + Math.floor(rnd() * (6 + y / 8));
+      const haze = Math.max(0, 0.45 - y / 220);
+      block(A, x, y, w, Math.min(h, y + 2), 2, 0.2, 2, haze);
+      x += w + 1 + Math.floor(rnd() * 2);
+    }
+    y += gap;
+  }
+  // neon glows pooled in a few plazas
+  for (let i = 0; i < 6; i++) A.halo(rnd() * GW, 30 + rnd() * 120, 22, NEON[i % NEON.length], 0.35);
+
+  // B: a district of towers with neon signs, rooftop tanks and blinking masts
+  const towers: [number, number, number][] = [];
+  for (let x = 0; x < GW; ) {
+    const w = 14 + Math.floor(rnd() * 22);
+    const top = 6 + Math.floor(rnd() * 48);
+    towers.push([x, w, top]);
+    x += w + 2 + Math.floor(rnd() * 8);
+  }
+  B.body(
+    () => 70,
+    (x, y, k) => BODY[clampI(1.6 - k / 90 + (n(x / 16, y / 8) - 0.5) + bay(x, y) * 0.6, 4)],
+  );
+  for (const [x, w, top] of towers) {
+    block(B, x, 200, w, 200 - top, 3, 0.4, 3, 0);
+    // rim light from the sky glow on the left edge, roof clutter
+    for (let k = top; k < 200; k++) B.set(x, k, BODY[5]);
+    if (rnd() > 0.5) {
+      const tx = x + 3 + Math.floor(rnd() * (w - 10));
+      B.rect(tx, top - 6, 6, 5, BODY[2]);
+      B.rect(tx, top - 6, 6, 1, BODY[4]);
+      B.rect(tx + 1, top - 1, 1, 1, BODY[1]);
+      B.rect(tx + 4, top - 1, 1, 1, BODY[1]);
+    } else {
+      const mx = x + Math.floor(w / 2);
+      B.rect(mx, top - 12, 1, 12, BODY[3]);
+      B.set(mx, top - 13, 0xff3a3a);
+      B.halo(mx, top - 13, 5, 0xff3a3a, 0.5, 1);
+    }
+    if (rnd() > 0.45) {
+      // a vertical neon sign hung on the facade
+      const col = NEON[Math.floor(rnd() * NEON.length)];
+      const sx = x + (rnd() > 0.5 ? 2 : w - 5);
+      const sy = top + 6 + Math.floor(rnd() * 20);
+      const sh = 14 + Math.floor(rnd() * 16);
+      B.halo(sx + 1, sy + sh / 2, sh * 0.9, col, 0.45, 1.2);
+      B.rect(sx - 1, sy - 1, 5, sh + 2, BODY[0]);
+      for (let k = 0; k < sh; k++) {
+        B.set(sx, sy + k, col);
+        B.set(sx + 2, sy + k, col);
+        if (k % 4 === 1) B.set(sx + 1, sy + k, 0xffffff);
+      }
+    }
+  }
+  // street level glow between the towers
+  for (let x = 0; x < GW; x++) if (!B.opaque(x, 150)) B.set(x, 150, 0xffb060, 0.6);
+
+  // C: near rooftops: dark parapets with a neon-lit edge, vents, aerials and a billboard
+  const rc = ridgeOf(1230, 92, 50, 4).map((v) => Math.round(v / 6) * 6); // stepped rooflines
+  C.body(
+    (x) => rc[x],
+    (x, y, k) => (k === 0 ? 0x5a3a8a : k < 3 ? BODY[3] : BODY[clampI(1.4 - k / 70 + bay(x, y) * 0.5, 3)]),
+  );
+  for (let x = 1; x < GW; x++) {
+    if (rc[x] !== rc[x - 1]) for (let y = Math.min(rc[x], rc[x - 1]); y < Math.max(rc[x], rc[x - 1]); y++) C.set(x, y, 0x3a2a5a);
+  }
+  for (let i = 0; i < 10; i++) {
+    const x = Math.floor(rnd() * GW);
+    const y = rc[x];
+    if (i % 3 === 0) {
+      // rooftop AC unit with a spinning-fan grille
+      C.rect(x, y - 8, 12, 8, BODY[2]);
+      C.rect(x, y - 8, 12, 1, BODY[4]);
+      C.rect(x + 3, y - 6, 6, 4, BODY[0]);
+      C.rect(x + 5, y - 6, 2, 4, BODY[3]);
+    } else if (i % 3 === 1) {
+      C.rect(x, y - 26, 1, 26, BODY[3]);
+      C.rect(x - 4, y - 20, 9, 1, BODY[3]);
+      C.rect(x - 3, y - 14, 7, 1, BODY[3]);
+      C.set(x, y - 27, 0xff3a3a);
+    } else {
+      // a billboard on struts, glowing
+      const col = NEON[Math.floor(rnd() * NEON.length)];
+      C.rect(x + 3, y - 10, 1, 10, BODY[3]);
+      C.rect(x + 22, y - 10, 1, 10, BODY[3]);
+      C.halo(x + 13, y - 18, 30, col, 0.35, 0.7);
+      C.rect(x, y - 26, 26, 16, BODY[1]);
+      C.rect(x, y - 26, 26, 1, col);
+      C.rect(x, y - 11, 26, 1, col);
+      C.rect(x, y - 26, 1, 16, col);
+      C.rect(x + 25, y - 26, 1, 16, col);
+      for (let k = 0; k < 3; k++) C.rect(x + 4, y - 22 + k * 4, 6 + Math.floor(rnd() * 14), 2, k === 1 ? 0xffffff : col);
+    }
+  }
+  return sealed([A, B, C]);
+}
+
 const GROUND_BUILDERS: Record<string, () => HTMLCanvasElement[]> = {
+  'bg-city-ground': cityGround,
   'bg-geode-ground': geodeGround,
   'bg-reactor-ground': reactorGround,
   'bg-frost-ground': frostGround,

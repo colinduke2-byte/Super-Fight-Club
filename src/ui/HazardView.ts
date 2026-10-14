@@ -8,6 +8,44 @@ const BOLT_X = new Float64Array(BOLT_STEPS + 1);
 const BOLT_Y = new Float64Array(BOLT_STEPS + 1);
 const BOLT_LAYERS = [[9, 0x6ab8ff, 0.35], [5, 0xbfe6ff, 0.7], [2, 0xffffff, 1]] as const;
 
+/** How far through its warning a hazard is (0 at the start, 1 as it fires). */
+function warnProgress(h: HazardDef, tick: number): number {
+  const p = (tick + (h.offset ?? 0)) % h.period;
+  return Math.max(0, Math.min(1, (p - (h.period - h.active - h.warn)) / h.warn));
+}
+
+/**
+ * The danger zone of a hazard about to fire: a column of light strongest at the end where it starts (`from`), bands of light
+ * sweeping along it, marching dashes down both edges and corner brackets at the floor. It brightens as the moment nears.
+ */
+function dangerZone(ga: Phaser.GameObjects.Graphics, x: number, y: number, w: number, h: number, col: number, edge: number, k: number, tick: number, from: 'bottom' | 'top'): void {
+  const a = 0.1 + 0.22 * k;
+  const up = from === 'bottom';
+  ga.fillGradientStyle(col, col, col, col, up ? 0 : a, up ? 0 : a, up ? a : 0.04, up ? a : 0.04);
+  ga.fillRect(x, y, w, h);
+  // bands of light travelling away from the source, faster as it nears
+  for (let i = 0; i < 3; i++) {
+    const u = (tick * (0.012 + 0.02 * k) + i / 3) % 1;
+    const by = up ? y + h - u * h : y + u * h;
+    ga.fillStyle(edge, (0.12 + 0.18 * k) * (1 - u)).fillRect(x, by - 2, w, 3);
+  }
+  // marching dashes along both edges
+  const dash = 6;
+  const off = (tick * (up ? -0.6 : 0.6)) % (dash * 2);
+  for (let yy = y + off - dash * 2; yy < y + h; yy += dash * 2) {
+    const y0 = Math.max(y, yy);
+    const y1 = Math.min(y + h, yy + dash);
+    if (y1 <= y0) continue;
+    ga.fillStyle(edge, 0.25 + 0.35 * k).fillRect(x, y0, 1, y1 - y0).fillRect(x + w - 1, y0, 1, y1 - y0);
+  }
+  // corner brackets where it lands / starts on the floor
+  const fy = y + h;
+  const bl = Math.min(8, w / 3);
+  ga.fillStyle(edge, 0.55 + 0.4 * k);
+  ga.fillRect(x - 1, fy - 1, bl, 2).fillRect(x - 1, fy - bl, 2, bl);
+  ga.fillRect(x + w - bl + 1, fy - 1, bl, 2).fillRect(x + w - 1, fy - bl, 2, bl);
+}
+
 /** Draws stage hazards: a glowing vent while idle, a pulsing telegraph while warning, a bright column while erupting. */
 export class HazardView {
   private readonly g: Phaser.GameObjects.Graphics;
@@ -36,7 +74,7 @@ export class HazardView {
     for (const h of this.hazards) {
       const phase = hazardPhase(h, tick);
       if (h.kind === 'bolt') {
-        this.bolt(g, h, phase, tick);
+        this.bolt(g, this.ga, h, phase, tick);
         continue;
       }
       if (h.kind === 'stalactite') {
@@ -116,7 +154,13 @@ export class HazardView {
         const sx = x + jit(i, Math.floor((tick + i * 7) / 26)) * h.w;
         ga.fillStyle(i % 3 === 0 ? 0xfff0b0 : 0xffa040, 1 - life).fillRect(sx, h.y - 4 - life * 40, 1.5, 2.5);
       }
-      g.lineStyle(1, 0xff8a30, 0.18 + 0.12 * Math.sin(tick * 0.5)).strokeRect(x, h.y - h.h, h.w, h.h);
+      dangerZone(ga, x, h.y - h.h, h.w, h.h, 0xff5a1a, 0xffa040, warnProgress(h, tick), tick, 'bottom');
+      // heat shimmer wavering up the column to come
+      for (let i = 0; i < 6; i++) {
+        const u = ((tick * 0.02 + i / 6) % 1);
+        const yy = h.y - u * h.h;
+        ga.fillStyle(0xffd090, 0.12 * (1 - u)).fillRect(h.x - h.w * 0.3 + Math.sin(tick * 0.3 + i * 2) * 4, yy, h.w * 0.6, 1);
+      }
     } else if (phase === 'active') {
       // writhing plasma: stacked slices whose width breathes along the column
       const top = h.y - h.h;
@@ -170,7 +214,7 @@ export class HazardView {
         const sy = h.y - 4 - Math.sin(life * Math.PI) * (16 + jit(i + 9, cyc) * 26);
         g.fillStyle(i % 3 === 0 ? 0xffffff : 0x8adcf0, 1 - life * 0.6).fillRect(sx, sy, 2, 2);
       }
-      g.lineStyle(1, 0x8adcf0, 0.16 + 0.12 * Math.sin(tick * 0.5)).strokeRect(h.x - h.w / 2, h.y - h.h, h.w, h.h);
+      dangerZone(ga, h.x - h.w / 2, h.y - h.h, h.w, h.h, 0x2a8ac0, 0x9ae6ff, warnProgress(h, tick), tick, 'bottom');
     } else if (phase === 'active') {
       // the column: deep blue core, lighter flanks, white foam streaks racing up it
       const top = h.y - h.h;
@@ -240,12 +284,12 @@ export class HazardView {
       const floor = h.y + h.h;
       ga.fillStyle(0xc898f6, 0.3 + 0.18 * Math.sin(tick * 0.6)).fillEllipse(h.x, floor - 1, h.w * 1.8, 8);
       g.fillStyle(0x000000, 0.25).fillEllipse(h.x, floor + 1, h.w * 1.2, 5); // its shadow on the floor
-      g.lineStyle(1, 0xc898f6, 0.3).strokeRect(h.x - h.w / 2, h.y, h.w, h.h);
+      dangerZone(ga, h.x - h.w / 2, h.y, h.w, h.h, 0x7a3ad0, 0xd8b0ff, warnProgress(h, tick), tick, 'top');
     }
   }
 
   /** Lightning: a conductor rod where it will land, a crackling telegraph, then a jagged white-blue strike from the sky. */
-  private bolt(g: Phaser.GameObjects.Graphics, h: HazardDef, phase: 'idle' | 'warn' | 'active', tick: number): void {
+  private bolt(g: Phaser.GameObjects.Graphics, ga: Phaser.GameObjects.Graphics, h: HazardDef, phase: 'idle' | 'warn' | 'active', tick: number): void {
     const base = h.y + h.h;
     const rod = base - 14;
     g.fillStyle(0x24344c, 1).fillRect(h.x - 3, rod, 6, 14);
@@ -261,7 +305,15 @@ export class HazardView {
         const a = tick * 0.9 + i * 2.1;
         g.lineBetween(h.x, rod - 6, h.x + Math.cos(a) * 14, rod - 6 + Math.sin(a) * 10);
       }
-      g.lineStyle(1, 0x9fd8ff, 0.2).strokeRect(h.x - h.w / 2, h.y, h.w, h.h); // where it will strike
+      // where it will strike: an ionised channel down from the cloud, stray sparks crawling along it
+      const k = warnProgress(h, tick);
+      dangerZone(ga, h.x - h.w / 2, h.y, h.w, h.h, 0x4a90ff, 0xcfe8ff, k, tick, 'top');
+      for (let i = 0; i < 5; i++) {
+        const u = ((tick * 0.03 + i * 0.21) % 1);
+        const sy = h.y + u * h.h;
+        const sx = h.x + Math.sin(tick * 0.9 + i * 3) * h.w * 0.35;
+        ga.fillStyle(0xe8f4ff, (0.3 + 0.5 * k) * (1 - u * 0.5)).fillRect(sx, sy, 1, 4 + 4 * k);
+      }
     } else if (phase === 'active') {
       const seed = Math.floor(tick / 2);
       const steps = BOLT_STEPS;
