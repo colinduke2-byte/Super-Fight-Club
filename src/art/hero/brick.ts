@@ -15,6 +15,7 @@ export function drawBrick(r: Raster, k: Skel, look: PlaceholderLook): void {
   const black: RGB = [20, 22, 36];
   // the dark mechanical frame under the plates (joints, neck, waist): the darkest value, so every plate parts from its neighbour
   const frame: RGB = mix(mul(dark, 0.42), [22, 24, 34], 0.5);
+  const gun: RGB = mix([118, 116, 122], armor, 0.12);
   const P = {
     armor: r.part(armor),
     plate: r.part(plate),
@@ -30,6 +31,10 @@ export function drawBrick(r: Raster, k: Skel, look: PlaceholderLook): void {
     rivet: r.part(steel, { flat: true }),
     frame: r.part(frame),
     frameL: r.part(mix(frame, steelD, 0.45)),
+    // a second material: neutral gunmetal for the joints, cuffs and the off hand, so the suit is not one blue family
+    gun: r.part(gun),
+    gunL: r.part(mix(gun, [236, 232, 224], 0.38)),
+    gunD: r.part(mul(gun, 0.62)),
   };
   const T = k.torso;
   const pulse = k.phase % 2;
@@ -59,6 +64,7 @@ export function drawBrick(r: Raster, k: Skel, look: PlaceholderLook): void {
     r.seg(P.dark, el[0], el[1], handB[0], handB[1], 15, 13);
     r.seg(P.deep, lerp(el, handB, 0.55)[0], lerp(el, handB, 0.55)[1], handB[0], handB[1], 15, 13);
     r.ellipse(P.frame, el[0], el[1], 7, 6.5);
+    r.ellipse(P.gunD, el[0] - 0.5, el[1] - 1, 4.5, 4);
     fist(r, P, handB, el, true);
   }
 
@@ -270,7 +276,9 @@ export function drawBrick(r: Raster, k: Skel, look: PlaceholderLook): void {
       r.ellipse(P.stripeA, px, py, 2.5, 5);
     }
     r.ellipse(P.frame, el[0], el[1], 8, 7.5);
-    r.ellipse(P.armor, el[0] - 0.5, el[1] - 1, 5.5, 5);
+    r.ellipse(P.gun, el[0] - 0.5, el[1] - 1, 5.5, 5);
+    r.ellipse(P.gunL, el[0] - 2, el[1] - 3, 2.2, 1.6);
+    r.rect(P.frame, el[0] - 1, el[1] - 2, 2, 2); // the hinge pin
     fist(r, P, hand, el, false);
     // pauldron: sits low and outboard so the visor stays readable
     const px = sx + 5;
@@ -292,7 +300,7 @@ export function drawBrick(r: Raster, k: Skel, look: PlaceholderLook): void {
   }
 }
 
-type Parts = Record<'armor' | 'plate' | 'dark' | 'deep' | 'steel' | 'steelD' | 'accent' | 'glow' | 'stripeA' | 'stripeB' | 'seam' | 'rivet' | 'frame' | 'frameL', number>;
+type Parts = Record<'armor' | 'plate' | 'dark' | 'deep' | 'steel' | 'steelD' | 'accent' | 'glow' | 'stripeA' | 'stripeB' | 'seam' | 'rivet' | 'frame' | 'frameL' | 'gun' | 'gunL' | 'gunD', number>;
 
 function lerp(a: V2, b: V2, t: number): V2 {
   return [a[0] + (b[0] - a[0]) * t, a[1] + (b[1] - a[1]) * t];
@@ -318,8 +326,10 @@ function fist(r: Raster, P: Parts, h: V2, el: V2, back: boolean): void {
   dy /= l;
   const nx = -dy;
   const ny = dx;
-  const shell = back ? P.dark : P.armor;
-  const lit = back ? P.armor : P.plate;
+  // the off hand is a gunmetal gauntlet (it sits in shadow behind the body, so it takes the neutral metal rather than a
+  // darker blue that would sink into the back leg); the lead hand keeps the armour plate
+  const shell = back ? P.gun : P.armor;
+  const lit = back ? P.gunL : P.plate;
   // cuff across the wrist, square to the forearm
   const cx = x - dx * 9;
   const cy = y - dy * 9;
@@ -338,7 +348,7 @@ function fist(r: Raster, P: Parts, h: V2, el: V2, back: boolean): void {
   }
   // thumb over the top of the fingers
   r.seg(P.frame, x - 4, y - 8, x + 6, y - 11, 6, 5.5);
-  r.seg(back ? P.deep : P.dark, x - 4, y - 9, x + 6, y - 11.5, 4.4, 4);
+  r.seg(back ? P.gunD : P.dark, x - 4, y - 9, x + 6, y - 11.5, 4.4, 4);
   r.rect(P.rivet, x - 7, y + 1, 2, 2);
 }
 
@@ -376,8 +386,9 @@ function leg(r: Raster, P: Parts, hip: V2, kn: V2, ankle: V2, back: boolean): vo
   const kx = kn[0] + 3;
   const ky = kn[1];
   r.poly(P.frame, [[kx - 9, ky - 8], [kx + 6, ky - 9], [kx + 11, ky], [kx + 6, ky + 9], [kx - 9, ky + 8]]);
-  r.poly(back ? P.dark : P.plate, [[kx - 7, ky - 6], [kx + 5, ky - 7], [kx + 9, ky], [kx + 5, ky + 6], [kx - 7, ky + 5]]);
-  if (!back) r.rect(P.armor, kx - 7, ky + 2, 13, 3);
+  r.poly(back ? P.gunD : P.gun, [[kx - 7, ky - 6], [kx + 5, ky - 7], [kx + 9, ky], [kx + 5, ky + 6], [kx - 7, ky + 5]]);
+  if (!back) r.poly(P.gunL, [[kx - 6, ky - 6], [kx + 5, ky - 7], [kx + 7, ky - 3], [kx - 6, ky - 3]]);
+  if (!back) r.rect(P.gunD, kx - 7, ky + 2, 13, 3);
   r.rect(P.rivet, kx - 1, ky - 3, 2, 2);
   // boot: a heavy sabaton with a toe cap and a thick sole; its sole sits on the ankle line + 8 (the floor)
   const bx = ankle[0];

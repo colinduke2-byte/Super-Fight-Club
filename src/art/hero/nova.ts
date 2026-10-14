@@ -108,7 +108,10 @@ export function drawNova(r: Raster, k: Skel, look: PlaceholderLook): void {
     const x0 = T.x;
     const top = T.y;
     const w = T.w;
-    const flare = run ? 6 : 12;
+    // airborne (the lower foot well off the floor), the skirt belles out and its corners lift; on the ground the hem
+    // still ripples, harder on the run
+    const air = Math.max(ankleF[1], ankleB[1]) < k.base - 16;
+    const flare = (run ? 6 : 12) + (air ? 5 : 0);
     const pts: V2[] = [[x0 + 4, top + 2], [x0 + w - 4, top + 2], [x0 + w + 2, top + 10]];
     // the skirt is pushed out by the legs inside it: a stride or a kick fans the hem toward each foot
     // (and on the run the hem swings with the stride, front panel forward as the front foot reaches, back as it trails)
@@ -116,33 +119,65 @@ export function drawNova(r: Raster, k: Skel, look: PlaceholderLook): void {
     const strideB = Math.max(-6, Math.min(5, (ankleB[0] - k.hipB[0]) * 0.45));
     const fwd = Math.max(strideF, ankleF[0] + 12 - (x0 + w + 2 + flare * 0.8 - (run ? 8 : 0)));
     const bwd = Math.max(-strideB, x0 - 2 - flare - (run ? 10 : 0) - (ankleB[0] - 8));
-    for (let i = 1; i <= 4; i++) pts.push([x0 + w + 2 + flare * (i / 4) * 0.8 + sway(i) * 0.6 * (i / 4) - (run ? 8 * (i / 4) : 0) + fwd * (i / 4) ** 2, top + 10 + (hem - top - 10) * (i / 4)]);
-    for (let i = 4; i >= 1; i--) pts.push([x0 - 2 - flare * (i / 4) + sway(i + 3) * 0.6 * (i / 4) - (run ? 10 * (i / 4) : 0) - bwd * (i / 4) ** 2, top + 10 + (hem - top - 10) * (i / 4)]);
+    const sideX = (i: number, right: boolean): number =>
+      right
+        ? x0 + w + 2 + flare * (i / 4) * 0.8 + sway(i) * 0.6 * (i / 4) - (run ? 8 * (i / 4) : 0) + fwd * (i / 4) ** 2
+        : x0 - 2 - flare * (i / 4) + sway(i + 3) * 0.6 * (i / 4) - (run ? 10 * (i / 4) : 0) - bwd * (i / 4) ** 2;
+    const xr = Math.min(r.w - 6, sideX(4, true));
+    const xl = Math.max(5, sideX(4, false));
+    const mid = (xl + xr) / 2;
+    const amp = run ? 1.6 : air ? 1.4 : 0.8;
+    const wave = (x: number): number => {
+      const u = (x - mid) / ((xr - xl) / 2 || 1);
+      return Math.min(k.base - 2, hem + amp * Math.sin(k.phase * 1.6 + x * 0.32) - (air ? 6 * u * u : 0));
+    };
+    for (let i = 1; i <= 3; i++) pts.push([sideX(i, true), top + 10 + (hem - top - 10) * (i / 4) - (air ? (i / 4) ** 3 * 4 : 0)]);
+    for (let j = 0; j <= 8; j++) {
+      const x = xr + (xl - xr) * (j / 8);
+      pts.push([x, wave(x)]);
+    }
+    for (let i = 3; i >= 1; i--) pts.push([sideX(i, false), top + 10 + (hem - top - 10) * (i / 4) - (air ? (i / 4) ** 3 * 4 : 0)]);
     pts.push([x0 - 2, top + 10]);
     r.poly(P.robe, pts);
     // darker back fold and a lit front panel
-    r.poly(P.cloak, [[x0 - 2, top + 10], [x0 + 6, top + 4], [x0 + 12, top + 6], [x0 + 6 - flare, hem], [x0 - 2 - flare, hem]]);
-    r.poly(P.robeL, [[x0 + 16, top + 6], [x0 + w - 8, top + 6], [x0 + w - 4, hem - 6], [x0 + 12, hem - 6]]);
-    // deep folds falling from the sash to the hem, fanning out with the flare
-    const folds: [number, number, number][] = [[x0 + 6, x0 + 2 - flare * 0.7, 0], [x0 + 13, x0 + 9 - flare * 0.3, 1], [x0 + w - 4, x0 + w + flare * 0.5, 2]];
+    r.poly(P.cloak, [[x0 - 2, top + 10], [x0 + 6, top + 4], [x0 + 12, top + 6], [x0 + 6 - flare, wave(x0 + 6 - flare)], [xl, wave(xl)]]);
+    r.poly(P.robeL, [[x0 + 16, top + 6], [x0 + w - 8, top + 6], [x0 + w - 4 + fwd * 0.3, hem - 6], [x0 + 12, hem - 6]]);
+    const cloth = [P.robe, P.robeL, P.cloak];
+    const onCloth = (part: number, x: number, y: number): void => {
+      for (const c of cloth) r.inlay(c, part, (set) => set(x, y));
+    };
+    // pleats: deep folds falling from the sash and fanning out to the hem, each with a lit edge, swaying with the cloth
+    const folds: [number, number, number][] = [
+      [x0 + 6, xl + (mid - xl) * 0.3, 0],
+      [x0 + 13, xl + (mid - xl) * 0.75, 1],
+      [x0 + w - 6, mid + (xr - mid) * 0.45, 2],
+      [x0 + w - 2, mid + (xr - mid) * 0.85, 3],
+    ];
     for (const [fx0, fx1, i] of folds) {
       const y0 = top + T.h - 2;
-      for (let y = y0; y < hem - 3; y++) {
-        const t = (y - y0) / (hem - 3 - y0);
-        const x = fx0 + (fx1 - fx0) * t + sway(i + 1) * 0.4 * t;
-        r.inlay(P.robe, P.robeD, (set) => set(x, y));
-        r.inlay(P.robeL, P.robeD, (set) => set(x, y));
+      const y1 = wave(fx1) - 3;
+      for (let y = y0; y < y1; y++) {
+        const t = (y - y0) / (y1 - y0 || 1);
+        const x = fx0 + (fx1 - fx0) * t + sway(i + 1) * 0.6 * t * t;
+        onCloth(P.robeD, x, y);
+        if (t > 0.3) onCloth(P.robeL, x + 1, y);
       }
     }
-    // gold piping down the opening (the glow is saved for the runes and the hem) and a scalloped hem of glowing glyphs
+    // gold piping down the opening (the glow is saved for the runes and the hem) and a scalloped hem of glowing glyphs,
+    // all riding the hem's ripple
     r.rect(P.cloakD, x0 + w / 2 + 1, top + 8, 1, hem - top - 14);
     r.rect(P.gold, x0 + w / 2 + 2, top + 8, 2, hem - top - 14);
     for (let i = 0; i < 7; i++) {
-      const gx = x0 - 6 + i * ((w + 20) / 7);
-      r.rect(P.trim, gx, hem - 5 - (i & 1) * 2, 3, 2);
-      r.rect(P.star, gx + 1, hem - 7 - (i & 1) * 2, 1, 1);
+      const gx = xl + 4 + i * ((xr - xl - 10) / 6);
+      const gy = wave(gx);
+      r.rect(P.trim, gx, gy - 5 - (i & 1) * 2, 3, 2);
+      r.rect(P.star, gx + 1, gy - 7 - (i & 1) * 2, 1, 1);
     }
-    r.rect(P.gold, x0 - 6, hem - 2, w + 22, 2);
+    for (let x = Math.ceil(xl); x <= xr; x++) {
+      const y = Math.round(wave(x));
+      onCloth(P.gold, x, y - 1);
+      onCloth(P.gold, x, y - 2);
+    }
     // collar and sash
     r.poly(P.cloak, [[x0 + 8, top], [x0 + w - 2, top], [x0 + w + 2, top + 8], [x0 + 4, top + 8]]);
     r.rect(P.gold, x0 + 6, top + 6, w - 4, 2);

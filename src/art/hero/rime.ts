@@ -20,7 +20,11 @@ export function drawRime(r: Raster, k: Skel, look: PlaceholderLook): void {
   // the whites (wraps, trim, frost, the fox mask) and the scarf are held just clear of the glow colour: with a pale accent
   // the finishing pass would otherwise take them for self-lit pixels and bloom them, so the scarf read as a glowing third arm
   const c = (x: RGB, soft = true): RGB => calm(x, accent, soft);
-  const wrap: RGB = c([226, 232, 240]);
+  // the true whites (wraps, trim, snow) are painted flat, with their shade drawn in by hand: a rim light would push them
+  // onto the bloom white, while a flat part only has to keep its own colour clear of it, which a slight warm or violet
+  // cast does without greying it
+  const w = (x: RGB): RGB => calmFlat(x, accent);
+  const wrap: RGB = w([232, 236, 242]);
   const steel: RGB = [206, 216, 236];
   const steelD: RGB = [110, 124, 156];
   const skin = col(look.skin);
@@ -42,16 +46,16 @@ export function drawRime(r: Raster, k: Skel, look: PlaceholderLook): void {
     inkL: r.part(mix(ink, armor, 0.3), { flat: true }),
     vest: r.part(armor, { soft: true }),
     vestL: r.part(mix(armor, [230, 248, 255], 0.25), { soft: true }),
-    trim: r.part(c([236, 244, 252]), { flat: true }),
+    trim: r.part(w([236, 244, 252]), { flat: true }),
     sash: r.part(mix(accent, armor, 0.35), { soft: true }),
-    wrap: r.part(wrap, { soft: true }),
+    wrap: r.part(wrap, { flat: true }),
     wrapL: r.part(mul(wrap, 0.8), { flat: true }),
     wrapD: r.part(mix(mul(wrap, 0.6), deep, 0.48), { soft: true }),
     scarf: r.part(scarfC, { soft: true }),
     scarfD: r.part(mul(scarfC, 0.7), { soft: true }),
     hat: r.part(mix(armor, [220, 240, 255], 0.18)),
     hatD: r.part(mul(armor, 0.7)),
-    frost: r.part(c([244, 250, 255]), { soft: true }),
+    frost: r.part(w([244, 250, 255]), { flat: true }),
     ice: r.part(ice),
     accent: r.part(accent, { emissive: true }),
     glow: r.part(glow, { emissive: true }),
@@ -291,13 +295,17 @@ export function drawRime(r: Raster, k: Skel, look: PlaceholderLook): void {
     r.ellipse(P.ink, hx + hs / 2 + 3, hy + hs / 2 + 2, hs / 2 + 1, hs / 2);
     r.ellipse(P.deep, hx + hs / 2 + 2, hy + hs / 2 + 1, hs / 2, hs / 2 - 1);
     const ey = hy + hs / 2 - 4;
-    r.poly(P.skinD, [[hx + hs * 0.42, ey], [hx + hs + 3, ey], [hx + hs + 3, ey + 7], [hx + hs * 0.42, ey + 7]]);
-    r.poly(P.skin, [[hx + hs * 0.5, ey + 1], [hx + hs + 3, ey + 1], [hx + hs + 3, ey + 6], [hx + hs * 0.5, ey + 6]]);
-    // the eye glows in the shadow of the brim, a hard brow over it
-    r.rect(P.ink, hx + hs - 6, ey + 1, 8, 5);
-    r.rect(P.glow, hx + hs - 4, ey + 2, 5, 3);
-    r.rect(P.accent, hx + hs - 10, ey + 3, 4, 1);
-    r.rect(P.ink, hx + hs - 8, ey, 11, 1);
+    // the band of bare skin is shaped, not boxed: in shade at the back under the hood, lit toward the front, the bridge
+    // of the nose stepping out at its front edge
+    r.poly(P.skinD, [[hx + hs * 0.42, ey], [hx + hs + 2, ey], [hx + hs + 4, ey + 4], [hx + hs + 4, ey + 7], [hx + hs * 0.42, ey + 7]]);
+    r.poly(P.skin, [[hx + hs * 0.6, ey + 1], [hx + hs + 2, ey + 1], [hx + hs + 3.5, ey + 4], [hx + hs + 3.5, ey + 6], [hx + hs * 0.6, ey + 6]]);
+    // one narrow eye under a heavy brow that angles down toward the nose: a glowing slit with a dark upper lid and a
+    // flick at its outer corner, so it reads as an eye narrowed in focus rather than a goggle lens
+    r.rect(P.ink, hx + hs - 9, ey, 10, 2);
+    r.rect(P.ink, hx + hs - 7, ey + 2, 8, 1);
+    r.rect(P.glow, hx + hs - 6, ey + 3, 5, 2);
+    r.rect(P.ink, hx + hs - 8, ey + 3, 2, 1);
+    r.rect(P.skinD, hx + hs - 6, ey + 5, 5, 1);
     r.poly(P.dark, [[hx + hs * 0.4, ey + 7], [hx + hs + 5, ey + 7], [hx + hs + 6, ey + 10], [hx + hs + 1, hy + hs], [hx + 8, hy + hs + 2]]);
     r.rect(P.seam, hx + 9, ey + 11, hs - 4, 1);
     r.rect(P.seam, hx + hs - 2, ey + 8, 1, 4);
@@ -517,4 +525,18 @@ function calm(x: RGB, accent: RGB, soft: boolean): RGB {
   let out = x;
   for (let i = 0; i < 12 && [out, lit(out), mul(out, 1.1)].some((v) => near(v, accent) || near(v, hot)); i++) out = mul(out, 0.94);
   return out;
+}
+
+/** A flat (unlit) colour kept clear of the accent and its bloom white by a slight warm or violet cast, darkening only as a last resort. */
+function calmFlat(x: RGB, accent: RGB): RGB {
+  const hot: RGB = mul(accent, 1.55);
+  const near = (a: RGB, b: RGB): boolean => Math.abs(a[0] - b[0]) + Math.abs(a[1] - b[1]) + Math.abs(a[2] - b[2]) < 50;
+  const ok = (v: RGB): boolean => !near(v, accent) && !near(v, hot);
+  for (let n = 0; n <= 10; n++) {
+    for (const hue of [[250, 238, 218], [230, 222, 248]] as RGB[]) {
+      const v = mix(x, mul(hue, 1 - n * 0.02), Math.min(1, n * 0.12));
+      if (ok(v)) return v;
+    }
+  }
+  return calm(x, accent, false);
 }

@@ -76,24 +76,19 @@ export function drawObelisk(r: Raster, k: Skel, look: PlaceholderLook): void {
     return cx + lean * (1 - t) + side * (topHalf + (baseHalf - topHalf) * t);
   };
 
-  // ---- shards of crystal hanging in the air behind the shoulders, bobbing on their own and trailing a lunge ----
+  // ---- two shards of crystal hanging in the air behind the shoulder, bobbing on their own and trailing a lunge: kept
+  // large, in the shaded crystal tones and without a glint, so at game scale they read as shapes, not as sparkle ----
   {
     const shards: [number, number, number, number][] = [
-      [-22, -18, 10, -0.35],
-      [-31, -5, 7, 0.3],
-      [-24, 9, 6, -0.15],
+      [-24, -14, 15, -0.3],
+      [-30, 6, 10, 0.25],
     ];
     shards.forEach(([dx, dy, len, tilt], i) => {
-      const x = Math.max(10, k.shB[0] + dx - lean * 0.6);
+      const x = Math.max(12, k.shB[0] + dx - lean * 0.6);
       const y = Math.max(8 + len, k.shB[1] + dy + Math.sin(ph * 1.1 + i * 2.1) * 2.2);
-      if (o === 2) {
-        // Molten: embers of obsidian glass instead, a hot tip on each
-        prism(r, P, [x, y], -Math.PI / 2 + tilt, len, 4, true);
-        r.rect(P.vein, x - 0.5, y - len + 2, 1, 2);
-      } else {
-        prism(r, P, [x, y], -Math.PI / 2 + tilt, len, 4.5, false);
-        prism(r, P, [x, y], Math.PI / 2 + tilt, len * 0.45, 4.5, true);
-      }
+      prism(r, P, [x, y], -Math.PI / 2 + tilt, len, 6, true, false, true);
+      prism(r, P, [x, y], Math.PI / 2 + tilt, len * 0.4, 6, true, false, true);
+      if (o === 2) r.rect(P.vein, x - 0.5, y - len + 3, 1, 2); // Molten: a hot tip on the obsidian
     });
   }
 
@@ -196,30 +191,93 @@ export function drawObelisk(r: Raster, k: Skel, look: PlaceholderLook): void {
     r.rect(P.vein, bx - half + 2, topY + 2, half * 2 - 4, 1); // light leaking under the collar
     const base = collarY;
     if (o === 1) {
-      // a weathered stone head: a blocky brow, a carved face with two glowing eyes, moss on the crown
-      const top = Math.max(4, base - k.head.s * 1.0);
-      r.poly(P.stoneD, [[bx - half, base], [bx - half + 2, top + 3], [bx - half * 0.3, top], [bx + half * 0.5, top], [bx + half + 1, top + 4], [bx + half, base]]);
-      r.poly(P.stone, [[bx - half * 0.45, base], [bx - half * 0.45, top + 2], [bx + half * 0.5, top + 1], [bx + half + 1, top + 4], [bx + half, base]]);
-      r.rect(P.stoneL, bx - half * 0.3, top + 1, half * 1.1, 2);
-      const ey = top + (base - top) * 0.45;
-      r.rect(P.stoneDeep, bx - half * 0.3, ey - 4, half * 1.35, 3); // carved brow
-      r.rect(P.stoneDeep, bx - 0.5, ey - 1, half * 1.0, 4);
-      r.rect(P.glow, bx + half * 0.05, ey, 4, 2);
-      r.rect(P.glow, bx + half * 0.6, ey, 4, 2);
-      r.rect(P.stoneD, bx + half * 0.35, ey + 2, 3, 5); // nose
-      r.rect(P.stoneDeep, bx + half * 0.1, ey + 9, half * 0.8, 2); // mouth line
-      r.inlay(P.stone, P.seam, (set) => line(set, [[bx - half * 0.3, top + 6], [bx - half * 0.1, top + 10], [bx - half * 0.2, base - 3]]));
-      for (let x = bx - half + 2; x < bx + half; x += 3) r.ellipse((x | 0) % 2 ? moss : mossL, x, top + 1 + Math.abs(x - bx) * 0.12, 2.6, 2);
+      // a moai: a tall, narrow carved head turned to the front, a heavy brow ridge over deep-set glowing eyes, a long nose
+      // running down the face and flaring past its edge, pursed lips over a jutting chin, and a long ear on the shadowed
+      // side; a squat topknot of red scoria (a pukao) sits on the crown, moss on its lid
+      const top = Math.max(11, base - k.head.s * 1.3);
+      const H = base - top;
+      const hw = half * 0.74;
+      const L = bx - hw + 1; // the head's back edge
+      const R = bx + hw + 1; // the face's front edge
+      const fx = bx - hw * 0.3; // where the shadowed side plane turns into the face
+      r.poly(P.ink, [[L - 1, base + 1], [L, top], [R + 1, top], [R + 1, base + 1]]);
+      r.poly(P.stoneD, [[L, base], [L + 1, top + 1], [fx, top + 1], [fx, base]]);
+      r.poly(P.stone, [[fx, base], [fx, top + 1], [R, top + 1], [R, base]]);
+      r.rect(P.stoneL, fx + 1, top + 1, R - fx - 1, 1); // the lit crown edge
+      r.rect(P.stoneL, fx, top + 2, 1, H - 3); // the corner between the planes catches the light
+      // the long ear on the side plane, with its carved groove
+      const ex = L + (fx - L) * 0.28;
+      r.rect(P.stoneDeep, ex, top + H * 0.26, 5, H * 0.56);
+      r.rect(P.stoneD, ex + 1, top + H * 0.26 + 1, 3, H * 0.56 - 2);
+      r.rect(P.stoneDeep, ex + 2, top + H * 0.32, 1, H * 0.42);
+      // the brow: a lit ridge standing proud of the face, a band of deep shadow under it holding the eyes
+      const ey = top + H * 0.3;
+      r.rect(P.stoneL, fx + 1, ey - 4, R - fx + 1, 2);
+      r.rect(P.stoneDeep, fx + 1, ey - 2, R - fx - 1, 4);
+      const nx = fx + (R - fx) * 0.52; // the nose's ridge line
+      r.rect(P.glow, fx + 3, ey - 1, 4, 2);
+      r.rect(P.glow, nx + 3, ey - 1, 4, 2);
+      r.rect(P.core, nx + 4, ey - 1, 2, 1);
+      // the nose: a long block down the face, lit along its ridge, shadow cast to its back; its base flares past the face
+      const nb = ey + H * 0.4;
+      r.rect(P.stoneD, nx - 3, ey + 2, 3, nb - ey - 2);
+      r.rect(P.stone, nx, ey + 2, 3, nb - ey - 2);
+      r.rect(P.stoneL, nx + 2, ey + 2, 1, nb - ey - 3);
+      r.poly(P.stone, [[nx - 3, nb - 3], [R + 1, nb - 4], [R + 3, nb], [nx - 3, nb + 1]]);
+      r.rect(P.stoneL, nx, nb - 4, R - nx + 1, 1);
+      r.rect(P.stoneDeep, nx - 2, nb + 1, R - nx + 4, 2); // nostrils' shadow
+      // pursed lips and the jutting chin
+      const my = nb + (base - nb) * 0.45;
+      r.rect(P.stoneD, nx - 4, my - 1, R - nx + 5, 2);
+      r.rect(P.stoneDeep, nx - 4, my + 1, R - nx + 5, 1);
+      r.poly(P.stone, [[nx - 5, base - 3], [R + 2, base - 4], [R + 2, base], [nx - 5, base]]);
+      r.rect(P.stoneL, nx - 4, base - 4, R - nx + 5, 1);
+      r.inlay(P.stone, P.seam, (set) => line(set, [[fx + 3, top + 3], [fx + 4, top + 6], [fx + 2, ey - 5]]));
+      // the pukao: a squat cylinder of red scoria with a lit lid, moss growing over it
+      const kx = bx - hw * 0.05;
+      const kw = hw * 0.78;
+      const kt = top - 6;
+      const scoria = r.part(mix(stone, [150, 76, 56], 0.5));
+      const scoriaD = r.part(mul(mix(stone, [150, 76, 56], 0.5), 0.7));
+      r.rect(P.ink, kx - kw - 1, kt, kw * 2 + 2, top - kt + 1);
+      r.rect(scoriaD, kx - kw, kt + 1, kw * 2, top - kt);
+      r.rect(scoria, kx - kw * 0.4, kt + 1, kw * 1.4, top - kt);
+      r.rect(P.stoneL, kx - kw * 0.4, kt + 1, kw * 1.4, 1);
+      for (let x = kx - kw + 1; x < kx + kw * 0.3; x += 3) r.ellipse((x | 0) % 2 ? moss : mossL, x, kt + 1, 2, 1.5);
+      r.ellipse(moss, kx - kw + 1, kt + 4, 1.4, 2.2); // a drip of moss over the rim
+      for (let x = R - 6; x < R; x += 3) r.ellipse((x | 0) % 2 ? moss : mossL, x, top + 1, 1.6, 1.1);
     } else if (o === 2) {
-      // an obsidian crown: a ring of black glass spikes around a molten core with the eye in it
+      // a basalt war-helm: a shadowed back plane and a chamfered front plane with a lit top lip, magma running down
+      // its cracks; an angry V eye-slit with a molten tear, and a grille of glowing teeth under it; obsidian spikes
+      // ring the crown
       const top = base - k.head.s * 0.75;
-      r.poly(P.stoneDeep, [[bx - half, base], [bx - half + 3, top + 4], [bx + half - 3, top + 4], [bx + half, base]]);
+      const mid = bx + half * 0.05;
       const spikes: [number, number][] = [[-0.85, 0.7], [-0.45, 1.1], [0, 1.4], [0.45, 1.15], [0.85, 0.75]];
       for (const [t, hgt] of spikes) prism(r, P, [bx + t * half, top + 6], -Math.PI / 2 + t * 0.35, Math.min(k.head.s * hgt, (top + 6 - 3) / Math.cos(t * 0.35)), 7, false);
-      const ey = top + (base - top) * 0.55;
-      r.poly(P.glow, [[bx - half * 0.3, ey - 1], [bx + half * 0.75, ey], [bx + half * 0.7, ey + 3], [bx - half * 0.3, ey + 2]]);
-      r.rect(P.core, bx + half * 0.3, ey + 0.6, 4, 1.4);
-    } else {
+      r.poly(P.ink, [[bx - half - 1, base], [bx - half + 2, top + 3], [bx + half - 2, top + 3], [bx + half + 1, base]]);
+      r.poly(P.stoneDeep, [[bx - half, base], [bx - half + 3, top + 4], [mid, top + 4], [mid, base]]);
+      r.poly(P.stoneD, [[mid, base], [mid, top + 4], [bx + half - 3, top + 4], [bx + half, base]]);
+      r.rect(P.stone, bx - half + 4, top + 4, 2 * half - 7, 1); // the lit lip under the spikes
+      r.rect(P.stone, mid, top + 5, 1, base - top - 6); // the chamfer edge
+      // magma seams down the plates
+      const crackOn = (pts: V2[]): void => {
+        r.inlay(P.stoneDeep, P.seam, (set) => line(set, pts));
+        r.inlay(P.stoneD, P.seam, (set) => line(set, pts));
+      };
+      crackOn([[bx - half * 0.55, top + 5], [bx - half * 0.62, top + 9], [bx - half * 0.5, base - 2]]);
+      crackOn([[bx + half * 0.8, top + 5], [bx + half * 0.72, top + 8]]);
+      // the eye: a V slit dipping toward the front, a white-hot core, and a molten tear running from it
+      const ey = top + (base - top) * 0.5;
+      r.poly(P.ink, [[bx - half * 0.4, ey - 4], [bx + half * 0.15, ey - 1], [bx + half * 0.85, ey - 4], [bx + half * 0.85, ey + 3], [bx - half * 0.4, ey + 3]]);
+      r.poly(P.glow, [[bx - half * 0.3, ey - 2], [bx + half * 0.15, ey], [bx + half * 0.78, ey - 2], [bx + half * 0.74, ey + 2], [bx - half * 0.3, ey + 1.5]]);
+      r.rect(P.core, bx + half * 0.3, ey, 5, 1.4);
+      r.rect(P.vein, bx + half * 0.55, ey + 3, 1, 3);
+      r.rect(P.vein, bx + half * 0.55, ey + 6 + (ph % 2), 1, 1);
+      // the jaw: a dark grille with glowing gaps between the teeth
+      const jy = base - 5;
+      r.rect(P.ink, bx - half * 0.1, jy, half * 0.95, 4);
+      for (let i = 0; i < 4; i++) r.rect(P.vein, bx - half * 0.02 + i * half * 0.22, jy + 1, 1, 2);
+        } else {
       // a faceted amethyst pyramid: shaded left facet, mid front facet, lit right facet, hard ridge lines between them
       const tipY = Math.max(3, base - k.head.s * 1.1);
       const tip: V2 = [bx + 2, tipY];
@@ -297,7 +355,7 @@ function cluster(r: Raster, P: Parts, at: V2, side: -1 | 1, back: boolean): void
 }
 
 /** A pointed hexagonal prism: shaded and lit facets and a glowing ridge. */
-function prism(r: Raster, P: Parts, base: V2, ang: number, len: number, wid: number, back: boolean): void {
+function prism(r: Raster, P: Parts, base: V2, ang: number, len: number, wid: number, back: boolean, glint = true, rim = false): void {
   const ux = Math.cos(ang);
   const uy = Math.sin(ang);
   const px = -uy;
@@ -309,11 +367,12 @@ function prism(r: Raster, P: Parts, base: V2, ang: number, len: number, wid: num
   const s0: V2 = [b0[0] + ux * shaft, b0[1] + uy * shaft];
   const s1: V2 = [b1[0] + ux * shaft, b1[1] + uy * shaft];
   const tip: V2 = [base[0] + ux * len, base[1] + uy * len];
+  if (rim) r.poly(P.ink, [[b0[0] + px * 1.2, b0[1] + py * 1.2], [s0[0] + px * 1.2, s0[1] + py * 1.2], [tip[0] + ux * 1.4, tip[1] + uy * 1.4], [s1[0] - px * 1.2, s1[1] - py * 1.2], [b1[0] - px * 1.2, b1[1] - py * 1.2]]);
   r.poly(back ? P.crystalDeep : P.crystalD, [b0, s0, tip, s1, b1]);
   const m0: V2 = [base[0] + px * hw * 0.1, base[1] + py * hw * 0.1];
   const m1: V2 = [m0[0] + ux * shaft, m0[1] + uy * shaft];
   r.poly(back ? P.crystalD : P.crystalL, [b1, s1, tip, m1, m0]);
-  if (len > 6) r.seg(P.glow, m0[0] + ux * len * 0.25, m0[1] + uy * len * 0.25, m1[0], m1[1], 1, 1);
+  if (glint && len > 6) r.seg(P.glow, m0[0] + ux * len * 0.25, m0[1] + uy * len * 0.25, m1[0], m1[1], 1, 1);
 }
 
 /**
