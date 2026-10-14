@@ -29,7 +29,6 @@ export class StageSelectScene extends MenuScene {
       ...STAGE_LIST.map((s) => ({ label: s.name, onConfirm: () => this.pick(s.id) })),
       { label: 'RANDOM', onConfirm: () => this.pick(STAGE_LIST[Math.floor(Math.random() * STAGE_LIST.length)].id) },
     ]);
-    for (const st of STAGE_LIST) stageThumb(this, st);
     this.thumb = this.add.image(0, 0, stageThumb(this, STAGE_LIST[0])).setOrigin(0, 0);
     this.preview = this.add.graphics();
     this.ui.add([this.thumb, this.preview]);

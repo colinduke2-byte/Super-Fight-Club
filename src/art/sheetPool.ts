@@ -3,10 +3,17 @@
  * so the main thread never stalls on the pixel work. Falls back to building inline where workers are unavailable.
  */
 import { packedHeroSheet, type PackedSheet, type SheetSpec } from './sheetPixels';
+import { platformArtPixels, stageMassPixels, type ArtPixels } from './stageMass';
 // a static import: the worker source is embedded in the bundle (the single-file build has no separate chunks)
 import SheetWorker from './sheetWorker?worker&inline';
 
-type Pending = { resolve: (px: PackedSheet) => void; reject: (e: unknown) => void };
+/** A unit of generated art: a fighter sheet, a solid stage structure or a pass-through platform. */
+export type ArtTask =
+  | { kind: 'sheet'; spec: SheetSpec }
+  | { kind: 'mass'; args: Parameters<typeof stageMassPixels> }
+  | { kind: 'plat'; args: Parameters<typeof platformArtPixels> };
+
+type Pending = { resolve: (px: unknown) => void; reject: (e: unknown) => void };
 
 let workers: Worker[] | null = null;
 let failed = false;
@@ -32,10 +39,10 @@ async function startPool(): Promise<Worker[] | null> {
     const n = Math.max(1, Math.min(6, (navigator.hardwareConcurrency || 4) - 1));
     workers = Array.from({ length: n }, () => {
       const w = new SheetWorker();
-      w.onmessage = (e: MessageEvent<{ job: number; sheet: PackedSheet }>) => {
+      w.onmessage = (e: MessageEvent<{ job: number; result: unknown }>) => {
         const p = pending.get(e.data.job);
         pending.delete(e.data.job);
-        p?.resolve(e.data.sheet);
+        p?.resolve(e.data.result);
       };
       w.onerror = (e) => {
         // a worker that cannot run (CSP, old browser): build everything inline from now on
@@ -51,18 +58,32 @@ async function startPool(): Promise<Worker[] | null> {
   return workers;
 }
 
-/** Build one sheet off the main thread (or inline if workers are unavailable). */
-export async function buildSheetPixels(spec: SheetSpec): Promise<PackedSheet> {
+function inline(task: ArtTask): unknown {
+  if (task.kind === 'sheet') return packedHeroSheet(task.spec);
+  return task.kind === 'mass' ? stageMassPixels(...task.args) : platformArtPixels(...task.args);
+}
+
+async function run<T>(task: ArtTask): Promise<T> {
   const ws = await pool();
-  if (!ws || failed) return packedHeroSheet(spec);
+  if (!ws || failed) return inline(task) as T;
   const job = nextJob++;
   const w = ws[rr++ % ws.length];
   try {
-    return await new Promise<PackedSheet>((resolve, reject) => {
-      pending.set(job, { resolve, reject });
-      w.postMessage({ job, spec });
+    return await new Promise<T>((resolve, reject) => {
+      pending.set(job, { resolve: resolve as (px: unknown) => void, reject });
+      w.postMessage({ job, task });
     });
   } catch {
-    return packedHeroSheet(spec);
+    return inline(task) as T;
   }
+}
+
+/** Build one fighter sheet off the main thread (or inline if workers are unavailable). */
+export function buildSheetPixels(spec: SheetSpec): Promise<PackedSheet> {
+  return run<PackedSheet>({ kind: 'sheet', spec });
+}
+
+/** Build a stage structure's or platform's art off the main thread. */
+export function buildStageArt(task: Exclude<ArtTask, { kind: 'sheet' }>): Promise<ArtPixels> {
+  return run<ArtPixels>(task);
 }

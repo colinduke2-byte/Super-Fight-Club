@@ -5,7 +5,7 @@
  *
  * Drawn at art density (2 px per world unit). The canvas is `w*2 + 2*OVER` wide; the walking surface is row `HEAD`.
  */
-import { mulberry32 } from './stageTextures';
+import { mulberry32 } from './rng';
 
 type RGB = [number, number, number];
 type Ramp = RGB[];
@@ -225,7 +225,7 @@ class Buf {
 }
 
 /** Generates the art for one solid platform `w` x `h` world units. */
-export function stageMass(themeId: string | undefined, w: number, h: number, seed: number, seated = false): HTMLCanvasElement {
+export function stageMassPixels(themeId: string | undefined, w: number, h: number, seed: number, seated = false): ArtPixels {
   const T = THEMES[themeId ?? 'skyline'] ?? THEMES.skyline;
   const S: Ramp = T.stone.map(hex);
   const A: Ramp = T.accent.map(hex);
@@ -386,22 +386,7 @@ export function stageMass(themeId: string | undefined, w: number, h: number, see
     }
   }
   bloom(b, 4, 0.55);
-
-  const c = document.createElement('canvas');
-  c.width = W;
-  c.height = H;
-  const g = c.getContext('2d')!;
-  const img = g.createImageData(W, H);
-  for (let i = 0; i < W * H; i++) {
-    const glowA = b.a[i] ? 0 : Math.min(1, (b.glow[i * 3] + b.glow[i * 3 + 1] + b.glow[i * 3 + 2]) / 300);
-    if (!b.a[i] && glowA < 0.04) continue;
-    img.data[i * 4] = clampI(Math.round(b.c[i * 3]), 0, 255);
-    img.data[i * 4 + 1] = clampI(Math.round(b.c[i * 3 + 1]), 0, 255);
-    img.data[i * 4 + 2] = clampI(Math.round(b.c[i * 3 + 2]), 0, 255);
-    img.data[i * 4 + 3] = b.a[i] ? 255 : Math.round(glowA * 120);
-  }
-  g.putImageData(img, 0, 0);
-  return c;
+  return toPixels(b, W, H);
 }
 
 /** Spreads light from emissive pixels onto their neighbours (and as a faint halo past the silhouette). */
@@ -1416,7 +1401,7 @@ export const PLAT_TAIL = 16;
  * A pass-through (or moving) platform as one piece: a slab with a lit top edge in the stage's style and an underside that says
  * how it floats: hover emitters, thrusters, cloud puffs, or ropes and lanterns. `w`, `h` in world units.
  */
-export function platformArt(themeId: string | undefined, w: number, h: number, moving: boolean, seed: number): HTMLCanvasElement {
+export function platformArtPixels(themeId: string | undefined, w: number, h: number, moving: boolean, seed: number): ArtPixels {
   const T = THEMES[themeId ?? 'skyline'] ?? THEMES.skyline;
   const S: Ramp = T.stone.map(hex);
   const A: Ramp = T.accent.map(hex);
@@ -1557,7 +1542,7 @@ export function platformArt(themeId: string | undefined, w: number, h: number, m
  * A stone ledge: 'moss' (temple) is a carved slab furred with moss along its top, vines and roots hanging below;
  * 'marble' (dawn) is pale dressed stone with a gold inlay band and a gilded finial under each end.
  */
-function ledge(b: Buf, T: MassTheme, S: Ramp, A: Ramp, W: number, PH: number, y0: number, dress: 'moss' | 'marble', seed: number): HTMLCanvasElement {
+function ledge(b: Buf, T: MassTheme, S: Ramp, A: Ramp, W: number, PH: number, y0: number, dress: 'moss' | 'marble', seed: number): ArtPixels {
   const n = noise(seed + 17);
   const rnd = mulberry32(seed * 53 + 11);
   const G2: Ramp = (T.alt ?? T.accent).map(hex);
@@ -1608,7 +1593,7 @@ function ledge(b: Buf, T: MassTheme, S: Ramp, A: Ramp, W: number, PH: number, y0
 }
 
 /** A rock shelf jutting out of the cave wall: a flat lit top, a jagged tapering underside and crystals hanging off it. */
-function rockShelf(b: Buf, S: Ramp, A: Ramp, W: number, PH: number, y0: number, moving: boolean, seed: number): HTMLCanvasElement {
+function rockShelf(b: Buf, S: Ramp, A: Ramp, W: number, PH: number, y0: number, moving: boolean, seed: number): ArtPixels {
   const n = noise(seed + 5);
   const rnd = mulberry32(seed * 31 + 3);
   for (let x = 0; x < W; x++) {
@@ -1636,21 +1621,44 @@ function rockShelf(b: Buf, S: Ramp, A: Ramp, W: number, PH: number, y0: number, 
   return finish(b, W, b.h);
 }
 
-function finish(b: Buf, W: number, H: number): HTMLCanvasElement {
+function finish(b: Buf, W: number, H: number): ArtPixels {
   bloom(b, 3, 0.6);
-  const c = document.createElement('canvas');
-  c.width = W;
-  c.height = H;
-  const g = c.getContext('2d')!;
-  const img = g.createImageData(W, H);
+  return toPixels(b, W, H);
+}
+
+/** Raw RGBA of generated stage art (built on the main thread or in a sheet worker). */
+export interface ArtPixels {
+  width: number;
+  height: number;
+  data: Uint8ClampedArray;
+}
+
+function toPixels(b: Buf, W: number, H: number): ArtPixels {
+  const data = new Uint8ClampedArray(W * H * 4);
   for (let i = 0; i < W * H; i++) {
     const glowA = b.a[i] ? 0 : Math.min(1, (b.glow[i * 3] + b.glow[i * 3 + 1] + b.glow[i * 3 + 2]) / 300);
     if (!b.a[i] && glowA < 0.04) continue;
-    img.data[i * 4] = clampI(Math.round(b.c[i * 3]), 0, 255);
-    img.data[i * 4 + 1] = clampI(Math.round(b.c[i * 3 + 1]), 0, 255);
-    img.data[i * 4 + 2] = clampI(Math.round(b.c[i * 3 + 2]), 0, 255);
-    img.data[i * 4 + 3] = b.a[i] ? 255 : Math.round(glowA * 120);
+    data[i * 4] = clampI(Math.round(b.c[i * 3]), 0, 255);
+    data[i * 4 + 1] = clampI(Math.round(b.c[i * 3 + 1]), 0, 255);
+    data[i * 4 + 2] = clampI(Math.round(b.c[i * 3 + 2]), 0, 255);
+    data[i * 4 + 3] = b.a[i] ? 255 : Math.round(glowA * 120);
   }
-  g.putImageData(img, 0, 0);
+  return { width: W, height: H, data };
+}
+
+/** Pixels to a canvas (texture source). */
+export function artCanvas(px: ArtPixels): HTMLCanvasElement {
+  const c = document.createElement('canvas');
+  c.width = px.width;
+  c.height = px.height;
+  c.getContext('2d')!.putImageData(new ImageData(px.data as Uint8ClampedArray<ArrayBuffer>, px.width, px.height), 0, 0);
   return c;
+}
+
+export function stageMass(themeId: string | undefined, w: number, h: number, seed: number, seated = false): HTMLCanvasElement {
+  return artCanvas(stageMassPixels(themeId, w, h, seed, seated));
+}
+
+export function platformArt(themeId: string | undefined, w: number, h: number, moving: boolean, seed: number): HTMLCanvasElement {
+  return artCanvas(platformArtPixels(themeId, w, h, moving, seed));
 }

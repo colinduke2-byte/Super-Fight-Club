@@ -1,7 +1,7 @@
 import Phaser from 'phaser';
-import { isSeated, MASS_HEAD, MASS_OVER, PLAT_HEAD, platformArt, stageMass } from '../art/stageMass';
+import { MASS_HEAD, MASS_OVER, PLAT_HEAD } from '../art/stageMass';
+import { ensureStageArt, stageArtKey } from '../art/stageArt';
 import type { World } from '../engine/world';
-import { addCanvasTexture } from '../art/canvasTexture';
 
 interface PlatView {
   index: number;
@@ -13,21 +13,19 @@ export class StageView {
   private readonly views: PlatView[] = [];
 
   constructor(scene: Phaser.Scene, layer: Phaser.GameObjects.Layer, private readonly world: World) {
-    const theme = world.stage.background.theme;
+    ensureStageArt(scene, world.stage); // usually prebuilt in the background since boot
     world.platforms.forEach((p, index) => {
       const parts: PlatView['parts'] = [];
       if (p.kind === 'solid') {
         // one designed structure per solid platform (cap, facade, underside), generated once per stage
-        const key = `mass:${world.stage.id}:${index}:${p.w}x${p.h}`;
-        if (!scene.textures.exists(key)) addCanvasTexture(scene, key, stageMass(theme, p.w, p.h, index + 1, isSeated(p, world.stage.platforms)));
+        const key = stageArtKey(world.stage, index);
         const dx = -MASS_OVER / 2;
         const dy = -MASS_HEAD / 2;
         const img = scene.add.image(p.x + dx, p.y + dy, key).setOrigin(0, 0).setScale(0.5);
         layer.add(img);
         parts.push({ obj: img, dx, dy });
       } else {
-        const key = `plat:${world.stage.id}:${index}:${p.w}x${p.h}:${p.moving ? 'm' : 'p'}`;
-        if (!scene.textures.exists(key)) addCanvasTexture(scene, key, platformArt(theme, p.w, p.h, !!p.moving, index + 1));
+        const key = stageArtKey(world.stage, index);
         const dy = -PLAT_HEAD / 2;
         const img = scene.add.image(p.x, p.y + dy, key).setOrigin(0, 0).setScale(0.5);
         layer.add(img);

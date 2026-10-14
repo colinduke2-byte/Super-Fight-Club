@@ -3,6 +3,8 @@ import Phaser from 'phaser';
 import { buildPlaceholderSheet, registerAnimations, registerPixels } from '../art/proceduralFighter';
 import { hasHeroArt } from '../art/hero';
 import { sheetSpec } from '../art/sheetPixels';
+import { prebuildStageArt } from '../art/stageArt';
+import { STAGES } from '../stages';
 import { buildSheetPixels } from '../art/sheetPool';
 import { buildStageTextures } from '../art/stageTextures';
 import { buildEntityTextures } from '../art/entityTextures';
@@ -62,6 +64,8 @@ export class BootScene extends Phaser.Scene {
     });
     void Promise.all(jobs).then(() => {
       console.info(`[boot] ${all.length} fighter sheets built in ${Math.round(performance.now() - t0)} ms`);
+      // stage art keeps building on the workers while the player is in the menus
+      prebuildStageArt(this, Object.values(STAGES));
       label.destroy();
       bar.destroy();
       this.finish();
