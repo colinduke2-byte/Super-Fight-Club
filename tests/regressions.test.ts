@@ -321,3 +321,19 @@ describe('regressions: sim audit', () => {
     expect(t.fb.jetFrames).toBe(0);
   });
 });
+
+describe('timed scoring', () => {
+  it('a self-destruct in a timed match costs one point, not two', async () => {
+    const { Match } = await import('../src/engine/match');
+    const world = new World(classicStage);
+    const a = new Fighter(0, CHARACTERS.brick);
+    const b = new Fighter(1, CHARACTERS.vex);
+    world.addFighter(a);
+    world.addFighter(b);
+    const m = new Match(world, { mode: 'time', stocks: 3, timeLimitSec: 60, respawnDelay: 70 });
+    m.onKo(a, -1);
+    expect(m.scores[0].kos - m.scores[0].falls).toBe(-1);
+    m.onKo(b, 0);
+    expect(m.scores[0].kos - m.scores[0].falls).toBe(0);
+  });
+});

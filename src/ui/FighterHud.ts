@@ -37,6 +37,9 @@ export class FighterHud {
   private shownValue = NaN;
   private shownHp = false;
   private shownPips = -1;
+  /** Timed matches: the score shown where the stock pips go (null in stock / stamina matches). */
+  timedScore: number | null = null;
+  private shownScore: number | null = null;
   private u = 3;
   private texK = 1;
   private crop: [number, number, number, number] = [6, 0, 40, 40];
@@ -148,10 +151,20 @@ export class FighterHud {
     this.percent.setPosition(this.percentAt[0] + (tick & 1 ? j : -j), this.percentAt[1] + ((tick >> 1) & 1 ? j * 0.6 : -j * 0.6));
     this.sub.setText(training ? 'INF' : out ? 'OUT' : '');
     this.sub.setVisible(training || out);
-    const pips = !training && !out ? Math.max(0, Math.min(stocks, MAX_PIPS)) : 0;
-    if (pips !== this.shownPips) {
-      this.shownPips = pips;
-      this.pips.setText(PIPS[pips]);
+    if (this.timedScore !== null) {
+      // a timed match: the KO score instead of stock pips (stocks mean nothing there)
+      const sc = this.timedScore;
+      if (sc !== this.shownScore) {
+        this.shownScore = sc;
+        this.shownPips = -1;
+        this.pips.setText(sc > 0 ? `+${sc}` : String(sc));
+      }
+    } else {
+      const pips = !training && !out ? Math.max(0, Math.min(stocks, MAX_PIPS)) : 0;
+      if (pips !== this.shownPips) {
+        this.shownPips = pips;
+        this.pips.setText(PIPS[pips]);
+      }
     }
     this.portrait.setAlpha(out ? 0.35 : 1);
     // character resource seam (Heat): fills left to right, glows hot at/after the threshold

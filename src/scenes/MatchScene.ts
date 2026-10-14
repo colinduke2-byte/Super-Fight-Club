@@ -933,6 +933,7 @@ export class MatchScene extends Phaser.Scene {
       const sc = this.match.scores[i];
       const f = this.fighters[i];
       this.huds[i].colorIndex = f.data.hud?.colorKey ? (f.res[f.data.hud.colorKey] ?? 0) : 0;
+      this.huds[i].timedScore = this.match.cfg.mode === 'time' ? sc.kos - sc.falls : null;
       this.huds[i].update(f.damage, sc.stocks, this.match.training, sc.eliminated, f.meter / (f.data.ultimate?.cost ?? 100), this.world.tick, f.data.hud ? (f.res[f.data.hud.resource] ?? 0) : 0, f.status);
     }
     this.updateClock();

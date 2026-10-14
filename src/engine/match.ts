@@ -68,8 +68,8 @@ export class Match {
     if (this.over) return;
     const s = this.scores[fighter.id];
     s.falls++;
+    // a timed match scores KOs minus falls, so a self-destruct costs exactly one point (the fall)
     if (killer >= 0 && killer !== fighter.id) this.scores[killer].kos++;
-    else if (this.cfg.mode === 'time') this.scores[fighter.id].kos--; // self-destruct costs a point
     if (!this.training) s.stocks--;
     if (this.suddenDeath) {
       s.eliminated = true;
