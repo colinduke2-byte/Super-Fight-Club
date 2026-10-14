@@ -32,7 +32,7 @@ export const HOW_TO_PLAY: HowToPage[] = [
       ['JUMP IN AIR', 'Double jump. Up + Special is your recovery.'],
       ['DOWN IN AIR', 'Fast fall, even in the middle of an aerial.'],
       ['DOWN ON PLATFORM', 'Drop through a thin platform.'],
-      ['NEAR A LEDGE', 'Grab it automatically. Then climb, jump, roll or attack.'],
+      ['NEAR A LEDGE', 'Grab it. You can be hit while hanging: climb, jump or roll.'],
     ],
     demo: ['vex', ['run', 'dash', 'jump', 'fall']],
   },
