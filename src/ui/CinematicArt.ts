@@ -70,9 +70,23 @@ export class CinematicArt {
     }
     // the core: swelling, flaring with every hit
     const r = 6 + 22 * t + (since < 6 ? (6 - since) * 2.5 : 0);
-    a.fillStyle(0xff6a1a, 0.35).fillCircle(rx, ry, r * 1.6);
-    a.fillStyle(0xffc04a, 0.55).fillCircle(rx, ry, r);
-    a.fillStyle(0xffffff, 0.8).fillCircle(rx, ry, r * 0.45);
+    // a graded core: many thin shells stacked additively from a dull red rim to a white-hot centre (no hard bullseye bands)
+    const SHELLS = 10;
+    for (let i = 0; i < SHELLS; i++) {
+      const k = 1 - i / SHELLS; // 1 outside .. 0.1 inside
+      const col = k > 0.7 ? 0xff4a10 : k > 0.45 ? 0xff8a2a : k > 0.25 ? 0xffc04a : 0xfff0c0;
+      a.fillStyle(col, 0.12 + 0.05 * (1 - k)).fillCircle(rx, ry, r * 1.7 * k);
+    }
+    a.fillStyle(0xffffff, 0.75).fillCircle(rx, ry, r * 0.3);
+    // a spiky corona turning around it, its spikes flickering in length
+    const spikes = 14;
+    for (let i = 0; i < spikes; i++) {
+      const ang = frame * 0.05 + (i / spikes) * Math.PI * 2;
+      const len = r * (1.5 + 0.55 * Math.abs(Math.sin(frame * 0.37 + i * 2.1))) + (since < 6 ? (6 - since) * 3 : 0);
+      const half = 0.09;
+      a.fillStyle(i % 2 ? 0xffe08a : 0xff8a2a, 0.55);
+      a.fillTriangle(rx + Math.cos(ang - half) * r * 0.6, ry + Math.sin(ang - half) * r * 0.6, rx + Math.cos(ang + half) * r * 0.6, ry + Math.sin(ang + half) * r * 0.6, rx + Math.cos(ang) * len, ry + Math.sin(ang) * len);
+    }
     if (since < 8) a.lineStyle(3, 0xffe08a, 0.8 * (1 - since / 8)).strokeCircle(rx, ry, r + since * 6);
     // the last beat: a dome of white fire swallows both of them
     if (frame > total - 12) {
@@ -118,11 +132,34 @@ export class CinematicArt {
     const g = this.g;
     const a = this.glow;
     const open = Math.min(1, frame / 16);
-    const w = 22 * open + (since < 5 ? (5 - since) * 2 : 0);
-    a.fillStyle(0xfff0b0, 0.18).fillRect(vx - w * 1.6, vy - 420, w * 3.2, 420);
-    a.fillStyle(0xfff6d0, 0.35).fillRect(vx - w / 2, vy - 420, w, 420);
-    a.fillStyle(0xffffff, 0.5).fillRect(vx - w / 6, vy - 420, w / 3, 420);
-    a.fillStyle(0xfff0b0, 0.3 * open).fillEllipse(vx, vy, w * 4, 10);
+    const flare = since < 6 ? (6 - since) / 6 : 0;
+    const w = 22 * open + flare * 10;
+    const flick = 0.92 + 0.08 * Math.sin(frame * 0.9);
+    // the column: a wide golden haze, a warm body, a hot inner shaft and a white core, flaring on every hit
+    a.fillStyle(0xffc84a, 0.14 * flick).fillRect(vx - w * 2.2, vy - 420, w * 4.4, 420);
+    a.fillStyle(0xffd36a, 0.22 * flick).fillRect(vx - w * 1.3, vy - 420, w * 2.6, 420);
+    a.fillStyle(0xffe9a8, 0.42 * flick).fillRect(vx - w / 2, vy - 420, w, 420);
+    a.fillStyle(0xffffff, 0.65 + 0.3 * flare).fillRect(vx - w / 5, vy - 420, (w * 2) / 5, 420);
+    // bright edges: two hairlines bound the shaft
+    a.fillStyle(0xffffff, 0.5 * open).fillRect(vx - w / 2 - 1, vy - 420, 1, 420).fillRect(vx + w / 2, vy - 420, 1, 420);
+    // where it strikes the ground: a pool of light and a ring that pulses outward with each hit
+    a.fillStyle(0xffd36a, 0.35 * open).fillEllipse(vx, vy, w * 6, 14);
+    a.fillStyle(0xffffff, 0.45 * open).fillEllipse(vx, vy, w * 2.4, 6);
+    if (since < 10) a.lineStyle(2, 0xfff0c0, 0.8 * (1 - since / 10)).strokeEllipse(vx, vy, w * 3 + since * 14, 8 + since * 2);
+    // motes of light rising up the shaft
+    for (let i = 0; i < 10; i++) {
+      const my = vy - ((tick * 2.2 + i * 41) % 200);
+      const mx = vx + (((i * 29) % 21) - 10) * (w / 22) + Math.sin(tick * 0.2 + i) * 2;
+      a.fillStyle(i % 3 ? 0xffffff : 0xffe08a, 0.9 * (1 - (vy - my) / 200)).fillRect(mx - 1, my - 1, 2, 2);
+    }
+    // a halo turning over the rival's head
+    const hy = vy - vh - 10;
+    const hr = 14 * open;
+    a.lineStyle(2, 0xffe9a8, 0.85 * open).strokeEllipse(vx, hy, hr * 2, hr * 0.6);
+    for (let i = 0; i < 4; i++) {
+      const ang = tick * 0.12 + (i * Math.PI) / 2;
+      a.fillStyle(0xffffff, 0.9 * open).fillRect(vx + Math.cos(ang) * hr - 1, hy + Math.sin(ang) * hr * 0.3 - 1, 2, 2);
+    }
     // feathers drifting down the column
     for (let i = 0; i < 7; i++) {
       const fy = vy - 160 + ((tick * 1.4 + i * 37) % 170);

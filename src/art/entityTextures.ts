@@ -251,6 +251,8 @@ export function buildEntityTextures(scene: Phaser.Scene): void {
     px(g, '#ffffff', 18, 6, 4, 2);
     add('dep-whirlpool', c);
   }
+  buildFxTextures(add);
+
   // ice patch 96x10 (drawn at 0.5 scale: 48x5 world units): a glossy sheet of ice with highlights and a frosted rim
   {
     const [c, g] = mk(96, 10);
@@ -262,6 +264,125 @@ export function buildEntityTextures(scene: Phaser.Scene): void {
     for (const x of [14, 30, 52, 70, 84]) px(g, '#ffffff', x, 5, 6, 1); // glossy streaks
     for (const x of [8, 40, 62, 90]) px(g, '#ffffff', x, 2, 1, 2); // frost crystals on the rim
     add('dep-icepatch', c);
+  }
+}
+
+/**
+ * Impact / particle textures for the effects layer, all white (tinted per use, drawn additively):
+ * - fx-glow   64x64  smooth radial bloom (the soft light under every flash)
+ * - fx-star   64x64  eight-point hit star: four long razor spikes, four short diagonals, a hot core
+ * - fx-impact 64x64  jagged comic-book burst (heavy hits): uneven spikes round a hollow, hotter rim
+ * - fx-ring   64x64  shockwave ring: a crisp bright leading edge with a soft glow trailing inside (fx-ring-l: 192x192 for big ones)
+ * - fx-streak 16x4   a spark streak (bright head on the right, tapering tail), stretched along a particle's velocity
+ * - fx-smoke  32x32  a soft lumpy puff (normal blend, tinted dark) for KO / blast smoke
+ */
+function buildFxTextures(add: (key: string, c: HTMLCanvasElement) => void): void {
+  const rgba = (g: Ctx, x: number, y: number, a: number): void => {
+    if (a <= 0.004) return;
+    g.fillStyle = `rgba(255,255,255,${Math.min(1, a).toFixed(3)})`;
+    g.fillRect(x, y, 1, 1);
+  };
+  {
+    const [c, g] = mk(64, 64);
+    for (let y = 0; y < 64; y++) {
+      for (let x = 0; x < 64; x++) {
+        const d = Math.hypot(x - 31.5, y - 31.5) / 31.5;
+        if (d >= 1) continue;
+        rgba(g, x, y, Math.pow(1 - d, 2.2) * 0.95 + (d < 0.12 ? 0.05 : 0));
+      }
+    }
+    add('fx-glow', c);
+  }
+  {
+    const [c, g] = mk(64, 64);
+    for (let y = 0; y < 64; y++) {
+      for (let x = 0; x < 64; x++) {
+        const dx = x - 31.5;
+        const dy = y - 31.5;
+        const r = Math.hypot(dx, dy);
+        const ang = Math.atan2(dy, dx);
+        // spike profile: long on the axes, short on the diagonals; a spike is thin far out and fat near the core
+        const ax = Math.abs(Math.cos(ang * 2)); // 1 on the axes and diagonals, 0 between
+        const onAxis = Math.abs(Math.cos(ang)) > 0.92 || Math.abs(Math.sin(ang)) > 0.92;
+        const len = onAxis ? 31 : 17;
+        const w = Math.pow(ax, onAxis ? 26 : 34); // narrowness of each spike
+        const reach = len * w;
+        let a = r < reach ? 1 - (r / Math.max(1, reach)) * 0.55 : 0;
+        if (r < 5) a = 1;
+        else if (r < 9) a = Math.max(a, 1 - (r - 5) / 4);
+        rgba(g, x, y, a);
+      }
+    }
+    add('fx-star', c);
+  }
+  {
+    const [c, g] = mk(64, 64);
+    // fixed jagged silhouette: 14 spikes of irregular length (deterministic, so every heavy hit is the same crisp shape)
+    const N = 14;
+    const spike = Array.from({ length: N }, (_, i) => 0.62 + 0.38 * (((i * 7) % 5) / 4) * (i % 2 ? 0.7 : 1));
+    for (let y = 0; y < 64; y++) {
+      for (let x = 0; x < 64; x++) {
+        const dx = x - 31.5;
+        const dy = y - 31.5;
+        const r = Math.hypot(dx, dy) / 31.5;
+        let ang = Math.atan2(dy, dx) / (Math.PI * 2);
+        if (ang < 0) ang += 1;
+        const f = ang * N;
+        const i0 = Math.floor(f) % N;
+        const t = f - Math.floor(f);
+        // a zigzag edge: spike tips at the integer angles, valleys between them
+        const e = t < 0.5 ? 0.4 + (spike[i0] - 0.4) * (1 - 2 * t) : 0.4 + (spike[(i0 + 1) % N] - 0.4) * (2 * t - 1);
+        if (r > e) continue;
+        // hollow centre fades in toward the rim: the burst reads as a shape, not a blob
+        const rim = r / e;
+        const a = rim < 0.55 ? 0 : rim < 0.85 ? (rim - 0.55) / 0.3 : 1;
+        rgba(g, x, y, a);
+      }
+    }
+    add('fx-impact', c);
+  }
+  // shockwave rings: 64 px for small ones and a 192 px one for big ones (same proportions: edge radius = size * 0.461), so a
+  // large ring keeps a smooth curve and a thin edge instead of scaling up a staircase
+  for (const [key, S, edge, glow] of [['fx-ring', 64, 1.5, 6], ['fx-ring-l', 192, 2.2, 14]] as const) {
+    const [c, g] = mk(S, S);
+    const R = S * 0.461;
+    const mid = (S - 1) / 2;
+    for (let y = 0; y < S; y++) {
+      for (let x = 0; x < S; x++) {
+        const d = Math.hypot(x - mid, y - mid) - R;
+        // a bright edge, a faint glow falling off inward and a hair outward
+        const a = d > 1.5 ? 0 : d > 0 ? 1 - d / 1.5 : d > -edge ? 1 : Math.max(0, 0.32 * (1 + (d + edge) / glow));
+        rgba(g, x, y, a);
+      }
+    }
+    add(key, c);
+  }
+  {
+    const [c, g] = mk(16, 4);
+    for (let x = 0; x < 16; x++) {
+      const t = x / 15; // 0 tail .. 1 head
+      for (let y = 0; y < 4; y++) {
+        const core = y === 1 || y === 2;
+        const a = core ? 0.15 + 0.85 * t * t : t > 0.6 ? (t - 0.6) * 1.2 : 0;
+        rgba(g, x, y, a);
+      }
+    }
+    add('fx-streak', c);
+  }
+  {
+    const [c, g] = mk(32, 32);
+    const lumps = [[15, 16, 10], [10, 13, 7], [21, 12, 7], [20, 20, 8], [11, 21, 6]] as const;
+    for (let y = 0; y < 32; y++) {
+      for (let x = 0; x < 32; x++) {
+        let a = 0;
+        for (const [lx, ly, lr] of lumps) {
+          const d = Math.hypot(x - lx, y - ly) / lr;
+          if (d < 1) a = Math.max(a, (1 - d * d) * 0.9);
+        }
+        rgba(g, x, y, a);
+      }
+    }
+    add('fx-smoke', c);
   }
 }
 

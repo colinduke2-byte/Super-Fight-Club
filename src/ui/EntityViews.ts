@@ -4,6 +4,7 @@ import { MAX_ITEMS } from '../engine/items';
 import type { World } from '../engine/world';
 import { pillarCanvas } from '../art/entityTextures';
 import { addCanvasTexture } from '../art/canvasTexture';
+import { slashStyle, type SlashStyle } from './SlashArcs';
 
 const SHAPE_TEX: Record<string, string> = { orb: 'proj-orb', bolt: 'proj-bolt', bullet: 'proj-bullet', fist: 'proj-fist', beam: 'proj-beam', shard: 'proj-shard', wave: 'proj-wave' };
 const DEP_TEX: Record<string, string> = { mine: 'dep-mine', turret: 'dep-turret', rune: 'dep-rune', marker: 'dep-marker', whirlpool: 'dep-whirlpool', icepatch: 'dep-icepatch' };
@@ -34,6 +35,23 @@ function itemTexture(kind: string): string {
 /** Halo colour behind each item kind, so pickups read against busy stages. */
 const ITEM_GLOW: Record<string, number> = { heal: 0x5fe08a, cell: 0xffd04a, boost: 0xff6a5a, aegis: 0xfff4ff, bomb: 0x3ad0e8 };
 
+/** A colour lifted toward white by k (0..1). */
+function mixWhite(c: number, k: number): number {
+  const r = (c >> 16) & 255;
+  const g = (c >> 8) & 255;
+  const b = c & 255;
+  return (Math.round(r + (255 - r) * k) << 16) | (Math.round(g + (255 - g) * k) << 8) | Math.round(b + (255 - b) * k);
+}
+
+/** Four-point sparkle. */
+function sparkle(g: Phaser.GameObjects.Graphics, x: number, y: number, s: number, c: number, a: number): void {
+  g.fillStyle(c, a);
+  g.fillTriangle(x - s, y, x + s, y, x, y - s * 0.3);
+  g.fillTriangle(x - s, y, x + s, y, x, y + s * 0.3);
+  g.fillTriangle(x, y - s, x, y + s, x - s * 0.3, y);
+  g.fillTriangle(x, y - s, x, y + s, x + s * 0.3, y);
+}
+
 function lightTint(hex: string): number {
   let c = LIGHT_TINT.get(hex);
   if (c === undefined) {
@@ -46,6 +64,11 @@ function lightTint(hex: string): number {
 /** Pooled sprites for projectiles, deployables, reflecting barriers and tether lines. */
 export class EntityViews {
   private readonly proj: Phaser.GameObjects.Image[] = [];
+  /** Per projectile: a soft bloom in its colour and a white-hot core, both additive. */
+  private readonly projGlow: Phaser.GameObjects.Image[] = [];
+  private readonly projCore: Phaser.GameObjects.Image[] = [];
+  /** Motion trails behind projectiles (additive), dressed per owner (embers, spray, sparks, frost...). */
+  private readonly trails: Phaser.GameObjects.Graphics;
   private readonly dep: Phaser.GameObjects.Image[] = [];
   private readonly depLight: Phaser.GameObjects.Image[] = [];
   private readonly barriers: Phaser.GameObjects.Image[] = [];
@@ -60,10 +83,19 @@ export class EntityViews {
     layer: Phaser.GameObjects.Layer,
     private readonly world: World,
   ) {
+    const glowTex = scene.textures.exists('fx-glow') ? 'fx-glow' : 'item-glow';
+    this.trails = scene.add.graphics().setBlendMode(Phaser.BlendModes.ADD);
+    layer.add(this.trails);
     for (let i = 0; i < MAX_PROJECTILES; i++) {
+      const gl = scene.add.image(0, 0, glowTex).setVisible(false).setBlendMode(Phaser.BlendModes.ADD);
       const s = scene.add.image(0, 0, 'proj-orb').setVisible(false).setScale(0.5);
+      const c = scene.add.image(0, 0, glowTex).setVisible(false).setBlendMode(Phaser.BlendModes.ADD);
+      layer.add(gl);
       layer.add(s);
+      layer.add(c);
+      this.projGlow.push(gl);
       this.proj.push(s);
+      this.projCore.push(c);
     }
     for (let i = 0; i < MAX_DEPLOYABLES; i++) {
       const s = scene.add.image(0, 0, 'dep-mine').setOrigin(0.5, 1).setVisible(false).setScale(0.5);
@@ -119,11 +151,17 @@ export class EntityViews {
       // a soft halo that breathes, in the item's colour
       gl.setVisible(!blink).setPosition(it.x, y).setTint(ITEM_GLOW[it.kind] ?? 0xffffff).setScale(0.85 + 0.12 * Math.sin(tick * 0.12 + i)).setAlpha(0.85);
     }
+    const tg = this.trails;
+    tg.clear();
     for (let i = 0; i < this.proj.length; i++) {
       const p = w.projectiles[i];
       const s = this.proj[i];
+      const gl = this.projGlow[i];
+      const core = this.projCore[i];
       if (!p.active || !p.def) {
         s.setVisible(false);
+        gl.setVisible(false);
+        core.setVisible(false);
         continue;
       }
       const look = p.def.look;
@@ -145,6 +183,7 @@ export class EntityViews {
       // fade out in the last frames of life
       const fade = p.def.life - p.age < 8 ? (p.def.life - p.age) / 8 : 1;
       s.setAlpha(look.shape === 'beam' ? fade * 0.55 : fade); // additive beams stack (Nova fires three): keep them from blowing out to white
+      this.dressProjectile(p, s, gl, core, fade, tick, own ? lightTint(own) : color(look.color));
     }
     for (let i = 0; i < this.dep.length; i++) {
       const d = w.deployables[i];
@@ -201,6 +240,90 @@ export class EntityViews {
       g.lineStyle(1.2, 0x2a2a3a, 1).lineBetween(hx, hy, f.tetherX, f.tetherY);
       g.lineStyle(0.6, 0xd8d8f0, 1).lineBetween(hx, hy - 0.3, f.tetherX, f.tetherY - 0.3);
       g.fillStyle(0xffffff, 1).fillCircle(f.tetherX, f.tetherY, 1.4);
+    }
+  }
+
+  /**
+   * Light and motion for a projectile: a bloom in its colour, a white-hot core (orbs), and a tapered trail streaming back along
+   * its actual motion, dressed in its owner's style so a fireball sheds embers, a water orb sprays droplets, a volt bolt crackles.
+   */
+  private dressProjectile(p: import('../engine/entities').Projectile, s: Phaser.GameObjects.Image, gl: Phaser.GameObjects.Image, core: Phaser.GameObjects.Image, fade: number, tick: number, col: number): void {
+    const def = p.def!;
+    const shape = def.look.shape;
+    const size = def.look.size ?? 1;
+    const x = s.x;
+    const y = s.y;
+    if (shape === 'beam') {
+      // the head of a beam burns: a bloom where it is eating through the air
+      gl.setVisible(true).setPosition(x + (p.vx < 0 ? -1 : 1) * 2, y).setTint(col).setScale((def.h * 2.6) / 64).setAlpha(0.55 * fade);
+      core.setVisible(true).setPosition(x, y).setTint(0xffffff).setScale((def.h * 1.1) / 64).setAlpha(0.7 * fade);
+      return;
+    }
+    const r = Math.max(4, Math.max(def.w, def.h) * 0.5);
+    const pulse = 0.9 + 0.1 * Math.sin(tick * 0.45 + p.index);
+    const glowK = shape === 'orb' ? 3.2 : shape === 'wave' ? 2.2 : 2.6;
+    gl.setVisible(true).setPosition(x, shape === 'wave' ? y - r * 0.4 : y).setTint(col).setScale(((r * glowK) / 32) * pulse).setAlpha(0.5 * fade);
+    if (shape === 'orb') core.setVisible(true).setPosition(x, y).setTint(0xffffff).setScale(((r * 1.1) / 32) * pulse).setAlpha(0.75 * fade);
+    else core.setVisible(false);
+    if (shape === 'wave' || shape === 'fist') return; // ground waves and rocket fists carry their own motion in the art
+    // the trail: back along the real motion of the last tick (zigzags and arcs included)
+    let mx = p.x - p.prevX;
+    let my = p.y - p.prevY;
+    const sp = Math.hypot(mx, my);
+    if (sp < 0.4 || p.age < 1) return;
+    mx /= sp;
+    my /= sp;
+    const owner = this.world.fighters[p.owner];
+    const style: SlashStyle = owner ? slashStyle(owner) : 'plain';
+    const len = Math.min(70, Math.max(14, sp * 7)) * Math.min(1, p.age / 4) * (0.7 + 0.3 * size);
+    const wid = Math.min(r * 1.5, 12) * (shape === 'bolt' || shape === 'bullet' || shape === 'shard' ? 0.55 : 1);
+    const nx = -my;
+    const ny = mx;
+    const tg = this.trails;
+    const ribbon = (wk: number, c: number, a: number, lk = 1): void => {
+      const hw = (wid * wk) / 2;
+      tg.fillStyle(c, a * fade);
+      tg.fillTriangle(x + nx * hw, y + ny * hw, x - nx * hw, y - ny * hw, x - mx * len * lk, y - my * len * lk);
+    };
+    const hot = mixWhite(col, 0.55);
+    ribbon(1.5, col, 0.28);
+    ribbon(1, col, 0.5, 0.85);
+    ribbon(0.45, hot, 0.75, 0.6);
+    // dressing along the trail, rolled per tick so it shimmers
+    for (let k = 1; k <= 5; k++) {
+      const t = k / 6;
+      const ox = x - mx * len * t;
+      const oy = y - my * len * t;
+      const j = (((k * 37 + tick * 13 + p.index * 7) % 11) / 10 - 0.5) * wid;
+      const a = (1 - t) * fade;
+      switch (style) {
+        case 'fire':
+          tg.fillStyle(k % 2 ? 0xffc040 : 0xff5a1a, 0.85 * a).fillCircle(ox + nx * j, oy + ny * j - t * 3, 1.6 * (1 - t) + 0.6);
+          break;
+        case 'water':
+          tg.fillStyle(k % 2 ? 0xe6fbff : 0x3ab8ff, 0.85 * a).fillCircle(ox + nx * j, oy + ny * j + t * t * 6, 1.3 + (1 - t));
+          break;
+        case 'volt':
+        case 'spark': {
+          const ex = ox + nx * j;
+          const ey = oy + ny * j;
+          tg.lineStyle(1, style === 'volt' ? 0xbff8ff : 0xffe0a0, 0.9 * a).lineBetween(ex, ey, ex - mx * 4 + nx * j * 0.6, ey - my * 4 + ny * j * 0.6);
+          break;
+        }
+        case 'arcane':
+          if ((k + (tick >> 1)) % 2 === 0) sparkle(tg, ox + nx * j, oy + ny * j, 2.4 * (1 - t) + 0.6, k % 2 ? 0xffffff : col, 0.9 * a);
+          break;
+        case 'frost':
+        case 'crystal':
+          if ((k + (tick >> 2)) % 2 === 0) sparkle(tg, ox + nx * j, oy + ny * j, 2 * (1 - t) + 0.8, k % 2 ? 0xffffff : hot, 0.9 * a);
+          break;
+        case 'gale':
+          tg.fillStyle(0xffffff, 0.6 * a).fillEllipse(ox + nx * j, oy + ny * j, 4 * (1 - t) + 1, 1.4);
+          break;
+        default:
+          tg.fillStyle(k % 2 ? 0xffffff : hot, 0.7 * a).fillRect(ox + nx * j - 0.6, oy + ny * j - 0.6, 1.2, 1.2);
+          break;
+      }
     }
   }
 

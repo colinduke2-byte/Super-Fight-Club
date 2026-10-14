@@ -163,6 +163,40 @@ export class SlashArcs {
           g.fillStyle(L[1], L[2] * fade);
           g.fillPoints(pts as Phaser.Geom.Point[], true);
         }
+        if (heavy) {
+          // a heavy swing throws a second, thinner shock arc just outside the first: the air it displaces, led by the head
+          const sr = r + width * 0.95;
+          const sw = width * 0.32;
+          const sTail = head - (head - tail) * 0.6;
+          for (let i = 0; i <= N; i++) {
+            const ang = sTail + ((head - sTail) * i) / N;
+            const w = sw * TAPER[i];
+            const cx = Math.cos(ang);
+            const cy = Math.sin(ang);
+            const o = pts[i];
+            o.x = chestX + cx * (sr + w / 2) * f.facing;
+            o.y = chestY + cy * (sr + w / 2);
+            const n = pts[2 * N + 1 - i];
+            n.x = chestX + cx * (sr - w / 2) * f.facing;
+            n.y = chestY + cy * (sr - w / 2);
+          }
+          g.fillStyle(layers[1][1], 0.45 * fade);
+          g.fillPoints(pts as Phaser.Geom.Point[], true);
+        }
+        if (style !== 'blade') {
+          // a crisp hot hairline along the leading half of the outer edge: the cut itself, so even soft styles read sharp
+          g.lineStyle(1, 0xffffff, 0.7 * fade);
+          g.beginPath();
+          for (let i = N >> 1; i <= N; i++) {
+            const ang = tail + ((head - tail) * i) / N;
+            const w = width * layers[layers.length - 1][0] * TAPER[i];
+            const x = chestX + Math.cos(ang) * (r + w / 2) * f.facing;
+            const y = chestY + Math.sin(ang) * (r + w / 2);
+            if (i === N >> 1) g.moveTo(x, y);
+            else g.lineTo(x, y);
+          }
+          g.strokePath();
+        }
         for (let i = 3; i <= N; i += 2) {
           const t = i / N;
           const ang = tail + (head - tail) * t;
