@@ -38,6 +38,8 @@ export function drawBrick(r: Raster, k: Skel, look: PlaceholderLook): void {
   const horn = r.part([236, 226, 200]);
   const hornD = r.part([170, 156, 128]);
   const glass = r.part(mix(accent, [200, 240, 255], 0.5), { emissive: true });
+  const smoke = r.part(mix([150, 152, 166], dark, 0.25), { soft: true });
+  const smokeD = r.part(mix([96, 98, 116], dark, 0.3), { soft: true });
   // keep the gauntlets and boots inside the frame on the widest reaches (they are the biggest pieces at a limb's end)
   const handF = clampV(k.handF, 17, r.w - 19, 17, r.h - 17);
   const handB = clampV(k.handB, 19, r.w - 19, 17, r.h - 17);
@@ -83,6 +85,17 @@ export function drawBrick(r: Raster, k: Skel, look: PlaceholderLook): void {
     r.rect(P.deep, bx, by + 22, 14, 8);
     r.seg(P.steelD, bx + 4, by + 2, bx - 2, by - 12, 7, 6);
     r.seg(P.steelD, bx + 10, by + 4, bx + 7, by - 8, 7, 6);
+    // exhaust: puffs of smoke rising off the pipes and drifting back, cycling with the animation (behind the pipe mouths)
+    for (const [mx, my, i0] of [[bx - 2, by - 12, 0], [bx + 7, by - 8, 1]] as const) {
+      for (let i = 0; i < 2; i++) {
+        const t = (k.phase * 0.17 + i * 0.5 + i0 * 0.25) % 1;
+        const x = Math.max(9, mx - 2 - t * 6 - k.pose.lean * 0.8 * t);
+        const y = Math.max(9, my - 4 - t * 9);
+        const rad = 2 + t * 2;
+        r.ellipse(smokeD, x + 0.6, y + 0.6, rad, rad * 0.85);
+        r.ellipse(smoke, x, y, rad - 0.8, rad * 0.85 - 0.8);
+      }
+    }
     r.ellipse(P.accent, bx - 2, by - 12, 3, 3);
     r.ellipse(P.glow, bx + 7, by - 8, 2.4, 2.4);
     r.rect(P.stripeA, bx + 2, by + 12, 10, 2);
@@ -331,15 +344,27 @@ function fist(r: Raster, P: Parts, h: V2, el: V2, back: boolean): void {
 
 function leg(r: Raster, P: Parts, hip: V2, kn: V2, ankle: V2, back: boolean): void {
   const plate = back ? P.deep : P.armor;
-  const thigh = back ? P.deep : P.armor;
+  // the front thigh sits a step down the value ladder (it is under the belt, out of the light), so a fist held at the hip
+  // parts from it; the shin greave below catches the light again
+  const thigh = back ? P.deep : P.dark;
   // the frame: a dark hydraulic thigh and shin under the plates
   r.seg(P.frame, hip[0], hip[1], kn[0], kn[1], 18, 16);
   r.seg(P.frame, kn[0], kn[1], ankle[0], ankle[1], 15, 13);
   // thigh plate (upper two thirds of the thigh), shin greave
   const t0 = lerp(hip, kn, 0.05);
   const t1 = lerp(hip, kn, 0.7);
+  r.seg(P.frame, t0[0], t0[1] + 1, t1[0], t1[1] + 1, 27, 23); // a dark rim, so the plate stands off the frame and the belt
   r.seg(thigh, t0[0], t0[1], t1[0], t1[1], 25, 21);
-  if (!back) r.seg(P.plate, t0[0] - 5, t0[1] + 1, t1[0] - 5, t1[1], 5, 4);
+  if (!back) {
+    r.seg(P.armor, t0[0] - 5, t0[1] + 1, t1[0] - 5, t1[1], 6, 5);
+    r.seg(P.plate, t0[0] - 6, t0[1] + 1, t1[0] - 6, t1[1], 2.5, 2);
+    // a lame seam across the plate, lit on its upper lip
+    const m = lerp(t0, t1, 0.55);
+    const [ux, uy] = [t1[0] - t0[0], t1[1] - t0[1]];
+    const ul = Math.hypot(ux, uy) || 1;
+    r.seg(P.seam, m[0] - (uy / ul) * 10, m[1] + (ux / ul) * 10, m[0] + (uy / ul) * 10, m[1] - (ux / ul) * 10, 1.4, 1.4);
+    r.rect(P.rivet, m[0] + 4, m[1] - 5, 2, 2);
+  }
   const s0 = lerp(kn, ankle, 0.22);
   const s1 = lerp(kn, ankle, 0.92);
   r.seg(plate, s0[0], s0[1], s1[0], s1[1], 21, 17);

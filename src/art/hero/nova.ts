@@ -38,8 +38,8 @@ export function drawNova(r: Raster, k: Skel, look: PlaceholderLook): void {
     boot: r.part(mul(dark, 0.5)),
     eye: r.part(glow, { emissive: true }),
   };
+  const lip = r.part(mix(skin, [196, 74, 96], 0.45), { flat: true });
   const T = k.torso;
-  const hem = k.base - 2;
   const sway = (i: number): number => Math.sin(k.phase * 1.3 + i * 0.8) * 2.5;
   const run = k.pose.lean > 2;
   // outfits: 1 = Stargazer (deep hood, a star circlet, a crescent moon on the staff), 2 = Witch (huge crooked hat, patched robe)
@@ -52,6 +52,8 @@ export function drawNova(r: Raster, k: Skel, look: PlaceholderLook): void {
   const elbowB = handB === k.handB ? k.elbowB : solveLimb(k.shB, handB, k.armBone, 1).mid;
   const ankleF = clampV(k.ankleF, 12, r.w - 20, 0, k.base - 8);
   const ankleB = clampV(k.ankleB, 12, r.w - 20, 0, k.base - 8);
+  // the hem rides on the feet: it lifts with them in the air (the boot soles show under it) and never sinks below the floor
+  const hem = Math.min(k.base - 2, Math.max(ankleF[1], ankleB[1]) + 6);
 
   // ---- cloak behind everything ----
   {
@@ -108,8 +110,14 @@ export function drawNova(r: Raster, k: Skel, look: PlaceholderLook): void {
     const w = T.w;
     const flare = run ? 6 : 12;
     const pts: V2[] = [[x0 + 4, top + 2], [x0 + w - 4, top + 2], [x0 + w + 2, top + 10]];
-    for (let i = 1; i <= 4; i++) pts.push([x0 + w + 2 + flare * (i / 4) * 0.8 + sway(i) * 0.6 * (i / 4) - (run ? 8 * (i / 4) : 0), top + 10 + (hem - top - 10) * (i / 4)]);
-    for (let i = 4; i >= 1; i--) pts.push([x0 - 2 - flare * (i / 4) + sway(i + 3) * 0.6 * (i / 4) - (run ? 10 * (i / 4) : 0), top + 10 + (hem - top - 10) * (i / 4)]);
+    // the skirt is pushed out by the legs inside it: a stride or a kick fans the hem toward each foot
+    // (and on the run the hem swings with the stride, front panel forward as the front foot reaches, back as it trails)
+    const strideF = Math.max(-5, Math.min(6, (ankleF[0] - k.hipF[0]) * 0.45));
+    const strideB = Math.max(-6, Math.min(5, (ankleB[0] - k.hipB[0]) * 0.45));
+    const fwd = Math.max(strideF, ankleF[0] + 12 - (x0 + w + 2 + flare * 0.8 - (run ? 8 : 0)));
+    const bwd = Math.max(-strideB, x0 - 2 - flare - (run ? 10 : 0) - (ankleB[0] - 8));
+    for (let i = 1; i <= 4; i++) pts.push([x0 + w + 2 + flare * (i / 4) * 0.8 + sway(i) * 0.6 * (i / 4) - (run ? 8 * (i / 4) : 0) + fwd * (i / 4) ** 2, top + 10 + (hem - top - 10) * (i / 4)]);
+    for (let i = 4; i >= 1; i--) pts.push([x0 - 2 - flare * (i / 4) + sway(i + 3) * 0.6 * (i / 4) - (run ? 10 * (i / 4) : 0) - bwd * (i / 4) ** 2, top + 10 + (hem - top - 10) * (i / 4)]);
     pts.push([x0 - 2, top + 10]);
     r.poly(P.robe, pts);
     // darker back fold and a lit front panel
@@ -126,8 +134,9 @@ export function drawNova(r: Raster, k: Skel, look: PlaceholderLook): void {
         r.inlay(P.robeL, P.robeD, (set) => set(x, y));
       }
     }
-    // front trim down the opening and a scalloped hem of glowing glyphs
-    r.rect(P.trim, x0 + w / 2 + 2, top + 8, 2, hem - top - 14);
+    // gold piping down the opening (the glow is saved for the runes and the hem) and a scalloped hem of glowing glyphs
+    r.rect(P.cloakD, x0 + w / 2 + 1, top + 8, 1, hem - top - 14);
+    r.rect(P.gold, x0 + w / 2 + 2, top + 8, 2, hem - top - 14);
     for (let i = 0; i < 7; i++) {
       const gx = x0 - 6 + i * ((w + 20) / 7);
       r.rect(P.trim, gx, hem - 5 - (i & 1) * 2, 3, 2);
@@ -156,6 +165,16 @@ export function drawNova(r: Raster, k: Skel, look: PlaceholderLook): void {
         }
       }
     }
+  }
+
+  // ---- the boot toes poking out from under the hem, so the feet (and the stride) show ----
+  for (const [a, back] of [[ankleB, true], [ankleF, false]] as const) {
+    const sole = a[1] + 8;
+    const top = Math.min(hem - 3, sole - 4);
+    if (sole - top < 3) continue;
+    r.poly(P.cloakD, [[a[0] + 1, top], [a[0] + 11, top], [a[0] + 16, sole - 4], [a[0] + 16, sole], [a[0] - 1, sole]]);
+    r.poly(back ? P.cloakD : P.boot, [[a[0] + 2, top], [a[0] + 10, top], [a[0] + 15, sole - 3], [a[0] + 15, sole - 1], [a[0], sole - 1]]);
+    if (!back) r.rect(P.gold, a[0] + 9, sole - 3, 4, 1); // a gold toe-cap glint
   }
 
   // ---- head + hat ----
@@ -190,10 +209,19 @@ export function drawNova(r: Raster, k: Skel, look: PlaceholderLook): void {
     }
     // face
     drawFace(r, { skin: P.skin, skinD: P.skinD, eye: P.eye, pupil: P.eye, line: P.line }, hx + 4, hy + 4, hs, hs - 2, { eyeLit: true, mouth: true });
-    // a bushy silver brow over the glowing eye and a cheek shadow under it
-    r.seg(P.hairD, hx + 4 + hs * 0.46, hy + 4 + (hs - 2) * 0.27, hx + 4 + hs * 0.94, hy + 4 + (hs - 2) * 0.3, 3, 2.6);
-    r.seg(P.hair, hx + 4 + hs * 0.46, hy + 3.4 + (hs - 2) * 0.27, hx + 4 + hs * 0.9, hy + 3.4 + (hs - 2) * 0.29, 2, 1.6);
-    r.rect(P.skinD, hx + 4 + hs * 0.56, hy + 4 + (hs - 2) * 0.52, hs * 0.22, 1);
+    // her features: a fine arched brow, a lash flick at the outer corner of the glowing eye, tinted lips, and a lock of
+    // silver hair swept forward over the ear so the face reads young and framed rather than craggy
+    const fx = (u: number): number => hx + 4 + hs * u;
+    const fy = (v: number): number => hy + 4 + (hs - 2) * v;
+    r.seg(P.skin, fx(0.5), fy(0.27), fx(0.92), fy(0.3), 2.8, 3); // (over the generic heavy brow)
+    r.seg(P.line, fx(0.58), fy(0.25), fx(0.74), fy(0.19), 1, 1);
+    r.seg(P.line, fx(0.74), fy(0.19), fx(0.9), fy(0.23), 1, 1);
+    r.rect(P.line, fx(0.9), fy(0.33), 2, 1);
+    r.rect(P.skinD, fx(0.6), fy(0.52), hs * 0.2, 1);
+    r.rect(lip, fx(0.74), fy(0.78), hs * 0.18, 2);
+    r.poly(P.hairD, [[fx(0.02), fy(-0.02)], [fx(0.36), fy(0.02)], [fx(0.32), fy(0.5)], [fx(0.2), fy(0.86)], [fx(0.04), fy(0.92)]]);
+    r.poly(P.hair, [[fx(0.04), fy(0)], [fx(0.32), fy(0.03)], [fx(0.27), fy(0.46)], [fx(0.15), fy(0.78)], [fx(0.06), fy(0.8)]]);
+    r.seg(P.hairD, fx(0.22), fy(0.08), fx(0.12), fy(0.7), 1, 1);
     if (o === 1) {
       // a deep hood pulled up over the hair, and a gold circlet with a star on the brow
       // the hood's front lip over the brow, open at the face

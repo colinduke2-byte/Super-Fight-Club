@@ -17,8 +17,17 @@ export function drawObelisk(r: Raster, k: Skel, look: PlaceholderLook): void {
   const crystal = col(look.armor);
   const deepStone = col(look.armorDark);
   const glow = col(look.accent);
-  const bronze: RGB = [196, 150, 74];
-  const rock = mix(mul(stone, o === 2 ? 0.94 : 0.9), [90, 86, 110], 0.12);
+  // the collar's bronze is kept clear of the glow colour (an orange accent would otherwise set the whole collar blooming)
+  const bronze: RGB = calm([196, 150, 74], glow);
+  // the limbs are rough boulders a clear step darker and cooler than the dressed stone of the shaft, so an arm swung across
+  // the body still parts from it; a near-black ink fills the gaps around every boulder
+  // (Molten's shaft is near-black basalt, so there the boulders go the other way: a cooled, ashen grey a step above it)
+  const rock = o === 2 ? mix(mul(stone, 1.3), [104, 96, 100], 0.32) : mix(mix(mul(stone, 0.8), deepStone, 0.12), [80, 78, 104], 0.14);
+  const ink = mix(mul(deepStone, 0.5), [14, 10, 22], 0.6);
+  // Molten's seams run with the glow: magma gold for a warm accent, the crystal's own colour for a cold one (Glacier)
+  const warm = glow[0] >= glow[2];
+  const hotSeam: RGB = warm ? [255, 200, 80] : mix(crystal, [255, 255, 255], 0.3);
+  const hotVein: RGB = warm ? [255, 140, 40] : crystal;
   const P: Parts = {
     stone: r.part(stone),
     stoneL: r.part(mix(stone, [240, 232, 220], o === 2 ? 0.2 : 0.3)),
@@ -26,11 +35,14 @@ export function drawObelisk(r: Raster, k: Skel, look: PlaceholderLook): void {
     stoneDeep: r.part(mix(stone, deepStone, 0.8)),
     // the limbs are rougher boulders, a shade darker and cooler than the dressed stone of the shaft so they part from it
     rock: r.part(rock),
-    rockL: r.part(mix(rock, [236, 230, 222], o === 2 ? 0.2 : 0.3)),
-    rockD: r.part(mix(rock, deepStone, 0.5)),
+    rockL: r.part(mix(rock, [236, 230, 222], o === 2 ? 0.24 : 0.36)),
+    rockD: r.part(mix(rock, deepStone, 0.56)),
     rockDeep: r.part(mix(rock, deepStone, 0.82)),
-    seam: o === 2 ? r.part(mix(glow, [255, 200, 80], 0.3), { emissive: true, flat: true }) : r.part(mul(mix(stone, deepStone, 0.6), 0.72), { flat: true }),
-    vein: r.part(o === 2 ? mix(glow, [255, 140, 40], 0.4) : mix(glow, crystal, 0.35), { emissive: true, flat: true }),
+    ink: r.part(ink, { flat: true }),
+    // cracks in the boulders: a dark cut in rough rock (it must sit below the rock's own value), magma in the Molten look
+    crack: o === 2 ? r.part(mix(glow, hotSeam, 0.3), { emissive: true, flat: true }) : r.part(mix(rock, ink, 0.62), { flat: true }),
+    seam: o === 2 ? r.part(mix(glow, hotSeam, 0.3), { emissive: true, flat: true }) : r.part(mul(mix(stone, deepStone, 0.6), 0.72), { flat: true }),
+    vein: r.part(o === 2 ? mix(glow, hotVein, 0.4) : mix(glow, crystal, 0.35), { emissive: true, flat: true }),
     panel: r.part(mix(stone, deepStone, 0.66)),
     glyph: r.part(mix(glow, crystal, 0.25), { emissive: true, flat: true }),
     crystal: r.part(crystal),
@@ -63,6 +75,27 @@ export function drawObelisk(r: Raster, k: Skel, look: PlaceholderLook): void {
     const t = (y - topY) / (baseY - topY);
     return cx + lean * (1 - t) + side * (topHalf + (baseHalf - topHalf) * t);
   };
+
+  // ---- shards of crystal hanging in the air behind the shoulders, bobbing on their own and trailing a lunge ----
+  {
+    const shards: [number, number, number, number][] = [
+      [-22, -18, 10, -0.35],
+      [-31, -5, 7, 0.3],
+      [-24, 9, 6, -0.15],
+    ];
+    shards.forEach(([dx, dy, len, tilt], i) => {
+      const x = Math.max(10, k.shB[0] + dx - lean * 0.6);
+      const y = Math.max(8 + len, k.shB[1] + dy + Math.sin(ph * 1.1 + i * 2.1) * 2.2);
+      if (o === 2) {
+        // Molten: embers of obsidian glass instead, a hot tip on each
+        prism(r, P, [x, y], -Math.PI / 2 + tilt, len, 4, true);
+        r.rect(P.vein, x - 0.5, y - len + 2, 1, 2);
+      } else {
+        prism(r, P, [x, y], -Math.PI / 2 + tilt, len, 4.5, false);
+        prism(r, P, [x, y], Math.PI / 2 + tilt, len * 0.45, 4.5, true);
+      }
+    });
+  }
 
   // ---- back arm and back leg ----
   boulderArm(r, P, k.shB, k.elbowB, k.handB, true, 1);
@@ -224,6 +257,8 @@ interface Parts {
   rockL: number;
   rockD: number;
   rockDeep: number;
+  ink: number;
+  crack: number;
   seam: number;
   vein: number;
   panel: number;
@@ -251,9 +286,9 @@ function line(set: (x: number, y: number) => void, pts: V2[]): void {
 /** A fan of three crystal prisms growing out of a shoulder, pointing up and out to `side`. */
 function cluster(r: Raster, P: Parts, at: V2, side: -1 | 1, back: boolean): void {
   const specs: [number, number, number][] = [
-    [-0.2, 15, 6],
-    [0.25, 11, 5],
-    [0.7, 8, 4],
+    [-0.2, 18, 7],
+    [0.25, 13, 6],
+    [0.7, 9, 5],
   ];
   for (const [a, len, wid] of specs) {
     const ang = -Math.PI / 2 + side * a;
@@ -311,22 +346,24 @@ function boulder(r: Raster, P: Parts, a: V2, b: V2, w0: number, w1: number, back
     pts.push([a[0] - ux * cap(w0) - px * hw(0) * 0.45, a[1] - uy * cap(w0) - py * hw(0) * 0.45]);
     return pts;
   };
+  // an ink contour a pixel outside the stone, so each boulder parts from whatever it lies over (the shaft, the other limbs)
+  r.poly(P.ink, outline(-1.3));
   r.poly(SD, outline(0));
-  const face = outline(2.2).map(([x, y]): V2 => [x - 0.8, y - 1]);
+  const face = outline(2.2).map(([x, y]): V2 => [x + 0.5, y - 1]);
   r.poly(S, face);
-  // the lit facet: the strip of the face nearest the top-left light
-  const s = px * -0.7 + py * -0.7 >= 0 ? 1 : -1; // which side faces the light
+  // the lit facet: the strip of the face nearest the key light, high and in front (the side the shaft is lit from)
+  const s = px * 0.45 + py * -0.9 >= 0 ? 1 : -1; // which side faces the light
   const lit: V2[] = [];
   const hwF = (t: number): number => (w0 + (w1 - w0) * t) / 2 - 2.2;
-  for (const t of [0.12, 0.5, 0.85]) lit.push([a[0] + ux * l * t + px * s * hwF(t) - 0.8, a[1] + uy * l * t + py * s * hwF(t) - 1]);
-  for (const t of [0.75, 0.45, 0.2]) lit.push([a[0] + ux * l * t + px * s * (hwF(t) - 3) - 0.8, a[1] + uy * l * t + py * s * (hwF(t) - 3) - 1]);
+  for (const t of [0.12, 0.5, 0.85]) lit.push([a[0] + ux * l * t + px * s * hwF(t) + 0.5, a[1] + uy * l * t + py * s * hwF(t) - 1]);
+  for (const t of [0.75, 0.45, 0.2]) lit.push([a[0] + ux * l * t + px * s * (hwF(t) - 3) + 0.5, a[1] + uy * l * t + py * s * (hwF(t) - 3) - 1]);
   r.poly(SL, lit);
   // a hairline crack across the face
   const ct = 0.35 + ((seed * 3) % 4) * 0.08;
   const cxm = a[0] + ux * l * ct;
   const cym = a[1] + uy * l * ct;
   const hwc = hwF(ct);
-  r.inlay(S, back ? P.rockDeep : P.seam, (set) =>
+  r.inlay(S, back ? P.rockDeep : P.crack, (set) =>
     line(set, [
       [cxm - px * s * hwc * 0.2, cym - py * s * hwc * 0.2],
       [cxm - px * s * hwc * 0.8 + ux * 3, cym - py * s * hwc * 0.8 + uy * 3],
@@ -340,15 +377,17 @@ function boulder(r: Raster, P: Parts, a: V2, b: V2, w0: number, w1: number, back
  */
 function boulderArm(r: Raster, P: Parts, sh: V2, el: V2, handIn: V2, back: boolean, seed: number): void {
   // keep the heavy fist inside the frame on the widest reaches
-  const hand: V2 = [Math.max(18, Math.min(r.w - 18, handIn[0])), Math.max(17, Math.min(r.h - 15, handIn[1]))];
+  // (a fist driven straight down carries its knuckles and their shards below the hand, so it stops higher)
+  const down = Math.max(0, (handIn[1] - el[1]) / (Math.hypot(handIn[0] - el[0], handIn[1] - el[1]) || 1));
+  const hand: V2 = [Math.max(18, Math.min(r.w - 18, handIn[0])), Math.max(17, Math.min(r.h - 15 - down * 12, handIn[1]))];
   // the thread of light first, so the stones sit on it and it shows in the gaps
-  r.seg(P.glow, sh[0], sh[1], el[0], el[1], 2.2, 2.2);
-  r.seg(P.glow, el[0], el[1], hand[0], hand[1], 2.2, 2.2);
+  r.seg(P.glow, sh[0], sh[1], el[0], el[1], 3, 3);
+  r.seg(P.glow, el[0], el[1], hand[0], hand[1], 3, 3);
   const at = (a: V2, b: V2, t: number): V2 => [a[0] + (b[0] - a[0]) * t, a[1] + (b[1] - a[1]) * t];
   // upper arm and forearm: the forearm flares toward the fist, heavy and top-loaded like a club
   boulder(r, P, at(sh, el, 0.3), at(sh, el, 0.86), 14, 13, back, seed);
   boulder(r, P, at(el, hand, 0.14), at(el, hand, 0.66), 14, 17, back, seed + 2);
-  if (!back) r.ellipse(P.crystal, el[0], el[1], 2.6, 2.6); // a crystal elbow-stud in the gap
+  socket(r, P, el, back); // the elbow: a glowing crystal socket in the gap
   fist(r, P, el, hand, back);
   // the shoulder boulder, with crystals growing out of its top
   const side: -1 | 1 = back ? -1 : 1;
@@ -373,14 +412,14 @@ function fist(r: Raster, P: Parts, el: V2, hand: V2, back: boolean): void {
   boulder(r, P, A, B, 17, 18, back, 3);
   // finger grooves across the knuckle face
   const S = back ? P.rockD : P.rock;
-  const groove = back ? P.rockDeep : P.seam;
+  const groove = back ? P.rockDeep : P.crack;
   r.inlay(S, groove, (set) => {
     for (const f of [-0.35, 0.05, 0.42]) line(set, [[B[0] + px * f * 16 - ux * 1, B[1] + py * f * 16 - uy * 1], [B[0] + px * f * 16 - ux * 5, B[1] + py * f * 16 - uy * 5]]);
     line(set, [[c[0] - ux * 2 + px * 7, c[1] - uy * 2 + py * 7], [c[0] - ux * 2 - px * 7, c[1] - uy * 2 - py * 7]]);
   });
   // amethyst knuckle shards jutting forward
   const ang = Math.atan2(uy, ux);
-  for (const [f, l] of [[-0.24, 6], [0.22, 7]] as const) prism(r, P, [B[0] + px * f * 16, B[1] + py * f * 16], ang, l, 4, back);
+  for (const [f, l] of [[-0.26, 8], [0.2, 9]] as const) prism(r, P, [B[0] + px * f * 16 - ux, B[1] + py * f * 16 - uy], ang, l, 5, back);
   if (!back) r.ellipse(P.vein, c[0] - ux * 1, c[1] - uy * 1, 1.2, 1.2);
 }
 
@@ -388,27 +427,49 @@ function fist(r: Raster, P: Parts, el: V2, hand: V2, back: boolean): void {
 function leg(r: Raster, P: Parts, hip: V2, knIn: V2, ankleIn: V2, back: boolean, o: number, moss: number): void {
   // the wide foot stays inside the frame when a stomp drives it below the floor line or out to the side
   const ankle: V2 = [Math.max(12, Math.min(r.w - 18, ankleIn[0])), Math.min(r.h - 12, ankleIn[1])];
-  const kn: V2 = [knIn[0], Math.min(r.h - 13, knIn[1])]; // a knee dropped to the floor keeps its boulder above the frame edge
-  r.seg(P.glow, hip[0], hip[1], kn[0], kn[1], 2.2, 2.2);
-  r.seg(P.glow, kn[0], kn[1], ankle[0], ankle[1] - 2, 2.2, 2.2);
+  const kn: V2 = [knIn[0], Math.min(r.h - 15, knIn[1])]; // a knee dropped to the floor keeps its boulder above the frame edge
+  r.seg(P.glow, hip[0], hip[1], kn[0], kn[1], 3, 3);
+  r.seg(P.glow, kn[0], kn[1], ankle[0], ankle[1] - 2, 3, 3);
   const at = (a: V2, b: V2, t: number): V2 => [a[0] + (b[0] - a[0]) * t, a[1] + (b[1] - a[1]) * t];
   boulder(r, P, at(hip, kn, 0.02), at(hip, kn, 0.8), 17, 15, back, back ? 4 : 1);
   boulder(r, P, at(kn, ankle, 0.2), at(kn, ankle, 0.9), 14, 16, back, back ? 6 : 3);
-  if (!back) r.ellipse(P.crystal, kn[0] + 1, kn[1], 2.6, 2.6); // a crystal knee-stud in the gap
+  socket(r, P, [kn[0] + 1, kn[1]], back); // the knee: a glowing crystal socket in the gap
   // a wide, heavy stone foot with a squared toe
   const S = back ? P.rockD : P.rock;
   const SD = back ? P.rockDeep : P.rockD;
   const SL = back ? P.rockD : P.rockL;
   const bx = ankle[0];
   const by = ankle[1];
+  r.poly(P.ink, [[bx - 10, by + 7], [bx - 11, by + 1], [bx - 7, by - 4], [bx + 8, by - 4], [bx + 12, by], [bx + 16, by + 1], [bx + 17, by + 7]]);
   r.poly(SD, [[bx - 9, by + 8], [bx - 10, by + 1], [bx - 6, by - 3], [bx + 7, by - 3], [bx + 11, by + 1], [bx + 15, by + 2], [bx + 16, by + 8]]);
   r.poly(S, [[bx - 8, by + 5], [bx - 9, by + 1], [bx - 5, by - 2], [bx + 6, by - 2], [bx + 10, by + 2], [bx + 14, by + 3], [bx + 14, by + 5]]);
   r.rect(SL, bx - 5, by - 2, 11, 1);
   r.rect(SL, bx + 10, by + 2, 4, 1);
-  r.inlay(S, back ? P.rockDeep : P.seam, (set) => {
+  r.inlay(S, back ? P.rockDeep : P.crack, (set) => {
     for (let y = by + 2; y < by + 6; y++) set(bx + 9, y);
     for (let x = bx - 7; x < bx + 9; x++) set(x, by + 5);
   });
   if (!back) r.rect(P.vein, bx + 11, by + 6, 3, 1); // light leaking under the toe
   if (o === 1) r.ellipse(moss, bx - 5, by - 1, 3, 1.6);
+}
+
+/**
+ * `c` darkened just enough that neither it nor its rim-lit tone lands within reach of the glow colour (or its bloom
+ * white), which the finishing pass would otherwise treat as self-lit and bloom.
+ */
+function calm(c: RGB, glow: RGB): RGB {
+  const hot: RGB = mul(glow, 1.55);
+  const near = (a: RGB, b: RGB): boolean => Math.abs(a[0] - b[0]) + Math.abs(a[1] - b[1]) + Math.abs(a[2] - b[2]) < 52;
+  const lit = (x: RGB): RGB => mix(mul(x, 1.3), [255, 242, 214], 0.1);
+  let out = c;
+  for (let i = 0; i < 10 && [out, lit(out), mul(out, 1.1)].some((x) => near(x, glow) || near(x, hot)); i++) out = mul(out, 0.92);
+  return out;
+}
+
+/** A joint: an ink-ringed crystal socket with a hot core, the light that holds the boulders together showing through. */
+function socket(r: Raster, P: Parts, at: V2, back: boolean): void {
+  r.ellipse(P.ink, at[0], at[1], 4, 4);
+  r.ellipse(back ? P.crystalD : P.crystal, at[0], at[1], 3, 3);
+  r.ellipse(back ? P.vein : P.glow, at[0] + 0.5, at[1] - 0.5, 1.6, 1.6);
+  if (!back) r.rect(P.core, at[0], at[1] - 1, 1, 1);
 }

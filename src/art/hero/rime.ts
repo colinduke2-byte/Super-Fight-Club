@@ -17,13 +17,18 @@ export function drawRime(r: Raster, k: Skel, look: PlaceholderLook): void {
   const accent = col(look.accent);
   const glow = mix(accent, [255, 255, 255], 0.55);
   const ice: RGB = mix(accent, [255, 255, 255], 0.3);
-  const wrap: RGB = [226, 232, 240];
+  // the whites (wraps, trim, frost, the fox mask) and the scarf are held just clear of the glow colour: with a pale accent
+  // the finishing pass would otherwise take them for self-lit pixels and bloom them, so the scarf read as a glowing third arm
+  const c = (x: RGB, soft = true): RGB => calm(x, accent, soft);
+  const wrap: RGB = c([226, 232, 240]);
   const steel: RGB = [206, 216, 236];
   const steelD: RGB = [110, 124, 156];
   const skin = col(look.skin);
   const gi: RGB = mix(dark, deep, 0.4);
   const pants: RGB = mix(dark, armor, 0.3);
   const ink: RGB = mix(mul(deep, 0.55), [14, 16, 24], 0.5);
+  // the scarf is cloth dyed in the accent, a step down from it toward the vest
+  const scarfC: RGB = c(mix(accent, armor, 0.38));
   const P: Parts = {
     armor: r.part(armor),
     light: r.part(mix(armor, [230, 248, 255], 0.3)),
@@ -37,16 +42,16 @@ export function drawRime(r: Raster, k: Skel, look: PlaceholderLook): void {
     inkL: r.part(mix(ink, armor, 0.3), { flat: true }),
     vest: r.part(armor, { soft: true }),
     vestL: r.part(mix(armor, [230, 248, 255], 0.25), { soft: true }),
-    trim: r.part([236, 244, 252], { flat: true }),
+    trim: r.part(c([236, 244, 252]), { flat: true }),
     sash: r.part(mix(accent, armor, 0.35), { soft: true }),
     wrap: r.part(wrap, { soft: true }),
-    wrapL: r.part(mul(wrap, 0.78), { flat: true }),
-    wrapD: r.part(mix(mul(wrap, 0.62), deep, 0.3), { soft: true }),
-    scarf: r.part(accent, { soft: true }),
-    scarfD: r.part(mul(accent, 0.7), { soft: true }),
+    wrapL: r.part(mul(wrap, 0.8), { flat: true }),
+    wrapD: r.part(mix(mul(wrap, 0.6), deep, 0.48), { soft: true }),
+    scarf: r.part(scarfC, { soft: true }),
+    scarfD: r.part(mul(scarfC, 0.7), { soft: true }),
     hat: r.part(mix(armor, [220, 240, 255], 0.18)),
     hatD: r.part(mul(armor, 0.7)),
-    frost: r.part([244, 250, 255]),
+    frost: r.part(c([244, 250, 255]), { soft: true }),
     ice: r.part(ice),
     accent: r.part(accent, { emissive: true }),
     glow: r.part(glow, { emissive: true }),
@@ -68,11 +73,14 @@ export function drawRime(r: Raster, k: Skel, look: PlaceholderLook): void {
     fur: r.part(fur, { soft: true }),
     furD: r.part(mul(fur, 0.78), { soft: true }),
     furDeep: r.part(mul(fur, 0.55), { soft: true }),
-    mask: r.part([246, 244, 238]),
+    // the lacquered mask is painted flat (its rim light would land on the bloom white) with its own shade below
+    mask: r.part(c([234, 237, 244], false).map((v, i) => Math.max(v, [222, 226, 236][i])) as RGB, { flat: true }),
+    maskD: r.part(c([186, 188, 204], false), { flat: true }),
     maskRim: r.part([70, 52, 56], { flat: true }),
-    maskMark: r.part(accent, { flat: true }),
-    hair: r.part(mix([236, 240, 248], armor, 0.12), { soft: true }),
-    hairD: r.part(mul(mix([236, 240, 248], armor, 0.12), 0.72), { soft: true }),
+    // painted markings: the accent pulled toward the armour colour, so they read as lacquer on the white, not as glowing slits
+    maskMark: r.part(c(mix(accent, armor, accent[0] + accent[1] + accent[2] > 600 ? 0.7 : 0.25), false), { flat: true }),
+    hair: r.part(c(mix([236, 240, 248], armor, 0.12)), { soft: true }),
+    hairD: r.part(mul(c(mix([236, 240, 248], armor, 0.12)), 0.72), { soft: true }),
   };
   /** A tuft of fur: a few short strands fanning from (x, y). */
   const tuft = (x: number, y: number, dir: number, len: number, i: number): void => {
@@ -108,21 +116,41 @@ export function drawRime(r: Raster, k: Skel, look: PlaceholderLook): void {
   if (o !== 2) {
     const nx = T.x + 9;
     const ny = T.y + 1;
-    const flow = run ? 0 : air ? -0.9 : 0.5;
+    // at rest it drapes down the back (lifting on the breeze), so it never reads as a third arm; it streams flat on the run
+    // and lifts in the air
+    const flow = run ? 0 : air ? -0.9 : 1.5;
+    const step = run || air ? 4.4 : 3.2;
+    // a broad band of cloth off the throat that splits into two tails, each tapering to a point; every few links a darker
+    // fold, so it reads as a ribbon rippling in the wind rather than a tube
     let px = nx;
     let py = ny;
-    for (let i = 0; i < 11; i++) {
+    const path: V2[] = [[px, py]];
+    for (let i = 0; i < 7; i++) {
       // the tail curls up and back in on itself rather than leave the frame
-      const x = Math.max(12, nx - 3 - i * 4.2);
-      const y = Math.max(10, Math.min(r.h - 14, ny + i * flow * 3 + sw(i, 1.6 + i * 0.25)));
-      const w = 8 - i * 0.4;
-      r.seg(i % 4 === 3 ? P.scarfD : P.scarf, px, py, x, y, w, Math.max(3, w - 0.5));
+      const x = Math.max(16, nx - 3 - i * step);
+      const y = Math.max(12, Math.min(r.h - 16, ny + i * flow * 3 + sw(i, 1.4 + i * 0.3)));
+      const w = 9 - i * 0.55;
+      r.seg(P.ink, px, py + 0.5, x, y + 0.5, w + 1.4, w + 0.9);
+      path.push([x, y]);
       px = x;
       py = y;
     }
-    // a frosted, fringed tail
-    r.seg(P.frost, px, py, Math.max(7, px - 5), py + 3, 3.6, 2);
-    r.seg(P.frost, px, py, Math.max(7, px - 4), py - 3, 3.6, 2);
+    for (let i = 0; i + 1 < path.length; i++) {
+      const w = 9 - i * 0.55;
+      r.seg(i % 3 === 2 ? P.scarfD : P.scarf, path[i][0], path[i][1], path[i + 1][0], path[i + 1][1], w, w - 0.55);
+    }
+    // the end: a frosted band across the cloth, then a single tapering point
+    {
+      const [lx, ly] = path[path.length - 2];
+      const ux = px - lx;
+      const uy = py - ly;
+      const ul = Math.hypot(ux, uy) || 1;
+      const tx = Math.max(9, px + (ux / ul) * 7);
+      const ty = Math.max(9, Math.min(r.h - 12, py + (uy / ul) * 7 + 1));
+      r.seg(P.ink, px, py + 0.5, tx, ty + 0.5, 6.2, 2);
+      r.seg(P.scarfD, px, py, tx, ty, 5, 1.2);
+      r.seg(P.frost, px + (uy / ul) * 2.2, py - (ux / ul) * 2.2, px - (uy / ul) * 2.2, py + (ux / ul) * 2.2, 1.4, 1.4);
+    }
   }
 
   // ---- back arm: dark sleeve, wrapped forearm in shadow, an open gloved hand ----
@@ -216,6 +244,9 @@ export function drawRime(r: Raster, k: Skel, look: PlaceholderLook): void {
     r.poly(F.mask, maskPts);
     r.poly(F.mask, earA);
     r.poly(F.mask, earB);
+    // the underside of the muzzle and the cheek turned from the light
+    r.poly(F.maskD, [[hx + 6, hy + hs * 0.62], [hx + hs + 4, hy + hs * 0.72], [hx + hs + 1, hy + hs + 1], [hx + 7, hy + hs + 1]]);
+    r.poly(F.maskD, [[hx + 6, hy + 2], [hx + 9, hy + 1], [hx + 8, hy + hs * 0.62], [hx + 6, hy + hs * 0.62]]);
     r.poly(F.maskMark, [[hx + 8, hy], [hx + 8.6, hy - 7], [hx + 11, hy]]);
     r.poly(F.maskMark, [[hx + hs - 2, hy], [hx + hs, hy - 8], [hx + hs + 2, hy + 1]]);
     // markings: swept brows, cheek flicks, a black nose tip; a dark eye hole with the glowing eye inside
@@ -473,4 +504,17 @@ function leg(r: Raster, P: Parts, hip: V2, kn: V2, ankle: V2, back: boolean, fur
   r.rect(back ? P.seam : P.inkL, bx - 6, by + 7, 21, 1);
   // Yeti: a thick fur cuff over the boot
   if (fur >= 0) r.ellipse(fur, bx, by - 6, 9, 5);
+}
+
+/**
+ * `x` darkened just enough that neither it nor its rim-lit tone lands within reach of the accent (or its bloom white),
+ * which the finishing pass would otherwise treat as self-lit and bloom. `soft` parts take a gentler rim light.
+ */
+function calm(x: RGB, accent: RGB, soft: boolean): RGB {
+  const hot: RGB = mul(accent, 1.55);
+  const near = (a: RGB, b: RGB): boolean => Math.abs(a[0] - b[0]) + Math.abs(a[1] - b[1]) + Math.abs(a[2] - b[2]) < 52;
+  const lit = (v: RGB): RGB => mix(mul(v, soft ? 1.12 : 1.3), [255, 242, 214], 0.1);
+  let out = x;
+  for (let i = 0; i < 12 && [out, lit(out), mul(out, 1.1)].some((v) => near(v, accent) || near(v, hot)); i++) out = mul(out, 0.94);
+  return out;
 }
