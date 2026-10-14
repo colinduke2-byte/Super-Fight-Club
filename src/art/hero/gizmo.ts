@@ -2,38 +2,50 @@ import type { PlaceholderLook } from '../../engine/types';
 import { col, mix, mul, type Raster, type RGB, type V2 } from './raster';
 import type { Skel } from './skeleton';
 
-/** Gizmo: a squat orange tinker-bot: pot belly with a glowing hatch, big glass-lensed dome head, ball joints, a toolbox pack and a wrench. */
-export function drawGizmo(r: Raster, k: Skel, look: PlaceholderLook): void {
+const lum = (c: RGB): number => c[0] * 0.3 + c[1] * 0.59 + c[2] * 0.11;
+
+/**
+ * Gizmo: a small tinker-mech. A dome head with a dark glass visor and two glowing eyes, a stout chassis with a glowing core
+ * hatch, short piston legs on chunky treaded boots, a toolbox pack with a work lamp, a wrench arm and a pincer claw.
+ * Joints and pistons are a contrasting gunmetal so the limbs read apart from the orange plating.
+ */
+export function drawGizmo(r: Raster, k0: Skel, look: PlaceholderLook): void {
+  // limb ends pulled inside the frame (a hand or foot posed past the edge would otherwise be cut off)
+  const fit = (q: V2, m: number): V2 => [Math.max(m, Math.min(k0.W - m, q[0])), Math.max(m, Math.min(k0.H - m, q[1]))];
+  const k: Skel = { ...k0, handF: fit(k0.handF, 12), handB: fit(k0.handB, 11), elbowF: fit(k0.elbowF, 8), elbowB: fit(k0.elbowB, 8) };
   const armor = col(look.armor);
   const dark = col(look.armorDark);
   const deep = mul(dark, 0.6);
   const accent = col(look.accent);
   const glow = mix(accent, [255, 255, 255], 0.65);
-  const glass = col(look.skin);
   const steel: RGB = [186, 196, 216];
   const steelD: RGB = [110, 122, 150];
+  // gunmetal joints contrast with the plating: dark under light armour, light under dark armour
+  const gun: RGB = lum(armor) < 95 ? [138, 146, 168] : [58, 62, 82];
+  const gunD: RGB = lum(armor) < 95 ? [96, 104, 126] : [38, 40, 56];
   const P = {
     armor: r.part(armor),
-    light: r.part(mix(armor, [255, 230, 190], 0.28)),
+    light: r.part(mix(armor, [255, 236, 200], 0.38)),
     dark: r.part(dark),
     deep: r.part(deep),
     steel: r.part(steel),
     steelD: r.part(steelD),
-    glass: r.part(mix(glass, [60, 140, 180], 0.35)),
-    glassL: r.part(glass, { flat: true }),
+    gun: r.part(gun),
+    gunD: r.part(gunD),
+    visor: r.part(mix([22, 26, 40], accent, 0.12)),
+    visorL: r.part(mix([60, 70, 96], accent, 0.25), { flat: true }),
     accent: r.part(accent, { emissive: true }),
     glow: r.part(glow, { emissive: true }),
     stripe: r.part(accent, { flat: true }),
     seam: r.part(deep, { flat: true }),
     rivet: r.part(steel, { flat: true }),
     shine: r.part([255, 255, 255], { flat: true }),
-    cable: r.part([40, 44, 60]),
     box: r.part(mix(dark, [120, 80, 40], 0.3)),
+    tread: r.part([30, 30, 40]),
   };
   const T = k.torso;
   const cx = T.x + T.w / 2;
-  const cy = T.y + T.h / 2;
-  const blink = k.phase % 2 === 0;
+  const ph = k.phase;
   // outfits: 1 = Steamworks (top hat with a gear, monocle, a boiler pack with a chimney), 2 = Astronaut (fishbowl helmet, air pack, flag)
   const o = look.outfit ?? 0;
   const brass = r.part([214, 168, 74]);
@@ -57,91 +69,118 @@ export function drawGizmo(r: Raster, k: Skel, look: PlaceholderLook): void {
     }
   };
 
-  if (o === 1) {
-    // ---- backpack: a brass boiler with a chimney puffing steam ----
-    const bx = T.x - 14;
-    const by = T.y + 2;
-    r.ellipse(brassD, bx + 10, by + 16, 12, 17);
-    r.ellipse(brass, bx + 9, by + 15, 10.5, 15.5);
-    for (let i = 0; i < 3; i++) r.rect(brassD, bx - 1, by + 6 + i * 9, 20, 1);
-    r.ellipse(P.deep, bx + 9, by + 24, 4, 3);
-    r.ellipse(P.accent, bx + 9, by + 24, 2.6, 2);
-    r.rect(silk, bx + 2, by - 16, 6, 18);
-    r.rect(silkL, bx + 1, by - 18, 8, 3);
-    const puff = k.phase % 4;
-    r.ellipse(steam, bx + 4 - puff, by - 23 - puff * 2, 4 + puff * 0.6, 3.5 + puff * 0.5);
-    r.ellipse(steam, bx + 1 - puff, by - 30 - puff * 2, 3, 2.6);
-  } else if (o === 2) {
-    // ---- backpack: an air pack with two tanks and a little flag on a whip ----
-    const bx = T.x - 14;
-    const by = T.y + 2;
-    r.rect(P.deep, bx - 1, by - 1, 22, 32);
-    r.rect(P.light, bx, by, 20, 30);
-    r.ellipse(P.steel, bx + 5, by + 15, 5, 14);
-    r.ellipse(P.steel, bx + 15, by + 15, 5, 14);
-    r.rect(P.stripe, bx, by + 6, 20, 2);
-    r.rect(P.glow, bx + 8, by + 22, 4, 2);
-    r.seg(P.steelD, bx + 2, by, bx - 1, by - 24, 1.4, 1.4);
-    const wave = Math.sin(k.phase * 1.4) * 1.5;
-    r.poly(P.stripe, [[bx - 1, by - 24], [bx - 13, by - 22 + wave], [bx - 12, by - 16 + wave], [bx - 1, by - 18]]);
-    r.rect(P.light, bx - 9, by - 21 + wave, 3, 3);
-  } else {
-  // ---- backpack: toolbox with a wrench handle and a grapple arm ----
+  // chassis box: from just under the shoulders down to the hips, so the legs show below it
+  const L = cx - 20;
+  const R = cx + 20;
+  // a deep crouch squashes the chassis instead of pushing it through the floor
+  const bot = Math.min(Math.max(T.y + 26, k.hipY + 3), k.H - 7);
+  const top = Math.min(T.y + 4, bot - 20);
+  const mid = (top + bot) / 2;
+  // head sits above the chassis on a short neck
+  const hs = k.head.s;
+  const hx = k.head.x + hs / 2;
+  const hy = T.y - 10;
+  const hrx = hs / 2;
+  const hry = hs / 2 - 4;
+
+  // ---- backpack ----
   {
-    const bx = T.x - 14;
-    const by = T.y + 2;
-    r.rect(P.deep, bx - 1, by - 1, 22, 34);
-    r.rect(P.box, bx, by, 20, 32);
-    r.rect(P.stripe, bx, by, 20, 5); // lid
-    r.rect(P.steel, bx + 7, by - 5, 6, 5); // handle
-    r.rect(P.seam, bx + 2, by + 13, 16, 1);
-    r.rect(P.steel, bx + 6, by + 16, 8, 8);
-    r.rect(P.glow, bx + 9, by + 18, 2, 4);
-    r.seg(P.steelD, bx + 16, by - 2, bx + 22, by - 20, 4, 4);
-    r.ellipse(P.steel, bx + 23, by - 22, 7, 6);
-    r.ellipse(P.deep, bx + 25, by - 22, 3, 3);
-    // grapple arm with a three-prong claw, resting on the pack
-    r.seg(P.cable, bx + 4, by + 8, bx - 6, by + 22, 5, 5);
-    r.rect(P.steel, bx - 12, by + 20, 12, 8);
-    for (const dx of [-11, -6, -1]) r.seg(P.steel, bx + dx, by + 27, bx + dx - 1, by + 36, 2, 2);
-  }
+    const bx = L - 13;
+    const by = Math.min(top - 2, k.H - 34);
+    if (o === 1) {
+      // a brass boiler with a chimney puffing steam
+      r.ellipse(brassD, bx + 10, by + 15, 11, 16);
+      r.ellipse(brass, bx + 9, by + 14, 9.5, 14.5);
+      for (let i = 0; i < 3; i++) r.rect(brassD, bx, by + 5 + i * 9, 19, 1);
+      r.ellipse(P.deep, bx + 8, by + 22, 4, 3);
+      r.ellipse(P.accent, bx + 8, by + 22, 2.6, 2);
+      r.rect(silk, bx + 2, by - 14, 6, 16);
+      r.rect(silkL, bx + 1, by - 16, 8, 3);
+      const puff = ph % 4;
+      r.ellipse(steam, bx + 4 - puff, by - 21 - puff * 2, 4 + puff * 0.6, 3.5 + puff * 0.5);
+      r.ellipse(steam, bx + 1 - puff, by - 28 - puff * 2, 3, 2.6);
+    } else if (o === 2) {
+      // an air pack with two tanks and a little flag on a whip
+      r.rect(P.deep, bx - 1, by - 1, 21, 30);
+      r.rect(P.light, bx, by, 19, 28);
+      r.ellipse(P.steel, bx + 5, by + 14, 4.5, 13);
+      r.ellipse(P.steel, bx + 14, by + 14, 4.5, 13);
+      r.rect(P.stripe, bx, by + 6, 19, 2);
+      r.rect(P.glow, bx + 8, by + 21, 3, 2);
+      const fx = Math.max(bx - 1, 17);
+      r.seg(P.steelD, bx + 2, by, fx, by - 22, 1.4, 1.4);
+      const wave = Math.sin(ph * 1.4) * 1.5;
+      r.poly(P.stripe, [[fx, by - 22], [fx - 11, by - 20 + wave], [fx - 10, by - 14 + wave], [fx, by - 16]]);
+      r.rect(P.light, fx - 7, by - 19 + wave, 3, 3);
+    } else {
+      // toolbox with a lid stripe, a latch and a work lamp on a stalk
+      r.rect(P.deep, bx - 1, by - 1, 21, 30);
+      r.rect(P.box, bx, by, 19, 28);
+      r.rect(P.stripe, bx, by, 19, 4); // lid
+      r.rect(P.steel, bx + 6, by - 4, 6, 4); // handle
+      r.rect(P.seam, bx + 2, by + 13, 15, 1);
+      r.rect(P.steel, bx + 5, by + 15, 7, 7);
+      r.rect(P.glow, bx + 8, by + 17, 2, 3);
+      r.rect(P.steelD, bx + 1, by + 6, 1, 6);
+      r.rect(P.steelD, bx + 4, by + 6, 1, 6);
+      // work lamp
+      const lx = Math.max(bx - 3, 11);
+      r.seg(P.gun, bx + 3, by, lx + 1, by - 14, 3, 3);
+      r.ellipse(P.gunD, lx, by - 17, 5.5, 4.5);
+      r.ellipse(blinkOn(ph) ? P.glow : P.accent, lx - 3, by - 17, 2.2, 3);
+    }
   }
 
-  // ---- back arm ----
+  // ---- back arm + claw ----
   {
     const el = k.elbowB;
-    r.seg(P.deep, k.shB[0], k.shB[1], el[0], el[1], 9, 8);
-    r.seg(P.dark, el[0], el[1], k.handB[0], k.handB[1], 8, 8);
-    r.ellipse(P.steelD, el[0], el[1], 5, 5);
-    claw(r, P, k.handB);
+    r.ellipse(P.gunD, k.shB[0], k.shB[1], 6, 6);
+    r.seg(P.gunD, k.shB[0], k.shB[1], el[0], el[1], 6, 6);
+    r.seg(P.deep, el[0], el[1], k.handB[0], k.handB[1], 8, 8);
+    r.ellipse(P.gun, el[0], el[1], 4, 4);
+    claw(r, P, k.handB, el, true);
   }
 
   // ---- back leg ----
   leg(r, P, k.hipB, k.kneeB, k.ankleB, true);
 
-  // ---- torso: pot belly ----
+  // ---- neck ----
+  r.rect(P.gunD, hx - 7, hy + hry - 4, 14, top - (hy + hry) + 8);
+  for (let i = 0; i < 3; i++) r.rect(P.gun, hx - 6, hy + hry - 2 + i * 3, 12, 1);
+
+  // ---- chassis ----
   {
-    const rx = T.w / 2 + 6;
-    const ry = T.h / 2 + 6;
-    r.ellipse(P.deep, cx, cy + 2, rx + 2, ry + 2);
-    r.ellipse(P.armor, cx, cy, rx, ry);
-    r.ellipse(P.dark, cx + 6, cy + 7, rx - 6, ry - 6); // underside
-    r.ellipse(P.armor, cx - 2, cy - 2, rx - 6, ry - 8);
-    r.ellipse(P.light, cx - 12, cy - ry / 2, rx / 2.4, 4); // shine
-    // panel seams
-    r.rect(P.seam, cx - rx + 8, cy + ry - 10, rx * 2 - 16, 1);
-    r.rect(P.seam, cx - 18, cy - ry + 8, 1, 12);
-    r.rect(P.seam, cx + 20, cy - ry + 10, 1, 10);
-    // belly hatch: steel ring, dark well, glowing core with a pulsing centre
-    r.ellipse(P.steelD, cx + 4, cy + 2, 15, 13);
-    r.ellipse(P.steel, cx + 3, cy + 1, 13, 11);
-    r.ellipse(P.deep, cx + 4, cy + 2, 11, 9);
-    r.ellipse(P.accent, cx + 4, cy + 2, 8, 7);
-    r.ellipse(P.glow, cx + 3, cy + 1, blink ? 4 : 3, blink ? 3.5 : 2.5);
-    for (let a = 0; a < 8; a++) r.rect(P.rivet, cx + 4 + Math.cos((a * Math.PI) / 4) * 14 - 1, cy + 2 + Math.sin((a * Math.PI) / 4) * 12 - 1, 2, 2);
-    // belt band
-    r.rect(P.deep, cx - rx + 3, cy + ry - 8, rx * 2 - 6, 4);
-    r.rect(P.stripe, cx - rx + 6, cy + ry - 7, rx * 2 - 12, 1);
+    const shell: V2[] = [[L + 5, top], [R - 6, top], [R + 1, top + 6], [R + 2, mid + 2], [R - 3, bot - 2], [R - 9, bot], [L + 6, bot], [L, bot - 5], [L - 1, top + 6]];
+    r.poly(P.armor, shell);
+    // underside plate (darker value) and the shoulder cap (lighter value) split the box into readable bands
+    r.inlay(P.armor, P.dark, (s) => {
+      for (let y = Math.round(bot - 8); y <= bot; y++) for (let x = Math.round(L - 2); x <= R + 3; x++) s(x, y);
+    });
+    r.inlay(P.armor, P.light, (s) => {
+      for (let y = Math.round(top); y < top + 4; y++) for (let x = Math.round(L); x <= R + 3; x++) s(x, y);
+    });
+    r.rect(P.seam, L + 1, bot - 9, R - L - 2, 1);
+    r.rect(P.seam, L + 1, top + 4, R - L, 1);
+    // hazard stripes on the skirt
+    r.inlay(P.dark, P.stripe, (s) => {
+      for (let i = 0; i < 6; i++) for (let j = 0; j < 3; j++) s(L + 4 + i * 6 + j, bot - 4 - j);
+    });
+    // side vents
+    for (let i = 0; i < 3; i++) r.rect(P.seam, L + 3, top + 8 + i * 3, 6, 1);
+    // core hatch: steel ring, dark well, glowing core
+    const hxc = cx + 6;
+    const hyc = mid - 1;
+    r.ellipse(P.steelD, hxc, hyc, 8.5, 8);
+    r.ellipse(P.steel, hxc - 0.5, hyc - 0.5, 7.5, 7);
+    r.ellipse(P.deep, hxc, hyc, 5.5, 5);
+    r.ellipse(P.accent, hxc, hyc, 4, 3.6);
+    r.ellipse(P.glow, hxc - 0.5, hyc - 0.5, 2, 1.8);
+    for (let a = 0; a < 4; a++) r.rect(P.rivet, hxc + Math.cos(a * (Math.PI / 2) + Math.PI / 4) * 7 - 0.5, hyc + Math.sin(a * (Math.PI / 2) + Math.PI / 4) * 6.6 - 0.5, 1, 1);
+    // corner rivets
+    r.rect(P.rivet, L + 2, top + 6, 1, 1);
+    r.rect(P.rivet, R - 3, top + 6, 1, 1);
+    // hip housing
+    r.ellipse(P.gunD, cx, bot, 12, 3);
   }
 
   // ---- front leg ----
@@ -149,35 +188,60 @@ export function drawGizmo(r: Raster, k: Skel, look: PlaceholderLook): void {
 
   // ---- head ----
   {
-    const hs = k.head.s;
-    const hx = k.head.x + hs / 2;
-    const hy = k.head.y + hs / 2 + 3;
     if (o === 2) {
-      // the fishbowl's glass, behind the head: a pale tinted sphere the head sits inside
-      r.ellipse(bowl, hx, hy - 3, hs / 2 + 9, hs / 2 + 9);
-      r.ellipse(bowlL, hx - 4, hy - 8, hs / 2 + 2, hs / 2 + 1);
+      // the fishbowl's glass behind the head
+      r.ellipse(bowl, hx, hy - 2, hrx + 8, hrx + 7);
+      r.ellipse(bowlL, hx - 5, hy - 7, hrx, hrx - 2);
     }
-    r.ellipse(P.steelD, hx, hy + hs / 2 - 2, 10, 4); // neck ring
-    r.ellipse(P.deep, hx, hy + 1, hs / 2 + 2, hs / 2 - 1);
-    r.ellipse(P.armor, hx, hy, hs / 2 + 1, hs / 2 - 2);
-    r.ellipse(P.dark, hx + 6, hy + 6, hs / 2 - 7, hs / 2 - 10);
-    r.ellipse(P.armor, hx - 2, hy - 2, hs / 2 - 5, hs / 2 - 8);
-    r.ellipse(P.light, hx - 8, hy - hs / 2 + 7, 8, 3);
-    // glass lens with an eye and highlights
-    r.ellipse(P.deep, hx + 7, hy + 2, hs / 3 + 3, hs / 3);
-    r.ellipse(P.glass, hx + 7, hy + 2, hs / 3 + 1, hs / 3 - 2);
-    r.ellipse(P.accent, hx + 10, hy + 4, 5, 5);
-    r.ellipse(P.deep, hx + 10, hy + 4, 2, 2);
-    r.rect(P.shine, hx + 2, hy - 3, 5, 2);
-    r.rect(P.shine, hx + 1, hy, 2, 3);
-    r.ellipse(P.steel, hx - hs / 2 + 4, hy + 2, 3, 3);
+    // ear unit (side bolt) behind the shell
+    r.ellipse(P.gunD, hx - hrx + 3, hy + 2, 6, 7);
+    // shell: light dome over a darker jaw
+    r.ellipse(P.armor, hx, hy, hrx, hry);
+    r.inlay(P.armor, P.dark, (s) => {
+      for (let y = Math.round(hy + hry * 0.45); y <= hy + hry + 1; y++) for (let x = Math.round(hx - hrx - 1); x <= hx + hrx + 1; x++) s(x, y);
+    });
+    r.ellipse(P.light, hx - 7, hy - hry + 6, 7, 3);
+    r.rect(P.seam, hx - hrx + 2, Math.round(hy + hry * 0.45) - 1, hrx * 2 - 4, 1);
+    // ear bolt face
+    r.ellipse(P.steelD, hx - hrx + 4, hy + 2, 4, 4.5);
+    r.ellipse(P.steel, hx - hrx + 3.5, hy + 1.5, 2.6, 3);
+    r.rect(P.deep, hx - hrx + 3, hy + 1, 1, 2);
+    // visor: a dark glass band wrapping the front of the dome, framed in steel
+    const vx = hx + 6;
+    const vy = hy + 1;
+    r.ellipse(P.steelD, vx, vy, 14.5, 9.5);
+    r.ellipse(P.visor, vx + 0.5, vy, 13, 8);
+    r.inlay(P.visor, P.visorL, (s) => {
+      for (let i = 0; i < 5; i++) s(vx - 9 + i, vy - 5 - i * 0.2);
+      s(vx - 10, vy - 4);
+      s(vx - 10, vy - 3);
+    });
+    // eyes: the near one bigger (three-quarter view); squint every few frames
+    // hurt / braking (leaning back): squeezed shut; attacking (an aimed swing): a determined frown; else an occasional blink
+    const strain = k.pose.lean <= -5;
+    const sq = strain ? 0.3 : ph % 6 === 5 ? 0.35 : 1;
+    eye(r, P, vx + 7, vy, 3.2, 4.4 * sq);
+    eye(r, P, vx - 3, vy, 2.6, 3.8 * sq);
+    if (strain) {
+      // > < chevrons
+      r.seg(P.accent, vx + 5, vy - 3, vx + 9, vy, 1.6, 1.6);
+      r.seg(P.accent, vx + 9, vy, vx + 5, vy + 3, 1.6, 1.6);
+      r.seg(P.accent, vx - 1, vy - 3, vx - 5, vy, 1.6, 1.6);
+      r.seg(P.accent, vx - 5, vy, vx - 1, vy + 3, 1.6, 1.6);
+    } else if (k.pose.aim !== undefined) {
+      // inner corners cut: a \ / scowl
+      r.seg(P.visor, vx + 2, vy - 2.6, vx + 11, vy - 6.2, 2.4, 2.4);
+      r.seg(P.visor, vx - 7, vy - 6, vx + 1, vy - 2.4, 2.2, 2.2);
+    }
+    // chin grille
+    for (let i = 0; i < 3; i++) r.rect(P.seam, hx + 8 + i * 3, hy + hry - 4, 1, 3);
     if (o === 1) {
-      // a monocle: a brass ring round the lens on a little chain, and a tall top hat with a gear on the band
-      ring(brass, hx + 7, hy + 2, hs / 3 + 2, hs / 3 + 1, 0, Math.PI * 2, 1.6);
-      r.seg(brassD, hx + 7 - hs / 3, hy + 6, hx - 2, hy + hs / 2 + 2, 1, 1);
+      // monocle on the near eye, on a little chain; tall top hat with a gear on the band
+      ring(brass, vx + 7, vy, 6, 6.5, 0, Math.PI * 2, 1.6);
+      r.seg(brassD, vx + 3, vy + 6, hx - 3, hy + hry + 2, 1, 1);
       const tx = hx - 1;
-      const ty = hy - hs / 2 + 3;
-      r.ellipse(silk, tx, ty, hs / 2 + 2, 3.5); // brim
+      const ty = hy - hry + 3;
+      r.ellipse(silk, tx, ty, hrx + 2, 3.5); // brim
       r.rect(silk, tx - hs / 3, ty - 22, (hs / 3) * 2, 22);
       r.rect(silkL, tx - hs / 3 + 2, ty - 21, 3, 18);
       r.ellipse(silk, tx, ty - 22, hs / 3, 2.5);
@@ -187,16 +251,16 @@ export function drawGizmo(r: Raster, k: Skel, look: PlaceholderLook): void {
       r.ellipse(P.deep, tx + hs / 3 - 2, ty - 5, 1.2, 1.2);
     } else {
       // the blinking antenna
-      r.seg(P.steelD, hx, hy - hs / 2 + 1, hx + 1, hy - hs / 2 - 10, 3, 3);
-      r.ellipse(blink ? P.glow : P.accent, hx + 1, hy - hs / 2 - 11, 4, 4);
+      r.seg(P.gun, hx - 2, hy - hry + 1, hx - 3, hy - hry - 9, 2.4, 2);
+      r.ellipse(blinkOn(ph) ? P.glow : P.accent, hx - 3, hy - hry - 10, 3.4, 3.4);
     }
     if (o === 2) {
-      // a glass fishbowl over the whole head: a collar ring, a thin rim and two highlight arcs
-      const R = hs / 2 + 9;
-      r.ellipse(P.steelD, hx, hy + hs / 2, R - 4, 4);
-      r.rect(P.stripe, hx - R + 6, hy + hs / 2 - 1, (R - 6) * 2, 1);
-      ring(P.shine, hx, hy - 3, R - 3, R - 3, Math.PI * 1.1, Math.PI * 1.45, 1.4);
-      ring(P.shine, hx, hy - 3, R - 3, R - 3, Math.PI * 1.55, Math.PI * 1.62, 1.4);
+      // the fishbowl over the whole head: a collar ring, and highlight arcs on the glass
+      const RR = hrx + 8;
+      r.ellipse(P.steelD, hx, hy + hry + 2, RR - 6, 3.5);
+      r.rect(P.stripe, hx - RR + 8, hy + hry + 1, (RR - 8) * 2, 1);
+      ring(P.shine, hx, hy - 2, RR - 3, RR - 4, Math.PI * 1.1, Math.PI * 1.45, 1.4);
+      ring(P.shine, hx, hy - 2, RR - 3, RR - 4, Math.PI * 1.55, Math.PI * 1.62, 1.4);
     }
   }
 
@@ -204,60 +268,121 @@ export function drawGizmo(r: Raster, k: Skel, look: PlaceholderLook): void {
   {
     const [sx, sy] = k.shF;
     const el = k.elbowF;
-    r.ellipse(P.dark, sx, sy, 8, 8); // shoulder joint
-    r.seg(P.armor, sx, sy, el[0], el[1], 10, 9);
-    r.ellipse(P.steelD, el[0], el[1], 5.5, 5.5);
-    r.seg(P.armor, el[0], el[1], k.handF[0], k.handF[1], 9, 9);
-    r.rect(P.stripe, sx - 6, sy + 5, 12, 2);
-    // wrench: handle + open jaw
-    let dx = k.handF[0] - el[0];
-    let dy = k.handF[1] - el[1];
+    const [hX, hY] = k.handF;
+    r.seg(P.gun, sx, sy, el[0], el[1], 6, 6); // piston upper arm
+    r.seg(P.armor, el[0], el[1], hX, hY, 9, 10); // armoured forearm
+    r.seg(P.light, el[0], el[1], el[0] + (hX - el[0]) * 0.5, el[1] + (hY - el[1]) * 0.5, 3, 3);
+    r.ellipse(P.gunD, el[0], el[1], 4.5, 4.5);
+    r.ellipse(P.gun, el[0] - 0.5, el[1] - 0.5, 2.6, 2.6);
+    // shoulder pauldron
+    r.ellipse(P.dark, sx, sy + 1, 8, 7.5);
+    r.ellipse(P.armor, sx - 0.5, sy, 7, 6.5);
+    r.rect(P.stripe, sx - 6, sy + 3, 12, 2);
+    // wrench direction: the forearm's, or the move's explicit aim
+    let dx = hX - el[0];
+    let dy = hY - el[1];
     const ln = Math.hypot(dx, dy) || 1;
     dx /= ln;
     dy /= ln;
     if (k.pose.aim !== undefined) {
-      // the move swings the wrench explicitly (degrees: 0 forward, -90 up, 90 down)
-      const a = (k.pose.aim * Math.PI) / 180;
+      const a = (k.pose.aim * Math.PI) / 180; // degrees: 0 forward, -90 up, 90 down
       dx = Math.cos(a);
       dy = Math.sin(a);
     } else if (dy > 0.8) {
       dx = 0.5;
       dy = 0.85;
     }
-    // an oversized monkey wrench: knurled handle, adjuster ring and an open jaw
-    const wl = dy > 0.3 ? Math.max(14, Math.min(32, (k.base - 12 - k.handF[1]) / dy)) : 32; // never through the floor
-    const tx = k.handF[0] + dx * wl;
-    const ty = k.handF[1] + dy * wl;
-    r.seg(P.steelD, k.handF[0] - dx * 6, k.handF[1] - dy * 6, tx, ty, 7, 7);
-    r.seg(P.shine, k.handF[0] + 1, k.handF[1], tx + 1, ty, 1.5, 1.5);
-    r.ellipse(P.accent, k.handF[0] + dx * 20, k.handF[1] + dy * 20, 3.6, 3.6);
-    r.ellipse(P.steel, tx, ty, 11, 11);
+    // length: never through the floor, never past the frame edges (the head is ~12px round)
+    let wl = 30;
+    const m = 17;
+    const floor = k.base - 14;
+    if (dy > 0.05 && hY + dy * 22 > floor) {
+      // a low hand: tip the wrench forward so the head rests above the floor instead of sinking through it
+      dy = Math.max(-0.4, (floor - hY) / 22);
+      dx = Math.sqrt(Math.max(0, 1 - dy * dy)) * (dx < 0 ? -1 : 1);
+    }
+    if (dy > 0.05) wl = Math.min(wl, (floor - hY) / dy);
+    if (dy < -0.05) wl = Math.min(wl, (hY - m) / -dy);
+    if (dx > 0.05) wl = Math.min(wl, (k.W - m - hX) / dx);
+    if (dx < -0.05) wl = Math.min(wl, (hX - m) / -dx);
+    wl = Math.max(6, wl);
+    const tx = hX + dx * wl;
+    const ty = hY + dy * wl;
     const nx = -dy;
     const ny = dx;
-    r.poly(P.deep, [[tx + nx * 5 + dx * 2, ty + ny * 5 + dy * 2], [tx + nx * 5 + dx * 13, ty + ny * 5 + dy * 13], [tx - nx * 5 + dx * 13, ty - ny * 5 + dy * 13], [tx - nx * 5 + dx * 2, ty - ny * 5 + dy * 2]]);
-    r.ellipse(P.rivet, tx - dx * 4 + nx * 5, ty - dy * 4 + ny * 5, 1.5, 1.5);
-    r.ellipse(P.steel, k.handF[0], k.handF[1], 6, 6);
-    r.ellipse(P.accent, k.handF[0], k.handF[1], 2, 2);
+    // monkey wrench: dark handle with a bright edge, an adjuster screw, and a lopsided open jaw (long hook + short jaw)
+    r.seg(P.steelD, hX - dx * 6, hY - dy * 6, tx, ty, 6, 6.5);
+    r.seg(P.steel, hX + nx * 1.5, hY + ny * 1.5, tx - dx * 6 + nx * 1.5, ty - dy * 6 + ny * 1.5, 1.6, 1.6);
+    r.ellipse(P.steelD, hX - dx * 7, hY - dy * 7, 3.4, 3.4);
+    r.ellipse(P.accent, hX + dx * wl * 0.55, hY + dy * wl * 0.55, 2.6, 2.6); // adjuster ring
+    r.ellipse(P.steelD, tx, ty, 7, 7);
+    r.seg(P.steel, tx + nx * 4, ty + ny * 4, tx + nx * 6 + dx * 9, ty + ny * 6 + dy * 9, 6, 4.5); // long hook
+    r.seg(P.steel, tx - nx * 4, ty - ny * 4, tx - nx * 4.5 + dx * 5, ty - ny * 4.5 + dy * 5, 5.5, 4.5); // short jaw
+    r.seg(P.gunD, tx - dx * 4 - nx * 2, ty - dy * 4 - ny * 2, tx - dx * 4 + nx * 2, ty - dy * 4 + ny * 2, 2.4, 2.4); // worm screw
+    r.ellipse(P.rivet, tx + nx * 4 - dx * 1, ty + ny * 4 - dy * 1, 1.2, 1.2);
+    // gripping hand: a steel cuff and knuckle block over the handle
+    r.ellipse(P.gunD, hX, hY, 5.5, 5.5);
+    r.ellipse(P.steel, hX - 0.5, hY - 0.5, 4, 4);
+    r.rect(P.stripe, hX - 3, hY - 1, 6, 1);
   }
 }
 
-type Parts = Record<'armor' | 'light' | 'dark' | 'deep' | 'steel' | 'steelD' | 'glass' | 'glassL' | 'accent' | 'glow' | 'stripe' | 'seam' | 'rivet' | 'shine' | 'cable' | 'box', number>;
+type Parts = Record<
+  'armor' | 'light' | 'dark' | 'deep' | 'steel' | 'steelD' | 'gun' | 'gunD' | 'visor' | 'visorL' | 'accent' | 'glow' | 'stripe' | 'seam' | 'rivet' | 'shine' | 'box' | 'tread',
+  number
+>;
 
-function claw(r: Raster, P: Parts, h: V2): void {
-  r.rect(P.steel, h[0] - 5, h[1] - 4, 10, 8);
-  r.rect(P.stripe, h[0] - 5, h[1] - 4, 10, 2);
-  for (const dx of [-4, 0, 4]) r.seg(P.steel, h[0] + dx, h[1] + 3, h[0] + dx + Math.sign(dx), h[1] + 11, 2.4, 1.5);
+const blinkOn = (ph: number): boolean => ph % 2 === 0;
+
+function eye(r: Raster, P: Parts, x: number, y: number, rx: number, ry: number): void {
+  r.ellipse(P.accent, x, y, rx, Math.max(1, ry));
+  if (ry > 2) r.ellipse(P.glow, x - 0.6, y - ry * 0.3, rx * 0.5, ry * 0.45);
 }
 
-function leg(r: Raster, P: Parts, hip: V2, kn: V2, ankle: V2, back: boolean): void {
-  r.seg(back ? P.deep : P.dark, hip[0], hip[1], kn[0], kn[1], 11, 10);
-  r.seg(back ? P.deep : P.armor, kn[0], kn[1], ankle[0], ankle[1], 10, 9);
-  r.ellipse(P.steelD, kn[0], kn[1], 6, 6); // ball joint
-  // big flat foot
-  r.ellipse(back ? P.deep : P.deep, ankle[0] + 3, ankle[1] + 4, 17, 7);
-  r.ellipse(back ? P.dark : P.armor, ankle[0] + 3, ankle[1] + 3, 15, 5.5);
-  if (!back) {
-    r.ellipse(P.light, ankle[0], ankle[1], 6, 2);
-    r.rect(P.stripe, ankle[0] - 11, ankle[1] + 6, 28, 1);
+/** A pincer claw at the hand, opening along the forearm direction. */
+function claw(r: Raster, P: Parts, h: V2, el: V2, back: boolean): void {
+  let dx = h[0] - el[0];
+  let dy = h[1] - el[1];
+  const ln = Math.hypot(dx, dy) || 1;
+  dx /= ln;
+  dy /= ln;
+  const nx = -dy;
+  const ny = dx;
+  // keep the pincer tips (about 12px out along the forearm, 6px wide) inside the frame
+  const reach = (c: number, d: number, lim: number): number => Math.max(Math.max(6, 6 - d * 13), Math.min(Math.min(lim - 6, lim - 6 - d * 13), c));
+  const x = reach(h[0], dx, r.w);
+  const y = reach(h[1], dy, r.h - 3);
+  r.ellipse(back ? P.gunD : P.gun, x, y, 5, 5);
+  r.ellipse(P.steelD, x + dx * 2, y + dy * 2, 3.6, 3.6);
+  for (const s of [1, -1]) {
+    const bx = x + dx * 3 + nx * s * 3;
+    const by = y + dy * 3 + ny * s * 3;
+    const mx = bx + dx * 5 + nx * s * 3;
+    const my = by + dy * 5 + ny * s * 3;
+    r.seg(P.steel, bx, by, mx, my, 3, 2.6);
+    r.seg(P.steel, mx, my, mx + dx * 4 - nx * s * 2, my + dy * 4 - ny * s * 2, 2.6, 1.6);
   }
+  r.ellipse(P.accent, x + dx * 2, y + dy * 2, 1.2, 1.2);
+}
+
+/** Short piston leg on a chunky treaded boot. */
+function leg(r: Raster, P: Parts, hip0: V2, kn0: V2, ankle0: V2, back: boolean): void {
+  // keep the joints above the floor row and the boot inside the frame sides
+  const fit = (q: V2): V2 => [Math.max(11, Math.min(r.w - 14, q[0])), Math.min(r.h - 9, q[1])];
+  const hip = fit(hip0);
+  const kn = fit(kn0);
+  const ankle = fit(ankle0);
+  r.ellipse(back ? P.gunD : P.gun, hip[0], hip[1], 5, 5); // hip ball
+  r.seg(back ? P.gunD : P.gun, hip[0], hip[1], kn[0], kn[1], 6, 6); // thigh piston
+  r.seg(back ? P.deep : P.dark, kn[0], kn[1], ankle[0], ankle[1], 9, 8); // shin guard
+  r.seg(back ? P.dark : P.armor, kn[0], kn[1], ankle[0], ankle[1], 7, 6);
+  r.ellipse(back ? P.dark : P.light, kn[0], kn[1], 4, 4); // knee cap
+  // boot: armoured upper, dark rubber tread with notches
+  const [ax, ay] = ankle;
+  const by = Math.min(ay, r.h - 11);
+  r.poly(back ? P.dark : P.armor, [[ax - 7, by - 2], [ax + 4, by - 3], [ax + 10, by + 2], [ax + 11, by + 5], [ax - 8, by + 5]]);
+  if (!back) r.rect(P.light, ax - 5, by - 2, 8, 2);
+  r.rect(P.tread, ax - 9, by + 5, 22, 4);
+  for (let i = 0; i < 5; i++) r.rect(back ? P.gunD : P.gun, ax - 7 + i * 4, by + 6, 2, 2);
+  r.rect(P.stripe, ax - 8, by + 4, 19, 1);
 }
