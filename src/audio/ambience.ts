@@ -19,16 +19,22 @@ type Event = 'thunder' | 'bird' | 'gull' | 'creak' | 'hiss' | 'chime' | 'drip';
 interface Scape {
   beds: Bed[];
   events: { kind: Event; every: number }[];
+  /** Level trim (dB), measured so every stage's ambience sits at about the same loudness under the music. */
+  level?: number;
 }
 
+/** Ambience loudness (integrated LUFS at full volume) the trims aim for: about 12 dB under the music. */
+export const AMBIENCE_TARGET = -40;
+
 /** Per-backdrop ambience; quiet enough to sit under the music and the fight. */
-const SCAPES: Record<string, Scape> = {
+export const SCAPES: Record<string, Scape> = {
   storm: {
     beds: [
-      { filter: 'highpass', freq: 3200, gain: 0.05 }, // rain
+      { filter: 'highpass', freq: 3200, gain: 0.009 }, // rain (bright noise reads loud: kept low)
       { filter: 'lowpass', freq: 220, gain: 0.05, swell: { period: 7, depth: 0.6 } }, // wind
     ],
     events: [{ kind: 'thunder', every: 9 }],
+    level: 0,
   },
   tide: {
     beds: [
@@ -39,6 +45,7 @@ const SCAPES: Record<string, Scape> = {
       { kind: 'gull', every: 11 },
       { kind: 'creak', every: 8 },
     ],
+    level: -0.3,
   },
   reactor: {
     beds: [
@@ -46,18 +53,22 @@ const SCAPES: Record<string, Scape> = {
       { filter: 'bandpass', freq: 900, q: 0.8, gain: 0.02, swell: { period: 4, depth: 0.5 } },
     ],
     events: [{ kind: 'hiss', every: 7 }],
+    level: -7.5,
   },
   temple: {
     beds: [{ filter: 'bandpass', freq: 700, q: 0.5, gain: 0.025, swell: { period: 9, depth: 0.5 } }],
     events: [{ kind: 'bird', every: 4 }],
+    level: 5.3,
   },
   dawn: {
     beds: [{ filter: 'lowpass', freq: 420, gain: 0.05, swell: { period: 8, depth: 0.7 } }], // high-altitude wind
     events: [{ kind: 'bird', every: 7 }],
+    level: 7.1,
   },
   void: {
     beds: [{ filter: 'lowpass', freq: 120, gain: 0.03, drone: { type: 'sine', hz: 41 } }],
     events: [{ kind: 'chime', every: 10 }],
+    level: -4.0,
   },
   frost: {
     beds: [
@@ -65,6 +76,7 @@ const SCAPES: Record<string, Scape> = {
       { filter: 'lowpass', freq: 200, gain: 0.025, swell: { period: 13, depth: 0.5 } },
     ],
     events: [{ kind: 'chime', every: 6 }],
+    level: 2.8,
   },
   airship: {
     beds: [
@@ -75,6 +87,7 @@ const SCAPES: Record<string, Scape> = {
       { kind: 'creak', every: 7 },
       { kind: 'thunder', every: 12 },
     ],
+    level: -1.7,
   },
   cavern: {
     beds: [
@@ -85,10 +98,12 @@ const SCAPES: Record<string, Scape> = {
       { kind: 'drip', every: 1.6 },
       { kind: 'chime', every: 8 },
     ],
+    level: 7.2,
   },
   skyline: {
     beds: [{ filter: 'lowpass', freq: 300, gain: 0.03, swell: { period: 10, depth: 0.6 } }],
     events: [],
+    level: 8,
   },
 };
 
@@ -120,6 +135,8 @@ export class Ambience {
   start(theme: string | undefined): void {
     this.stop();
     this.theme = theme ?? 'skyline';
+    // the effects ring in the stage's room (a cavern echoes, an open sky barely does)
+    sfx.setSpace(this.theme);
   }
 
   /** Fade the beds out (a hard stop of a running noise loop clicks) and free them. */
@@ -130,6 +147,7 @@ export class Ambience {
     this.live = [];
     this.out = null;
     this.outCtx = null;
+    if (this.theme) sfx.setSpace('default');
     this.theme = '';
     this.lastUpdate = -1;
     this.lastTarget = -1;
@@ -170,7 +188,7 @@ export class Ambience {
     const t = ctx.currentTime;
     if (t - this.lastUpdate < UPDATE_EVERY) return;
     this.lastUpdate = t;
-    const target = settings.ambience ? sfx.syncVolume() * this.level : 0;
+    const target = settings.ambience ? sfx.syncVolume() * this.level * Math.pow(10, (scape.level ?? 0) / 20) : 0;
     if (target !== this.lastTarget) {
       out.gain.setTargetAtTime(target, t, 0.2);
       this.lastTarget = target;
@@ -219,8 +237,8 @@ export class Ambience {
       // beds without a swell sit at a fixed level; the master `out` gain does the fade-in
       g.gain.value = bed.swell ? 0 : bed.gain;
       src.connect(f).connect(g).connect(this.out);
-      if (src instanceof AudioBufferSourceNode) src.start(ctx.currentTime, Math.random() * noise.duration);
-      else src.start(ctx.currentTime);
+      if (bed.drone) src.start(ctx.currentTime);
+      else (src as AudioBufferSourceNode).start(ctx.currentTime, Math.random() * noise.duration);
       this.live.push({ gain: g, bed, src, nodes: [src, f, g] });
     }
     return true;

@@ -1,7 +1,14 @@
 /**
- * Chiptune tracks as pure data. Each track is four bars of sixteenth-notes; `stepEvents` turns a step number into
- * the notes to play, so the music is testable without any audio. Melody cells are semitones above the bar's chord
- * root ('.' = rest, '-' = hold the previous note).
+ * Chiptune tracks as pure data. Each track writes a four-bar phrase in sixteenth-notes; `stepEvents` arranges it into a
+ * sixteen-bar song and turns a step number into the notes to play, so the music is testable without any audio. Melody
+ * cells are semitones above the bar's chord root ('.' = rest, '-' = hold the previous note).
+ *
+ * The arrangement (the same form for every track, so each stage only has to write its phrase):
+ *   A  (bars 1-4)   the phrase as written, a short snare pickup into the next section;
+ *   A+ (bars 5-8)   more energy: eighth-note hats and a quiet octave double on the lead, a fill at the end;
+ *   B  (bars 9-12)  a breakdown and build on the phrase's second half: half-time drums, a sustained pad and no lead,
+ *                   then the lead comes back over a snare roll;
+ *   A' (bars 13-16) the full return: crash, pad, doubled lead, a big fill into the loop (which opens with a crash).
  */
 export interface Track {
   id: string;
@@ -31,19 +38,28 @@ export interface TrackSound {
   echo?: number;
   /** Cents of detune between two lead oscillators (a thicker, chorused lead). */
   detune?: number;
+  /** Wave of the sustained chord pad in the breakdown and the return (default triangle). */
+  pad?: OscillatorType;
+  /** Level trim (dB), measured so every track plays at the same loudness (tests/audioLevels.test.ts). */
+  level?: number;
 }
 
-export type MusicVoice = 'lead' | 'bass' | 'arp' | 'kick' | 'snare' | 'hat';
+export type MusicVoice = 'lead' | 'bass' | 'arp' | 'kick' | 'snare' | 'hat' | 'crash' | 'pad';
 export interface MusicEvent {
   voice: MusicVoice;
   midi: number;
   /** Length in sixteenth-notes. */
   steps: number;
+  /** Relative loudness (default 1): doubled leads, the pad in the return and snare rolls play softer. */
+  vel?: number;
 }
 
 export const STEPS_PER_BAR = 16;
+/** Bars in a track's written phrase. */
 export const BARS = 4;
-export const LOOP_STEPS = STEPS_PER_BAR * BARS;
+/** Sections in the arranged song (A, A+, B, A'). */
+export const SECTIONS = 4;
+export const LOOP_STEPS = STEPS_PER_BAR * BARS * SECTIONS;
 
 export const TRACKS: Record<string, Track> = {
   menu: {
@@ -55,7 +71,7 @@ export const TRACKS: Record<string, Track> = {
     arp: '0.1.2.3.2.1.0.1.',
     lead: ['7...12...11.7.4...', '4...7...9.7.3...', '5...9...12.9.5...', '7...11.12.14.......'],
     drums: 'k.......k.......',
-    sound: { echo: 0.25, tone: 5500 },
+    sound: { echo: 0.25, tone: 5500, level: -2 },
   },
   boss: {
     id: 'boss',
@@ -66,7 +82,7 @@ export const TRACKS: Record<string, Track> = {
     arp: '0.2.3.2.0.2.3.2.',
     lead: ['0.0.3.0.5.0.7.5.', '0.0.3.0.5.7.10.7.', '3.3.5.3.7.3.10.7.', '5.5.7.5.10.7.12.10.'],
     drums: 'khksk.hskhksk.sk',
-    sound: { lead: 'sawtooth', detune: 12, tone: 6000, bass: 'sawtooth' },
+    sound: { lead: 'sawtooth', detune: 12, tone: 6000, bass: 'sawtooth', level: -3.6 },
   },
   ring: {
     id: 'ring',
@@ -77,7 +93,7 @@ export const TRACKS: Record<string, Track> = {
     arp: '0.2.3.2.0.2.3.2.',
     lead: ['0..3..5..7..5..3', '0..4..7..9..7..4', '0..4..7..4..0...', '2..5..7..5..2...'],
     drums: 'k.h.s.h.k.h.s.hh',
-    sound: { tone: 6500 },
+    sound: { tone: 6500, level: -2.6 },
   },
   classic: {
     id: 'classic',
@@ -88,7 +104,7 @@ export const TRACKS: Record<string, Track> = {
     arp: '0.1.2.1.0.1.2.3.',
     lead: ['7.7.12.11.7...4...', '4.4.7.9.7...4...', '5.5.9.12.9.5.2.0.', '7.7.11.12.14.12.11.7.'],
     drums: 'k.hhs.hhk.hhs.hk',
-    sound: { tone: 7000 },
+    sound: { tone: 7000, level: -3.2 },
   },
   storm: {
     id: 'storm',
@@ -99,7 +115,7 @@ export const TRACKS: Record<string, Track> = {
     arp: '0.2.3.2.0.2.3.2.',
     lead: ['0.3.7.3.0.3.7.10.', '5.8.12.8.5.8.12.15.', '3.7.10.7.3.7.10.12.', '7.7.10.7.12.10.7.5.'],
     drums: 'k..hs.hhk.h.s.hk',
-    sound: { lead: 'sawtooth', detune: 8, tone: 5500 },
+    sound: { lead: 'sawtooth', detune: 8, tone: 5500, level: -2.6 },
   },
   dawn: {
     id: 'dawn',
@@ -110,7 +126,7 @@ export const TRACKS: Record<string, Track> = {
     arp: '0.1.2.3.2.1.0.1.',
     lead: ['4...7...12.9...7.', '7...11.9...7.4...', '9...12.11.9...7...', '7.9.11.12.14.12.11.9.'],
     drums: 'k...s...k...s.h.',
-    sound: { lead: 'triangle', echo: 0.3, tone: 6500 },
+    sound: { lead: 'triangle', echo: 0.3, tone: 6500, level: -1.8 },
   },
   temple: {
     id: 'temple',
@@ -121,7 +137,7 @@ export const TRACKS: Record<string, Track> = {
     arp: '0.2.3.2.0.2.3.2.',
     lead: ['12...10.7...5.7...', '7...10.12.15...12...', '5...7.10...7.5.3.', '7.5.3.0...3.5.7.'],
     drums: 'k..hk.s.k.hhk.s.',
-    sound: { lead: 'triangle', arp: 'triangle', echo: 0.35, tone: 5000 },
+    sound: { lead: 'triangle', arp: 'triangle', echo: 0.35, tone: 5000, level: -2.3 },
   },
   cove: {
     id: 'cove',
@@ -132,7 +148,7 @@ export const TRACKS: Record<string, Track> = {
     arp: '0..1..2.0..1..2.',
     lead: ['7.7.7..5.3.0.3.5', '12.12.12..10.7.3.7.10', '7.7.7..9.12.9.7.5', '7.4.0..4.7......'],
     drums: 'k..h..s.k..h..sh',
-    sound: { arp: 'triangle', tone: 6000 },
+    sound: { arp: 'triangle', tone: 6000, level: -2.1 },
   },
   hollow: {
     id: 'hollow',
@@ -143,7 +159,7 @@ export const TRACKS: Record<string, Track> = {
     arp: '0.2.3.2.0.2.3.2.',
     lead: ['12...10.7...3.5.7.', '10...7.5...2.3.5.', '7...3.2.0...2.3.', '7.5.4.0...4.7...'],
     drums: 'k...h.s.k.k.h.s.',
-    sound: { lead: 'triangle', arp: 'triangle', echo: 0.4, tone: 3500 },
+    sound: { lead: 'triangle', arp: 'triangle', echo: 0.4, tone: 3500, level: -1.4 },
   },
   frostfang: {
     id: 'frostfang',
@@ -154,7 +170,7 @@ export const TRACKS: Record<string, Track> = {
     arp: '0.1.2.3.2.1.0.2.',
     lead: ['12.10.7.5.7...3.5.', '7.5.3.0.3...5.7.', '10.7.5.7.10.12.....', '7.5.3.5.7.......'],
     drums: 'k...h...s...h.h.',
-    sound: { lead: 'triangle', arp: 'sine', echo: 0.35, tone: 8000 },
+    sound: { lead: 'triangle', arp: 'sine', echo: 0.35, tone: 8000, level: -1.8 },
   },
   stormrunner: {
     id: 'stormrunner',
@@ -165,7 +181,7 @@ export const TRACKS: Record<string, Track> = {
     arp: '0.2.3.2.0.2.3.2.',
     lead: ['7.7.12..119.7.4.7.', '7.9.12.9.7...4.7.', '12.12.14..1211.9.7...', '9.7.4.7.12.......'],
     drums: 'k.h.s.hkk.h.s.hs',
-    sound: { lead: 'sawtooth', detune: 10, tone: 7000 },
+    sound: { lead: 'sawtooth', detune: 10, tone: 7000, level: -2.7 },
   },
   reactor: {
     id: 'reactor',
@@ -176,36 +192,88 @@ export const TRACKS: Record<string, Track> = {
     arp: '0.2.0.2.3.2.0.2.',
     lead: ['0.3.0.5.0.7.5.3.', '0.4.0.7.0.9.7.4.', '3.5.3.7.3.10.7.5.', '7.7.0.0.12.10.7.5.'],
     drums: 'k.hks.hkk.hks.sk',
-    sound: { detune: 15, tone: 4500, bass: 'sawtooth' },
+    sound: { detune: 15, tone: 4500, bass: 'sawtooth', level: -3.9 },
   },
 };
 
 const triad = (minor: boolean): number[] => [0, minor ? 3 : 4, 7, 12];
 
+/** Section of the song a bar (0..15) belongs to: 0 A, 1 A+, 2 B, 3 A'. */
+export function sectionOf(step: number): number {
+  const s = ((step % LOOP_STEPS) + LOOP_STEPS) % LOOP_STEPS;
+  return Math.floor(s / (STEPS_PER_BAR * BARS));
+}
+
+/** Chord of a song bar: the B section dwells on the phrase's second half (bars 3-4 twice), which also sets up the return. */
+function chordOf(track: Track, songBar: number): { root: number; minor: boolean; phraseBar: number } {
+  const sec = Math.floor(songBar / BARS);
+  const pb = songBar % BARS;
+  const phraseBar = sec === 2 ? 2 + (pb % 2) : pb;
+  return { root: track.roots[phraseBar], minor: track.minor[phraseBar], phraseBar };
+}
+
 /** Notes that start on `step` (0-based, wraps every LOOP_STEPS). Allocation-light: returns a fresh small array. */
 export function stepEvents(track: Track, step: number): MusicEvent[] {
   const s = ((step % LOOP_STEPS) + LOOP_STEPS) % LOOP_STEPS;
-  const bar = Math.floor(s / STEPS_PER_BAR);
+  const songBar = Math.floor(s / STEPS_PER_BAR);
+  const sec = Math.floor(songBar / BARS);
+  const pb = songBar % BARS;
   const i = s % STEPS_PER_BAR;
-  const root = track.roots[bar];
+  const { root, minor, phraseBar } = chordOf(track, songBar);
+  const breakdown = sec === 2 && pb < 2;
   const out: MusicEvent[] = [];
 
-  const b = track.bass[i];
-  if (b && b !== '.') out.push({ voice: 'bass', midi: root - 12 + (b === '8' ? 12 : b === '5' ? 7 : 0), steps: 2 });
+  // bass: half-time roots through the breakdown, as written elsewhere
+  if (breakdown) {
+    if (i === 0 || i === 8) out.push({ voice: 'bass', midi: root - 12, steps: 8 });
+  } else {
+    const b = track.bass[i];
+    if (b && b !== '.') out.push({ voice: 'bass', midi: root - 12 + (b === '8' ? 12 : b === '5' ? 7 : 0), steps: 2 });
+  }
 
   const a = track.arp[i];
-  if (a && a !== '.') out.push({ voice: 'arp', midi: root + 12 + triad(track.minor[bar])[Number(a)], steps: 1 });
+  if (a && a !== '.') out.push({ voice: 'arp', midi: root + 12 + triad(minor)[Number(a)], steps: 1, vel: breakdown ? 0.8 : 1 });
 
-  // lead: parse the cell string into (note|rest|hold) tokens
-  const cells = leadCells(track.lead[bar]);
-  const c = cells[i];
-  if (c && c.kind === 'note') out.push({ voice: 'lead', midi: root + 12 + c.semis, steps: c.len });
+  // pad: a held chord through B and (softer) under the return
+  if (i === 0 && sec >= 2) {
+    const vel = sec === 2 ? 1 : 0.5;
+    for (const n of triad(minor).slice(0, 3)) out.push({ voice: 'pad', midi: root + n, steps: STEPS_PER_BAR, vel });
+  }
 
-  const d = track.drums[i];
+  // lead: silent in the breakdown, doubled an octave up (quietly) in A+ and the return
+  if (!breakdown) {
+    const cells = leadCells(track.lead[phraseBar]);
+    const c = cells[i];
+    if (c && c.kind === 'note') {
+      out.push({ voice: 'lead', midi: root + 12 + c.semis, steps: c.len });
+      if (sec === 1 || sec === 3) out.push({ voice: 'lead', midi: root + 24 + c.semis, steps: c.len, vel: 0.3 });
+    }
+  }
+
+  const d = drumCell(track, sec, pb, i);
   if (d === 'k') out.push({ voice: 'kick', midi: 0, steps: 1 });
   else if (d === 's') out.push({ voice: 'snare', midi: 0, steps: 1 });
+  else if (d === 'r') out.push({ voice: 'snare', midi: 0, steps: 1, vel: 0.35 + (0.65 * (i - 8)) / 7 });
   else if (d === 'h') out.push({ voice: 'hat', midi: 0, steps: 1 });
+  if (i === 0 && pb === 0 && (sec === 0 || sec === 3)) out.push({ voice: 'crash', midi: 0, steps: 8 });
   return out;
+}
+
+/**
+ * The drum cell for a bar of the song: the written pattern, with eighth-note hats added in the busier sections, half-time
+ * in the breakdown, a 16th snare roll ('r', rising) into the return, and fills closing each phrase.
+ */
+function drumCell(track: Track, sec: number, pb: number, i: number): string {
+  const w = track.drums[i] ?? '.';
+  if (sec === 2) {
+    if (pb < 2) return i === 0 ? 'k' : i === 8 ? 's' : i % 4 === 0 ? 'h' : '.';
+    if (pb === 3 && i >= 8) return i === 8 ? 'k' : 'r';
+  }
+  const last = pb === BARS - 1;
+  if (last && sec === 0 && i >= 14) return 's';
+  if (last && (sec === 1 || sec === 3) && i >= 12) return i === 12 ? 'k' : 's';
+  if ((sec === 1 || sec === 3) && w === '.' && i % 2 === 0) return 'h';
+  return w;
 }
 
 interface Cell {

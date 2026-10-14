@@ -5,6 +5,21 @@ import { LOOP_STEPS, TRACKS, midiToHz, stepEvents, type MusicEvent, type Track }
 const LOOKAHEAD = 0.14; // seconds scheduled ahead
 const TICK_MS = 30;
 const BASE_GAIN = 0.25;
+const dbToGain = (d: number): number => Math.pow(10, d / 20);
+/**
+ * Loudness every track's full song is trimmed to (integrated LUFS at full volume, dry). At the default sliders it sits
+ * about 3 dB under a medium hit and 10 dB under a heavy one, and the heavy moments duck it further (see sfx DUCK).
+ */
+export const MUSIC_TARGET = -27;
+/** Victory / defeat fanfares play alone on the results screen, so they sit a little higher. */
+export const FANFARE_TARGET = -25;
+/** Music level under the announcer's voice. */
+const SPEECH_DUCK = 0.5;
+
+/** Length of one pass of a track's arranged song, in seconds. */
+export function loopSeconds(t: Track): number {
+  return (60 / t.bpm / 4) * LOOP_STEPS;
+}
 
 /**
  * Looping chiptune player. A timer schedules sixteenth-notes slightly ahead of the audio clock (the standard
@@ -17,33 +32,35 @@ interface Fanfare {
   wave: OscillatorType;
   harmony: number;
   drums?: boolean;
+  /** Level trim (dB) so every fanfare lands at the same loudness (measured in tests/audioLevels.test.ts). */
+  level?: number;
 }
 
-const LOSE: Fanfare = { notes: [[69, 2], [68, 2], [67, 2], [66, 2], [65, 8]], step: 0.13, wave: 'square', harmony: 3 };
+const LOSE: Fanfare = { notes: [[69, 2], [68, 2], [67, 2], [66, 2], [65, 8]], step: 0.13, wave: 'square', harmony: 3, level: -1.4 };
 
 /** Every fighter's victory theme, in the spirit of their moveset. */
 export const FANFARES: Record<string, Fanfare> = {
-  default: { notes: [[72, 1], [76, 1], [79, 1], [84, 2], [79, 1], [84, 1], [88, 3], [86, 1], [88, 6]], step: 0.085, wave: 'square', harmony: 7, drums: true },
+  default: { notes: [[72, 1], [76, 1], [79, 1], [84, 2], [79, 1], [84, 1], [88, 3], [86, 1], [88, 6]], step: 0.085, wave: 'square', harmony: 7, drums: true, level: -2.6 },
   // a stomping march, low and square
-  brick: { notes: [[60, 2], [60, 1], [60, 1], [67, 2], [0, 1], [65, 1], [64, 2], [62, 2], [60, 6]], step: 0.11, wave: 'square', harmony: -5, drums: true },
+  brick: { notes: [[60, 2], [60, 1], [60, 1], [67, 2], [0, 1], [65, 1], [64, 2], [62, 2], [60, 6]], step: 0.11, wave: 'square', harmony: -5, drums: true, level: -0.4 },
   // a sly minor run that snaps up at the end
-  vex: { notes: [[69, 1], [72, 1], [76, 1], [75, 1], [76, 1], [0, 1], [81, 1], [84, 1], [88, 5]], step: 0.075, wave: 'sawtooth', harmony: 0 },
+  vex: { notes: [[69, 1], [72, 1], [76, 1], [75, 1], [76, 1], [0, 1], [81, 1], [84, 1], [88, 5]], step: 0.075, wave: 'sawtooth', harmony: 0, level: 0.1 },
   // sparkling arpeggios rising through the octaves
-  nova: { notes: [[72, 1], [76, 1], [79, 1], [83, 1], [84, 1], [88, 1], [91, 1], [95, 1], [96, 6]], step: 0.08, wave: 'triangle', harmony: 12 },
+  nova: { notes: [[72, 1], [76, 1], [79, 1], [83, 1], [84, 1], [88, 1], [91, 1], [95, 1], [96, 6]], step: 0.08, wave: 'triangle', harmony: 12, level: -2.7 },
   // bleeps and a cheeky beep-boop
-  gizmo: { notes: [[84, 1], [0, 1], [84, 1], [79, 1], [88, 1], [0, 1], [91, 1], [72, 1], [96, 2], [91, 4]], step: 0.07, wave: 'square', harmony: 0 },
+  gizmo: { notes: [[84, 1], [0, 1], [84, 1], [79, 1], [88, 1], [0, 1], [91, 1], [72, 1], [96, 2], [91, 4]], step: 0.07, wave: 'square', harmony: 0, level: -1.3 },
   // a blazing horn call with drums
-  agni: { notes: [[62, 1], [62, 1], [69, 2], [67, 1], [69, 1], [74, 2], [72, 1], [74, 1], [78, 6]], step: 0.09, wave: 'sawtooth', harmony: 7, drums: true },
+  agni: { notes: [[62, 1], [62, 1], [69, 2], [67, 1], [69, 1], [74, 2], [72, 1], [74, 1], [78, 6]], step: 0.09, wave: 'sawtooth', harmony: 7, drums: true, level: -0.5 },
   // wide soaring leaps
-  halcyon: { notes: [[67, 2], [74, 2], [79, 3], [78, 1], [79, 2], [86, 2], [91, 6]], step: 0.09, wave: 'triangle', harmony: 7 },
+  halcyon: { notes: [[67, 2], [74, 2], [79, 3], [78, 1], [79, 2], [86, 2], [91, 6]], step: 0.09, wave: 'triangle', harmony: 7, level: -1 },
   // a slow, booming march down in the bedrock, ending on a ringing crystal chord
-  obelisk: { notes: [[48, 3], [0, 1], [48, 2], [51, 2], [55, 3], [0, 1], [53, 2], [60, 6]], step: 0.1, wave: 'square', harmony: 7, drums: true },
+  obelisk: { notes: [[48, 3], [0, 1], [48, 2], [51, 2], [55, 3], [0, 1], [53, 2], [60, 6]], step: 0.1, wave: 'square', harmony: 7, drums: true, level: 0.8 },
   // falling snow: a quick pentatonic flurry that settles on a high, bell-like note
-  rime: { notes: [[81, 1], [79, 1], [76, 1], [74, 1], [76, 1], [0, 1], [79, 1], [81, 1], [86, 1], [88, 6]], step: 0.07, wave: 'triangle', harmony: 12 },
+  rime: { notes: [[81, 1], [79, 1], [76, 1], [74, 1], [76, 1], [0, 1], [79, 1], [81, 1], [86, 1], [88, 6]], step: 0.07, wave: 'triangle', harmony: 12, level: -1.1 },
   // a snare-led military cadence that ends on a bugle call
-  havoc: { notes: [[67, 1], [67, 1], [67, 1], [72, 3], [0, 1], [67, 1], [72, 1], [76, 2], [72, 1], [76, 1], [79, 6]], step: 0.08, wave: 'square', harmony: 7, drums: true },
+  havoc: { notes: [[67, 1], [67, 1], [67, 1], [72, 3], [0, 1], [67, 1], [72, 1], [76, 2], [72, 1], [76, 1], [79, 6]], step: 0.08, wave: 'square', harmony: 7, drums: true, level: -1.4 },
   // a rolling sea-shanty phrase
-  riptide: { notes: [[62, 1], [62, 1], [62, 1], [0, 1], [62, 1], [65, 1], [69, 2], [67, 1], [65, 1], [64, 1], [62, 5]], step: 0.09, wave: 'square', harmony: 4, drums: true },
+  riptide: { notes: [[62, 1], [62, 1], [62, 1], [0, 1], [62, 1], [65, 1], [69, 2], [67, 1], [65, 1], [64, 1], [62, 5]], step: 0.09, wave: 'square', harmony: 4, drums: true, level: -0.4 },
 };
 
 /** Rough loudness match between waveforms, so a triangle lead sits at the same level as a square one. */
@@ -83,7 +100,7 @@ export class Music {
     this.step = 0;
     this.nextTime = 0;
     this.holdUntil = 0;
-    if (this.timer === null && typeof window !== 'undefined') this.timer = window.setInterval(() => this.pump(), TICK_MS);
+    if (this.timer === null && typeof window !== 'undefined') this.timer = window.setInterval(() => this.tick(), TICK_MS);
   }
 
   stop(): void {
@@ -105,14 +122,16 @@ export class Music {
     this.level(bus);
     const f: Fanfare = kind === 'lose' ? LOSE : (who && FANFARES[who]) || FANFARES.default;
     let at = ctx.currentTime + 0.05;
-    const w = WAVE_GAIN[f.wave];
+    // the fanfare plays through the current track's bus: undo that track's level trim so every fanfare lands the same
+    const lv = dbToGain((f.level ?? 0) - (this.track?.sound?.level ?? 0));
+    const w = WAVE_GAIN[f.wave] * lv;
     for (const [m, len] of f.notes) {
       const d = f.step * len;
       if (m > 0) {
         this.osc(ctx, bus.filter, f.wave, midiToHz(m), at, d * 0.92, 0.5 * w);
         if (f.harmony) this.osc(ctx, bus.filter, f.wave, midiToHz(m + f.harmony), at, d * 0.92, 0.18 * w);
-        this.osc(ctx, bus.filter, 'triangle', midiToHz(m - 24), at, d * 0.95, 0.9);
-        if (f.drums && len >= 2) this.noise(ctx, bus.gain, at, 0.12, 0.4, 1200);
+        this.osc(ctx, bus.filter, 'triangle', midiToHz(m - 24), at, d * 0.95, 0.9 * lv);
+        if (f.drums && len >= 2) this.noise(ctx, bus.gain, at, 0.12, 0.4 * lv, 1200);
       }
       at += d;
     }
@@ -127,12 +146,13 @@ export class Music {
 
   /** Dip the music under the announcer's voice. */
   setSpeechDuck(on: boolean): void {
-    this.speech = on ? 0.6 : 1;
+    this.speech = on ? SPEECH_DUCK : 1;
     if (this.bus) this.level(this.bus);
   }
 
   private targetGain(): number {
-    return unit(settings.masterVolume) * unit(settings.musicVolume) * BASE_GAIN * this.duck * this.speech;
+    const trim = dbToGain(this.track?.sound?.level ?? 0);
+    return unit(settings.masterVolume) * unit(settings.musicVolume) * BASE_GAIN * trim * this.duck * this.speech;
   }
 
   /** Move the bus towards the current volume x duck; only reschedules when the target changes. */
@@ -197,7 +217,8 @@ export class Music {
     return this.bus;
   }
 
-  private pump(): void {
+  /** Schedule the notes due in the next lookahead window. Runs on a timer; tests and offline renders call it directly. */
+  tick(): void {
     const ctx = sfx.context;
     const t = this.track;
     if (!ctx || !t) return;
@@ -262,12 +283,36 @@ export class Music {
     src.stop(at + dur + 0.02);
   }
 
+  /** A held chord tone: a slow swell, a sustain and a soft release (two detuned oscillators for width). */
+  private padNote(ctx: BaseAudioContext, bus: AudioNode, type: OscillatorType, hz: number, at: number, dur: number, vol: number): void {
+    for (const det of [-7, 7]) {
+      const o = ctx.createOscillator();
+      const g = ctx.createGain();
+      o.type = type;
+      o.frequency.setValueAtTime(hz, at);
+      o.detune.setValueAtTime(det, at);
+      const rel = Math.min(0.25, dur * 0.3);
+      g.gain.setValueAtTime(0.0001, at);
+      g.gain.linearRampToValueAtTime(vol, at + Math.min(0.15, dur * 0.3));
+      g.gain.setValueAtTime(vol, at + dur - rel);
+      g.gain.exponentialRampToValueAtTime(0.0001, at + dur);
+      o.connect(g).connect(bus);
+      o.onended = () => {
+        o.disconnect();
+        g.disconnect();
+      };
+      o.start(at);
+      o.stop(at + dur + 0.02);
+    }
+  }
+
   private voice(ctx: BaseAudioContext, bus: Bus, t: Track, e: MusicEvent, at: number, stepDur: number): void {
     const look = t.sound ?? {};
+    const vel = e.vel ?? 1;
     switch (e.voice) {
       case 'lead': {
         const wave = look.lead ?? 'square';
-        const vol = 0.5 * WAVE_GAIN[wave];
+        const vol = 0.5 * WAVE_GAIN[wave] * vel;
         const dur = stepDur * e.steps * 0.9;
         if (look.detune) {
           // two slightly detuned oscillators: a fatter, chorused lead
@@ -278,12 +323,17 @@ export class Music {
       }
       case 'arp': {
         const wave = look.arp ?? 'square';
-        this.osc(ctx, bus.filter, wave, midiToHz(e.midi), at, stepDur * 0.7, 0.2 * WAVE_GAIN[wave]);
+        this.osc(ctx, bus.filter, wave, midiToHz(e.midi), at, stepDur * 0.7, 0.2 * WAVE_GAIN[wave] * vel);
         break;
       }
       case 'bass': {
         const wave = look.bass ?? 'triangle';
-        this.osc(ctx, bus.filter, wave, midiToHz(e.midi), at, stepDur * e.steps * 0.95, (0.9 * WAVE_GAIN[wave]) / WAVE_GAIN.triangle);
+        this.osc(ctx, bus.filter, wave, midiToHz(e.midi), at, stepDur * e.steps * 0.95, (0.9 * WAVE_GAIN[wave] * vel) / WAVE_GAIN.triangle);
+        break;
+      }
+      case 'pad': {
+        const wave = look.pad ?? 'triangle';
+        this.padNote(ctx, bus.filter, wave, midiToHz(e.midi), at, stepDur * e.steps, 0.07 * WAVE_GAIN[wave] * vel);
         break;
       }
       case 'kick': {
@@ -292,7 +342,7 @@ export class Music {
         o.frequency.setValueAtTime(150, at);
         o.frequency.exponentialRampToValueAtTime(40, at + 0.12);
         g.gain.setValueAtTime(0.0001, at);
-        g.gain.linearRampToValueAtTime(0.9, at + 0.002);
+        g.gain.linearRampToValueAtTime(0.9 * vel, at + 0.002);
         g.gain.exponentialRampToValueAtTime(0.0001, at + 0.15);
         o.connect(g).connect(bus.gain);
         o.onended = () => {
@@ -304,10 +354,15 @@ export class Music {
         break;
       }
       case 'snare':
-        this.noise(ctx, bus.gain, at, 0.12, 0.5, 1200);
+        // noise for the wires and a short pitched body for the drum
+        this.noise(ctx, bus.gain, at, 0.12, 0.45 * vel, 1200);
+        this.osc(ctx, bus.gain, 'triangle', 190, at, 0.07, 0.35 * vel);
         break;
       case 'hat':
-        this.noise(ctx, bus.gain, at, 0.04, 0.25, 7000);
+        this.noise(ctx, bus.gain, at, 0.04, 0.25 * vel, 7000);
+        break;
+      case 'crash':
+        this.noise(ctx, bus.gain, at, 1.1, 0.2 * vel, 4500);
         break;
     }
   }

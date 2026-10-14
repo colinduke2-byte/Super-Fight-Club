@@ -1,9 +1,15 @@
 import type { WorldEventType } from '../engine/world';
 
-export type SoundName =
-  | 'swing' | 'hit' | 'hitHeavy' | 'clang' | 'shield' | 'shieldBreak' | 'jump' | 'doubleJump' | 'land' | 'landBounce'
-  | 'bounce' | 'tech' | 'ledge' | 'dodge' | 'grab' | 'throw' | 'pummel' | 'ko' | 'shoot' | 'zap' | 'reflect' | 'place'
-  | 'parry' | 'boom' | 'break' | 'burn' | 'freeze' | 'slow' | 'stun' | 'splash' | 'blink' | 'hook' | 'charge' | 'ding' | 'menuMove' | 'menuOk' | 'menuBack';
+/** Every synthesised sound, in one list (the type is derived from it, and tests iterate it). */
+export const SOUND_NAMES = [
+  'swing', 'hit', 'hitHeavy', 'clang', 'shield', 'shieldBreak', 'jump', 'doubleJump', 'land', 'landBounce', 'bounce', 'tech',
+  'ledge', 'dodge', 'grab', 'throw', 'pummel', 'ko', 'shoot', 'zap', 'reflect', 'place', 'parry', 'boom', 'break', 'burn',
+  'freeze', 'slow', 'stun', 'splash', 'blink', 'hook', 'charge', 'ding', 'menuMove', 'menuOk', 'menuBack',
+  // layers and cues added for events that had none (or borrowed another sound)
+  'slice', 'gust', 'spawn', 'pickup', 'ready', 'ultimate', 'go',
+] as const;
+
+export type SoundName = (typeof SOUND_NAMES)[number];
 
 export interface SoundCue {
   name: SoundName;
@@ -95,17 +101,22 @@ export function soundFor(type: WorldEventType, mag: number, extra: number): Soun
     case 'tether':
       return { name: 'hook', intensity: 0.6 };
     case 'cinematicStart':
-      return { name: 'charge', intensity: 1 };
+      // an ultimate begins: its own riser, not the generic charge-up
+      return { name: 'ultimate', intensity: 1 };
     case 'cinematicHit':
       return { name: 'hitHeavy', intensity: mag > 0 ? 1 : 0.7 };
     case 'meterFull':
-      return { name: 'ding', intensity: 0.6 };
+      // ultimate ready: a rising sparkle, distinct from the countdown / clock ding
+      return { name: 'ready', intensity: 0.8 };
     case 'parry':
       return { name: 'parry', intensity: 0.9 };
     case 'burst':
       return { name: 'boom', intensity: 0.8 };
     case 'trump':
       return { name: 'ledge', intensity: 0.8 };
+    case 'itemSpawn':
+      // an item pops into the arena (the presenter plays nothing else for it)
+      return { name: 'spawn', intensity: 0.6 };
     case 'sdi':
       return null;
     default:
@@ -128,8 +139,16 @@ export function hitLayer(fx: string, mag: number, damage: number): SoundCue | nu
       return { name: 'freeze', intensity: intensity * 0.8 };
     case 'meteor':
     case 'blast':
+    case 'burst':
     case 'heavy':
       return damage >= 9 ? { name: 'boom', intensity: intensity * 0.7 } : null;
+    case 'slash':
+    case 'pierce':
+    case 'whip':
+      // a bright steel 'shing' on cutting and stabbing moves
+      return { name: 'slice', intensity: intensity * 0.8 };
+    case 'gust':
+      return { name: 'gust', intensity: intensity * 0.8 };
     case 'shock':
       return { name: 'bounce', intensity };
     case 'water':
