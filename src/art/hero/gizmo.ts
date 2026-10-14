@@ -102,9 +102,18 @@ export function drawGizmo(r: Raster, k0: Skel, look: PlaceholderLook): void {
       // a brass boiler with a chimney puffing steam
       r.ellipse(brassD, bx + 10, by + 15, 11, 16);
       r.ellipse(brass, bx + 9, by + 14, 9.5, 14.5);
-      for (let i = 0; i < 3; i++) r.rect(brassD, bx, by + 5 + i * 9, 19, 1);
-      r.ellipse(P.deep, bx + 8, by + 22, 4, 3);
-      r.ellipse(P.accent, bx + 8, by + 22, 2.6, 2);
+      // riveted hoops, a firebox door glowing at the bottom and a pressure gauge with a twitching needle
+      for (let i = 0; i < 2; i++) {
+        r.rect(brassD, bx, by + 7 + i * 10, 19, 2);
+        for (let j = 0; j < 4; j++) r.rect(P.rivet, bx + 2 + j * 5, by + 7 + i * 10, 1, 1);
+      }
+      r.ellipse(P.deep, bx + 8, by + 23, 4.5, 3.4);
+      r.ellipse(P.accent, bx + 8, by + 23.5, 3, 2);
+      r.ellipse(P.glow, bx + 8, by + 24, 1.6, 1);
+      r.ellipse(brassD, bx + 5, by + 12, 3.8, 3.8);
+      r.ellipse(P.shine, bx + 5, by + 12, 2.5, 2.5);
+      const nd = 0.6 + (ph % 3) * 0.5;
+      r.seg(P.deep, bx + 5, by + 12, bx + 5 + Math.cos(-nd - 1) * 2.2, by + 12 + Math.sin(-nd - 1) * 2.2, 1.2, 1.2);
       r.rect(silk, bx + 2, by - 14, 6, 16);
       r.rect(silkL, bx + 1, by - 16, 8, 3);
       const puff = ph % 4;
@@ -170,14 +179,27 @@ export function drawGizmo(r: Raster, k0: Skel, look: PlaceholderLook): void {
     r.inlay(P.armor, P.light, (s) => {
       for (let y = Math.round(top); y < top + 4; y++) for (let x = Math.round(L); x <= R + 3; x++) s(x, y);
     });
+    // the turned-away flank in shade: a lit top, a mid front face and a dark side make the chassis a box, not a slab
+    r.inlay(P.armor, P.dark, (s) => {
+      for (let y = Math.round(top + 4); y <= bot; y++) for (let x = Math.round(L - 2); x < L + 8 - Math.max(0, (y - top - 4) * 0.08); x++) s(x, y);
+    });
+    r.rect(P.seam, L + 8, top + 5, 1, bot - top - 13);
     r.rect(P.seam, L + 1, bot - 9, R - L - 2, 1);
     r.rect(P.seam, L + 1, top + 4, R - L, 1);
     // hazard stripes on the skirt
     r.inlay(P.dark, P.stripe, (s) => {
       for (let i = 0; i < 6; i++) for (let j = 0; j < 3; j++) s(L + 4 + i * 6 + j, bot - 4 - j);
     });
-    // side vents
-    for (let i = 0; i < 3; i++) r.rect(P.seam, L + 3, top + 8 + i * 3, 6, 1);
+    // side vents on the shaded flank (lit lips over dark slots, so they read as louvres)
+    for (let i = 0; i < 3; i++) {
+      r.rect(P.deep, L + 1, top + 8 + i * 3, 6, 1);
+      r.rect(P.steelD, L + 1, top + 7 + i * 3, 6, 1);
+    }
+    // a front access panel with corner screws
+    r.rect(P.seam, cx - 12, top + 8, 9, 1);
+    r.rect(P.seam, cx - 12, top + 8, 1, bot - top - 18);
+    r.rect(P.light, cx - 11, top + 9, 7, 1);
+    r.rect(P.rivet, cx - 11, bot - 12, 1, 1);
     // core hatch: steel ring, dark well, glowing core
     const hxc = cx + 6;
     const hyc = mid - 1;
@@ -317,20 +339,38 @@ export function drawGizmo(r: Raster, k0: Skel, look: PlaceholderLook): void {
     if (dx > 0.05) wl = Math.min(wl, (k.W - m - hX) / dx);
     if (dx < -0.05) wl = Math.min(wl, (hX - m) / -dx);
     wl = Math.max(6, wl);
-    const tx = hX + dx * wl;
-    const ty = hY + dy * wl;
     const nx = -dy;
     const ny = dx;
-    // monkey wrench: dark handle with a bright edge, an adjuster screw, and a lopsided open jaw (long hook + short jaw)
-    r.seg(P.steelD, hX - dx * 6, hY - dy * 6, tx, ty, 6, 6.5);
-    r.seg(P.steel, hX + nx * 1.5, hY + ny * 1.5, tx - dx * 6 + nx * 1.5, ty - dy * 6 + ny * 1.5, 1.6, 1.6);
-    r.ellipse(P.steelD, hX - dx * 7, hY - dy * 7, 3.4, 3.4);
-    r.ellipse(P.accent, hX + dx * wl * 0.55, hY + dy * wl * 0.55, 2.6, 2.6); // adjuster ring
-    r.ellipse(P.steelD, tx, ty, 7, 7);
-    r.seg(P.steel, tx + nx * 4, ty + ny * 4, tx + nx * 6 + dx * 9, ty + ny * 6 + dy * 9, 6, 4.5); // long hook
-    r.seg(P.steel, tx - nx * 4, ty - ny * 4, tx - nx * 4.5 + dx * 5, ty - ny * 4.5 + dy * 5, 5.5, 4.5); // short jaw
-    r.seg(P.gunD, tx - dx * 4 - nx * 2, ty - dy * 4 - ny * 2, tx - dx * 4 + nx * 2, ty - dy * 4 + ny * 2, 2.4, 2.4); // worm screw
-    r.ellipse(P.rivet, tx + nx * 4 - dx * 1, ty + ny * 4 - dy * 1, 1.2, 1.2);
+    // a big open-ended spanner: a dark-rimmed steel handle with a lit edge, a round head with the jaw
+    // notch cut clean through it (the notch is the read at game scale), and a glowing adjuster ring
+    const hd = Math.max(0, wl - 5); // the head's centre sits a little short of the tip so the jaws end at the old reach
+    const hcx = hX + dx * hd;
+    const hcy = hY + dy * hd;
+    r.seg(P.gunD, hX - dx * 7, hY - dy * 7, hcx, hcy, 7.5, 7.5);
+    r.seg(P.steelD, hX - dx * 6, hY - dy * 6, hcx, hcy, 5.5, 6);
+    r.seg(P.steel, hX - dx * 5 + nx * 1.2, hY - dy * 5 + ny * 1.2, hcx - dx * 6 + nx * 1.2, hcy - dy * 6 + ny * 1.2, 2, 2);
+    r.ellipse(P.gunD, hX - dx * 7, hY - dy * 7, 3.6, 3.6); // butt cap
+    r.ellipse(P.steelD, hX - dx * 7, hY - dy * 7, 2.2, 2.2);
+    r.ellipse(P.accent, hX + dx * hd * 0.5, hY + dy * hd * 0.5, 2.8, 2.8); // adjuster ring
+    r.ellipse(P.glow, hX + dx * hd * 0.5 - 0.6, hY + dy * hd * 0.5 - 0.6, 1, 1);
+    // head: a dark rim, the steel face, a glint (what lay under it is kept, so the notch shows the body or the air behind)
+    const under = r.id.slice();
+    const underC = r.over.slice();
+    r.ellipse(P.gunD, hcx, hcy, 8.6, 8.6);
+    r.ellipse(P.steelD, hcx, hcy, 7.4, 7.4);
+    r.ellipse(P.steel, hcx - 0.8, hcy - 0.8, 6, 6);
+    r.ellipse(P.shine, hcx - 3, hcy - 3, 1.4, 1.2);
+    // the jaw notch: a slot from just past the centre out through the tip, cut back to whatever was behind the head
+    for (let t = 0.5; t <= 10; t += 0.5)
+      for (let q = -2.6; q <= 2.6; q += 0.5) {
+        const px = Math.round(hcx + dx * t + nx * q);
+        const py = Math.round(hcy + dy * t + ny * q);
+        if (px < 0 || py < 0 || px >= r.w || py >= r.h) continue;
+        r.id[py * r.w + px] = under[py * r.w + px];
+        r.over[py * r.w + px] = underC[py * r.w + px];
+      }
+    r.seg(P.gunD, hcx + nx * 2.4, hcy + ny * 2.4, hcx - nx * 2.4, hcy - ny * 2.4, 1.6, 1.6); // the throat of the notch
+    r.ellipse(P.rivet, hcx - dx * 3.5 - nx * 3, hcy - dy * 3.5 - ny * 3, 0.9, 0.9);
     // gripping hand: a steel cuff and knuckle block over the handle
     r.ellipse(P.gunD, hX, hY, 5.5, 5.5);
     r.ellipse(P.steel, hX - 0.5, hY - 0.5, 4, 4);

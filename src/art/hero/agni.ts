@@ -37,6 +37,8 @@ export function drawAgni(r: Raster, k0: Skel, look: PlaceholderLook): void {
     gold: r.part(gold),
     ink: r.part(accent, { flat: true }),
     abs: r.part(mul(skin, 0.7), { flat: true }),
+    pleat: r.part(mul(mix(armor, dark, 0.5), 0.9), { flat: true }),
+    absL: r.part(mix(mul(skin, 0.8), [120, 60, 40], 0.12), { flat: true }),
     wrap: r.part(mix(skin, [240, 230, 210], 0.6), { soft: true }),
     wrapD: r.part(mix(skin, [200, 180, 160], 0.5), { flat: true }),
     eye: r.part([250, 245, 230], { flat: true }),
@@ -116,27 +118,32 @@ export function drawAgni(r: Raster, k0: Skel, look: PlaceholderLook): void {
     // pecs: a lit plate with a shadow line under it
     r.poly(P.skinL, [[cx - 6, top + 7], [x0 + w - 2, top + 9], [x0 + w + 1, top + 16], [x0 + w - 4, top + 20], [cx + 1, top + 20], [cx - 4, top + 17]]);
     r.seg(P.abs, cx - 4, top + 20, x0 + w - 4, top + 21, 1.4, 1.4);
-    r.seg(P.abs, cx, top + 8, cx, top + 19, 1, 1);
-    // abs: a central groove and three rows, obliques to the side
-    r.rect(P.abs, cx + 2, top + 22, 1, waist - top - 22);
+    r.seg(P.absL, cx, top + 9, cx, top + 18, 1.5, 1.5);
+    // abs: a central groove and two rows of lit blocks (a six-pack read by its highlights, not a grid of lines)
+    r.rect(P.absL, cx + 2, top + 23, 1, waist - top - 24);
     for (let i = 0; i < 3; i++) {
-      r.rect(P.abs, cx - 4, top + 24 + i * 5, 5, 1);
-      r.rect(P.abs, cx + 4, top + 24 + i * 5, 6, 1);
+      const ay = top + 23 + i * 5;
+      if (ay + 4 > waist) break;
+      r.rect(P.skinL, cx + 4, ay, 5, 2);
+      r.rect(P.skinL, cx - 3, ay, 4, 2);
     }
-    r.seg(P.abs, x0 + w - 4, top + 24, x0 + w - 8, waist, 1, 1);
+    // the oblique line and the serratus notches under the near arm
+    r.seg(P.absL, x0 + w - 4, top + 24, x0 + w - 8, waist, 1.5, 1.5);
+    for (let i = 0; i < 2; i++) r.rect(P.absL, x0 + w - 5 - i, top + 23 + i * 4, 2, 1);
     // collarbones
-    r.seg(P.abs, cx - 6, top + 5, cx - 1, top + 6, 1, 1);
-    r.seg(P.abs, cx + 4, top + 6, x0 + w - 6, top + 7, 1, 1);
-    // flame tattoo licking up the flank and over the shoulder (self-lit)
+    r.seg(P.absL, cx - 6, top + 5, cx - 1, top + 6, 1.5, 1.5);
+    r.seg(P.absL, cx + 4, top + 6, x0 + w - 6, top + 7, 1.5, 1.5);
+    // flame tattoo licking up the shaded flank: three continuous tongues, thick at the waist and tapering to a point
     r.inlay(P.skinD, P.ink, (s) => {
-      for (let i = 0; i < 10; i++) {
-        const ty = waist - 2 - i * 2.6;
-        const tx = x0 + 5 + Math.sin(i * 0.9) * 1.6;
-        s(tx, ty);
-        s(tx + 1, ty);
-        if (i % 3 === 1) {
-          s(tx + 2, ty - 1);
-          s(tx + 3, ty - 2);
+      for (let j = 0; j < 3; j++) {
+        const len = 12 + j * 6;
+        const x0j = x0 + 2 + j * 4;
+        for (let t = 0; t <= len; t += 0.5) {
+          const q = t / len;
+          const tx = x0j + Math.sin(q * 3.4 + j) * 1.6 + q * 2;
+          const ty = waist - t;
+          s(tx, ty);
+          if (q < 0.2) s(tx + 1, ty);
         }
       }
     });
@@ -186,13 +193,17 @@ export function drawAgni(r: Raster, k0: Skel, look: PlaceholderLook): void {
     r.ellipse(P.skin, sx, sy + 1, 7, 7);
     r.seg(P.skinL, sx - 1, sy - 2, sx + (el[0] - sx) * 0.55 - 1, sy + (el[1] - sy) * 0.55 - 2, 3, 2.5);
     if (o === 1) {
-      // a pauldron of bone with living flame
+      // a pauldron of bone with living flame: a skull-white shell plate, a charred rim, three short spikes and a
+      // glowing crack, flames licking up behind it
       for (let i = 0; i < 3; i++) {
         const fl = flick(i + 7) * 2;
-        r.poly(P.flame, [[sx - 8 + i * 6, sy - 3], [sx - 6 + i * 6 + fl * 0.3, sy - 14 - fl - (i === 1 ? 4 : 0)], [sx - 2 + i * 6, sy - 3]]);
+        r.poly(P.flame, [[sx - 8 + i * 6, sy - 3], [sx - 6 + i * 6 + fl * 0.3, sy - 13 - fl - (i === 1 ? 3 : 0)], [sx - 2 + i * 6, sy - 3]]);
       }
-      r.ellipse(horn, sx, sy - 1, 8, 5.5);
-      r.rect(hornL, sx - 7, sy + 2, 14, 1);
+      for (let i = 0; i < 3; i++) r.poly(hornL, [[sx - 6 + i * 5, sy - 3], [sx - 5 + i * 5 + 1, sy - 9 + Math.abs(i - 1) * 2], [sx - 2 + i * 5, sy - 3]]);
+      r.ellipse(horn, sx + 0.5, sy + 0.5, 8.5, 6);
+      r.ellipse(hornL, sx - 0.5, sy - 0.5, 7.4, 4.8);
+      r.seg(P.flame, sx - 4, sy - 2, sx + 1, sy + 1.5, 1.2, 1);
+      r.seg(P.flame, sx + 1, sy + 1.5, sx + 4, sy - 1, 1, 0.8);
     } else if (o !== 2) {
       // an armband
       const bx = sx + (el[0] - sx) * 0.4;
@@ -205,7 +216,7 @@ export function drawAgni(r: Raster, k0: Skel, look: PlaceholderLook): void {
 
 type Parts = Record<
   | 'skin' | 'skinL' | 'skinD' | 'skinDD' | 'pants' | 'pantsD' | 'pantsDeep' | 'armor' | 'light' | 'dark' | 'deep' | 'sash' | 'sashD'
-  | 'accent' | 'glow' | 'flame' | 'gold' | 'ink' | 'abs' | 'wrap' | 'wrapD' | 'eye' | 'pupil' | 'hair' | 'brow' | 'lip',
+  | 'accent' | 'glow' | 'flame' | 'gold' | 'ink' | 'abs' | 'absL' | 'pleat' | 'wrap' | 'wrapD' | 'eye' | 'pupil' | 'hair' | 'brow' | 'lip',
   number
 >;
 
@@ -255,7 +266,7 @@ function head(r: Raster, P: Parts, k: Skel, o: number, ph: number, run: boolean,
       // past the head: cap the tips (plus their ~3px glow) to the standard crown's reach so they clear the frame side
       const H = Math.min(hgt * s * 0.62, laid ? by - fl - (k.base - 126) : Infinity);
       const lean = -2 + fl * 0.4; // swept back
-      r.poly(P.flame, [[bx - 5, by + 4], [bx - 3 + lean * 0.5, by - H * 0.5], [bx + lean, by - H - fl], [bx + 3 + lean * 0.3, by - H * 0.45], [bx + 5, by + 4]]);
+      r.poly(P.flame, [[bx - 5, by + 4], [bx - 2.6 + lean * 0.4, by - H * 0.32], [bx + lean, by - H - fl], [bx + 2.6 + lean * 0.25, by - H * 0.28], [bx + 5, by + 4]]);
       r.poly(P.glow, [[bx - 2.5, by + 4], [bx + lean * 0.6, by - H * 0.62 - fl * 0.6], [bx + 2.5, by + 4]]);
     });
   }
@@ -279,17 +290,22 @@ function head(r: Raster, P: Parts, k: Skel, o: number, ph: number, run: boolean,
     for (let i = 0; i < 3; i++) r.ellipse(P.ink, cx - 0.12 * s + i * 4, cy - 0.38 * s, 1, 1);
     r.ellipse(P.ink, cx + 0.3 * s, cy - 0.12 * s, 1.2, 1.2);
   } else if (o === 1) {
-    // demon horns curling up and back from the brow
-    for (const [bx, sc] of [[cx + 0.24 * s, 1], [cx - 0.12 * s, 0.8]] as const) {
-      let px = bx;
-      let py = cy - 0.3 * s;
-      for (let i = 0; i < 5; i++) {
-        const x = px - (i < 2 ? -1 : 3) * sc;
-        const y = py - 4.5 * sc;
-        r.seg(i < 2 ? horn : hornL, px, py, x, y, (6 - i) * sc, (5.2 - i) * sc);
-        px = x;
-        py = y;
+    // demon horns: thick charcoal roots at the temples sweeping out past the flames and curling up, warming through a
+    // mid tone to bone-white tips; the far one smaller, sweeping the other way, so the pair reads in three-quarter
+    const hornM = r.part(mix([74, 52, 50], [214, 194, 164], 0.45));
+    const horns: [number, number, V2[]][] = [
+      [cx - 0.1 * s, 0.72, [[-2.6, -1.6], [-2.6, -3], [-1.2, -3.8], [0.6, -3.6], [1.6, -2.4]]],
+      [cx + 0.2 * s, 1, [[3.4, -1.4], [3.4, -2.8], [2, -4], [0, -4], [-1.6, -2.6]]],
+    ];
+    for (const [bx, sc, steps] of horns) {
+      const path: V2[] = [[bx, cy - 0.3 * s]];
+      for (const [ddx, ddy] of steps) {
+        const [px, py] = path[path.length - 1];
+        path.push([px + ddx * sc, py + ddy * sc]);
       }
+      // a dark underside first (one pass for the whole horn), then the horn itself, root to tip
+      for (let i = 0; i < steps.length; i++) r.seg(P.hair, path[i][0] + 0.8, path[i][1] + 0.8, path[i + 1][0] + 0.8, path[i + 1][1] + 0.8, (7.8 - i * 1.3) * sc, (6.5 - i * 1.3) * sc);
+      for (let i = 0; i < steps.length; i++) r.seg(i < 2 ? horn : i < 3 ? hornM : hornL, path[i][0], path[i][1], path[i + 1][0], path[i + 1][1], (7 - i * 1.3) * sc, (5.7 - i * 1.3) * sc);
     }
   } else {
     // headband with trailing tails
@@ -356,18 +372,20 @@ function fist(r: Raster, P: Parts, h: V2, el: V2, back: boolean, ph: number, o: 
   }
   // the fist: a rounded block along the forearm, knuckle ridge at the front, thumb across the top
   r.seg(back ? P.skinD : P.skin, x - dx * 1, y - dy * 1, cxp + dx * 2, cyp + dy * 2, 10, 9.5);
-  if (o === 2 || o === 0) {
-    // knuckle wraps
-    r.seg(back ? P.wrapD : P.wrap, cxp + dx * 2.5 + nx * 4, cyp + dy * 2.5 + ny * 4, cxp + dx * 2.5 - nx * 4, cyp + dy * 2.5 - ny * 4, 3, 3);
-  } else {
-    r.seg(P.skinDD, cxp + dx * 3 + nx * 4, cyp + dy * 3 + ny * 4, cxp + dx * 3 - nx * 4, cyp + dy * 3 - ny * 4, 1, 1);
-  }
-  // finger creases (parallel to the forearm) and the thumb on the upper side
+  // three knuckle rolls across the leading face, lit on the upper side, with dark gaps; wrapped across in white
+  // (Standard / Temple) or bare and scorched (Inferno); the thumb laid over the top
   const up = ny <= 0 ? 1 : -1; // which normal points up the screen
-  for (const t of [-1.5, 1.5]) r.seg(P.skinDD, cxp - dx * 1 + nx * t, cyp - dy * 1 + ny * t, cxp + dx * 1.5 + nx * t, cyp + dy * 1.5 + ny * t, 0.8, 0.8);
-  r.seg(back ? P.skinD : P.skinL, cxp - dx * 2 + nx * up * 3.5, cyp - dy * 2 + ny * up * 3.5, cxp + dx * 2 + nx * up * 3, cyp + dy * 2 + ny * up * 3, 3, 2.6);
-  // ember glow on the knuckles
-  if (o !== 2) r.rect(P.accent, cxp + dx * 4 - 1, cyp + dy * 4 - 1, 2, 2);
+  const kn = o === 1 ? (back ? P.skinD : P.skin) : back ? P.wrapD : P.wrap;
+  r.seg(P.skinDD, cxp + dx * 3.2 + nx * 3.3, cyp + dy * 3.2 + ny * 3.3, cxp + dx * 3.2 - nx * 3.3, cyp + dy * 3.2 - ny * 3.3, 3.2, 3.2);
+  for (let i = -1; i <= 1; i++) {
+    const kx = cxp + dx * 3 + nx * i * 2.7;
+    const ky = cyp + dy * 3 + ny * i * 2.7;
+    r.ellipse(i * up > 0 && !back ? (o === 1 ? P.skinL : P.wrap) : kn, kx, ky, 1.4, 1.4);
+  }
+  r.seg(back ? P.skinD : P.skinL, cxp - dx * 2 + nx * up * 3.5, cyp - dy * 2 + ny * up * 3.5, cxp + dx * 1.5 + nx * up * 3, cyp + dy * 1.5 + ny * up * 3, 3, 2.6);
+  r.seg(P.skinDD, cxp - dx * 2.5 + nx * up * 1.6, cyp - dy * 2.5 + ny * up * 1.6, cxp + dx * 1 + nx * up * 1.4, cyp + dy * 1 + ny * up * 1.4, 0.8, 0.8);
+  // ember glow on the leading knuckle
+  if (o !== 2) r.rect(P.accent, cxp + dx * 4 - nx * up * 2.7 - 0.5, cyp + dy * 4 - ny * up * 2.7 - 0.5, 1.5, 1.5);
 }
 
 function leg(r: Raster, P: Parts, hip0: V2, kn0: V2, ankle: V2, back: boolean): void {
@@ -375,14 +393,29 @@ function leg(r: Raster, P: Parts, hip0: V2, kn0: V2, ankle: V2, back: boolean): 
   const lowY = r.h - 12;
   const hip: V2 = [hip0[0], Math.min(lowY, hip0[1])];
   const kn: V2 = [kn0[0], Math.min(lowY, kn0[1])];
-  // baggy hakama gathered at the ankle, wrapped shin, bare foot
-  r.seg(back ? P.pantsDeep : P.pants, hip[0], hip[1], kn[0], kn[1], 19, 16);
-  r.seg(back ? P.pantsDeep : P.pantsD, kn[0], kn[1], ankle[0], ankle[1] - 2, 16, 10);
-  if (!back) r.seg(P.pantsD, hip[0] + (kn[0] - hip[0]) * 0.35, hip[1] + (kn[1] - hip[1]) * 0.35 + 3, kn[0] - 2, kn[1] + 2, 1.4, 1.4); // a fold
+  // baggy hakama: a full thigh, the cloth gathered into a dark band at the ankle. The back leg sits a value down (not
+  // to black), so it still reads as a leg behind the front one
+  const up = back ? P.pantsD : P.pants;
+  const low = back ? P.pantsDeep : P.pantsD;
+  r.seg(back ? P.pantsDeep : P.pantsD, hip[0] + 1.5, hip[1], kn[0] + 1.5, kn[1], 19, 16);
+  r.seg(up, hip[0], hip[1], kn[0], kn[1], 19, 16);
+  r.seg(low, kn[0], kn[1], ankle[0], ankle[1] - 3, 16, 10);
+  // a soft fold where the cloth breaks over the knee
+  if (!back) r.seg(P.pleat, kn[0] - 6, kn[1] + 4, kn[0] + 4, kn[1] + 6, 1.5, 1.5);
   const bx = ankle[0];
   const by = Math.min(ankle[1], r.h - 13);
-  r.rect(back ? P.wrapD : P.wrap, bx - 5, by - 4, 10, 5);
-  r.rect(P.wrapD, bx - 5, by - 2, 10, 1);
-  r.poly(back ? P.skinD : P.skin, [[bx - 5, by + 1], [bx + 5, by + 1], [bx + 13, by + 6], [bx + 14, by + 9], [bx - 6, by + 9]]);
-  r.rect(back ? P.skinDD : P.skinD, bx - 6, by + 8, 20, 2);
+  // the gathered cuff
+  r.seg(back ? P.pantsDeep : P.deep, bx - 6, by - 4, bx + 6, by - 4, 4, 4);
+  // a bare foot: a heel, the ankle bone, an arched instep sloping down to the toes, a dark sole line;
+  // a cloth stirrup wrap round the ankle and the arch leaves the toes and the heel bare
+  const sk = back ? P.skinD : P.skin;
+  r.poly(sk, [[bx - 4, by - 3], [bx + 3, by - 3], [bx + 4, by + 1], [bx + 9, by + 4], [bx + 13, by + 5.5], [bx + 14.5, by + 7.5], [bx + 14, by + 9], [bx - 6, by + 9], [bx - 6.5, by + 6], [bx - 5, by + 3]]);
+  if (!back) r.seg(P.skinL, bx + 3, by + 1.5, bx + 11, by + 5, 1.2, 1); // the lit instep
+  r.rect(back ? P.skinDD : P.skinD, bx - 6, by + 8, 20, 2); // the sole in shadow
+  r.ellipse(back ? P.skinDD : P.skinD, bx - 1.5, by + 3, 1.2, 1.2); // the ankle bone
+  // toes: the big toe's knuckle and the gaps between the small ones
+  for (let i = 0; i < 3; i++) r.rect(P.skinDD, bx + 8.5 + i * 2, by + 5 + i * 0.5, 1, 2);
+  // a thin cloth wrap round the ankle, just under the cuff
+  r.rect(back ? P.wrapD : P.wrap, bx - 5, by - 2, 9, 2);
+  r.rect(P.wrapD, bx - 5, by - 1, 9, 1);
 }
