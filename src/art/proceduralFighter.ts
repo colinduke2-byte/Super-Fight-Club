@@ -6,7 +6,7 @@ import { detailPass, type Anchors } from './spriteDetail';
 import { animFrameIndex, sheetDims, sheetLayout } from './sheetLayout';
 export { animFrameIndex, sheetDims };
 import { hasHeroArt } from './hero';
-import { heroSheetPixels, sheetSpec, type SheetPixels } from './sheetPixels';
+import { packedHeroSheet, sheetSpec, type PackedSheet } from './sheetPixels';
 import { buildSheetPixels } from './sheetPool';
 import { addCanvasTexture } from './canvasTexture';
 
@@ -538,7 +538,7 @@ function paletteData(data: CharacterData, palette: number): CharacterData | null
 }
 
 /** Outfit sheets built in the background (requestPalette), waiting to be turned into textures by ensurePalette. */
-const readyOutfits = new Map<string, SheetPixels>();
+const readyOutfits = new Map<string, PackedSheet>();
 const buildingOutfits = new Set<string>();
 
 /** Start building an alternate palette's sheet off the main thread, so ensurePalette is instant when it is needed. */
@@ -572,13 +572,21 @@ export function ensurePalette(scene: Phaser.Scene, data: CharacterData, palette:
   return alt.id;
 }
 
-/** Turn a built sheet's pixels into the fighter's texture and animations. */
-export function registerPixels(scene: Phaser.Scene, data: CharacterData, px: SheetPixels): void {
+/** Turn a packed sheet into the fighter's texture: one trimmed frame per cell, drawn exactly like the padded grid cell. */
+export function registerPixels(scene: Phaser.Scene, data: CharacterData, px: PackedSheet): void {
   const sheet = document.createElement('canvas');
   sheet.width = px.width;
   sheet.height = px.height;
   sheet.getContext('2d')!.putImageData(new ImageData(px.data as Uint8ClampedArray<ArrayBuffer>, px.width, px.height), 0, 0);
-  registerSheet(scene, data, sheet);
+  const key = fighterTextureKey(data.id);
+  if (scene.textures.exists(key)) scene.textures.remove(key);
+  const tex = addCanvasTexture(scene, key, sheet)!;
+  const F = px.frames;
+  for (let cell = 0; cell * 6 < F.length; cell++) {
+    const o = cell * 6;
+    tex.add(cell, 0, F[o], F[o + 1], F[o + 2], F[o + 3])!.setTrim(px.cellW, px.cellH, F[o + 4], F[o + 5], F[o + 2], F[o + 3]);
+  }
+  registerAnimations(scene, data);
 }
 
 export function fighterAnimKey(id: string, anim: string): string {
@@ -588,7 +596,7 @@ export function fighterAnimKey(id: string, anim: string): string {
 /** Build the sprite sheet + animations for a character from its placeholder look. */
 export function buildPlaceholderSheet(scene: Phaser.Scene, data: CharacterData): void {
   if (hasHeroArt(data.sprite.placeholder)) {
-    registerPixels(scene, data, heroSheetPixels(sheetSpec(data)));
+    registerPixels(scene, data, packedHeroSheet(sheetSpec(data)));
     return;
   }
   const { sprite } = data;
