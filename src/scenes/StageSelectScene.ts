@@ -47,7 +47,10 @@ export class StageSelectScene extends MenuScene {
     // list on the left, preview on the right: shrink the list's unit so the longest name fits its column
     // the longest name is ~180 units wide at full size; the plate adds 6 units a side and must stay clear of the preview at 0.5w
     const lu = Math.max(0.8, Math.min(u, (w * 0.43) / 202));
-    this.list.layout(w * 0.035 + 101 * lu, h * 0.28, lu, 190);
+    // the list stops a clear gap above the controls hint (short windows shrink its rows)
+    const footTop = this.placeFooter(this.hint);
+    const listTop = Math.max(h * 0.22, this.title.y + this.title.displayHeight / 2 + 14 * u);
+    this.list.layout(w * 0.035 + 101 * lu, listTop, lu, 190, footTop - 10 * u);
     const aw = w * 0.46;
     const ah = Math.min(aw * (9 / 16), h * 0.42);
     this.area = { x: w * 0.5, y: h * 0.22, w: ah * (16 / 9), h: ah };

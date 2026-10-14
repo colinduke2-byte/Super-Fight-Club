@@ -11,7 +11,7 @@ import { session } from '../game/session';
 import { STAGES } from '../stages';
 import type { MenuEvent } from '../input/menuInput';
 import { ensurePalette, fighterAnimKey, fighterTextureKey, uiTexK } from '../art/proceduralFighter';
-import { COLORS, MenuList, MenuScene, PANEL, drawPanel, text, textPx, type MenuItem } from '../ui/menuKit';
+import { COLORS, MenuList, MenuScene, PANEL, drawPanel, text, textPx, type MenuBackdrop, type MenuItem } from '../ui/menuKit';
 
 /** After a match: winner banner, per-player stats, and what to do next. */
 export class ResultsScene extends MenuScene {
@@ -144,7 +144,7 @@ export class ResultsScene extends MenuScene {
       items.push({ label: 'CHARACTER SELECT', onConfirm: () => this.go('CharacterSelect') }, { label: 'MAIN MENU', onConfirm: () => this.go('ModeSelect') });
     }
     this.list = new MenuList(this, this.ui, items);
-    this.hint = text(this, this.ui, 'UP/DOWN: MOVE   J / ENTER: SELECT', COLORS.dim).setOrigin(0.5);
+    this.hint = text(this, this.ui, 'UP/DOWN: MOVE   J / ENTER: SELECT   K / ESC: EXIT', COLORS.dim).setOrigin(0.5);
     // a human loss in the arcade gets the sad version; everything else celebrates
     const humanLost = (arcade && winner !== 0) || (!!tr && !tr.cleared) || (!!lr && lr.distance <= 0) || (!!chal && !chalClear);
     music.jingle(humanLost || winner < 0 ? 'lose' : 'win', wc?.id);
@@ -166,13 +166,14 @@ export class ResultsScene extends MenuScene {
     const ts = Math.min(u * 1.2, (w - side - 40 * u) / tw);
     const tx = side + (w - side - tw * ts) / 2;
     this.head.setScale(ts).setPosition(tx, h * 0.27);
-    this.rows.forEach((r, i) => r.setScale(ts).setPosition(tx, h * 0.27 + (14 + i * 12) * (ts / 1.2)));
+    // rows on a 14-unit pitch: a clear gap between lines even when the table shrinks to fit
+    this.rows.forEach((r, i) => r.setScale(ts).setPosition(tx, h * 0.27 + (17 + i * 14) * (ts / 1.2)));
     const pad = 5 * u;
     const top = h * 0.27 - pad;
-    const bottom = h * 0.27 + (14 + Math.max(0, this.rows.length - 1) * 12 + 8) * (ts / 1.2) + pad;
+    const bottom = h * 0.27 + (17 + Math.max(0, this.rows.length - 1) * 14 + 8) * (ts / 1.2) + pad;
     this.plate.clear();
     drawPanel(this.plate, tx - pad, top, tw * ts + pad * 2, bottom - top, u, 0.92);
-    this.plate.fillStyle(PANEL.border, 1).fillRect(tx, h * 0.27 + 10 * (ts / 1.2), tw * ts, Math.max(1, u / 2));
+    this.plate.fillStyle(PANEL.border, 1).fillRect(tx, h * 0.27 + 11.5 * (ts / 1.2), tw * ts, Math.max(1, u / 2));
     this.list.layout(side + (w - side) / 2, h * 0.56, u, 120);
     this.placeFooter(this.hint);
     if (this.champ) {
@@ -183,6 +184,11 @@ export class ResultsScene extends MenuScene {
       this.champName?.setScale(Math.min(u * 2, (w * 0.36) / Math.max(1, textPx(this.champName)))).setPosition(this.floor.x, this.floor.y + s * 10 + 9 * u);
       if (this.champName && this.champLine) this.champLine.setScale(Math.min(u, (w * 0.38) / Math.max(1, textPx(this.champLine)))).setPosition(this.floor.x, this.champName.y + this.champName.displayHeight / 2 + 6 * u);
     }
+  }
+
+  protected override backdrop(): MenuBackdrop {
+    // the spotlight and the table own the sky: no planet peeking out from behind the stats
+    return { planet: null };
   }
 
   protected override tick(time: number, dt: number): void {
@@ -220,6 +226,8 @@ export class ResultsScene extends MenuScene {
   }
 
   protected onEvent(e: MenuEvent): void {
-    this.list.handle(e);
+    if (this.list.handle(e)) return;
+    // back jumps the cursor to the way out (main menu / quit ladder); confirming it is still a deliberate press
+    if (e.action === 'back') this.list.index = this.list.items.length - 1;
   }
 }

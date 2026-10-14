@@ -18,6 +18,7 @@ export class LadderMapScene extends MenuScene {
   private info!: Phaser.GameObjects.BitmapText;
   private sub!: Phaser.GameObjects.BitmapText;
   private cont!: Phaser.GameObjects.BitmapText;
+  private hint!: Phaser.GameObjects.BitmapText;
   private path!: Phaser.GameObjects.Graphics;
   private nodes: { img: Phaser.GameObjects.Image; num: Phaser.GameObjects.BitmapText; x: number; y: number; size: number }[] = [];
 
@@ -61,6 +62,7 @@ export class LadderMapScene extends MenuScene {
       { label: 'FIGHT', onConfirm: () => this.fight() },
       { label: 'QUIT', onConfirm: () => this.go('ModeSelect') },
     ]);
+    this.hint = text(this, this.ui, 'UP/DOWN: MOVE   J / ENTER: SELECT   K / ESC: QUIT', COLORS.dim).setOrigin(0.5);
   }
 
   private fight(): void {
@@ -86,6 +88,7 @@ export class LadderMapScene extends MenuScene {
     this.sub.setScale(u * 1.4).setPosition(w / 2, h * 0.62);
     this.info.setScale(u * 2).setPosition(w / 2, h * 0.55);
     this.cont.setScale(u * 1.2).setPosition(w / 2, h * 0.69);
+    this.placeFooter(this.hint);
     this.list.layout(w / 2, h * 0.69 + 26 * u, u, 70);
   }
 
@@ -148,6 +151,10 @@ export class LadderMapScene extends MenuScene {
   protected onEvent(e: MenuEvent): void {
     if (!this.list) return;
     if (this.list.handle(e)) return;
-    if (e.action === 'back') this.go('ModeSelect');
+    // back first moves to QUIT (a run is never lost to one stray press), then quits from there
+    if (e.action === 'back') {
+      if (this.list.index === 1) this.go('ModeSelect');
+      else this.list.index = 1;
+    }
   }
 }

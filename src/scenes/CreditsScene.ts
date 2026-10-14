@@ -4,7 +4,7 @@ import { PIXEL_FONT } from '../art/pixelFont';
 import { CHARACTER_LIST } from '../characters';
 import type { MenuEvent } from '../input/menuInput';
 import { STAGE_LIST } from '../stages';
-import { COLORS, MenuScene, text, textPx, type MenuBackdrop } from '../ui/menuKit';
+import { COLORS, MenuScene, drawPanel, text, textPx, type MenuBackdrop } from '../ui/menuKit';
 
 /** Lines of the credits roll: [text, colour]; an empty string is a gap. */
 const ROLL: [string, number][] = [
@@ -31,6 +31,8 @@ export class CreditsScene extends MenuScene {
   private lines: Phaser.GameObjects.BitmapText[] = [];
   private runners: Phaser.GameObjects.Sprite[] = [];
   private hint!: Phaser.GameObjects.BitmapText;
+  /** Plate behind the roll's window, so the lines read over the lit skyline. */
+  private plate!: Phaser.GameObjects.Graphics;
   private scroll = 0;
   private lineH = 12;
 
@@ -39,8 +41,11 @@ export class CreditsScene extends MenuScene {
   }
 
   protected build(): void {
-    this.scroll = 0;
+    // the roll opens with the title already on screen (set on the first frame, once the size is known)
+    this.scroll = -1;
     this.last = -1;
+    this.plate = this.add.graphics();
+    this.ui.add(this.plate);
     this.lines = ROLL.map(([s, c]) => this.add.bitmapText(0, 0, PIXEL_FONT, s).setOrigin(0.5).setTint(c || COLORS.text));
     this.ui.add(this.lines);
     this.runners = CHARACTER_LIST.map((c) => {
@@ -60,10 +65,16 @@ export class CreditsScene extends MenuScene {
       l.setScale(Math.min(u * (big ? 3 : 1.3), (w * 0.92) / Math.max(1, textPx(l))));
     }
     this.placeFooter(this.hint);
+    const h = this.scale.height;
+    const widest = Math.max(...this.lines.map((l) => l.displayWidth));
+    const pw = Math.min(w - 8 * u, widest + 24 * u);
+    this.plate.clear();
+    drawPanel(this.plate, (w - pw) / 2, h * 0.06 - 8 * u, pw, h * 0.56 + 16 * u, u, 0.72);
   }
 
   protected override backdrop(): MenuBackdrop {
-    return { planet: { x: 0.85, y: 0.2, k: 0.8 } };
+    // low on the left behind the parade's start, clear of the roll
+    return { planet: { x: 0.1, y: 0.72, k: 0.6 } };
   }
 
   private last = -1;
@@ -76,9 +87,10 @@ export class CreditsScene extends MenuScene {
     const dt = this.last < 0 ? 0 : Math.min(0.1, time - this.last);
     this.last = time;
     // the roll rises through a window above the parade and loops once it has gone by
-    this.scroll += dt * 30 * u;
     const bottom = h * 0.62;
     const top = h * 0.06;
+    if (this.scroll < 0) this.scroll = bottom - top - h * 0.14;
+    this.scroll += dt * 30 * u;
     const total = (ROLL.length + 2) * this.lineH * 1.4;
     const off = this.scroll % (total + (bottom - top));
     this.lines.forEach((l, i) => {

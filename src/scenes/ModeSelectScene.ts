@@ -2,7 +2,7 @@ import Phaser from 'phaser';
 import { inputManager } from '../input/inputManager';
 import type { MenuEvent } from '../input/menuInput';
 import { session } from '../game/session';
-import { COLORS, MenuList, MenuScene, text, textPx, type MenuBackdrop } from '../ui/menuKit';
+import { COLORS, MenuList, MenuScene, text, type MenuBackdrop } from '../ui/menuKit';
 import { PIXEL_FONT } from '../art/pixelFont';
 import { fighterAnimKey, fighterTextureKey, uiTexK } from '../art/proceduralFighter';
 import { CHARACTER_LIST } from '../characters';
@@ -74,12 +74,14 @@ export class ModeSelectScene extends MenuScene {
 
   protected override layoutUi(w: number, h: number, u: number): void {
     this.title.setScale(u * 4).setPosition(w / 2, h * 0.12);
-    this.list.layout(w / 2, h * 0.24, u, 130, h * 0.73);
+    // the selected mode's description sits in the footer above the controls hint, as on every other menu
+    this.desc.setText(this.descriptions[this.list.index] ?? '');
+    this.hint.setText(this.hintText());
+    const footTop = this.placeFooter(this.hint, this.desc, 1.5);
+    this.list.layout(w / 2, Math.max(h * 0.24, this.title.y + this.title.displayHeight / 2 + 14 * u), u, 130, footTop - 12 * u);
     // flanking fighters only when there is room beside the menu
     const room = w > h * 1.25;
     this.floorY = Math.min(h * 0.7, h * 0.78 - 20 * u);
-    // the description sits a clear gap below the fighters' nameplates
-    this.desc.setScale(u * 1.5).setPosition(w / 2, Math.max(h * 0.78, this.floorY + 4 * u + 7 * 1.2 * u + 12 * u + 5.25 * u));
     this.showScale = Math.max(0.6, Math.min(u * 2.4, (this.floorY - h * 0.25) / 64));
     this.showcase.forEach((s, side) => {
       const x = side === 0 ? w * 0.17 : w * 0.83;
@@ -87,7 +89,11 @@ export class ModeSelectScene extends MenuScene {
       this.fitShowcase(s.sprite, CHARACTER_LIST[s.idx]);
       s.name.setVisible(room && h >= 560).setScale(u * 1.2).setPosition(x, this.floorY + 4 * u);
     });
-    this.hint.setScale(Math.min(u, (w * 0.97) / Math.max(1, textPx(this.hint)))).setPosition(w / 2, h - 10 * u);
+  }
+
+  private hintText(): string {
+    const pads = inputManager.padList.length;
+    return `UP/DOWN: MOVE   J / ENTER: SELECT   K / ESC: BACK   ${pads} CONTROLLER${pads === 1 ? '' : 'S'}`;
   }
 
   /** Scale a showcase fighter, shrinking it if a wide one (wings, staffs) would run past the screen edge. */
@@ -129,11 +135,13 @@ export class ModeSelectScene extends MenuScene {
         this.glow.fillStyle(col, 0.06 * fade).fillEllipse(s.sprite.x, this.floorY - 30 * this.showScale, 60 * this.showScale, 80 * this.showScale);
       }
     });
-    this.desc.setText(this.descriptions[this.list.index] ?? '');
-    this.desc.setScale(Math.min(this.u * 1.5, (this.scale.width * 0.94) / Math.max(1, textPx(this.desc))));
-    const pads = inputManager.padList.length;
-    this.hint.setText(`UP/DOWN: MOVE   J / ENTER: SELECT   K / ESC: BACK   ${pads} CONTROLLER${pads === 1 ? '' : 'S'}`);
-    this.hint.setScale(Math.min(this.u, (this.scale.width * 0.97) / Math.max(1, textPx(this.hint))));
+    const desc = this.descriptions[this.list.index] ?? '';
+    const hint = this.hintText();
+    if (desc !== this.desc.text || hint !== this.hint.text) {
+      this.desc.setText(desc);
+      this.hint.setText(hint);
+      this.placeFooter(this.hint, this.desc, 1.5);
+    }
   }
 
   protected onEvent(e: MenuEvent): void {

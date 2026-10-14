@@ -52,8 +52,9 @@ export class ChallengesScene extends MenuScene {
 
   protected override layoutUi(w: number, h: number, u: number): void {
     this.title.setScale(Math.min(u * 4, (w * 0.9) / Math.max(1, textPx(this.title)))).setPosition(w / 2, h * 0.09);
-    this.count.setScale(u * 1.2).setPosition(w / 2, h * 0.17);
-    this.list.layout(w / 2, h * 0.22, u, 190, h * 0.72);
+    // the tally hangs a fixed gap under the title, the list a fixed gap under the tally (no overlap on short windows)
+    this.count.setScale(u * 1.2).setPosition(w / 2, this.title.y + this.title.displayHeight / 2 + 5 * u + 4.2 * u);
+    this.list.layout(w / 2, this.count.y + 4.2 * u + 12 * u, u, 190, h * 0.72);
     this.placeFooter(this.hint);
   }
 
