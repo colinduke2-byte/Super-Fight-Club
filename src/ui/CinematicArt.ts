@@ -1,4 +1,7 @@
 import Phaser from 'phaser';
+import type { Projectile } from '../engine/entities';
+import type { Fighter } from '../engine/fighter';
+import type { MoveDef } from '../engine/moves';
 import type { World } from '../engine/world';
 import { settings } from '../settings';
 
@@ -9,6 +12,16 @@ import { settings } from '../settings';
 export class CinematicArt {
   private readonly g: Phaser.GameObjects.Graphics;
   private readonly glow: Phaser.GameObjects.Graphics;
+  /** Extra damping for full-bright flashes (white domes, muzzle bursts) under Reduce Flashes. */
+  private flashK = 1;
+  /** Sim tick of the last update (a smaller one means the world was reset: drop all remembered staging). */
+  private lastTick = -1;
+  /** Ultimates being staged, by fighter id: the sim tick they started on and where they were aimed. */
+  private readonly casts = new Map<number, UltCast>();
+  /** Airstrike bombs in flight (last seen position), to catch the frame each one goes off. */
+  private readonly bombs = new Map<Projectile, { x: number; y: number }>();
+  /** Airstrike blasts playing out. */
+  private blasts: { x: number; y: number; t0: number }[] = [];
 
   constructor(scene: Phaser.Scene, layer: Phaser.GameObjects.Layer) {
     this.g = scene.add.graphics().setDepth(6);
@@ -21,10 +34,12 @@ export class CinematicArt {
     const a = this.glow;
     g.clear();
     a.clear();
-    const c = world.cinematic;
-    if (!c) return;
     // REDUCE FLASHES: the additive light (beams, blast domes, glints) is drawn at half strength
     a.setAlpha(settings.reduceFlashes ? 0.45 : 1);
+    this.flashK = settings.reduceFlashes ? 0.5 : 1;
+    this.ultimates(world);
+    const c = world.cinematic;
+    if (!c) return;
     const total = c.move.cinematic!.frames;
     // frames since the last cinematic hit (big right after a hit, for pulses)
     let since = 99;
@@ -301,4 +316,645 @@ export class CinematicArt {
       g.fillStyle(0x000000, 0.25 * t).fillEllipse(vx, land + 4, mw * (0.6 + 0.6 * t), 8);
     }
   }
+
+  // ---------------------------------------------------------------------------------------------
+  // Non-cinematic ultimates: staged from the caster's move frame and from the projectiles the move fires (the sim is not
+  // touched; everything here only reads it). Each one remembers when it started so the staging can outlive the move
+  // (bombs still falling, a beam still travelling).
+
+  private ultimates(world: World): void {
+    const T = world.tick;
+    if (T < this.lastTick) {
+      this.casts.clear();
+      this.bombs.clear();
+      this.blasts = [];
+    }
+    this.lastTick = T;
+    for (const f of world.fighters) {
+      const m = f.move;
+      const art = ULT_ART[f.data.id];
+      if (!art) continue;
+      if (f.state === 'attack' && m && m.kind === 'ultimate' && !m.cinematic) {
+        const start = T - f.moveFrame;
+        const cur = this.casts.get(f.id);
+        // the same cast keeps its staging (re-synced to the move frame, which holds still through hit-stop); a fresh
+        // activation starts over
+        if (!cur || cur.move !== m || cur.endT >= 0 || f.moveFrame < cur.lastMf) this.casts.set(f.id, newCast(world, f, m, start));
+        else cur.start = start;
+        this.casts.get(f.id)!.lastMf = f.moveFrame;
+      }
+      const cast = this.casts.get(f.id);
+      if (!cast) continue;
+      const mf = T - cast.start;
+      // the caster still in the move (KO'd, hit out of it or finished: the staging that belongs to the caster stops)
+      const live = f.state === 'attack' && f.move === cast.move;
+      if (!live && cast.endT < 0) cast.endT = T;
+      let keep = true;
+      switch (art) {
+        case 'mech':
+          keep = live && mf <= cast.move.startup + 8;
+          if (keep) this.mechAssembly(f, mf);
+          break;
+        case 'airstrike':
+          keep = this.airstrike(world, f, cast, mf, live);
+          break;
+        case 'convergence':
+          keep = this.convergence(world, f, cast, mf, live);
+          break;
+        case 'solar':
+          keep = this.solarBeam(world, f, cast, mf, live);
+          break;
+      }
+      if (!keep) this.casts.delete(f.id);
+    }
+    this.airstrikeBlasts(world);
+  }
+
+  /**
+   * Gizmo's Mega Mech Mode: a holographic build frame goes up around Gizmo, a scan line sweeps it, armour plates fly in from
+   * all sides and lock on, and a ring of light seals the suit the moment it comes online (move frame 20).
+   */
+  private mechAssembly(f: Fighter, mf: number): void {
+    const g = this.g;
+    const a = this.glow;
+    const ON = 20;
+    const cx = f.x;
+    const by = f.y;
+    const open = Math.min(1, mf / 8);
+    const H = 78 * open;
+    const W = 30 + 26 * open;
+    const top = by - H;
+    const fade = mf > ON ? Math.max(0, 1 - (mf - ON) / 8) : 1;
+    // the build frame: corner brackets and a faint blueprint grid
+    const C = 0x7fe8ff;
+    a.lineStyle(1, C, 0.18 * fade);
+    for (let i = 1; i < 6; i++) a.lineBetween(cx - W / 2, top + (H * i) / 6, cx + W / 2, top + (H * i) / 6);
+    for (let i = 1; i < 4; i++) a.lineBetween(cx - W / 2 + (W * i) / 4, top, cx - W / 2 + (W * i) / 4, by);
+    a.lineStyle(2, C, 0.85 * fade);
+    const L = cx - W / 2;
+    const R = cx + W / 2;
+    const k = 9;
+    a.lineBetween(L, top, L + k, top).lineBetween(L, top, L, top + k);
+    a.lineBetween(R, top, R - k, top).lineBetween(R, top, R, top + k);
+    a.lineBetween(L, by, L + k, by).lineBetween(L, by, L, by - k);
+    a.lineBetween(R, by, R - k, by).lineBetween(R, by, R, by - k);
+    // the scan line sweeping up the frame, twice
+    if (mf < ON) {
+      const sy = by - ((mf * 9) % Math.max(1, H));
+      a.fillStyle(C, 0.16).fillRect(L, sy, W, 6);
+      a.fillStyle(0xffffff, 0.75).fillRect(L, sy, W, 1);
+    }
+    // armour plates flying in from all round and locking on (eased), each trailing a streak of light
+    const PLATES = 8;
+    for (let i = 0; i < PLATES; i++) {
+      const t0 = 2 + i * 1.6;
+      const t = Math.min(1, Math.max(0, (mf - t0) / 10));
+      if (t <= 0 || mf > ON + 2) continue;
+      const e = 1 - (1 - t) * (1 - t) * (1 - t);
+      const ang = (i / PLATES) * Math.PI * 2 + 0.4;
+      const dist = 110 * (1 - e);
+      const tx = cx + Math.cos(ang) * 14;
+      const ty = by - 34 + Math.sin(ang) * 22;
+      const px = tx + Math.cos(ang) * dist;
+      const py = ty + Math.sin(ang) * dist;
+      const rot = (1 - e) * 3 * (i % 2 ? 1 : -1);
+      const pw = 9 + (i % 3) * 3;
+      const ph = 6 + (i % 2) * 3;
+      if (t < 1) {
+        a.lineStyle(2, C, 0.45 * (1 - e)).lineBetween(px, py, px + Math.cos(ang) * 22, py + Math.sin(ang) * 22);
+      }
+      g.fillStyle(0x8a521c, 0.95).fillPoints(quad(px, py, pw, ph, rot), true);
+      g.fillStyle(0xe08a2c, 0.95).fillPoints(quad(px - 0.5, py - 0.5, pw - 2, ph - 2, rot), true);
+      if (t >= 1) a.fillStyle(0xffffff, 0.8 * Math.max(0, 1 - (mf - t0 - 10) / 4)).fillCircle(px, py, 3);
+    }
+    // online: a ring of light seals the suit, with spark spokes
+    if (mf >= ON - 2) {
+      const k2 = (mf - (ON - 2)) / 10;
+      if (k2 < 1) {
+        a.lineStyle(3, 0xffffff, 0.9 * (1 - k2)).strokeEllipse(cx, by - 30, 40 + 110 * k2, 30 + 70 * k2);
+        a.lineStyle(2, C, 0.8 * (1 - k2)).strokeEllipse(cx, by - 30, 30 + 150 * k2, 20 + 90 * k2);
+        a.fillStyle(0xd8f8ff, 0.5 * (1 - k2) * this.flashK).fillEllipse(cx, by - 30, 50 * (1 - k2 * 0.5), 70 * (1 - k2 * 0.5));
+        for (let i = 0; i < 10; i++) {
+          const ang = (i / 10) * Math.PI * 2;
+          const r0 = 20 + 60 * k2;
+          a.lineStyle(1.5, C, 0.9 * (1 - k2)).lineBetween(cx + Math.cos(ang) * r0, by - 30 + Math.sin(ang) * r0 * 0.7, cx + Math.cos(ang) * (r0 + 14), by - 30 + Math.sin(ang) * (r0 + 14) * 0.7);
+        }
+      }
+    }
+  }
+
+  /**
+   * Havoc's Airstrike: laser designators paint the ground where each bomb will land (in the order they are called in), two
+   * flights of jets scream across the sky, the bombs whistle down their laser lines and every one goes off in a blast.
+   * Returns false once the whole strike has played out.
+   */
+  private airstrike(world: World, f: Fighter, cast: UltCast, mf: number, live: boolean): boolean {
+    const a = this.glow;
+    const T = world.tick;
+    // jets: two passes across the whole view, a V of three, then a pair back the other way
+    // (low enough to cross the view: the bombs are released just above its top edge)
+    const skyY = cast.oy - cast.my - 196; // (oy is the bombs' release height; oy - my is the caster's feet)
+    const passes = [
+      { from: 8, dur: 36, dir: cast.facing, y: skyY, n: 3, s: 1 },
+      { from: 40, dur: 40, dir: -cast.facing, y: skyY + 22, n: 2, s: 0.8 },
+    ];
+    for (const p of passes) {
+      const t = (mf - p.from) / p.dur;
+      if (t < 0 || t > 1) continue;
+      const span = 520;
+      const lead = cast.ox - p.dir * span + p.dir * span * 2 * t;
+      for (let i = 0; i < p.n; i++) {
+        const back = i === 0 ? 0 : 26 * Math.ceil(i / 2);
+        const side = i === 0 ? 0 : i % 2 ? -1 : 1;
+        const jx = lead - p.dir * back;
+        const jy = p.y + side * 10 * p.s + Math.sin((mf + i * 7) * 0.2) * 0.8;
+        this.jet(jx, jy, p.dir, p.s, mf + i);
+      }
+    }
+    // laser markers on the ground, each lit a little before its bomb is released and held until it lands
+    let pending = 0;
+    for (const m of cast.marks) {
+      if (m.done) continue;
+      const appear = m.frame - 18;
+      if (mf < appear) {
+        pending++;
+        continue;
+      }
+      // the bomb has gone off near this mark: done
+      if (this.blasts.some((b) => b.t0 >= cast.start + m.frame && Math.abs(b.x - m.x) < 20)) {
+        m.done = true;
+        continue;
+      }
+      if (mf > m.frame + 70) {
+        m.done = true;
+        continue;
+      }
+      pending++;
+      if (m.gy === null) continue;
+      const k = Math.min(1, (mf - appear) / 6);
+      // tighten as the bomb comes down: the ring closes in, the dot pulses faster
+      const lock = Math.min(1, Math.max(0, (mf - m.frame) / 24));
+      const pulse = 0.65 + 0.35 * Math.sin(T * (0.35 + lock * 0.6) + m.x);
+      const gx = m.x;
+      const gy = m.gy;
+      // the laser line from the sky down to the mark, brightest at the ground
+      for (let i = 0; i < 5; i++) a.lineStyle(1, 0xff2a2a, 0.5 * k * (1 - i / 5)).lineBetween(gx, gy - i * 40, gx, gy - (i + 1) * 40);
+      a.fillStyle(0xff3a2a, 0.35 * k * pulse).fillEllipse(gx, gy, 26 - 10 * lock, 6);
+      a.fillStyle(0xffd0c0, 0.9 * k).fillEllipse(gx, gy, 4, 2);
+      // the reticle: a closing ring and four ticks, lying on the ground
+      const rw = (40 - 18 * lock) * (1.6 - 0.6 * k);
+      a.lineStyle(1.5, 0xff4a3a, 0.85 * k * pulse).strokeEllipse(gx, gy, rw, rw * 0.26);
+      a.lineStyle(1, 0xff8a7a, 0.8 * k);
+      a.lineBetween(gx - rw / 2 - 6, gy, gx - rw / 2 + 2, gy).lineBetween(gx + rw / 2 - 2, gy, gx + rw / 2 + 6, gy);
+      a.lineBetween(gx, gy - 6, gx, gy - 2);
+    }
+    // the bombs: finned shells nosing down their laser line, a red tip blinking and a whistle of pressure arcs above them
+    for (const p of world.projectiles) {
+      if (!p.active || p.owner !== f.id || p.defId !== 'strike') continue;
+      this.bombs.set(p, { x: p.x, y: p.y });
+      this.bomb(p, T);
+    }
+    // the move's staging ends when the jets are gone and every mark has had its bomb
+    return live || pending > 0 || mf < 90;
+  }
+
+  /** A strike jet in silhouette (heading `dir`), with its afterburner and a contrail. */
+  private jet(x: number, y: number, dir: number, s: number, t: number): void {
+    const g = this.g;
+    const a = this.glow;
+    const P = (px: number, py: number): Phaser.Math.Vector2 => new Phaser.Math.Vector2(x + px * dir * s, y + py * s);
+    // contrail: two fading streams off the wingtips
+    for (let i = 0; i < 6; i++) {
+      const x0 = x - dir * (12 + i * 22) * s;
+      const x1 = x - dir * (12 + (i + 1) * 22) * s;
+      g.lineStyle(2 * s, 0xe8ecf4, 0.35 * (1 - i / 6)).lineBetween(x0, y + 1 * s, x1, y + 1 * s + i * 0.3);
+    }
+    a.fillStyle(0xffb04a, 0.8).fillTriangle(P(-14, -1.5).x, P(-14, -1.5).y, P(-14, 1.5).x, P(-14, 1.5).y, P(-24 - (t % 3) * 2, 0).x, P(-24, 0).y);
+    a.fillStyle(0xffffff, 0.9).fillCircle(P(-14, 0).x, P(-14, 0).y, 1.6 * s);
+    // fuselage, swept wing, tail fin and canopy glint
+    g.fillStyle(0x161a26, 0.95).fillPoints([P(16, 0), P(10, -2), P(-14, -2.5), P(-14, 2), P(8, 2.5)], true);
+    g.fillStyle(0x161a26, 0.95).fillPoints([P(4, 0), P(-8, 0), P(-12, 7), P(-6, 7)], true);
+    g.fillStyle(0x222838, 0.95).fillPoints([P(-6, -2), P(-14, -2), P(-17, -9), P(-12, -9)], true);
+    g.fillStyle(0x4a6a8a, 0.95).fillPoints([P(10, -2), P(6, -4), P(2, -4), P(2, -2)], true);
+    a.fillStyle(0xff3030, (t >> 2) % 2 ? 0.9 : 0.2).fillCircle(P(-12, 7).x, P(-12, 7).y, 1);
+  }
+
+  /** A falling Airstrike bomb with its whistle (pressure arcs, tightening as it nears the ground). */
+  private bomb(p: Projectile, T: number): void {
+    const g = this.g;
+    const a = this.glow;
+    const x = p.x;
+    const y = p.y;
+    // speed streaks behind it
+    for (let i = 0; i < 3; i++) a.lineStyle(1, 0xfff0d0, 0.35 - i * 0.1).lineBetween(x + (i - 1) * 3, y - 10 - i * 4, x + (i - 1) * 3, y - 26 - i * 10);
+    // whistle: chevron arcs above the bomb, closer together and brighter as it falls
+    const fall = Math.min(1, p.age / 26);
+    for (let i = 0; i < 3; i++) {
+      const ph = (T * (0.5 + fall) + i * 2.1) % 6.3;
+      const r = 5 + ph * 2.2;
+      a.lineStyle(1, 0xffffff, 0.45 * (1 - ph / 6.3) * (0.4 + 0.6 * fall));
+      a.beginPath();
+      a.arc(x, y - 6, r, Math.PI * 1.15, Math.PI * 1.85);
+      a.strokePath();
+    }
+    // the shell: tail fins, an olive body, a banded nose, and a blinking red tip
+    g.fillStyle(0x2a2e22, 1).fillTriangle(x - 6, y - 11, x, y - 5, x, y - 12).fillTriangle(x + 6, y - 11, x, y - 5, x, y - 12);
+    g.fillStyle(0x3e4630, 1).fillEllipse(x, y - 2, 7, 16);
+    g.fillStyle(0x5a6646, 1).fillEllipse(x - 1, y - 3, 3, 10);
+    g.fillStyle(0xd8b040, 1).fillRect(x - 3, y + 1, 6, 1.5);
+    a.fillStyle(0xff3a2a, (T >> 2) % 2 ? 0.95 : 0.35).fillCircle(x, y + 6, 1.4);
+  }
+
+  /** Airstrike detonations: a bomb that was in flight last frame and is gone now has gone off where it was last seen. */
+  private airstrikeBlasts(world: World): void {
+    const T = world.tick;
+    for (const [p, at] of this.bombs) {
+      if (p.active && p.defId === 'strike') continue;
+      this.bombs.delete(p);
+      // it stops on contact a few pixels short of the floor it hit: seat the blast on that floor
+      const gy = groundBelow(world, at.x, at.y);
+      this.blasts.push({ x: at.x, y: gy !== null && gy - at.y < 24 ? gy : at.y + 6, t0: T });
+    }
+    const g = this.g;
+    const a = this.glow;
+    const LIFE = 26;
+    this.blasts = this.blasts.filter((b) => T - b.t0 < LIFE);
+    for (const b of this.blasts) {
+      const t = (T - b.t0) / LIFE;
+      const e = 1 - (1 - t) * (1 - t);
+      const x = b.x;
+      const y = b.y;
+      // smoke rolling up and out (drawn first, under the fire)
+      for (let i = 0; i < 6; i++) {
+        const ang = Math.PI + (i / 5) * Math.PI;
+        const r = 10 + 26 * e;
+        g.fillStyle(i % 2 ? 0x2a2420 : 0x3a322c, 0.55 * (1 - t)).fillCircle(x + Math.cos(ang) * r * 0.9, y - 6 - 30 * e + Math.sin(ang) * r * 0.45, 7 + 9 * e);
+      }
+      // the fireball: graded shells, red rim to a white heart, swelling then collapsing
+      const fr = 30 * Math.sin(Math.min(1, t * 1.6) * Math.PI) + 4;
+      for (let i = 0; i < 6; i++) {
+        const k = 1 - i / 6;
+        const col = k > 0.7 ? 0xff4a10 : k > 0.45 ? 0xff8a2a : k > 0.25 ? 0xffc04a : 0xfff0c0;
+        a.fillStyle(col, 0.2 + 0.05 * (1 - k)).fillCircle(x, y - fr * 0.5, fr * k);
+      }
+      if (t < 0.25) a.fillStyle(0xffffff, 0.8 * (1 - t / 0.25) * this.flashK).fillCircle(x, y - 8, 22 * (1 - t));
+      // the ground shock: a flattened ring racing out, and debris flung up
+      a.lineStyle(2.5, 0xffd08a, 0.85 * (1 - t)).strokeEllipse(x, y, 30 + 120 * e, 8 + 16 * e);
+      for (let i = 0; i < 8; i++) {
+        const ang = -Math.PI * (0.15 + 0.7 * (i / 7));
+        const sp = 60 + (i % 3) * 25;
+        const dx = Math.cos(ang) * sp * t;
+        const dy = Math.sin(ang) * sp * t + 90 * t * t;
+        g.fillStyle(0x1a1410, 0.9 * (1 - t)).fillRect(x + dx - 1, y + dy - 1, 2.5, 2.5);
+        a.fillStyle(0xffb04a, 0.8 * (1 - t)).fillRect(x + dx * 0.8, y + dy * 0.8, 1.5, 1.5);
+      }
+    }
+  }
+
+  /**
+   * Nova's Elemental Convergence: a rune circle wakes behind her and charges in three stages, fire, ice, lightning, each
+   * lighting one of three orbs; the orbs spiral into her hands and the three beams go out as one braided beam with a body,
+   * a white core and a flaring impact head.
+   */
+  private convergence(world: World, f: Fighter, cast: UltCast, mf: number, live: boolean): boolean {
+    const a = this.glow;
+    const ELEM = [0xff7a2a, 0x8fe6ff, 0xffee55];
+    const fire = cast.fireAt;
+    const ox = live ? f.x + cast.facing * cast.mx : cast.ox;
+    const oy = live ? f.y + cast.my : cast.oy;
+    if (live) {
+      cast.ox = ox;
+      cast.oy = oy;
+    }
+    const d = cast.facing;
+    // ---- the charge ----
+    if (live && mf <= fire + 6) {
+      const open = Math.min(1, mf / 8);
+      const stage = Math.min(2, Math.floor(mf / (fire / 3)));
+      const col = ELEM[stage];
+      const cx = f.x - d * 2;
+      const cy = f.y - f.h * 0.55;
+      const R = 34 * open;
+      const out = mf > fire ? 1 - (mf - fire) / 6 : 1;
+      // the circle: double ring, rune ticks turning one way and a hexagram the other
+      a.lineStyle(2, col, 0.8 * out).strokeCircle(cx, cy, R);
+      a.lineStyle(1, col, 0.55 * out).strokeCircle(cx, cy, R * 0.82);
+      for (let i = 0; i < 18; i++) {
+        const ang = mf * 0.06 + (i / 18) * Math.PI * 2;
+        const r0 = R * 0.84;
+        const r1 = R * (i % 3 === 0 ? 0.98 : 0.93);
+        a.lineStyle(1.5, i % 3 === 0 ? 0xffffff : col, 0.85 * out).lineBetween(cx + Math.cos(ang) * r0, cy + Math.sin(ang) * r0, cx + Math.cos(ang) * r1, cy + Math.sin(ang) * r1);
+      }
+      for (let tri = 0; tri < 2; tri++) {
+        const base = -mf * 0.09 + tri * Math.PI;
+        const pts = [0, 1, 2].map((j) => new Phaser.Math.Vector2(cx + Math.cos(base + (j * Math.PI * 2) / 3) * R * 0.78, cy + Math.sin(base + (j * Math.PI * 2) / 3) * R * 0.78));
+        a.lineStyle(1, col, 0.6 * out).strokePoints(pts, true);
+      }
+      a.fillStyle(col, 0.1 * out).fillCircle(cx, cy, R);
+      // three element orbs at the points of the circle, each lit by its stage; at the end they spiral into the hands
+      for (let i = 0; i < 3; i++) {
+        const lit = stage > i || (stage === i && mf % (fire / 3) > 2);
+        const conv = Math.max(0, Math.min(1, (mf - (fire - 8)) / 8));
+        const ang = -Math.PI / 2 + (i * Math.PI * 2) / 3 + mf * 0.05 + conv * 2.5;
+        const rr = R * (1 - conv);
+        const px = cx + Math.cos(ang) * rr + (ox - cx) * conv;
+        const py = cy + Math.sin(ang) * rr + (oy - cy) * conv;
+        const sz = lit ? 4.5 + Math.sin(mf * 0.5 + i) * 0.8 : 2.5;
+        a.fillStyle(ELEM[i], (lit ? 0.6 : 0.25) * out).fillCircle(px, py, sz * 1.8);
+        a.fillStyle(0xffffff, (lit ? 0.9 : 0.3) * out).fillCircle(px, py, sz * 0.6);
+        // motes drawn in towards the lit orb
+        if (lit && conv === 0)
+          for (let j = 0; j < 3; j++) {
+            const k = ((mf * 0.08 + j / 3 + i * 0.21) % 1);
+            const ma = ang + j * 2.1;
+            a.fillStyle(ELEM[i], 0.8 * (1 - k)).fillRect(px + Math.cos(ma) * 18 * (1 - k) - 1, py + Math.sin(ma) * 18 * (1 - k) - 1, 2, 2);
+          }
+      }
+      // the gathering point in the hands grows through the charge, flaring as the orbs arrive
+      const gr = 2 + 6 * (mf / fire) + (mf >= fire - 2 && mf <= fire + 2 ? 6 : 0);
+      a.fillStyle(col, 0.45 * out).fillCircle(ox, oy, gr * 1.8);
+      a.fillStyle(0xffffff, 0.85 * out).fillCircle(ox, oy, gr * 0.7);
+    }
+    // ---- the beam ----
+    let head = -Infinity;
+    let headAge = 0;
+    let headLife = 1;
+    const parts = [false, false, false];
+    let w = 0;
+    for (const p of world.projectiles) {
+      if (!p.active || p.owner !== f.id || !p.defId.startsWith('beam_')) continue;
+      const i = p.defId === 'beam_fire' ? 0 : p.defId === 'beam_ice' ? 1 : 2;
+      parts[i] = true;
+      const hx = (p.x - ox) * d + p.def!.w * 0.5;
+      if (hx > head) {
+        head = hx;
+        headAge = p.age;
+        headLife = p.def!.life;
+      }
+      w = Math.max(w, p.def!.h);
+    }
+    if (head === -Infinity) return live || mf < fire + 4;
+    if (cast.endT < 0 && !live) cast.endT = world.tick;
+    const tail = cast.endT < 0 ? 0 : (world.tick - cast.endT) * 12;
+    if (tail >= head) return false;
+    const fade = Math.min(1, (headLife - headAge) / 10);
+    const x0 = ox + d * tail;
+    const x1 = ox + d * head;
+    const L = Math.min(x0, x1);
+    const len = Math.abs(x1 - x0);
+    const bw = w * 0.42 * (0.94 + 0.06 * Math.sin(mf * 0.9));
+    const T = world.tick;
+    // body: a wide haze tinted by the elements present, then a violet-white body
+    const mixCol = parts[2] ? 0xd8c8ff : parts[1] ? 0xb8d8ff : 0xffb88a;
+    a.fillStyle(mixCol, 0.16 * fade).fillRect(L, oy - bw, len, bw * 2);
+    a.fillStyle(mixCol, 0.28 * fade).fillRect(L, oy - bw * 0.6, len, bw * 1.2);
+    // three braided strands, one per element in flight, twisting around the axis
+    for (let i = 0; i < 3; i++) {
+      if (!parts[i]) continue;
+      a.lineStyle(3, ELEM[i], 0.8 * fade);
+      a.beginPath();
+      for (let s = 0; s <= 24; s++) {
+        const u = s / 24;
+        const px = x0 + (x1 - x0) * u;
+        const py = oy + Math.sin(u * len * 0.06 - T * 0.5 + (i * Math.PI * 2) / 3) * bw * 0.55;
+        if (s === 0) a.moveTo(px, py);
+        else a.lineTo(px, py);
+      }
+      a.strokePath();
+    }
+    // lightning crackling along the beam once the bolt is in it
+    if (parts[2]) {
+      a.lineStyle(1.5, 0xffffff, 0.9 * fade);
+      a.beginPath();
+      for (let s = 0; s <= 14; s++) {
+        const u = s / 14;
+        const jit = (((s * 7919 + (T >> 1) * 104729) % 97) / 97 - 0.5) * bw * 0.9;
+        const px = x0 + (x1 - x0) * u;
+        if (s === 0) a.moveTo(px, oy + jit);
+        else a.lineTo(px, oy + jit);
+      }
+      a.strokePath();
+    }
+    // the core
+    a.fillStyle(0xffffff, 0.8 * fade).fillRect(L, oy - bw * 0.16, len, bw * 0.32);
+    // muzzle: the rune ring standing at the hands while she pours it out
+    if (live) {
+      const mr = bw * 0.9;
+      a.lineStyle(2, ELEM[(T >> 2) % 3], 0.85).strokeEllipse(ox, oy, mr * 0.6, mr * 2.4);
+      a.fillStyle(0xffffff, 0.6 * this.flashK).fillCircle(ox, oy, bw * 0.5);
+    }
+    // the impact head: a flare star and graded shells
+    this.flare(x1, oy, bw * 1.1, ELEM[parts[2] ? 2 : parts[1] ? 1 : 0], T, fade);
+    return true;
+  }
+
+  /**
+   * Agni's Solar Beam: a sun disc kindles in his hands, swelling with a turning corona while the air shimmers with heat
+   * around him; then a thick solar beam roars out with a white core, its edges wavering, ending in a flaring sunburst.
+   */
+  private solarBeam(world: World, f: Fighter, cast: UltCast, mf: number, live: boolean): boolean {
+    const a = this.glow;
+    const T = world.tick;
+    const d = cast.facing;
+    const fire = cast.fireAt;
+    const ox = live ? f.x + d * cast.mx : cast.ox;
+    const oy = live ? f.y + cast.my : cast.oy;
+    if (live) {
+      cast.ox = ox;
+      cast.oy = oy;
+    }
+    // heat shimmer: wavy columns rising round Agni through the charge and the firing
+    if (live) {
+      const hk = Math.min(1, mf / 10);
+      for (let i = 0; i < 7; i++) {
+        const x = f.x - 40 + i * 13 + Math.sin(T * 0.3 + i) * 3;
+        const rise = (T * 2.2 + i * 19) % 80;
+        a.lineStyle(2, 0xff9a3a, 0.22 * hk * (1 - rise / 80));
+        a.beginPath();
+        a.moveTo(x, f.y - rise);
+        for (let k = 1; k <= 5; k++) a.lineTo(x + (k % 2 ? 3 : -3), f.y - rise - k * 8);
+        a.strokePath();
+      }
+    }
+    // ---- the sun disc ----
+    if (live) {
+      const t = Math.min(1, mf / fire);
+      const after = mf > fire ? 1 : 0;
+      const r = 3 + 13 * t * t + (after ? 2 * Math.sin(T * 0.6) : 0);
+      const cx = ox + d * 4;
+      // corona: long rays turning slowly, flickering in length
+      const rays = 16;
+      for (let i = 0; i < rays; i++) {
+        const ang = T * 0.04 * d + (i / rays) * Math.PI * 2;
+        const len = r * (1.6 + 0.7 * Math.abs(Math.sin(T * 0.31 + i * 1.7)));
+        const half = 0.08;
+        a.fillStyle(i % 2 ? 0xffe08a : 0xff8a2a, 0.5 * t);
+        a.fillTriangle(cx + Math.cos(ang - half) * r * 0.7, oy + Math.sin(ang - half) * r * 0.7, cx + Math.cos(ang + half) * r * 0.7, oy + Math.sin(ang + half) * r * 0.7, cx + Math.cos(ang) * len, oy + Math.sin(ang) * len);
+      }
+      // the disc: graded shells from a deep orange rim to a white face
+      for (let i = 0; i < 9; i++) {
+        const k = 1 - i / 9;
+        const col = k > 0.7 ? 0xff5a10 : k > 0.45 ? 0xff9a2a : k > 0.25 ? 0xffd04a : 0xfff4c8;
+        a.fillStyle(col, 0.16 + 0.06 * (1 - k)).fillCircle(cx, oy, r * 1.5 * k);
+      }
+      a.fillStyle(0xffffff, 0.8).fillCircle(cx, oy, r * 0.45);
+      // sparks drawn into the disc while it charges
+      if (!after)
+        for (let i = 0; i < 10; i++) {
+          const k = (mf * 0.06 + i * 0.13) % 1;
+          const ang = i * 2.4;
+          const dist = 48 * (1 - k);
+          a.fillStyle(i % 2 ? 0xffd04a : 0xff7a2a, 0.9 * k).fillRect(cx + Math.cos(ang) * dist - 1, oy + Math.sin(ang) * dist - 1, 2, 2);
+        }
+      // the ignition: a ring bursting off the disc as the beam goes
+      if (mf >= fire && mf < fire + 10) {
+        const k = (mf - fire) / 10;
+        a.lineStyle(3, 0xfff0c0, 0.9 * (1 - k)).strokeCircle(cx, oy, r + 50 * k);
+        a.fillStyle(0xffffff, 0.55 * (1 - k) * this.flashK).fillCircle(cx, oy, r * 2.4 * (1 - k * 0.5));
+      }
+    }
+    // ---- the beam ----
+    let head = -Infinity;
+    let w = 0;
+    let age = 0;
+    let life = 1;
+    for (const p of world.projectiles) {
+      if (!p.active || p.owner !== f.id || !p.defId.startsWith('beam_solar')) continue;
+      const hx = (p.x - ox) * d + p.def!.w * 0.5;
+      if (hx > head) {
+        head = hx;
+        w = p.def!.h;
+        age = p.age;
+        life = p.def!.life;
+      }
+    }
+    if (head === -Infinity) return live || mf < fire + 4;
+    if (cast.endT < 0 && !live) cast.endT = T;
+    const tail = cast.endT < 0 ? 0 : (T - cast.endT) * 12;
+    if (tail >= head) return false;
+    const fade = Math.min(1, (life - age) / 10);
+    const x0 = ox + d * tail;
+    const x1 = ox + d * head;
+    const len = Math.abs(x1 - x0);
+    const bw = w * 0.36 * (0.95 + 0.05 * Math.sin(T * 0.8));
+    // wavering edges: the beam is drawn as columns whose half-height ripples along its length (heat), in shells
+    const N = Math.max(6, Math.ceil(len / 8));
+    const shells: [number, number, number][] = [
+      [1.35, 0xff5a10, 0.16],
+      [1, 0xff9a2a, 0.3],
+      [0.62, 0xffd04a, 0.42],
+      [0.3, 0xfff4c8, 0.6],
+    ];
+    for (const [k, col, al] of shells) {
+      const pts: Phaser.Math.Vector2[] = [];
+      for (let s = 0; s <= N; s++) {
+        const u = s / N;
+        const x = x0 + (x1 - x0) * u;
+        const wob = 1 + 0.12 * Math.sin(u * len * 0.08 - T * 0.7) + 0.06 * Math.sin(u * len * 0.21 + T * 0.4);
+        // the beam swells out of the disc over its first stretch
+        const grow = Math.min(1, 0.45 + (u * len) / 40);
+        pts.push(new Phaser.Math.Vector2(x, oy - bw * k * wob * grow));
+      }
+      for (let s = N; s >= 0; s--) {
+        const u = s / N;
+        const x = x0 + (x1 - x0) * u;
+        const wob = 1 + 0.12 * Math.sin(u * len * 0.08 - T * 0.7 + 1.3) + 0.06 * Math.sin(u * len * 0.21 + T * 0.4 + 2);
+        const grow = Math.min(1, 0.45 + (u * len) / 40);
+        pts.push(new Phaser.Math.Vector2(x, oy + bw * k * wob * grow));
+      }
+      a.fillStyle(col, al * fade).fillPoints(pts, true);
+    }
+    // the white core and streaks of hotter light running down the beam
+    a.fillStyle(0xffffff, 0.85 * fade).fillRect(Math.min(x0, x1), oy - bw * 0.1, len, bw * 0.2);
+    for (let i = 0; i < 6; i++) {
+      const u = ((T * 0.05 + i / 6) % 1);
+      const sx = x0 + (x1 - x0) * u;
+      const sy = oy + (((i * 37) % 11) - 5) * bw * 0.1;
+      a.lineStyle(1.5, 0xfff8e0, 0.7 * fade).lineBetween(sx, sy, sx + d * 26, sy);
+    }
+    // the end flare: a sunburst where the beam is burning through
+    this.flare(x1, oy, bw * 1.5, 0xffb02e, T, fade);
+    return true;
+  }
+
+  /** An impact flare: graded shells, a four-point star and a spray of sparks, at the head of a beam. */
+  private flare(x: number, y: number, r: number, col: number, T: number, fade: number): void {
+    const a = this.glow;
+    const pulse = 0.9 + 0.1 * Math.sin(T * 1.1);
+    for (let i = 0; i < 5; i++) {
+      const k = 1 - i / 5;
+      a.fillStyle(i < 2 ? col : 0xffffff, (0.18 + 0.08 * i) * fade).fillCircle(x, y, r * k * pulse);
+    }
+    const s = r * 2.2 * pulse;
+    const t = r * 0.16;
+    a.fillStyle(0xffffff, 0.75 * fade * this.flashK);
+    a.fillTriangle(x - s, y, x, y - t, x, y + t).fillTriangle(x + s, y, x, y - t, x, y + t);
+    a.fillTriangle(x, y - s * 0.7, x - t, y, x + t, y).fillTriangle(x, y + s * 0.7, x - t, y, x + t, y);
+    for (let i = 0; i < 8; i++) {
+      const ang = i * 0.785 + T * 0.2;
+      const k = ((T * 0.09 + i * 0.37) % 1);
+      const dist = r * (0.6 + 1.6 * k);
+      a.fillStyle(i % 2 ? col : 0xffffff, 0.85 * (1 - k) * fade).fillRect(x + Math.cos(ang) * dist - 1, y + Math.sin(ang) * dist - 1, 2, 2);
+    }
+  }
+}
+
+/** Which bespoke staging each fighter's (non-cinematic) ultimate gets. */
+const ULT_ART: Record<string, 'mech' | 'airstrike' | 'convergence' | 'solar'> = { gizmo: 'mech', havoc: 'airstrike', nova: 'convergence', agni: 'solar' };
+
+/** One staged ultimate. */
+interface UltCast {
+  move: MoveDef;
+  /** World tick of move frame 0. */
+  start: number;
+  facing: number;
+  /** Muzzle offset from the feet (the move's first projectile spawn) and its last world position. */
+  mx: number;
+  my: number;
+  ox: number;
+  oy: number;
+  /** Move frame of the first projectile (the beam firing). */
+  fireAt: number;
+  /** World tick the caster left the move (-1 while still in it): the beam's tail then follows its head out. */
+  endT: number;
+  /** Move frame last seen while the caster was in the move. */
+  lastMf: number;
+  /** Airstrike marks: where each called bomb lands (null: no solid ground under it). */
+  marks: { frame: number; x: number; gy: number | null; done: boolean }[];
+}
+
+function newCast(world: World, f: Fighter, m: MoveDef, start: number): UltCast {
+  const shots = (m.events ?? []).filter((e): e is Extract<typeof e, { action: 'projectile' }> => e.action === 'projectile');
+  const first = shots[0];
+  const mx = first?.x ?? 10;
+  const my = first?.y ?? -f.h * 0.6;
+  const marks = shots
+    .filter((e) => e.vx === 0)
+    .map((e) => {
+      const x = f.x + f.facing * e.x;
+      return { frame: e.frame, x, gy: groundBelow(world, x, f.y + e.y), done: false };
+    });
+  return { move: m, start, facing: f.facing, mx, my, ox: f.x + f.facing * mx, oy: f.y + my, fireAt: first?.frame ?? m.startup, endT: -1, lastMf: 0, marks };
+}
+
+/** Top of the first solid platform under (x, y): where a falling projectile would stop. */
+function groundBelow(world: World, x: number, y: number): number | null {
+  let best: number | null = null;
+  for (const p of world.platforms) {
+    if (p.kind !== 'solid' || x < p.x || x > p.right || p.top < y) continue;
+    if (best === null || p.top < best) best = p.top;
+  }
+  return best;
+}
+
+/** A w x h rectangle centred on (x, y), turned by `rot`. */
+function quad(x: number, y: number, w: number, h: number, rot: number): Phaser.Math.Vector2[] {
+  const c = Math.cos(rot);
+  const s = Math.sin(rot);
+  return [
+    [-w / 2, -h / 2],
+    [w / 2, -h / 2],
+    [w / 2, h / 2],
+    [-w / 2, h / 2],
+  ].map(([px, py]) => new Phaser.Math.Vector2(x + px * c - py * s, y + px * s + py * c));
 }
