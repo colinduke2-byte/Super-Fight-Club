@@ -19,7 +19,7 @@ validateReferences(moves, json.projectiles, json.deployables, 'havoc');
 
 /** C4: how far in front Havoc can slap it onto a rival, and the blast radius when it goes off. */
 export const C4_REACH = 24;
-export const C4_RADIUS = 36;
+export const C4_RADIUS = 30;
 const rr = [0, 0, 0, 0];
 
 const behavior: CharacterBehavior = {

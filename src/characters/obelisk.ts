@@ -53,7 +53,7 @@ export const obelisk: CharacterData = {
     victory: 'Stone remembers. You won\'t.',
   },
   stats: {
-    weight: 90,
+    weight: 95,
     runSpeed: 2.02,
     airSpeed: 1.85,
     groundAccel: 0.24,

@@ -31,10 +31,14 @@ const behavior: CharacterBehavior = {
     }
     f.speedBonus = skate ? SKATE_SPEED : 1;
     f.res.skate = skate ? 1 : 0;
+    // one Avalanche Kick bounce per airtime: landing or grabbing a ledge rearms it
+    if (f.grounded || f.state === 'ledge') f.res.dairBounce = 1;
   },
   onHitDealt(f, _victim, hb) {
-    // Avalanche Kick bounces off the rival into the next hit (only the kick itself: a kunai landing meanwhile does not count)
-    if (f.move?.id === 'dair' && f.move.hitboxes.includes(hb)) {
+    // Avalanche Kick bounces off the rival into the next hit (only the kick itself: a kunai landing meanwhile does not count),
+    // once per airtime so it cannot be chained into an endless pogo
+    if (f.move?.id === 'dair' && f.move.hitboxes.includes(hb) && (f.res.dairBounce ?? 0) > 0) {
+      f.res.dairBounce = 0;
       f.vy = -6.4;
       f.vx *= -0.3;
       f.moveFrame = Math.max(f.moveFrame, moveTotal(f.move) - 6);
@@ -61,7 +65,7 @@ export const rime: CharacterData = {
     victory: 'Winter always wins.',
   },
   stats: {
-    weight: 80,
+    weight: 84,
     runSpeed: 3.3,
     airSpeed: 2.3,
     groundAccel: 0.46,
@@ -98,7 +102,7 @@ export const rime: CharacterData = {
   moves,
   projectiles: json.projectiles,
   deployables: json.deployables,
-  resources: { skate: 0 },
+  resources: { skate: 0, dairBounce: 1 },
   ultimate: { cost: 100, gainDealt: 0.32, gainTaken: 0.42 },
   behavior,
 };

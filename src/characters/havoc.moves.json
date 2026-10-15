@@ -20,7 +20,7 @@
     "fx": "blast"
    },
    "blast": {
-    "radius": 30,
+    "radius": 24,
     "hit": {
      "x": 0,
      "y": 0,
@@ -62,7 +62,7 @@
     "fx": "blast"
    },
    "blast": {
-    "radius": 26,
+    "radius": 22,
     "hit": {
      "x": 0,
      "y": 0,
@@ -94,7 +94,7 @@
     "h": 1,
     "damage": 14.0,
     "angle": 40,
-    "base": 42,
+    "base": 38,
     "scaling": 0.95,
     "hitlag": 1.3,
     "fx": "blast"
@@ -108,7 +108,7 @@
      "h": 1,
      "damage": 14,
      "angle": 40,
-     "base": 42,
+     "base": 38,
      "scaling": 0.95,
      "hitlag": 1.2,
      "fx": "blast"
@@ -729,8 +729,8 @@
      "h": 12,
      "damage": 9.5,
      "angle": 361,
-     "base": 34,
-     "scaling": 0.8,
+     "base": 38,
+     "scaling": 0.86,
      "fx": "kick"
     },
     {
@@ -740,8 +740,8 @@
      "h": 12,
      "damage": 9.5,
      "angle": 361,
-     "base": 34,
-     "scaling": 0.8,
+     "base": 38,
+     "scaling": 0.86,
      "fx": "kick"
     }
    ]
@@ -1010,7 +1010,7 @@
      "w": 26,
      "h": 22,
      "damage": 4.5,
-     "angle": 280,
+     "angle": 65,
      "base": 26,
      "scaling": 0.45,
      "window": [
@@ -1082,8 +1082,8 @@
      "h": 34,
      "damage": 9.5,
      "angle": 140,
-     "base": 52,
-     "scaling": 0.7,
+     "base": 42,
+     "scaling": 0.66,
      "throw": true
     }
    ]
@@ -1523,7 +1523,7 @@
      "action": "custom",
      "name": "detonateC4",
      "args": [
-      36
+      30
      ]
     }
    ],

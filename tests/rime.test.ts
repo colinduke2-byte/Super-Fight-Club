@@ -32,7 +32,7 @@ describe('Rime', () => {
     expect(rime.stats.doubleJumps).toBe(2);
     expect(rime.wallJump).toBe(true);
     expect(rime.moves.jab1.startup).toBe(3);
-    expect(rime.moves.nair.startup).toBe(3);
+    expect(rime.moves.nair.startup).toBe(5);
   });
 
   it('Frostbite: hits stack chill; a full set freezes the rival solid', () => {

@@ -519,7 +519,7 @@
      "h": 30,
      "damage": 13.82,
      "angle": 40,
-     "base": 46,
+     "base": 40,
      "scaling": 0.94,
      "hitlag": 1.2,
      "fx": "water",
@@ -622,7 +622,7 @@
      "w": 42,
      "h": 14,
      "damage": 10.56,
-     "angle": 30,
+     "angle": 42,
      "base": 38,
      "scaling": 0.74,
      "fx": "water",
@@ -637,7 +637,7 @@
      "w": 42,
      "h": 14,
      "damage": 10.56,
-     "angle": 30,
+     "angle": 42,
      "base": 38,
      "scaling": 0.74,
      "fx": "water",
@@ -1153,8 +1153,8 @@
      "h": 34,
      "damage": 7.68,
      "angle": 40,
-     "base": 56,
-     "scaling": 0.74,
+     "base": 44,
+     "scaling": 0.6,
      "throw": true,
      "fx": "water"
     }
@@ -1183,8 +1183,8 @@
      "h": 34,
      "damage": 9.22,
      "angle": 135,
-     "base": 58,
-     "scaling": 0.8,
+     "base": 42,
+     "scaling": 0.72,
      "throw": true,
      "fx": "water"
     }
@@ -1212,9 +1212,9 @@
      "w": 40,
      "h": 34,
      "damage": 5.95,
-     "angle": 90,
-     "base": 48,
-     "scaling": 0.62,
+     "angle": 95,
+     "base": 36,
+     "scaling": 0.42,
      "throw": true,
      "fx": "water"
     }

@@ -551,7 +551,7 @@
    "name": "Monolith Punch",
    "kind": "smash",
    "anim": "smashF",
-   "startup": 17,
+   "startup": 15,
    "active": 4,
    "recovery": 28,
    "charge": {
@@ -562,7 +562,7 @@
    },
    "events": [
     {
-     "frame": 17,
+     "frame": 15,
      "action": "fx",
      "name": "shardburst"
     }
@@ -575,7 +575,7 @@
      "h": 30,
      "damage": 15.02,
      "angle": 40,
-     "base": 48,
+     "base": 38,
      "scaling": 0.96,
      "hitlag": 1.25,
      "fx": "crystal"
@@ -629,7 +629,7 @@
      "h": 40,
      "damage": 13.61,
      "angle": 90,
-     "base": 46,
+     "base": 40,
      "scaling": 0.88,
      "fx": "crystal"
     },
@@ -640,7 +640,7 @@
      "h": 20,
      "damage": 8.45,
      "angle": 80,
-     "base": 40,
+     "base": 35,
      "scaling": 0.7,
      "fx": "crystal",
      "window": [
@@ -747,7 +747,7 @@
      "w": 46,
      "h": 14,
      "damage": 11.74,
-     "angle": 30,
+     "angle": 42,
      "base": 40,
      "scaling": 0.82,
      "fx": "crystal"
@@ -758,7 +758,7 @@
      "w": 46,
      "h": 14,
      "damage": 11.74,
-     "angle": 30,
+     "angle": 42,
      "base": 40,
      "scaling": 0.82,
      "fx": "crystal",
@@ -785,7 +785,7 @@
    "name": "Boulder Spin",
    "kind": "aerial",
    "anim": "aerialN",
-   "startup": 5,
+   "startup": 4,
    "active": 6,
    "recovery": 12,
    "landingLag": 9,
@@ -795,22 +795,22 @@
      3
     ],
     [
-     20,
-     23
+     19,
+     22
     ]
    ],
    "cancels": [
     {
      "button": "attack",
      "into": "fair",
-     "from": 7,
+     "from": 6,
      "dir": "forward",
      "air": true
     },
     {
      "button": "attack",
      "into": "uair",
-     "from": 8,
+     "from": 7,
      "dir": "up",
      "air": true
     }
@@ -904,7 +904,7 @@
    "name": "Hammerfist",
    "kind": "aerial",
    "anim": "aerialF",
-   "startup": 10,
+   "startup": 8,
    "active": 4,
    "recovery": 17,
    "landingLag": 12,
@@ -914,8 +914,8 @@
      3
     ],
     [
-     27,
-     31
+     25,
+     29
     ]
    ],
    "hitboxes": [
@@ -952,7 +952,7 @@
    "name": "Back Slab",
    "kind": "aerial",
    "anim": "aerialB",
-   "startup": 9,
+   "startup": 7,
    "active": 3,
    "recovery": 14,
    "landingLag": 10,
@@ -962,8 +962,8 @@
      3
     ],
     [
-     24,
-     28
+     22,
+     26
     ]
    ],
    "hitboxes": [
@@ -1190,8 +1190,8 @@
      "h": 34,
      "damage": 7.88,
      "angle": 42,
-     "base": 56,
-     "scaling": 0.74,
+     "base": 46,
+     "scaling": 0.62,
      "throw": true,
      "fx": "heavy"
     }
@@ -1220,8 +1220,8 @@
      "h": 34,
      "damage": 9.39,
      "angle": 135,
-     "base": 56,
-     "scaling": 0.8,
+     "base": 42,
+     "scaling": 0.72,
      "throw": true,
      "fx": "heavy"
     }

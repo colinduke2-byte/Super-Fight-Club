@@ -13,7 +13,7 @@
      "y": -18,
      "w": 18,
      "h": 14,
-     "damage": 3.38,
+     "damage": 3.11,
      "angle": 361,
      "base": 8,
      "scaling": 0.15,
@@ -25,7 +25,7 @@
      "y": -18,
      "w": 26,
      "h": 15,
-     "damage": 2.48,
+     "damage": 2.28,
      "angle": 361,
      "base": 6,
      "scaling": 0.1,
@@ -57,6 +57,11 @@
      "into": "neutralB",
      "from": 5,
      "dir": "neutral"
+    },
+    {
+     "button": "jump",
+     "into": "@jump",
+     "from": 5
     }
    ],
    "motion": [
@@ -158,7 +163,7 @@
      "y": -16,
      "w": 18,
      "h": 14,
-     "damage": 3.38,
+     "damage": 3.11,
      "angle": 361,
      "base": 8,
      "scaling": 0.15,
@@ -170,7 +175,7 @@
      "y": -16,
      "w": 26,
      "h": 15,
-     "damage": 2.48,
+     "damage": 2.28,
      "angle": 361,
      "base": 6,
      "scaling": 0.1,
@@ -268,7 +273,32 @@
    "view": {
     "arc": "line",
     "stretch": 1.06
-   }
+   },
+   "cancels": [
+    {
+     "button": "attack",
+     "into": "ftilt",
+     "from": 5,
+     "dir": "forward"
+    },
+    {
+     "button": "attack",
+     "into": "dtilt",
+     "from": 5,
+     "dir": "down"
+    },
+    {
+     "button": "special",
+     "into": "sideB",
+     "from": 5,
+     "dir": "side"
+    },
+    {
+     "button": "jump",
+     "into": "@jump",
+     "from": 5
+    }
+   ]
   },
   "jab3": {
    "name": "Wing Flare",
@@ -283,7 +313,7 @@
      "y": -18,
      "w": 58,
      "h": 34,
-     "damage": 5.64,
+     "damage": 5.19,
      "angle": 35,
      "base": 44,
      "scaling": 0.55,
@@ -392,7 +422,7 @@
      "y": -17,
      "w": 20,
      "h": 16,
-     "damage": 10.15,
+     "damage": 9.34,
      "angle": 36,
      "base": 34,
      "scaling": 0.66,
@@ -404,7 +434,7 @@
      "y": -17,
      "w": 28,
      "h": 17,
-     "damage": 6.76,
+     "damage": 6.22,
      "angle": 45,
      "base": 28,
      "scaling": 0.5,
@@ -535,7 +565,7 @@
      "y": -46,
      "w": 48,
      "h": 34,
-     "damage": 7.33,
+     "damage": 6.74,
      "angle": 82,
      "base": 32,
      "scaling": 0.6,
@@ -622,7 +652,20 @@
     "arc": "curve",
     "stretch": 1.05,
     "smear": 1.2
-   }
+   },
+   "cancels": [
+    {
+     "button": "jump",
+     "into": "@jump",
+     "from": 8
+    },
+    {
+     "button": "attack",
+     "into": "utilt",
+     "from": 10,
+     "dir": "up"
+    }
+   ]
   },
   "dtilt": {
    "name": "Ankle Prick",
@@ -637,7 +680,7 @@
      "y": -5,
      "w": 22,
      "h": 13,
-     "damage": 6.2,
+     "damage": 5.7,
      "angle": 72,
      "base": 24,
      "scaling": 0.45,
@@ -648,7 +691,7 @@
      "y": -5,
      "w": 22,
      "h": 14,
-     "damage": 4.51,
+     "damage": 4.15,
      "angle": 72,
      "base": 22,
      "scaling": 0.4,
@@ -732,7 +775,31 @@
    },
    "view": {
     "arc": "line"
-   }
+   },
+   "cancels": [
+    {
+     "button": "attack",
+     "into": "ftilt",
+     "from": 7,
+     "dir": "forward"
+    },
+    {
+     "button": "attack",
+     "into": "jab1",
+     "from": 7,
+     "dir": "neutral"
+    },
+    {
+     "button": "grab",
+     "into": "grab",
+     "from": 7
+    },
+    {
+     "button": "jump",
+     "into": "@jump",
+     "from": 7
+    }
+   ]
   },
   "dashAttack": {
    "name": "Charging Lance",
@@ -747,7 +814,7 @@
      "y": -14,
      "w": 20,
      "h": 18,
-     "damage": 9.58,
+     "damage": 8.81,
      "angle": 42,
      "base": 34,
      "scaling": 0.66,
@@ -759,7 +826,7 @@
      "y": -14,
      "w": 26,
      "h": 21,
-     "damage": 6.76,
+     "damage": 6.22,
      "angle": 55,
      "base": 28,
      "scaling": 0.5,
@@ -777,6 +844,18 @@
      "button": "jump",
      "into": "@jump",
      "from": 5
+    },
+    {
+     "button": "attack",
+     "into": "utilt",
+     "from": 7,
+     "dir": "up"
+    },
+    {
+     "button": "special",
+     "into": "sideB",
+     "from": 7,
+     "dir": "side"
     }
    ],
    "pose": {
@@ -874,9 +953,9 @@
      "y": -17,
      "w": 22,
      "h": 19,
-     "damage": 17.48,
+     "damage": 16.08,
      "angle": 40,
-     "base": 46,
+     "base": 37,
      "scaling": 0.95,
      "fx": "pierce",
      "hitlag": 1.4
@@ -886,9 +965,9 @@
      "y": -17,
      "w": 28,
      "h": 19,
-     "damage": 12.4,
+     "damage": 11.41,
      "angle": 45,
-     "base": 38,
+     "base": 31,
      "scaling": 0.8,
      "fx": "pierce"
     }
@@ -991,7 +1070,7 @@
    "name": "Updraft Spiral",
    "kind": "smash",
    "anim": "smashU",
-   "startup": 12,
+   "startup": 13,
    "active": 6,
    "recovery": 28,
    "hitboxes": [
@@ -1000,9 +1079,9 @@
      "y": -44,
      "w": 58,
      "h": 42,
-     "damage": 14.09,
+     "damage": 12.96,
      "angle": 88,
-     "base": 40,
+     "base": 37,
      "scaling": 0.85,
      "dir": "away",
      "hitlag": 1.25,
@@ -1109,10 +1188,10 @@
      "y": -8,
      "w": 46,
      "h": 18,
-     "damage": 11.84,
+     "damage": 10.89,
      "angle": 361,
-     "base": 34,
-     "scaling": 0.76,
+     "base": 38,
+     "scaling": 0.82,
      "dir": "away",
      "fx": "gust"
     },
@@ -1121,10 +1200,10 @@
      "y": -8,
      "w": 46,
      "h": 18,
-     "damage": 11.84,
+     "damage": 10.89,
      "angle": 361,
-     "base": 34,
-     "scaling": 0.76,
+     "base": 38,
+     "scaling": 0.82,
      "dir": "away",
      "fx": "gust"
     }
@@ -1229,7 +1308,7 @@
      "y": -18,
      "w": 66,
      "h": 38,
-     "damage": 5.64,
+     "damage": 5.19,
      "angle": 50,
      "base": 32,
      "scaling": 0.6,
@@ -1246,7 +1325,7 @@
      "y": -18,
      "w": 66,
      "h": 38,
-     "damage": 2.25,
+     "damage": 2.07,
      "angle": 361,
      "base": 10,
      "scaling": 0.1,
@@ -1352,7 +1431,30 @@
     "arc": "ring",
     "smear": 1.2,
     "ghosts": true
-   }
+   },
+   "cancels": [
+    {
+     "button": "attack",
+     "into": "fair",
+     "from": 7,
+     "dir": "forward",
+     "air": true
+    },
+    {
+     "button": "attack",
+     "into": "bair",
+     "from": 7,
+     "dir": "back",
+     "air": true
+    },
+    {
+     "button": "attack",
+     "into": "uair",
+     "from": 7,
+     "dir": "up",
+     "air": true
+    }
+   ]
   },
   "fair": {
    "name": "Aerial Lunge",
@@ -1367,7 +1469,7 @@
      "y": -16,
      "w": 20,
      "h": 19,
-     "damage": 11.27,
+     "damage": 10.37,
      "angle": 38,
      "base": 34,
      "scaling": 0.72,
@@ -1379,7 +1481,7 @@
      "y": -16,
      "w": 28,
      "h": 19,
-     "damage": 7.89,
+     "damage": 7.26,
      "angle": 45,
      "base": 28,
      "scaling": 0.55,
@@ -1482,7 +1584,16 @@
     "stretch": 1.12,
     "smear": 1.3,
     "arc": "line"
-   }
+   },
+   "cancels": [
+    {
+     "button": "attack",
+     "into": "nair",
+     "from": 12,
+     "dir": "neutral",
+     "air": true
+    }
+   ]
   },
   "bair": {
    "name": "Wing Buffet",
@@ -1497,7 +1608,7 @@
      "y": -16,
      "w": 38,
      "h": 30,
-     "damage": 11.84,
+     "damage": 10.89,
      "angle": 140,
      "base": 38,
      "scaling": 0.88,
@@ -1610,7 +1721,7 @@
      "y": -54,
      "w": 16,
      "h": 29,
-     "damage": 9.02,
+     "damage": 8.3,
      "angle": 85,
      "base": 32,
      "scaling": 0.65,
@@ -1621,7 +1732,7 @@
      "y": -34,
      "w": 18,
      "h": 31,
-     "damage": 6.2,
+     "damage": 5.7,
      "angle": 85,
      "base": 28,
      "scaling": 0.5,
@@ -1717,7 +1828,21 @@
    "view": {
     "stretch": 1.08,
     "arc": "line"
-   }
+   },
+   "cancels": [
+    {
+     "button": "attack",
+     "into": "uair",
+     "from": 8,
+     "dir": "up",
+     "air": true
+    },
+    {
+     "button": "jump",
+     "into": "@jump",
+     "from": 8
+    }
+   ]
   },
   "dair": {
    "name": "Plunge Stab",
@@ -1732,10 +1857,10 @@
      "y": 14,
      "w": 16,
      "h": 24,
-     "damage": 12.97,
-     "angle": 275,
-     "base": 26,
-     "scaling": 0.55,
+     "damage": 11.93,
+     "angle": 75,
+     "base": 30,
+     "scaling": 0.5,
      "hitlag": 1.25,
      "fx": "meteor"
     },
@@ -1744,7 +1869,7 @@
      "y": -6,
      "w": 18,
      "h": 22,
-     "damage": 6.76,
+     "damage": 6.22,
      "angle": 70,
      "base": 24,
      "scaling": 0.4,
@@ -1853,7 +1978,7 @@
      "y": -10,
      "w": 26,
      "h": 22,
-     "damage": 9.4,
+     "damage": 8.65,
      "angle": 40,
      "base": 36,
      "scaling": 0.7,
@@ -1865,7 +1990,7 @@
      "y": -10,
      "w": 24,
      "h": 22,
-     "damage": 6.2,
+     "damage": 5.7,
      "angle": 50,
      "base": 30,
      "scaling": 0.55,
@@ -2084,10 +2209,10 @@
      "y": -17,
      "w": 40,
      "h": 34,
-     "damage": 6.76,
+     "damage": 6.9,
      "angle": 40,
-     "base": 50,
-     "scaling": 0.7,
+     "base": 42,
+     "scaling": 0.68,
      "throw": true,
      "fx": "gust"
     }
@@ -2182,10 +2307,10 @@
      "y": -17,
      "w": 40,
      "h": 34,
-     "damage": 9.02,
+     "damage": 8.3,
      "angle": 140,
-     "base": 54,
-     "scaling": 0.75,
+     "base": 44,
+     "scaling": 0.62,
      "throw": true,
      "fx": "gust"
     }
@@ -2280,7 +2405,7 @@
      "y": -17,
      "w": 40,
      "h": 34,
-     "damage": 5.64,
+     "damage": 5.19,
      "angle": 90,
      "base": 38,
      "scaling": 0.45,
@@ -2378,7 +2503,7 @@
      "y": -17,
      "w": 40,
      "h": 34,
-     "damage": 6.76,
+     "damage": 6.22,
      "angle": 80,
      "base": 32,
      "scaling": 0.35,
@@ -2821,7 +2946,7 @@
      "y": -15,
      "w": 24,
      "h": 12,
-     "damage": 10.15,
+     "damage": 9.34,
      "angle": 40,
      "base": 32,
      "scaling": 0.66,
@@ -2837,7 +2962,7 @@
      "y": -15,
      "w": 38,
      "h": 14,
-     "damage": 6.76,
+     "damage": 6.22,
      "angle": 50,
      "base": 30,
      "scaling": 0.5,
@@ -2935,7 +3060,14 @@
     "smear": 1.6,
     "ghosts": true,
     "arc": "line"
-   }
+   },
+   "cancels": [
+    {
+     "button": "jump",
+     "into": "@jump",
+     "from": 12
+    }
+   ]
   },
   "upB": {
    "name": "Sky Ascent",
@@ -2950,7 +3082,7 @@
      "y": -44,
      "w": 36,
      "h": 52,
-     "damage": 8.46,
+     "damage": 7.78,
      "angle": 86,
      "base": 36,
      "scaling": 0.7,
@@ -3075,7 +3207,7 @@
      "y": 18,
      "w": 18,
      "h": 26,
-     "damage": 11.27,
+     "damage": 10.37,
      "angle": 280,
      "base": 22,
      "scaling": 0.5,
@@ -3091,7 +3223,7 @@
      "y": -4,
      "w": 28,
      "h": 28,
-     "damage": 6.76,
+     "damage": 6.22,
      "angle": 60,
      "base": 28,
      "scaling": 0.45,
@@ -3478,8 +3610,8 @@
     "h": 1,
     "damage": 7,
     "angle": 36,
-    "base": 28,
-    "scaling": 0.55,
+    "base": 24,
+    "scaling": 0.48,
     "hitlag": 1.1,
     "fx": "pierce"
    },
@@ -3501,10 +3633,10 @@
     "y": 0,
     "w": 1,
     "h": 1,
-    "damage": 8,
+    "damage": 7,
     "angle": 36,
-    "base": 30,
-    "scaling": 0.6,
+    "base": 26,
+    "scaling": 0.5,
     "hitlag": 1.1,
     "fx": "pierce",
     "rehit": 8
@@ -3528,8 +3660,8 @@
     "h": 1,
     "damage": 5.5,
     "angle": 40,
-    "base": 26,
-    "scaling": 0.5,
+    "base": 22,
+    "scaling": 0.44,
     "hitlag": 1.0,
     "fx": "pierce"
    },
