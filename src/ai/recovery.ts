@@ -18,6 +18,12 @@ export function offstage(f: Fighter, world: World): boolean {
   return solid;
 }
 
+/** Is the point (x, y) over a solid platform top (at or above it)? */
+export function overStage(x: number, y: number, world: World): boolean {
+  for (const p of world.platforms) if (p.kind === 'solid' && x >= p.x + 4 && x <= p.right - 4 && y <= p.top + 6) return true;
+  return false;
+}
+
 export interface RecoveryEpisode {
   ledge: Ledge | null;
   /** Randomised mistakes for this attempt (0 for a perfect CPU). */
@@ -26,10 +32,24 @@ export interface RecoveryEpisode {
   aimError: number;
   startTick: number;
   specialPressed: boolean;
+  /**
+   * Where this attempt aims (a mixup, chosen per episode by `LevelParams.recoveryMix`): 'ledge' hangs on the ledge, 'high'
+   * lands on the stage a little way in, 'low' sinks below the ledge before jumping (under an edge-guarder's reach).
+   */
+  aim: 'ledge' | 'high' | 'low';
+  /** The horizontal recovery special (sideRecovery) was used this attempt. */
+  sideUsed: boolean;
+  /** A recall (Vex's Blink Recall) was tried this attempt. */
+  recallTried: boolean;
+  /** Recovery variety of the CPU (copied from its LevelParams). */
+  mix: number;
 }
 
 export function newEpisode(world: World, p: LevelParams, rnd: () => number): RecoveryEpisode {
   const sloppy = 1 - p.recovery;
+  const r = rnd();
+  const mix = p.recoveryMix ?? 0;
+  const aim = r < mix * 0.3 ? 'high' : r < mix * 0.55 ? 'low' : 'ledge';
   return {
     ledge: null,
     jumpDelay: Math.round(rnd() * sloppy * 40),
@@ -37,6 +57,10 @@ export function newEpisode(world: World, p: LevelParams, rnd: () => number): Rec
     aimError: (rnd() - 0.5) * sloppy * 1.6,
     startTick: world.tick,
     specialPressed: false,
+    aim,
+    sideUsed: false,
+    recallTried: false,
+    mix,
   };
 }
 
@@ -45,8 +69,25 @@ export interface RecoveryOut {
   sy: number;
   jump: boolean;
   special: boolean;
+  /** Air dodge (Shield) this frame, toward (sx, sy). Optional so older callers' scratch objects still fit. */
+  dodge?: boolean;
   /** True while a recovery special is the thing to keep steering. */
   steering: boolean;
+}
+
+/**
+ * A rival standing at the edge we are heading for (or waiting off it), close enough to hit us as we come back: an
+ * edge-guarder. Returns its horizontal distance from the ledge corner (Infinity if none).
+ */
+export function edgeGuarder(f: Fighter, world: World, l: Ledge): number {
+  let best = Infinity;
+  for (const o of world.fighters) {
+    if (o === f || o.state === 'ko' || world.allied(f.id, o.id)) continue;
+    const inward = (l.x - o.x) * l.side; // + when on the stage side of the corner
+    if (inward < -60 || inward > 90 || Math.abs(o.y - l.y) > 80) continue;
+    best = Math.min(best, Math.abs(inward));
+  }
+  return best;
 }
 
 /** The best free ledge to aim for: nearest to the fighter, preferring ones it can reach by climbing up. */
@@ -79,13 +120,18 @@ export function recoveryStep(f: Fighter, world: World, ai: CharacterAi, ep: Reco
   out.sy = 0;
   out.jump = false;
   out.special = false;
+  out.dodge = false;
   out.steering = false;
   ep.ledge = pickLedge(f, world, ep.ledge);
   const l = ep.ledge;
   if (!l) return;
+  const guard = edgeGuarder(f, world, l);
+  // a rival waiting at the corner: do not aim to land on top of it, hang on the ledge (or come in low) instead
+  if (ep.aim === 'high' && guard < 50) ep.aim = 'ledge';
   // still above the stage's top: land on it (a little way in from the corner) instead of dropping to the hang point
   const above = f.y < l.y - 2;
-  const hx = above ? l.x - l.side * (f.hw + 10) : l.x + l.side * (f.hw + 4);
+  const landIn = ep.aim === 'high' ? 34 : 10;
+  const hx = above ? l.x - l.side * (f.hw + landIn) : l.x + l.side * (f.hw + 4);
   const hy = above ? l.y : l.y + f.h * 0.9;
   const dx = hx - f.x;
   const dy = hy - f.y; // > 0: the hang point is below us, < 0: above us
@@ -129,9 +175,43 @@ export function recoveryStep(f: Fighter, world: World, ai: CharacterAi, ep: Reco
     out.jump = true;
     return;
   }
-  // 1) double jump: once we are no longer rising and level with / below the hang point
-  if (f.jumpsLeft > 0 && f.vy >= -0.5 && below > -6 && t >= ep.jumpDelay) {
-    // do not burn the jump if the special alone would clearly make it... still jump: it is almost free
+  // air dodge onto the stage: out of jumps but already above the stage's top and close to the corner, a directional air
+  // dodge carries us onto it without spending (and going helpless after) the up special
+  const toCorner = (f.x - l.x) * l.side; // px beyond the corner
+  if (above && ep.mix > 0 && f.jumpsLeft === 0 && !f.airDodgeUsed && !ep.specialPressed && toCorner > -4 && toCorner < 34 && l.y - f.y < 50 && f.vy > -1) {
+    out.dodge = true;
+    out.sx = -l.side * 0.75;
+    out.sy = 0.66;
+    return;
+  }
+  // a recall to a marker left on the stage (Vex's Blink Recall): warps straight back, invulnerable on arrival
+  const rc = ai.recall;
+  if (rc && !ep.recallTried && (below > -20 || f.jumpsLeft === 0)) {
+    const mk = world.findDeployables(f.id, rc.marker)[0];
+    if (mk && overStage(mk.x, mk.y, world)) {
+      ep.recallTried = true;
+      out.special = true;
+      out.sx = 0;
+      out.sy = 0;
+      return;
+    }
+  }
+  // horizontal recovery special (Pirate's Dash, Frost Step, Skewer Dash): from far out, at about stage height, it covers
+  // the gap the jump and the up special could not
+  const side = ai.sideRecovery;
+  const far = Math.abs(dx) - rec.out - (f.jumpsLeft > 0 ? 70 : 20);
+  if (side && !ep.sideUsed && far > 30 && below < reach * 0.3 && below > -140 && f.vy >= -1.5 && (f.jumpsLeft === 0 || far > 90)) {
+    ep.sideUsed = true;
+    out.special = true;
+    out.sx = Math.sign(dx);
+    out.sy = 0;
+    out.steering = true;
+    return;
+  }
+  // 1) double jump: once we are no longer rising and level with / below the hang point. With an edge-guarder waiting, a
+  // recovery-savvy CPU holds the jump a little (comes in lower, out of the guard's reach) while it still has the height
+  const holdLow = (ep.aim === 'low' || guard < 70) && ep.mix > 0 && below < reach * 0.45 && f.vy < 5 && Math.abs(dx) < rec.out + 60;
+  if (f.jumpsLeft > 0 && f.vy >= -0.5 && below > -6 && t >= ep.jumpDelay && !(holdLow && below < 24)) {
     out.jump = true;
     return;
   }

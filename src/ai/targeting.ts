@@ -7,6 +7,13 @@ function vulnerable(f: Fighter): number {
   return 0;
 }
 
+/** Beyond the outermost solid platform's edges (cheap; the exact per-platform test lives in recovery.ts). */
+function offTheStage(f: Fighter, world: World): boolean {
+  if (f.grounded || f.state === 'ledge') return false;
+  for (const p of world.platforms) if (p.kind === 'solid' && f.x >= p.x && f.x <= p.right && f.y <= p.top + 6) return false;
+  return true;
+}
+
 const aliveScratch: number[] = [];
 
 /**
@@ -31,6 +38,11 @@ export function chooseTarget(self: Fighter, world: World, prev: number, bias: re
     s += Math.min(f.damage, 160) * 0.5; // kill range
     if (self.lastHitBy === id) s += 140; // grudge
     s += vulnerable(f) * 25;
+    // a rival still invulnerable (fresh off the respawn platform, an Aegis) cannot be hurt yet: someone else first
+    if (f.invuln > 30) s -= 90 + Math.min(f.invuln, 120) * 0.5;
+    // third-party KO opportunity: a rival at kill percent flying off the stage / tumbling near the edge, set up by
+    // somebody else, is worth swooping in on
+    if (f.lastHitBy !== self.id && f.lastHitBy >= 0 && f.damage > 90 && (f.state === 'hitstun' || offTheStage(f, world))) s += 60;
     // someone already fighting this opponent? leave them to it (soft anti pile-on): count others close to them
     let crowd = 0;
     for (const o of world.fighters) {

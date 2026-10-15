@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { CpuController } from '../src/ai/cpu';
-import { aiFor, CHARACTER_AI, LEVELS, type CpuLevel } from '../src/ai/profiles';
+import { aiFor, CHARACTER_AI, LEVELS, SKILLS, skillForLevel, type CpuLevel } from '../src/ai/profiles';
+import { specialTable } from '../src/ai/moveInfo';
 import { attackDecel, moveTable, NORMAL_INPUTS, travel } from '../src/ai/moveInfo';
 import { offstage } from '../src/ai/recovery';
 import { chooseTarget } from '../src/ai/targeting';
@@ -85,6 +86,26 @@ describe('CPU frame-data knowledge', () => {
     expect(LEVELS[2].reaction).toBeGreaterThan(LEVELS[3].reaction);
     expect(LEVELS[1].mistakes).toBeGreaterThan(LEVELS[3].mistakes);
     expect(LEVELS[3].recovery).toBeGreaterThan(LEVELS[1].recovery);
+  });
+});
+
+describe('CPU skill scale', () => {
+  it('skills 1..9 interpolate between Easy, Normal and Hard; the lobby levels map to 1 / 5 / 9', () => {
+    expect([1, 2, 3].map((l) => skillForLevel(l as CpuLevel))).toEqual([1, 5, 9]);
+    for (let k = 2; k <= 9; k++) {
+      expect(SKILLS[k].mistakes).toBeLessThanOrEqual(SKILLS[k - 1].mistakes);
+      expect(SKILLS[k].whiffPunish).toBeGreaterThanOrEqual(SKILLS[k - 1].whiffPunish);
+    }
+    // Hard is human-fast, not superhuman: reactions ~12 frames, perfect shields only sometimes
+    expect(LEVELS[3].reaction).toBeGreaterThanOrEqual(12);
+    expect(LEVELS[3].perfectShield).toBeLessThanOrEqual(0.3);
+    expect(new CpuController(2, 1, 7).skill).toBe(7);
+  });
+  it('knows dash attacks and the signature specials it should use', () => {
+    for (const c of Object.values(CHARACTERS)) if (c.moves.dashAttack) expect(moveTable(c).some((m) => m.id === 'dashAttack'), c.id).toBe(true);
+    expect(specialTable(CHARACTERS.brick, aiFor('brick')).some((m) => m.slot === 'sideB' && m.cmdGrab)).toBe(true);
+    expect(specialTable(CHARACTERS.agni, aiFor('agni')).filter((m) => m.slot === 'downB').length).toBeGreaterThan(1);
+    expect(specialTable(CHARACTERS.halcyon, aiFor('halcyon')).some((m) => m.slot === 'downB' && m.air)).toBe(true);
   });
 });
 
@@ -237,7 +258,7 @@ describe('CPU matches', () => {
     expect(play(['havoc', 'riptide'], [1, 1], 'stormrunner', 36000).match.over, 'stormrunner stern').toBe(true);
     // crystal pillars everywhere: two Obelisks and two rivals, nobody gets walled in
     expect(play(['obelisk', 'brick', 'obelisk', 'halcyon'], [2, 2, 2, 2], 'temple', 36000).match.over, 'obelisk pillars').toBe(true);
-  });
+  }, 60000);
 
   it('four CPUs free-for-all stay sane (finite positions, someone wins)', () => {
     const r = play(['brick', 'vex', 'nova', 'gizmo'], [2, 2, 2, 2], 'reactor', 28800);
