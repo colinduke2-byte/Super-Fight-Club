@@ -3,7 +3,7 @@ import { detonateDeployable } from '../engine/entityCombat';
 import { moveTotal, parseMoves, validateReferences, type CharacterJson } from '../engine/moves';
 import type { CharacterData } from '../engine/types';
 import { applyMovePoses } from '../engine/movePoses';
-import { standardAnimations } from './common';
+import { addMotionRows, standardAnimations } from './common';
 import movesJson from './vex.moves.json';
 import fxJson from './vex.fx.json';
 import { validateFx, type CharacterFx } from '../engine/fxTypes';
@@ -112,3 +112,4 @@ export const vex: CharacterData = {
 };
 
 applyMovePoses(vex);
+addMotionRows(vex); // full-motion rows (after the prune in applyMovePoses)

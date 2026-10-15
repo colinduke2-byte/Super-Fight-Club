@@ -14,6 +14,27 @@ export interface HeroPose {
   wing?: number;
   /** Set by the renderer on the upright stance it draws a knocked-down fighter in before laying it on its back. */
   laid?: boolean;
+  /** Which way loose cloth / hair hangs in this drawing's frame (flames rise against it); default [0, 1]. See `drape`. */
+  grav?: V2;
+  /** Head offset (units): a snap back on a hit, a nod, a dizzy wobble. */
+  head?: V2;
+  /** Torso twist (units): + pulls the near shoulder back and brings the far one forward. */
+  twist?: number;
+}
+
+/**
+ * An offset authored for hanging straight down (+y), turned to hang along the pose's gravity: hair, tails, capes and
+ * smoke use it so they fall the right way when the body is drawn on its back (`grav` [-1, 0]) and stream in the air.
+ * Rising things (flames, smoke) pass their upward offsets and come out rising against gravity.
+ */
+export function drape(k: Skel, dx: number, dy: number): V2 {
+  const g = k.pose.grav;
+  if (!g) return [dx, dy];
+  const l = Math.hypot(g[0], g[1]) || 1;
+  const gx = g[0] / l;
+  const gy = g[1] / l;
+  // the rotation taking [0, 1] onto [gx, gy]
+  return [dx * gy + dy * gx, -dx * gx + dy * gy];
 }
 
 /** Joint positions in full-resolution (128px frame) pixels, derived from a pose. */
@@ -70,8 +91,10 @@ export function skeleton(look: PlaceholderLook, pose: HeroPose, W: number, H: nu
   const torsoTop = hipY - torsoH + 2 * k + pose.bob * k;
   const x0 = Math.round(cx - tw / 2 + lean);
   const shoulderY = torsoTop + 5 * k;
-  const shF: V2 = [x0 + tw - 2 * k, shoulderY + 2 * k];
-  const shB: V2 = [x0 + 2 * k, shoulderY + 2 * k];
+  // a twist turns the chest: the near shoulder pulls back (and drops a little), the far one comes forward
+  const tz = (pose.twist ?? 0) * k;
+  const shF: V2 = [x0 + tw - 2 * k - tz, shoulderY + 2 * k + tz * 0.25];
+  const shB: V2 = [x0 + 2 * k + tz * 0.5, shoulderY + 2 * k - tz * 0.15];
   const armLen = b.armLen * 2 * k;
   const handF: V2 = [shF[0] + 7 * k + pose.frontHand[0] * k, shF[1] + armLen + pose.frontHand[1] * k + 2 * k];
   const handB: V2 = [shB[0] - 4 * k + pose.backHand[0] * k, shB[1] + armLen - 2 * k + pose.backHand[1] * k];
@@ -101,7 +124,7 @@ export function skeleton(look: PlaceholderLook, pose: HeroPose, W: number, H: nu
     hipY,
     tw,
     torso: { x: x0, y: torsoTop, w: tw, h: torsoH },
-    head: { x: Math.round(cx - hs / 2 + lean + 2 * k), y: torsoTop - hs + 4 * k, s: hs },
+    head: { x: Math.round(cx - hs / 2 + lean + 2 * k + (pose.head?.[0] ?? 0) * k), y: torsoTop - hs + 4 * k + (pose.head?.[1] ?? 0) * k, s: hs },
     shF,
     shB,
     handF: aF.end,

@@ -2,6 +2,7 @@ import type { CharacterBehavior } from '../engine/behavior';
 import { parseMoves, validateReferences, type CharacterJson } from '../engine/moves';
 import type { CharacterData } from '../engine/types';
 import { applyMovePoses } from '../engine/movePoses';
+import { addMotionRows } from './common';
 import movesJson from './brick.moves.json';
 import fxJson from './brick.fx.json';
 import { validateFx, type CharacterFx } from '../engine/fxTypes';
@@ -166,3 +167,4 @@ const heatBehavior: CharacterBehavior = {
 brick.behavior = heatBehavior;
 
 applyMovePoses(brick);
+addMotionRows(brick); // full-motion rows (after the prune in applyMovePoses)

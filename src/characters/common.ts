@@ -1,4 +1,4 @@
-import type { AnimDef } from '../engine/types';
+import type { AnimDef, CharacterData } from '../engine/types';
 
 const still = (frames = 1): AnimDef => ({ frames, fps: 1, loop: false });
 
@@ -29,4 +29,35 @@ export function standardAnimations(extra: string[] = []): Record<string, AnimDef
   anims.dodge = still();
   for (const n of extra) anims[n] = still(6);
   return anims;
+}
+
+/**
+ * The full-motion rows (see poses.ts): a longer idle, walk, fall and dash, the hit recoil, and the transition / results rows
+ * (land, ledge climb, get-up, tech, dizzy, air dodge, double jump, victory, lose). Call AFTER applyMovePoses (it prunes rows
+ * no state names). `compact` trims frame counts for fighters with big frames (sheet texture budget).
+ *
+ * Results-screen rows: `victory` (one-shot action) chains into `victoryHold` (looping end pose); `lose` loops.
+ */
+export function addMotionRows(data: CharacterData, opts: { compact?: boolean; jump2?: boolean; tech?: boolean } = {}): CharacterData {
+  const a = data.sprite.animations;
+  const c = !!opts.compact;
+  const loop = (frames: number, fps: number): AnimDef => ({ frames, fps, loop: true });
+  const once = (frames: number, fps: number): AnimDef => ({ frames, fps, loop: false });
+  a.idle = loop(c ? 8 : 10, c ? 8 : 9);
+  a.run = loop(8, a.run?.fps ?? 15);
+  a.walk = loop(c ? 6 : 8, c ? 7 : 9);
+  a.fall = loop(c ? 3 : 4, 7);
+  a.dash = loop(c ? 3 : 4, c ? 13 : 16);
+  a.hurt = once(2, 10);
+  a.land = once(c ? 2 : 3, 20);
+  a.ledgeClimb = once(c ? 3 : 4, c ? 8 : 10);
+  a.getup = once(c ? 3 : 4, c ? 10 : 13);
+  if (opts.tech !== false) a.tech = once(2, 10);
+  a.dizzy = loop(c ? 4 : 6, c ? 6 : 8);
+  a.airdodge = still();
+  if (opts.jump2 !== false) a.jump2 = once(4, 14);
+  a.victory = once(c ? 6 : 8, 10);
+  a.victoryHold = loop(c ? 2 : 3, 3);
+  a.lose = loop(c ? 2 : 4, c ? 2 : 4);
+  return data;
 }

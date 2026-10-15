@@ -1,7 +1,7 @@
 import type { PlaceholderLook } from '../../engine/types';
 import { drawFace } from './face';
 import { col, mix, mul, type Raster, type RGB, type V2 } from './raster';
-import { solveLimb, type Skel } from './skeleton';
+import { drape, solveLimb, type Skel } from './skeleton';
 
 const rad = (d: number): number => (d * Math.PI) / 180;
 const lerp = (a: number, b: number, t: number): number => a + (b - a) * t;
@@ -84,8 +84,13 @@ export function drawHalcyon(r: Raster, k0: Skel, look: PlaceholderLook): void {
     const run = k.pose.lean > 2 ? 1 : 0;
     const top = T.y + 2;
     const hem = T.y + T.h + 18;
-    r.poly(plumeD, [[T.x + 2, top], [T.x + 14, top], [T.x + 6 - run * 14 + sway(1, 2), hem], [T.x - 12 - run * 18 + sway(2, 3), hem + 4], [T.x - 4, top + 8]]);
-    r.poly(plume, [[T.x + 4, top], [T.x + 12, top], [T.x + 4 - run * 12 + sway(1, 2), hem - 4], [T.x - 4 - run * 14 + sway(2, 2), hem - 2]]);
+    // hanging along the pose's gravity from the shoulder line (spread on the floor when she is knocked down)
+    const hang = (pts: V2[]): V2[] => pts.map(([x, y]) => {
+      const [u, v] = drape(k, x - (T.x + 8), y - top);
+      return [T.x + 8 + u, top + v];
+    });
+    r.poly(plumeD, hang([[T.x + 2, top], [T.x + 14, top], [T.x + 6 - run * 14 + sway(1, 2), hem], [T.x - 12 - run * 18 + sway(2, 3), hem + 4], [T.x - 4, top + 8]]));
+    r.poly(plume, hang([[T.x + 4, top], [T.x + 12, top], [T.x + 4 - run * 12 + sway(1, 2), hem - 4], [T.x - 4 - run * 14 + sway(2, 2), hem - 2]]));
   }
 
   // a shadowed fold where the wings meet the back, so the white plumage never melts into the silver cuirass
@@ -164,8 +169,9 @@ export function drawHalcyon(r: Raster, k0: Skel, look: PlaceholderLook): void {
     let px = hx + 2;
     let py = hy + 8;
     for (let i = 0; i < (o === 2 ? 0 : 8); i++) {
-      const x = px - 4 - run * 2;
-      const y = py + 2.5 + sway(i, 1.8) - run * 0.6;
+      const [ox, oy] = drape(k, -4 - run * 2, 2.5 + sway(i, 1.8) - run * 0.6); // falls with the pose's gravity
+      const x = px + ox;
+      const y = py + oy;
       r.seg(i % 3 === 2 ? P.hairD : P.hair, px, py, x, y, 9 - i * 0.7, 8 - i * 0.7);
       px = x;
       py = y;
@@ -205,8 +211,9 @@ export function drawHalcyon(r: Raster, k0: Skel, look: PlaceholderLook): void {
       let qx = hx + hs / 2 + 2;
       let qy = hy - 8;
       for (let i = 0; i < 9; i++) {
-        const x = qx - 4.2 - run * 1.5;
-        const y = qy + (i < 3 ? -1.2 : 2.4) + sway(i + 4, 1.4);
+        const [ox, oy] = drape(k, -4.2 - run * 1.5, (i < 3 ? -1.2 : 2.4) + sway(i + 4, 1.4));
+        const x = qx + ox;
+        const y = qy + oy;
         r.seg(i % 3 === 2 ? plumeD : plume, qx, qy, x, y, 8 - i * 0.6, 7 - i * 0.6);
         qx = x;
         qy = y;
@@ -240,8 +247,9 @@ export function drawHalcyon(r: Raster, k0: Skel, look: PlaceholderLook): void {
     let rx = b0[0];
     let ry = b0[1];
     for (let i = 0; i < 6; i++) {
-      const nxp = Math.max(7, Math.min(r.w - 7, rx - u[0] * 3 - 4 + sway(i, 2.2)));
-      const nyp = Math.max(7, Math.min(r.h - 9, ry - u[1] * 3 + 3 + sway(i + 2, 2)));
+      const [gx, gy] = drape(k, -4 + sway(i, 2.2), 3 + sway(i + 2, 2)); // the sag follows the pose's gravity
+      const nxp = Math.max(7, Math.min(r.w - 7, rx - u[0] * 3 + gx));
+      const nyp = Math.max(7, Math.min(r.h - 9, ry - u[1] * 3 + gy));
       r.seg(P.ribbon, rx, ry, nxp, nyp, 5 - i * 0.5, 4.5 - i * 0.5);
       rx = nxp;
       ry = nyp;

@@ -1,6 +1,6 @@
 import type { PlaceholderLook } from '../../engine/types';
 import { col, mix, mul, type Raster, type RGB, type V2 } from './raster';
-import type { Skel } from './skeleton';
+import { drape, type Skel } from './skeleton';
 
 /**
  * Vex: a lean teal shadow-blade. Peaked cowl with two burning eyes, trailing scarf and ragged cape, high-collared jacket with a
@@ -111,12 +111,15 @@ export function drawVex(r: Raster, k0: Skel, look: PlaceholderLook): void {
     const ny = T.y + 2;
     const flow = run ? 0.05 : air ? -0.8 : 0.4;
     // the tail shortens its stride when the collar is near the left edge, so the scarf never trails out of the frame
-    const step = Math.max(2.2, Math.min(4.4, (nx - 22) / 12.5));
+    // (bunched up when she lies on it: knocked flat, the frame is short along the body)
+    const step = k.pose.laid ? 2.4 : Math.max(2.2, Math.min(4.4, (nx - 22) / 12.5));
     let px = nx;
     let py = ny;
     for (let i = 0; i < 13; i++) {
-      const x = Math.max(8, nx - 4 - i * step);
-      const y = Math.max(8, ny + i * flow * 3 + sw(i, 1.8 + i * 0.22));
+      // trailing back and sagging under the pose's gravity (it lies along the floor when she is knocked flat)
+      const [ox, oy] = drape(k, -4 - i * step, i * flow * 3 + sw(i, 1.8 + i * 0.22));
+      const x = Math.max(8, nx + ox);
+      const y = Math.max(8, ny + oy);
       const w = o === 2 ? 3.4 - i * 0.15 : 9 - i * 0.5;
       r.seg(o === 2 ? (i % 2 ? P.glow : P.accent) : i % 4 === 3 ? P.scarfD : P.scarf, px, py, x, y, w, Math.max(o === 2 ? 1.4 : 2.5, w - 0.6));
       px = x;
@@ -128,8 +131,10 @@ export function drawVex(r: Raster, k0: Skel, look: PlaceholderLook): void {
       r.rect(P.steel, Math.max(4, px - 6) - 1, py - 1, 2, 2);
     }
     if (o !== 2) {
-      r.seg(P.scarfD, px, py, Math.max(5, px - 8), py + 4, 3.5, 2);
-      r.seg(P.scarf, px, py, Math.max(5, px - 7), Math.max(5, py - 3), 3.5, 2);
+      const [ax, ay] = drape(k, -8, 4);
+      const [bx2, by2] = drape(k, -7, -3);
+      r.seg(P.scarfD, px, py, Math.max(5, px + ax), py + ay, 3.5, 2);
+      r.seg(P.scarf, px, py, Math.max(5, px + bx2), Math.max(5, py + by2), 3.5, 2);
     }
   }
 
@@ -208,7 +213,7 @@ export function drawVex(r: Raster, k0: Skel, look: PlaceholderLook): void {
       [Math.PI + 0.72, 33, 18, 7, hairHi],
       [Math.PI + 1.18, 24, 15, 6, hair],
     ];
-    locks.forEach(([a, len, w, curl, part], i) => maneLock(r, part, bx, by, a + sw(i, 0.06), len, w, curl, i < 2 ? hairDeep : hairD, i >= 2 ? hairHi : -1));
+    locks.forEach(([a, len, w, curl, part], i) => maneLock(r, part, bx, by, a + sw(i, 0.06), len, w, curl, i < 2 ? hairDeep : hairD, i >= 2 ? hairHi : -1, drape(k, 0, 1)));
     r.ellipse(hairD, hx + hs / 2 - 3, hy + hs / 2, hs / 2 + 1, hs / 2);
     r.ellipse(hair, hx + hs / 2, hy + hs / 2 - 2, hs / 2 + 1, hs / 2);
     // the mask: a broad scowling face with a heavy brow ridge, cheekbones, a hooked nose and a fanged grin
@@ -297,13 +302,13 @@ export function drawVex(r: Raster, k0: Skel, look: PlaceholderLook): void {
  * band along its underside so each lock keeps its own light/dark read. It is drawn shorter rather than clipped
  * where the tip would leave the frame.
  */
-function maneLock(r: Raster, part: number, bx: number, by: number, ang: number, len0: number, w: number, curl: number, under: number, shine: number): void {
+function maneLock(r: Raster, part: number, bx: number, by: number, ang: number, len0: number, w: number, curl: number, under: number, shine: number, down: V2 = [0, 1]): void {
   let len = len0;
   const at = (L: number, t: number): V2 => {
     // a quadratic curve: out along the angle, then curling downward (gravity) by `curl`
     const dx = Math.cos(ang);
     const dy = Math.sin(ang);
-    return [bx + dx * L * t, by + dy * L * t + curl * t * t];
+    return [bx + dx * L * t + down[0] * curl * t * t, by + dy * L * t + down[1] * curl * t * t];
   };
   while (len > 8) {
     const [tx, ty] = at(len, 1);

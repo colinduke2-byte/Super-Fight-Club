@@ -1,6 +1,6 @@
 import type { PlaceholderLook } from '../../engine/types';
 import { col, mix, mul, type Raster, type RGB, type V2 } from './raster';
-import { solveLimb, type Skel } from './skeleton';
+import { drape, solveLimb, type Skel } from './skeleton';
 
 /**
  * Rime: a slim frost ninja. A wide conical kasa hat lacquered in ice-blue with a frosted crown and icicles hanging off the
@@ -132,8 +132,10 @@ export function drawRime(r: Raster, k: Skel, look: PlaceholderLook): void {
     const path: V2[] = [[px, py]];
     for (let i = 0; i < 7; i++) {
       // the tail curls up and back in on itself rather than leave the frame
-      const x = Math.max(16, nx - 3 - i * step);
-      const y = Math.max(12, Math.min(r.h - 16, ny + i * flow * 3 + sw(i, 1.4 + i * 0.3)));
+      // (turned to the pose's gravity: knocked flat, it spills along the floor)
+      const [ox, oy] = drape(k, -3 - i * step, i * flow * 3 + sw(i, 1.4 + i * 0.3));
+      const x = Math.max(16, nx + ox);
+      const y = Math.max(12, Math.min(r.h - 16, ny + oy));
       const w = 9 - i * 0.55;
       r.seg(P.ink, px, py + 0.5, x, y + 0.5, w + 1.4, w + 0.9);
       path.push([x, y]);

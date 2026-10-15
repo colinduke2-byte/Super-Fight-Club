@@ -3,7 +3,7 @@ import { parseMoves, validateReferences, type CharacterJson } from '../engine/mo
 import type { CharacterData } from '../engine/types';
 import { applyMovePoses } from '../engine/movePoses';
 import { soakThrowBonus } from './riptideSoak';
-import { standardAnimations } from './common';
+import { addMotionRows, standardAnimations } from './common';
 import movesJson from './riptide.moves.json';
 import fxJson from './riptide.fx.json';
 import { validateFx, type CharacterFx } from '../engine/fxTypes';
@@ -91,3 +91,4 @@ export const riptide: CharacterData = {
 };
 
 applyMovePoses(riptide);
+addMotionRows(riptide); // full-motion rows (after the prune in applyMovePoses)

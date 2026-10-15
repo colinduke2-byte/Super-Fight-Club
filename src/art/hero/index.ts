@@ -12,8 +12,7 @@ import { drawHavoc } from './havoc';
 import { drawVex } from './vex';
 import { Raster } from './raster';
 import { skeleton, type HeroPose, type Skel } from './skeleton';
-
-type Ctx = CanvasRenderingContext2D;
+import { stylePose, type Pose } from '../poses';
 
 /** Looks flagged `art: 'hi'` use a full-resolution renderer chosen by their helmet style; the others use the 64px template upscaled. */
 export function hasHeroArt(look: PlaceholderLook): boolean {
@@ -34,19 +33,17 @@ const DRAWERS: Partial<Record<PlaceholderLook['build']['helmet'], (r: Raster, k:
   goggles: drawHavoc,
 };
 
-/** Render one frame of character `id` into `ctx` (a `size` x `size` canvas), lit but not yet outlined. */
-export function renderHero(ctx: Ctx, W: number, H: number, look: PlaceholderLook, pose: HeroPose, phase: number): void {
-  ctx.putImageData(renderHeroImage(W, H, look, pose, phase), 0, 0);
-}
-
 /** The same frame as pixels (lit, not yet outlined), without a canvas round trip: the sheet builder finishes it in place. */
 export function renderHeroImage(W: number, H: number, look: PlaceholderLook, pose: HeroPose, phase: number): ImageData {
   let r = new Raster(W, H);
-  const lying = !!(pose as HeroPose & { lying?: boolean }).lying;
-  const stand: HeroPose = lying ? { bob: 0, crouch: 0, lean: 0, frontFoot: [8, 3], backFoot: [-8, 0], frontHand: [6, -2], backHand: [-8, -2], laid: true } : pose;
+  // the fighter's own motion style (idle, gaits, double jump, results) for rows that have one
+  const posed = stylePose(pose as Pose, look.build.helmet) as HeroPose & { lying?: boolean };
+  const lying = !!posed.lying;
+  // knocked down: drawn upright in the sprawl pose with gravity along the body's back, then laid on its back, so hair,
+  // flames and cloth fall (or rise) the right way once it is down
+  const stand: HeroPose = lying ? { ...posed, bob: 0, crouch: 0, lean: 0, laid: true, grav: posed.grav ?? [-1, 0] } : posed;
   const k = skeleton(look, stand, W, H, phase);
   DRAWERS[look.build.helmet]?.(r, k, look);
-  // knocked down: the same body, laid on its back
   if (lying) r = r.lyingDown(H - 4, W / 2 - 5 * (H / 64));
   const img = new ImageData(W, H);
   r.shade(img.data);

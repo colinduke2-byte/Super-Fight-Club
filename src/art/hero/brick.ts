@@ -1,6 +1,6 @@
 import type { PlaceholderLook } from '../../engine/types';
 import { col, mix, mul, Raster, type RGB, type V2 } from './raster';
-import { solveLimb, type Skel } from './skeleton';
+import { drape, solveLimb, type Skel } from './skeleton';
 
 /**
  * Brick: a heavy powersuit bruiser. Designed silhouette-first: a barrel chest with the reactor core as the focal point,
@@ -81,8 +81,10 @@ export function drawBrick(r: Raster, k: Skel, look: PlaceholderLook): void {
     tips.forEach(([mx, my], i0) => {
       for (let i = 0; i < 2; i++) {
         const t = (k.phase * 0.17 + i * 0.5 + i0 * 0.25) % 1;
-        const x = Math.max(9, mx - 2 - t * 6 - k.pose.lean * 0.8 * t);
-        const y = Math.max(9, my - 5 - t * 9);
+        // the drift is turned against the pose's gravity, so it still rises once the suit is laid on its back
+        const [ux, uy] = drape(k, -2 - t * 6 - k.pose.lean * 0.8 * t, -5 - t * 9);
+        const x = Math.max(9, mx + ux);
+        const y = Math.max(9, my + uy);
         const rad = 2 + t * 2;
         r.ellipse(smokeD, x + 0.6, y + 0.6, rad, rad * 0.85);
         r.ellipse(smoke, x, y, rad - 0.8, rad * 0.85 - 0.8);

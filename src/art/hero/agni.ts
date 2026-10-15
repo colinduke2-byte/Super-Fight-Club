@@ -1,6 +1,6 @@
 import type { PlaceholderLook } from '../../engine/types';
 import { col, mix, mul, type Raster, type RGB, type V2 } from './raster';
-import type { Skel } from './skeleton';
+import { drape, type Skel } from './skeleton';
 
 /**
  * Agni: a bare-chested fire monk. Upright V-taper torso with flame tattoos, a three-quarter face under a crown of fire,
@@ -90,7 +90,7 @@ export function drawAgni(r: Raster, k0: Skel, look: PlaceholderLook): void {
     r.ellipse(P.skinD, k.shB[0], k.shB[1] + 1, 6, 6);
     r.seg(P.skinD, k.shB[0], k.shB[1], el[0], el[1], 10, 8.5);
     r.seg(P.skinD, el[0], el[1], k.handB[0], k.handB[1], 8.5, 7.5);
-    fist(r, P, k.handB, el, true, ph, o);
+    fist(r, P, k.handB, el, true, ph, o, k);
   }
 
   // ---- back leg ----
@@ -216,7 +216,7 @@ export function drawAgni(r: Raster, k0: Skel, look: PlaceholderLook): void {
       const by = sy + (el[1] - sy) * 0.4;
       r.seg(P.gold, bx - 1, by - 3, bx + 1, by + 3, 2.2, 2.2);
     }
-    fist(r, P, k.handF, el, false, ph, o);
+    fist(r, P, k.handF, el, false, ph, o, k);
   }
 }
 
@@ -268,12 +268,16 @@ function head(r: Raster, P: Parts, k: Skel, o: number, ph: number, run: boolean,
       const fl = flick(i) * 2.5;
       const bx = cx + ox * s;
       const by = cy - 0.28 * s;
-      // knocked down, the body is turned on its side and centred across the frame, so the crown's height becomes width
-      // past the head: cap the tips (plus their ~3px glow) to the standard crown's reach so they clear the frame side
-      const H = Math.min(hgt * s * 0.62, laid ? by - fl - (k.base - 126) : Infinity);
+      // knocked down, the body is drawn upright and then laid on its back: the flames are turned against the pose's
+      // gravity so they still rise in the frame (a little shorter, licking up off the side of the head)
+      const H = hgt * s * 0.62 * (laid ? 0.8 : 1);
       const lean = -2 + fl * 0.4; // swept back
-      r.poly(P.flame, [[bx - 5, by + 4], [bx - 2.6 + lean * 0.4, by - H * 0.32], [bx + lean, by - H - fl], [bx + 2.6 + lean * 0.25, by - H * 0.28], [bx + 5, by + 4]]);
-      r.poly(P.glow, [[bx - 2.5, by + 4], [bx + lean * 0.6, by - H * 0.62 - fl * 0.6], [bx + 2.5, by + 4]]);
+      const up = (pts: V2[]): V2[] => pts.map(([px, py]) => {
+        const [u, v] = drape(k, px - bx, py - by);
+        return [bx + u, by + v];
+      });
+      r.poly(P.flame, up([[bx - 5, by + 4], [bx - 2.6 + lean * 0.4, by - H * 0.32], [bx + lean, by - H - fl], [bx + 2.6 + lean * 0.25, by - H * 0.28], [bx + 5, by + 4]]));
+      r.poly(P.glow, up([[bx - 2.5, by + 4], [bx + lean * 0.6, by - H * 0.62 - fl * 0.6], [bx + 2.5, by + 4]]));
     });
   }
   // ear
@@ -336,7 +340,7 @@ function head(r: Raster, P: Parts, k: Skel, o: number, ph: number, run: boolean,
  * A cloth-wrapped fist on the end of the forearm, flame licking up off the knuckles.
  * Inferno: a charred bracer and a bigger blaze; Temple: plain wraps and a small palm flame.
  */
-function fist(r: Raster, P: Parts, h: V2, el: V2, back: boolean, ph: number, o: number): void {
+function fist(r: Raster, P: Parts, h: V2, el: V2, back: boolean, ph: number, o: number, k: Skel): void {
   let dx = h[0] - el[0];
   let dy = h[1] - el[1];
   const ln = Math.hypot(dx, dy) || 1;
@@ -360,8 +364,13 @@ function fist(r: Raster, P: Parts, h: V2, el: V2, back: boolean, ph: number, o: 
     const bx = cxp + ox * (o === 2 ? 0.5 : 1);
     const by = cyp - 2;
     const sway = -1.5 + (i - 1) * 1.2 + f * 0.8;
-    r.poly(P.flame, [[bx - 3.2, by], [bx - 1.5 + sway * 0.4, by - H * 0.5], [bx + sway, by - H], [bx + 2 + sway * 0.3, by - H * 0.45], [bx + 3.2, by]]);
-    if (H > 6) r.poly(P.glow, [[bx - 1.4, by], [bx + sway * 0.6, by - H * 0.62], [bx + 1.4, by]]);
+    // rising against gravity (sideways along the body once it is laid on its back, so they still rise in the frame)
+    const up = (pts: V2[]): V2[] => pts.map(([px, py]) => {
+      const [u, v] = drape(k, px - bx, py - by);
+      return [bx + u, by + v];
+    });
+    r.poly(P.flame, up([[bx - 3.2, by], [bx - 1.5 + sway * 0.4, by - H * 0.5], [bx + sway, by - H], [bx + 2 + sway * 0.3, by - H * 0.45], [bx + 3.2, by]]));
+    if (H > 6) r.poly(P.glow, up([[bx - 1.4, by], [bx + sway * 0.6, by - H * 0.62], [bx + 1.4, by]]));
   });
   // wrist wraps (or a charred bracer)
   const wx = x - dx * 4;

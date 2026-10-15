@@ -5,6 +5,7 @@ import { buildKeys, type Key } from './poseTemplates';
 export type V2 = [number, number];
 
 export interface Pose {
+  /** Torso drop (authoring units, fractional values are drawn at the hi-res 2x grid, so half units are real sub-pixel motion). */
   bob: number;
   crouch: number;
   lean: number;
@@ -17,6 +18,16 @@ export interface Pose {
   aim?: number;
   /** Wing posture 0 (folded) .. 1 (fully spread) for winged fighters. */
   wing?: number;
+  /** Which way loose cloth / hair hangs in the drawing's frame (flames rise against it). Default [0, 1]; [-1, 0] when lying on the back. */
+  grav?: V2;
+  /** Head offset from the neck (units): a snap back on a hit, a nod, a dizzy wobble. */
+  head?: V2;
+  /** Torso twist (units): + pulls the near shoulder back and the far one forward (hit recoil, a turned air dodge). */
+  twist?: number;
+  /** Set by poseFor: the row and frame this pose was made for (lets the hero renderer apply a fighter's own motion style). */
+  anim?: string;
+  f?: number;
+  n?: number;
 }
 
 const REST: Pose = { bob: 0, crouch: 0, lean: 0, frontFoot: [4, 0], backFoot: [-4, 0], frontHand: [2, 0], backHand: [-2, 0] };
@@ -30,28 +41,408 @@ export function setMovePoses(poses: Iterable<{ anim: string; pose: PoseSpec }>):
   for (const m of poses) moveKeys[m.anim] = buildKeys(m.pose);
 }
 
-export function poseFor(anim: string, f: number, frames: number): Pose {
-  const p: Pose = { ...REST };
+// ---- motion styles ------------------------------------------------------------------------------------------------
+
+type JumpStyle = 'flip' | 'jet' | 'float' | 'stroke' | 'kick';
+type LoseStyle = 'slump' | 'kneel' | 'turned';
+/** Gait: stride and foot lift (units), arm swing (x), forward lean and bounce (x). */
+interface Gait {
+  stride: number;
+  lift: number;
+  arms: number;
+  lean: number;
+  bounce: number;
+}
+interface MotionStyle {
+  /** Reaction poses (hurt, shield, ledge, held, dizzy) are scaled by this so they still read on a bulky body. */
+  amp: number;
+  idle: (p: Pose, ph: number, breath: number) => void;
+  gait: Gait;
+  jump2: JumpStyle;
+  /** Victory action key poses; the last one is held (and breathes) in `victoryHold`. */
+  victory: Key[];
+  lose: LoseStyle;
+}
+
+const TAU = Math.PI * 2;
+const sin = Math.sin;
+const cos = Math.cos;
+const r2 = (v: number): number => Math.round(v * 100) / 100;
+
+const GAIT: Gait = { stride: 11, lift: 7, arms: 1, lean: 4, bounce: 1 };
+const idleBase = (p: Pose, ph: number, b: number): void => {
+  p.bob = b * 0.8 - 0.15;
+  p.crouch = b * 0.35;
+  p.lean = sin(ph) * 0.25;
+  p.frontHand = [2 + sin(ph) * 0.4, b * 0.6];
+  p.backHand = [-2 - sin(ph + 0.9) * 0.5, b * 0.6 + sin(ph + 0.9) * 0.3];
+};
+const STYLE_DEFAULT: MotionStyle = {
+  amp: 1,
+  idle: idleBase,
+  gait: GAIT,
+  jump2: 'flip',
+  victory: [
+    [0, 3, [5, 0], [-5, 0], [6, 0], [-6, 0]],
+    [-1, 0, [8, -26], [-8, -26], [5, 0], [-5, 0]],
+    [-1, 0, [7, -24], [-7, -24], [5, 0], [-5, 0]],
+  ],
+  lose: 'slump',
+};
+
+/** Per-fighter motion, keyed by the hero drawer's helmet style (one per fighter). */
+const STYLES: Record<string, MotionStyle> = {
+  // Brick: heavy, slow breathing that heaves the whole suit; a stomping, arm-pumping run; jet-boot double jump
+  visor: {
+    amp: 1.35,
+    idle: (p, _ph, b) => {
+      p.bob = b * 1.5 - 0.45;
+      p.crouch = b * 0.6;
+      p.lean = -0.5 + b * 0.6;
+      p.frontHand = [3.2 - b * 1.3, b * 0.5];
+      p.backHand = [-3.2 + b * 1.3, b * 0.5];
+    },
+    gait: { stride: 9, lift: 5, arms: 1.15, lean: 5, bounce: 1.4 },
+    jump2: 'jet',
+    victory: [
+      [-2, 6, [8, 2], [-6, 2], [8, 0], [-8, 0]],
+      [3, 8, [6, -6], [3, -6], [9, 0], [-9, 0]],
+      [-2, 0, [7, -30], [-6, -30], [7, 0], [-7, 0]],
+      [-1, 1, [9, -24], [-8, -24], [8, 0], [-8, 0]],
+    ],
+    lose: 'kneel',
+  },
+  // Vex: bouncing on the balls of her feet with her guard up; a long low run; a front flip
+  hood: {
+    amp: 1,
+    idle: (p, ph) => {
+      const u = Math.abs(sin(ph)); // two bounces a cycle
+      p.crouch = (1 - u) * 1.4 - 0.25;
+      p.bob = (1 - u) * 0.4;
+      p.lean = 1.5;
+      p.frontFoot = [6, u * 0.7];
+      p.backFoot = [-6, u * 0.7];
+      p.frontHand = [5, -7 + (1 - u) * 0.8];
+      p.backHand = [1, -5 + (1 - u) * 0.8];
+    },
+    gait: { stride: 12, lift: 8, arms: 0.85, lean: 6, bounce: 0.8 },
+    jump2: 'flip',
+    victory: [
+      [0, 3, [6, -6], [-2, -4], [6, 0], [-6, 0]],
+      [4, 2, [14, -8], [-12, -8], [4, 3], [-8, 0]],
+      [-2, 4, [-4, -14], [6, -14], [9, 0], [-9, 0]],
+      [-1, 2, [5, -31], [-10, -2], [8, 0], [-8, 0]],
+      [-1, 2, [4, -30], [-10, -2], [8, 0], [-8, 0]],
+    ],
+    lose: 'turned',
+  },
+  // Nova: the staff sways with her breath; a gliding run; a floating double jump with the robe billowing
+  pointed: {
+    amp: 1,
+    idle: (p, ph, b) => {
+      p.bob = b * 0.6 - 0.1;
+      p.crouch = b * 0.25;
+      p.lean = sin(ph) * 0.6;
+      p.frontHand = [3 + sin(ph) * 1.6, -1 + cos(ph) * 0.6];
+      p.backHand = [-2 - sin(ph) * 0.6, b * 0.5];
+    },
+    gait: { stride: 9, lift: 5, arms: 0.6, lean: 3, bounce: 0.7 },
+    jump2: 'float',
+    victory: [
+      [0, 2, [6, -4], [-2, 0], [5, 0], [-5, 0]],
+      [-2, 0, [2, -34], [-4, -6], [4, 0], [-4, 0]],
+      [0, 0, [3, -36], [-6, -10], [4, 0], [-4, 0]],
+      [0, 0, [3, -34], [-4, -6], [4, 0], [-4, 0]],
+    ],
+    lose: 'slump',
+  },
+  // Gizmo: a fidgety, double-time breath with the free hand tapping; short quick strides; a jet hop
+  dome: {
+    amp: 1,
+    idle: (p, ph, b) => {
+      const tap = Math.max(0, sin(ph * 2));
+      p.bob = b * 0.7 + 0.25 * sin(ph * 2) - 0.2;
+      p.crouch = b * 0.3;
+      p.lean = sin(ph) * 0.4;
+      p.frontHand = [3, b * 0.5 - 1];
+      p.backHand = [-2 + tap * 1.5, -tap];
+    },
+    gait: { stride: 8, lift: 6, arms: 1, lean: 4, bounce: 1 },
+    jump2: 'jet',
+    victory: [
+      [0, 6, [4, 2], [-4, 2], [6, 0], [-6, 0]],
+      [0, 0, [4, -30], [-6, -8], [4, 5], [-4, 5]],
+      [0, 3, [6, -20], [-4, -2], [6, 0], [-6, 0]],
+      [0, 1, [4, -22], [-2, 0], [5, 0], [-5, 0]],
+    ],
+    lose: 'slump',
+  },
+  // Agni: a breathing fighting stance, fists up; a driving run; a front flip
+  band: {
+    amp: 1,
+    idle: (p, ph, b) => {
+      p.bob = b * 0.8 - 0.2;
+      p.crouch = 1 + b * 0.5;
+      p.lean = 0.6 + sin(ph) * 0.3;
+      p.frontFoot = [6, 0];
+      p.backFoot = [-6, 0];
+      p.frontHand = [4 + sin(ph) * 0.4, -4 + b * 0.7];
+      p.backHand = [1 - sin(ph) * 0.4, -3 + b * 0.7];
+    },
+    gait: { stride: 11, lift: 8, arms: 1.1, lean: 5, bounce: 1 },
+    jump2: 'flip',
+    victory: [
+      [-2, 3, [-6, -2], [-4, -2], [6, 0], [-6, 0]],
+      [-5, 1, [16, -8], [-4, -4], [8, 0], [-6, 0]],
+      [-1, 4, [-4, -6], [14, -8], [8, 0], [-7, 0]],
+      [0, 0, [4, -34], [-6, -4], [5, 0], [-5, 0]],
+    ],
+    lose: 'slump',
+  },
+  // Halcyon: calm, spear upright, wings breathing; plants the spear and spreads her wings to win
+  winged: {
+    amp: 1,
+    idle: (p, ph, b) => {
+      p.bob = b * 0.5 - 0.1;
+      p.crouch = b * 0.2;
+      p.frontHand = [2 + sin(ph) * 0.3, b * 0.4];
+      p.backHand = [-2 - sin(ph) * 0.3, b * 0.4];
+      p.wing = 0.1 + b * 0.08;
+    },
+    gait: { stride: 12, lift: 7, arms: 0.7, lean: 5, bounce: 0.8 },
+    jump2: 'float',
+    victory: [
+      [0, 2, [4, -6], [0, -6], [5, 0], [-5, 0], -80, 0.2],
+      [1, 4, [6, 2], [2, 2], [6, 0], [-6, 0], 90, 0.35],
+      [-1, 0, [6, -2], [2, -2], [5, 0], [-5, 0], 90, 1],
+      [-1, 0, [6, -2], [2, -2], [5, 0], [-5, 0], 90, 0.95],
+    ],
+    lose: 'slump',
+  },
+  // Riptide: the anchor's weight rocks him; a heavy rolling run; a swimmer's stroke for the double jump
+  fin: {
+    amp: 1.1,
+    idle: (p, ph, b) => {
+      p.bob = b * 0.9 - 0.2;
+      p.crouch = b * 0.35;
+      p.lean = sin(ph) * 0.7;
+      p.frontHand = [2 + sin(ph) * 0.8, b * 0.8];
+      p.backHand = [-2 + sin(ph) * 0.8, b * 0.6];
+    },
+    gait: { stride: 10, lift: 6, arms: 0.9, lean: 5, bounce: 1.2 },
+    jump2: 'stroke',
+    victory: [
+      [-3, 3, [-8, -10], [-10, -8], [7, 0], [-7, 0]],
+      [3, 2, [14, -14], [10, -12], [8, 0], [-8, 0]],
+      [0, 1, [4, -24], [2, -22], [6, 0], [-6, 0]],
+      [-1, 0, [2, -22], [-1, -20], [6, 0], [-6, 0]],
+    ],
+    lose: 'slump',
+  },
+  // Obelisk: hovers and drifts, hands floating out of step like loose shards; levitates up for the double jump
+  geode: {
+    amp: 1.1,
+    idle: (p, ph, b) => {
+      p.bob = sin(ph) * 0.9;
+      p.crouch = b * 0.2;
+      p.frontHand = [3, -1 + sin(ph + 1.2) * 1.4];
+      p.backHand = [-3, -1 + sin(ph + 2.4) * 1.4];
+    },
+    gait: { stride: 10, lift: 6, arms: 0.9, lean: 4, bounce: 1.1 },
+    jump2: 'float',
+    victory: [
+      [0, 3, [6, 0], [-6, 0], [6, 0], [-6, 0]],
+      [0, 0, [12, -20], [-12, -20], [5, 0], [-5, 0]],
+      [0, -1, [10, -28], [-10, -28], [5, 0], [-5, 0]],
+      [0, 0, [9, -26], [-9, -26], [5, 0], [-5, 0]],
+    ],
+    lose: 'slump',
+  },
+  // Rime: almost perfectly still, poised; a low ninja run with the arms held back; a flip; wins with a slash, a sheathe and a bow
+  kasa: {
+    amp: 1,
+    idle: (p, ph, b) => {
+      p.bob = b * 0.4 - 0.1;
+      p.crouch = 0.4 + b * 0.2;
+      p.frontHand = [2 + sin(ph) * 0.2, b * 0.3];
+      p.backHand = [-2 - sin(ph) * 0.2, b * 0.3];
+    },
+    gait: { stride: 13, lift: 8, arms: 0.6, lean: 7, bounce: 0.8 },
+    jump2: 'flip',
+    victory: [
+      [2, 2, [12, -6], [-10, -4], [8, 0], [-8, 0]],
+      [-1, 4, [-2, -2], [-4, -2], [7, 0], [-7, 0]],
+      [3, 5, [2, -2], [-2, -2], [5, 0], [-5, 0]],
+      [3, 4, [2, -1], [-2, -1], [5, 0], [-5, 0]],
+    ],
+    lose: 'turned',
+  },
+  // Havoc: a soldier's weight shift from foot to foot; a scissor-kick double jump; a fist pump and a salute
+  goggles: {
+    amp: 1.2,
+    idle: (p, ph, b) => {
+      p.bob = b * 0.7 - 0.15;
+      p.crouch = b * 0.3;
+      p.lean = sin(ph) * 0.6;
+      p.frontFoot = [4 + sin(ph) * 0.5, 0];
+      p.frontHand = [2, b * 0.6];
+      p.backHand = [-2, b * 0.6];
+    },
+    gait: { stride: 11, lift: 7, arms: 1, lean: 5, bounce: 1.1 },
+    jump2: 'kick',
+    victory: [
+      [-1, 3, [4, -2], [-2, 0], [6, 0], [-6, 0]],
+      [-2, 0, [6, -32], [-2, 0], [5, 0], [-5, 0]],
+      [-2, 0, [8, -28], [-2, 0], [5, 0], [-5, 0]],
+      [0, 0, [2, -20], [-2, 0], [4, 0], [-4, 0]],
+    ],
+    lose: 'kneel',
+  },
+};
+
+/** Fighters whose `jump2` is a somersault (the view spins the sprite through it). */
+export function flipsOnDoubleJump(helmet: string): boolean {
+  return (STYLES[helmet] ?? STYLE_DEFAULT).jump2 === 'flip';
+}
+
+/** Rows a fighter's motion style changes (idle, gaits, double jump, results); everything else is shared. */
+const STYLED = new Set(['idle', 'run', 'walk', 'dash', 'jump2', 'victory', 'victoryHold', 'lose', 'hurt', 'hurtL', 'hurtU', 'hurtD', 'shield', 'ledge', 'held', 'dizzy', 'airdodge']);
+/** Reaction rows scaled by the style's `amp` (bigger bodies need bigger offsets to read the same). */
+const AMPED = new Set(['hurt', 'hurtL', 'hurtU', 'hurtD', 'shield', 'ledge', 'held', 'dizzy', 'airdodge']);
+
+/** The pose of `pose`'s row and frame in the motion style of the fighter drawn with `helmet` (unchanged for rows without one). */
+export function stylePose(pose: Pose, helmet: string): Pose {
+  if (!pose.anim || pose.f === undefined || !STYLED.has(pose.anim) || !STYLES[helmet]) return pose;
+  return poseFor(pose.anim, pose.f, pose.n ?? 1, helmet);
+}
+
+// ---- helpers ------------------------------------------------------------------------------------------------------
+
+const smooth = (t: number): number => t * t * (3 - 2 * t);
+const mixN = (a: number, b: number, t: number): number => a + (b - a) * t;
+const mixV = (a: V2, b: V2, t: number): V2 => [mixN(a[0], b[0], t), mixN(a[1], b[1], t)];
+const mixO = (a: number | undefined, b: number | undefined, t: number): number | undefined => (a === undefined || b === undefined ? (a ?? b) : mixN(a, b, t));
+function mixKey(a: Key, b: Key, t: number): Key {
+  return [mixN(a[0], b[0], t), mixN(a[1], b[1], t), mixV(a[2], b[2], t), mixV(a[3], b[3], t), mixV(a[4], b[4], t), mixV(a[5], b[5], t), mixO(a[6], b[6], t), mixO(a[7], b[7], t)];
+}
+/** Sample a key-pose track at u (0..1), eased between keys. */
+function track(keys: Key[], u: number): Key {
+  if (keys.length === 1) return keys[0];
+  const x = Math.max(0, Math.min(1, u)) * (keys.length - 1);
+  const i = Math.min(keys.length - 2, Math.floor(x));
+  return mixKey(keys[i], keys[i + 1], smooth(x - i));
+}
+function applyKey(p: Pose, e: Key): void {
+  p.lean = e[0];
+  p.crouch = e[1];
+  p.frontHand = e[2];
+  p.backHand = e[3];
+  p.frontFoot = e[4];
+  p.backFoot = e[5];
+  if (e[6] !== undefined) p.aim = e[6];
+  if (e[7] !== undefined) p.wing = e[7];
+}
+/** Position (0..1) of frame f in a one-shot row of n frames. */
+const at = (f: number, n: number): number => (n <= 1 ? 1 : f / (n - 1));
+
+/** A stride: feet on a sin/cos cycle, the body lowest just after each contact and highest after the passing position. */
+function stride(p: Pose, ph: number, g: Gait, scale = 1): void {
+  const s = sin(ph);
+  const c = cos(ph);
+  const st = g.stride * scale;
+  p.frontFoot = [s * st, Math.max(0, -c) * g.lift];
+  p.backFoot = [-s * st, Math.max(0, c) * g.lift];
+  // 0 at the top of the bounce, 1 at the bottom (just after a foot lands)
+  const down = 0.5 + 0.5 * cos(2 * (ph - Math.PI / 2 - 0.45));
+  p.bob = (down * 1.6 - 0.5) * g.bounce;
+  p.crouch = down * 0.8 * g.bounce;
+  p.lean = g.lean + down * 0.8;
+  // arms swing against the legs; the forward hand rises with a bent elbow
+  const a = g.arms;
+  p.frontHand = [-s * 8 * a, -2 - Math.max(0, -s) * 4 * a - Math.abs(s) * 0.5];
+  p.backHand = [s * 8 * a, -2 - Math.max(0, s) * 4 * a - Math.abs(s) * 0.5];
+}
+
+const JUMP2: Record<JumpStyle, Key[]> = {
+  // somersault: crouch in, a tight tuck (hands on shins) through the turn, open out
+  flip: [
+    [-1, 4, [6, -4], [-4, -4], [6, 4], [-4, 2]],
+    [2, 6, [7, 4], [3, 4], [7, 12], [1, 13]],
+    [2, 6, [6, 5], [2, 5], [6, 13], [0, 13]],
+    [0, 0, [8, -12], [-8, -12], [6, 6], [-5, 8]],
+  ],
+  // jet boots: knees in, then legs locked together under the thrust, arms swept back
+  jet: [
+    [0, 4, [2, 2], [-2, 2], [6, 2], [-6, 2]],
+    [0, 0, [-2, 6], [-6, 6], [2, 6], [-2, 7]],
+    [0, 0, [-1, 5], [-5, 5], [2, 5], [-2, 6]],
+    [0, 0, [0, 4], [-4, 4], [3, 4], [-3, 5]],
+  ],
+  // levitation: arms rise and spread, legs trailing
+  float: [
+    [0, 2, [6, -6], [-6, -6], [5, 3], [-5, 3]],
+    [0, 0, [12, -16], [-12, -16], [4, 6], [-4, 8]],
+    [0, 0, [13, -18], [-13, -18], [4, 7], [-4, 9]],
+    [0, 0, [10, -12], [-10, -12], [5, 5], [-5, 7]],
+  ],
+  // breaststroke: arms reach up and pull down, the legs kick
+  stroke: [
+    [0, 2, [6, -24], [-6, -24], [5, 4], [-5, 4]],
+    [0, 0, [14, -10], [-14, -10], [6, 8], [-6, 2]],
+    [0, 0, [8, 4], [-8, 4], [5, 2], [-5, 9]],
+    [0, 0, [6, -4], [-6, -4], [5, 5], [-5, 6]],
+  ],
+  // scissor kick: knee drive on one leg, then the other
+  kick: [
+    [-1, 3, [6, -8], [-6, -4], [6, 3], [-6, 2]],
+    [1, 0, [-4, -6], [8, -10], [10, 12], [-8, 2]],
+    [1, 0, [6, -8], [-4, -6], [-2, 4], [8, 12]],
+    [0, 0, [8, -10], [-6, -8], [6, 6], [-5, 8]],
+  ],
+};
+
+/** Knocked down, on the back (drawn upright, then laid down): one knee up, an arm flung past the head, the other out on the floor. */
+const SPRAWL: Key = [0, 0, [3, -23], [-11, -4], [2, 10], [-6, 0]];
+/** About to get up: both knees up, hands planted. */
+const PROPPED: Key = [0, 0, [-6, -8], [-10, 2], [4, 12], [-2, 8]];
+
+// ---- the poses ----------------------------------------------------------------------------------------------------
+
+export function poseFor(anim: string, f: number, frames: number, style?: string): Pose {
+  const p: Pose = { ...REST, anim, f, n: frames };
+  const S = (style && STYLES[style]) || STYLE_DEFAULT;
+  const n = Math.max(1, frames);
+  const ph = (f / n) * TAU; // loop phase
   switch (anim) {
     case 'idle': {
-      // slow breath: the chest rises and settles, hands drift with it
-      const ph = (f / Math.max(1, frames)) * Math.PI * 2;
-      const b = Math.round((1 - Math.cos(ph)) / 2);
-      p.bob = b;
-      p.frontHand = [2, b];
-      p.backHand = [-2 + Math.round(Math.sin(ph) * 0.6), b];
+      // breath: the chest drops and rises in sub-pixel steps, the hands drift with it (each fighter has its own idle)
+      const b = (1 - cos(ph)) / 2;
+      S.idle(p, ph, b);
       break;
     }
-    case 'run': {
-      const ph = (f / frames) * Math.PI * 2;
-      const s = Math.sin(ph);
-      const c = Math.cos(ph);
-      p.frontFoot = [Math.round(s * 11), Math.max(0, Math.round(-c * 7))];
-      p.backFoot = [-Math.round(s * 11), Math.max(0, Math.round(c * 7))];
-      p.bob = Math.round(Math.abs(s) * 2); // lowest on contact, highest mid-stride
-      p.lean = 4;
-      p.frontHand = [-Math.round(s * 8), -2 - Math.round(Math.abs(s))];
-      p.backHand = [Math.round(s * 8), -2 - Math.round(Math.abs(s))];
+    case 'run':
+      stride(p, ph, S.gait);
+      break;
+    case 'walk': {
+      // gentle stride: shorter steps, upright, lowest on each contact, arms swinging lightly
+      const s = sin(ph);
+      const c = cos(ph);
+      const g = S.gait;
+      p.frontFoot = [s * g.stride * 0.55, Math.max(0, -c) * 3.2];
+      p.backFoot = [-s * g.stride * 0.55, Math.max(0, c) * 3.2];
+      p.bob = s * s * 0.8 * g.bounce - 0.2;
+      p.crouch = s * s * 0.3;
+      p.lean = 1 + (g.lean - 4) * 0.25;
+      p.frontHand = [-s * 3.5 * g.arms, -0.5 - Math.max(0, -s) * 1.2];
+      p.backHand = [s * 3.5 * g.arms, -0.5 - Math.max(0, s) * 1.2];
+      break;
+    }
+    case 'dash': {
+      // a sprint: long low strides, leaning hard in, arms pumping back
+      stride(p, ph, { ...S.gait, stride: S.gait.stride + 2, lean: S.gait.lean + 3.5 });
+      p.crouch += 2.5;
+      p.frontHand = [p.frontHand[0] * 0.6 - 3, p.frontHand[1] + 1];
+      p.backHand = [p.backHand[0] * 0.6 - 5, p.backHand[1] + 1.5];
       break;
     }
     case 'crouch':
@@ -61,29 +452,48 @@ export function poseFor(anim: string, f: number, frames: number): Pose {
       p.frontHand = [5, -3];
       p.backHand = [-3, -3];
       break;
+    case 'land':
+      // touch-down: a deep squash with the arms thrown out for balance, then settle back up
+      applyKey(
+        p,
+        track(
+          [
+            [2, 8, [7, 3], [-6, 3], [8, 0], [-8, 0]],
+            [1, 4, [5, 1], [-4, 1], [6, 0], [-6, 0]],
+            [0, 1, [3, 0], [-2, 0], [5, 0], [-5, 0]],
+          ],
+          at(f, n),
+        ),
+      );
+      p.bob = (1 - at(f, n)) * 1.2;
+      break;
     case 'jump': {
       // take-off stretch -> rising -> knees tucked at the top
-      const J: [number, number, V2, V2, V2, V2][] = [
+      const J: Key[] = [
         [1, 0, [5, -14], [-6, -12], [4, 3], [-5, 1]],
         [0, 0, [6, -10], [-5, -8], [6, 7], [-3, 9]],
         [2, 3, [7, -6], [-3, -5], [7, 10], [-1, 11]],
       ];
-      const [ln, cr, fh, bh, ff, bf] = J[Math.min(f, J.length - 1)];
-      p.lean = ln;
-      p.crouch = cr;
-      p.frontHand = fh;
-      p.backHand = bh;
-      p.frontFoot = ff;
-      p.backFoot = bf;
+      applyKey(p, J[Math.min(f, J.length - 1)]);
+      p.grav = [-0.25, 1];
       break;
     }
-    case 'fall':
-      // arms up for balance, legs reaching for the ground; a slow flutter between two poses
-      p.frontFoot = f % 2 === 0 ? [9, 3] : [8, 4];
-      p.backFoot = f % 2 === 0 ? [-9, 0] : [-8, 1];
-      p.frontHand = f % 2 === 0 ? [8, -15] : [9, -13];
-      p.backHand = f % 2 === 0 ? [-8, -15] : [-9, -16];
+    case 'jump2':
+      applyKey(p, track(JUMP2[S.jump2], at(f, n)));
+      if (S.jump2 === 'float') p.grav = [-0.3, 1];
       break;
+    case 'fall': {
+      // arms up for balance, legs reaching for the ground, everything fluttering in the rushing air
+      const s = sin(ph);
+      const c = cos(ph);
+      p.lean = s * 0.4;
+      p.frontFoot = [9 + s * 0.8, 3.5 + c * 0.8];
+      p.backFoot = [-8.5 - s * 0.6, 0.6 - c * 0.6];
+      p.frontHand = [8 + c, -14.5 + s * 1.5];
+      p.backHand = [-8 - c, -15 - s * 1.5];
+      p.bob = c * 0.3;
+      break;
+    }
     case 'ledge':
       p.frontFoot = [3, 0];
       p.backFoot = [-3, 0];
@@ -91,103 +501,184 @@ export function poseFor(anim: string, f: number, frames: number): Pose {
       p.frontHand = [6, -26];
       p.backHand = [-2, -26];
       break;
+    case 'ledgeClimb':
+      // hang -> haul the chest up over the edge -> a knee onto the floor -> stand
+      applyKey(
+        p,
+        track(
+          [
+            [0, 2, [6, -26], [-2, -26], [3, 0], [-3, 0]],
+            [-2, 5, [7, -14], [2, -14], [8, 10], [-3, 2]],
+            [3, 8, [9, 2], [4, 2], [9, 4], [-7, 6]],
+            [1, 2, [4, -1], [-2, -1], [5, 0], [-5, 0]],
+          ],
+          at(f, n),
+        ),
+      );
+      break;
+    case 'getup':
+      // from the floor: knees up and hands planted (still lying), a kneel pushing off the floor, rising, standing
+      if (f === 0) {
+        applyKey(p, PROPPED);
+        p.lying = true;
+        p.grav = [-1, 0];
+        break;
+      }
+      applyKey(
+        p,
+        track(
+          [
+            [4, 10, [7, 0], [-6, 9], [9, 0], [-9, 0]],
+            [2, 5, [5, -2], [-3, -1], [7, 0], [-6, 0]],
+            [0, 1, [3, 0], [-2, 0], [5, 0], [-5, 0]],
+          ],
+          at(f - 1, n - 1),
+        ),
+      );
+      break;
+    case 'tech':
+      // a tech in place: slapped into a tuck, then popping up with the arms out
+      applyKey(
+        p,
+        track(
+          [
+            [2, 9, [5, 6], [-4, 6], [7, 4], [-7, 4]],
+            [-2, 1, [11, -12], [-10, -10], [6, 0], [-6, 0]],
+          ],
+          at(f, n),
+        ),
+      );
+      break;
     case 'hurt':
-      p.lean = -7;
-      p.crouch = 1;
-      p.frontFoot = [10, 5];
-      p.backFoot = [-7, 0];
-      p.frontHand = [12, -14];
-      p.backHand = [-12, -8];
+      // the hit: head snapped back, chest twisted away; then settling toward the flinch as hitstun runs out
+      if (f === 0) {
+        applyKey(p, [-7, 1, [12, -14], [-12, -8], [10, 5], [-7, 0]]);
+        p.head = [-2.5, 1];
+        p.twist = 2.5;
+      } else {
+        applyKey(p, [-4, 2, [8, -8], [-8, -4], [8, 2], [-6, 0]]);
+        p.head = [-1, 0.5];
+        p.twist = 1;
+      }
       break;
-    case 'walk': {
-      // gentle stride: shorter steps than the run, upright, arms swinging lightly
-      const ph = (f / frames) * Math.PI * 2;
-      const sn = Math.sin(ph);
-      const cs = Math.cos(ph);
-      p.frontFoot = [Math.round(sn * 6), Math.max(0, Math.round(-cs * 3))];
-      p.backFoot = [-Math.round(sn * 6), Math.max(0, Math.round(cs * 3))];
-      p.bob = Math.abs(sn) > 0.7 ? 1 : 0;
-      p.frontHand = [-Math.round(sn * 3), -1];
-      p.backHand = [Math.round(sn * 3), -1];
-      break;
-    }
     case 'hurtL': // light flinch: a small recoil, still on both feet
-      p.lean = -5;
-      p.crouch = 2;
-      p.frontFoot = [8, 0];
-      p.backFoot = [-7, 0];
-      p.frontHand = [9, -10];
-      p.backHand = [-9, -5];
+      applyKey(p, [-5, 2, [9, -10], [-9, -5], [8, 0], [-7, 0]]);
+      p.head = [-1.5, 0.5];
+      p.twist = 1.5;
       break;
     case 'hurtU': // launched upward: back arched, arms flung up, legs trailing
-      p.lean = -7;
-      p.frontFoot = [6, 6];
-      p.backFoot = [-6, 8];
-      p.frontHand = [8, -18];
-      p.backHand = [-8, -18];
+      applyKey(p, [-7, 0, [8, -18], [-8, -18], [6, 6], [-6, 8]]);
+      p.head = [-1, -1.5];
       break;
     case 'hurtD': // spiked / driven downward: curled forward, arms down
-      p.lean = 6;
-      p.crouch = 3;
-      p.frontFoot = [4, 5];
-      p.backFoot = [-4, 7];
-      p.frontHand = [4, 7];
-      p.backHand = [-2, 7];
+      applyKey(p, [6, 3, [4, 7], [-2, 7], [4, 5], [-4, 7]]);
+      p.head = [1.5, 1.5];
       break;
-    case 'dash': // two alternating strides, body low and leaning in
-      p.lean = 7;
-      p.crouch = 3;
-      p.frontFoot = f % 2 === 0 ? [13, 0] : [-3, 4];
-      p.backFoot = f % 2 === 0 ? [-9, 3] : [9, 0];
-      p.frontHand = [-4, -2];
-      p.backHand = [-8, 0];
+    case 'dizzy': {
+      // stunned: the body wobbles on loose knees, the head lolls round in a circle, the arms dangle
+      const s = sin(ph);
+      p.lean = s * 4;
+      p.head = [cos(ph) * 1.6, 0.6 + s * 0.7];
+      p.crouch = 2 + (1 - cos(ph * 2)) * 0.3;
+      p.bob = 0.8;
+      p.frontHand = [4 + s * 2, 5];
+      p.backHand = [-3 + s * 2, 6];
+      p.frontFoot = [6 + s * 1.2, 0];
+      p.backFoot = [-6 + s * 1.2, 0];
+      break;
+    }
+    case 'airdodge':
+      // tucked and turned away
+      applyKey(p, [-3, 5, [4, -12], [7, -10], [6, 9], [-1, 11]]);
+      p.twist = 3;
+      p.head = [-1, 0.5];
       break;
     case 'skid': // braking: weight thrown back, front foot dug in
-      p.lean = -5;
-      p.crouch = 3;
-      p.frontFoot = [11, 0];
-      p.backFoot = [-5, 0];
-      p.frontHand = [8, -6];
-      p.backHand = [-6, -4];
+      applyKey(p, [-5, 3, [8, -6], [-6, -4], [11, 0], [-5, 0]]);
       break;
     case 'roll': // tucked ball (the view spins the sprite)
-      p.lean = 4;
-      p.crouch = 10;
-      p.frontFoot = [6, 6];
-      p.backFoot = [-6, 6];
-      p.frontHand = [4, 0];
-      p.backHand = [-2, 0];
+      applyKey(p, [4, 10, [4, 0], [-2, 0], [6, 6], [-6, 6]]);
       break;
     case 'held': // dangling in a grab
-      p.lean = -3;
-      p.frontFoot = [4, 6];
-      p.backFoot = [-4, 8];
-      p.frontHand = [8, -22];
-      p.backHand = [-8, -22];
+      applyKey(p, [-3, 0, [8, -22], [-8, -22], [4, 6], [-4, 8]]);
+      p.head = [-1, 0];
       break;
     case 'glide': // wings fully spread, body stretched out level, spear trailing
-      p.lean = 8;
-      p.frontFoot = [5, 6];
-      p.backFoot = [-8, 8];
-      p.frontHand = [10, -6];
-      p.backHand = [-4, -4];
+      applyKey(p, [8, 0, [10, -6], [-4, -4], [5, 6], [-8, 8]]);
       p.aim = 20;
       p.wing = 1 + (f % 2 === 0 ? 0 : -0.12);
+      p.grav = [-0.5, 1];
       break;
+    case 'victory':
+      applyKey(p, track(S.victory, at(f, n)));
+      break;
+    case 'victoryHold': {
+      // the end pose of the victory, held and breathing
+      const b = (1 - cos(ph)) / 2;
+      applyKey(p, S.victory[S.victory.length - 1]);
+      p.bob = b * 0.7 - 0.2;
+      p.frontHand = [p.frontHand[0], p.frontHand[1] + b * 0.6];
+      p.backHand = [p.backHand[0], p.backHand[1] + b * 0.6];
+      if (p.wing !== undefined) p.wing -= b * 0.06;
+      break;
+    }
+    case 'lose': {
+      // beaten: slumped and sighing (heavies drop to a knee; the proud ones turn away, head down)
+      const b = (1 - cos(ph)) / 2;
+      if (S.lose === 'kneel') {
+        applyKey(p, [5, 9, [8, 4], [-2, 8], [8, 0], [-10, 0]]);
+        p.head = [1, 2];
+      } else if (S.lose === 'turned') {
+        applyKey(p, [-2, 1, [-3, 2], [-6, 3], [5, 0], [-5, 0]]);
+        p.head = [-2, 2];
+        p.twist = 3;
+      } else {
+        applyKey(p, [4, 3, [3, 5], [-1, 5], [5, 0], [-5, 0]]);
+        p.head = [1, 2.5];
+      }
+      p.bob = 0.3 + b * 0.8;
+      p.frontHand = [p.frontHand[0], p.frontHand[1] + b * 0.6];
+      p.backHand = [p.backHand[0], p.backHand[1] + b * 0.6];
+      break;
+    }
     case 'down':
     case 'ko':
+      applyKey(p, SPRAWL);
       p.lying = true;
+      p.grav = [-1, 0];
+      p.head = [-1, 0];
       break;
     default:
       attackPose(anim, f, p, frames);
       break;
   }
+  if (AMPED.has(anim) && S.amp !== 1) amplify(p, S.amp);
   if (p.wing === undefined) {
     // winged fighters: folded on the ground, flaring while airborne or hurt
-    const w: Record<string, number> = { idle: 0.1, run: 0.2, walk: 0.15, dash: 0.3, skid: 0.35, crouch: 0.05, jump: [0.9, 0.55, 0.2][f % 3], fall: 0.65, ledge: 0.45, hurt: 0.85, hurtL: 0.5, hurtU: 0.95, hurtD: 0.7, roll: 0.05, held: 0.8, shield: 0.4, dodge: 0.2 };
+    const w: Record<string, number> = { idle: 0.1, run: 0.2, walk: 0.15, dash: 0.3, skid: 0.35, crouch: 0.05, land: [0.6, 0.35, 0.15][Math.min(2, f)], jump: [0.9, 0.55, 0.2][f % 3], jump2: [0.3, 1, 0.75, 0.45][f % 4], fall: 0.65 + sin(ph) * 0.08, ledge: 0.45, ledgeClimb: 0.4, getup: [0.06, 0.3, 0.2, 0.12][Math.min(3, f)], tech: 0.4, hurt: 0.85, hurtL: 0.5, hurtU: 0.95, hurtD: 0.7, dizzy: 0.35, roll: 0.05, held: 0.8, shield: 0.4, dodge: 0.2, airdodge: 0.15, victory: 0.4, victoryHold: 0.4, lose: 0.05, down: 0.06, ko: 0.06 };
     p.wing = w[anim] ?? 0.3;
   }
+  // keep the numbers tidy (they are drawn on a 2x grid, so anything finer than 1/100 is noise)
+  p.bob = r2(p.bob);
+  p.crouch = r2(p.crouch);
+  p.lean = r2(p.lean);
+  for (const v of [p.frontFoot, p.backFoot, p.frontHand, p.backHand]) {
+    v[0] = r2(v[0]);
+    v[1] = r2(v[1]);
+  }
   return p;
+}
+
+/** Scale a reaction pose's offsets from the rest pose (lean, limbs, head snap, twist) for a bigger body. */
+function amplify(p: Pose, k: number): void {
+  const sc = (v: V2, rest: V2): V2 => [rest[0] + (v[0] - rest[0]) * k, rest[1] + (v[1] - rest[1]) * k];
+  p.lean *= k;
+  p.frontHand = sc(p.frontHand, REST.frontHand);
+  p.backHand = sc(p.backHand, REST.backHand);
+  p.frontFoot = sc(p.frontFoot, REST.frontFoot);
+  p.backFoot = sc(p.backFoot, REST.backFoot);
+  if (p.head) p.head = [p.head[0] * k, p.head[1] * k];
+  if (p.twist) p.twist *= k;
 }
 
 /** Attack/defence key poses. Frame 0 = wind-up, 1 = active, 2 = recovery (see Fighter.attackPhase). */
@@ -366,7 +857,8 @@ function attackPose(anim: string, f: number, p: Pose, frames = 3): void {
     const opt = (a: number | undefined, b: number | undefined, t: number): number | undefined => (a === undefined || b === undefined ? (a ?? b) : Math.round((a + (b - a) * t) * 100) / 100);
     const lerp = (a: (typeof row)[number], b: (typeof row)[number], t: number): (typeof row)[number] => [mix(a[0], b[0], t), mix(a[1], b[1], t), mixV(a[2], b[2], t), mixV(a[3], b[3], t), mixV(a[4], b[4], t), mixV(a[5], b[5], t), opt(a[6], b[6], t), opt(a[7], b[7], t)];
     const [A, B, C] = row;
-    const e = [A, lerp(A, B, -0.28), lerp(A, B, 0.62), B, lerp(B, C, 0.5), C][Math.min(f, 5)];
+    // a taunt is a pose, not a strike: no overshoot or snap, just an eased move into it and back out
+    const e = (anim === 'mv_taunt' ? [A, lerp(A, B, 0.35), lerp(A, B, 0.75), B, lerp(B, C, 0.5), C] : [A, lerp(A, B, -0.28), lerp(A, B, 0.62), B, lerp(B, C, 0.5), C])[Math.min(f, 5)];
     set(e[0], e[1], e[2], e[3], e[4], e[5], e[6], e[7]);
     return;
   }

@@ -3,7 +3,7 @@ import { parseMoves, validateReferences, validateVariants, type CharacterJson } 
 import type { CharacterData } from '../engine/types';
 import { applyMovePoses } from '../engine/movePoses';
 import { DEALT_RATE, DECAY_DELAY, DECAY_RATE, FLAME_MAX, LEVEL_AT, TAKEN_RATE, levelDamageMult } from './agniFlame';
-import { standardAnimations } from './common';
+import { addMotionRows, standardAnimations } from './common';
 import movesJson from './agni.moves.json';
 import fxJson from './agni.fx.json';
 import { validateFx, type CharacterFx } from '../engine/fxTypes';
@@ -90,3 +90,4 @@ export const agni: CharacterData = {
 };
 
 applyMovePoses(agni);
+addMotionRows(agni); // full-motion rows (after the prune in applyMovePoses)

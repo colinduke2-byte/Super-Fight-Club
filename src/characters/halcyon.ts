@@ -3,7 +3,7 @@ import { parseMoves, validateReferences, validateVariants, type CharacterJson } 
 import type { CharacterData } from '../engine/types';
 import { applyMovePoses } from '../engine/movePoses';
 import { DEALT_RATE, GALE_MAX, LEVEL_AT, galeSpeed, galeTick } from './halcyonGale';
-import { standardAnimations } from './common';
+import { addMotionRows, standardAnimations } from './common';
 import movesJson from './halcyon.moves.json';
 import fxJson from './halcyon.fx.json';
 import { validateFx, type CharacterFx } from '../engine/fxTypes';
@@ -26,10 +26,10 @@ const behavior: CharacterBehavior = {
   },
 };
 
-/** Only the rows she uses (every attack has its own pose row), so the big frames stay within the texture budget. */
+/** Only the rows she uses (`grab` is the hold pose while she has someone grabbed) (every attack has its own pose row), so the big frames stay within the texture budget. */
 function halcyonAnimations(): CharacterData['sprite']['animations'] {
   const std = standardAnimations(['glide']);
-  const keep = ['idle', 'run', 'walk', 'dash', 'skid', 'crouch', 'jump', 'fall', 'glide', 'ledge', 'hurt', 'hurtL', 'hurtU', 'hurtD', 'down', 'ko', 'roll', 'held', 'shield', 'dodge'];
+  const keep = ['idle', 'run', 'walk', 'dash', 'skid', 'crouch', 'jump', 'fall', 'glide', 'ledge', 'hurt', 'hurtL', 'hurtU', 'hurtD', 'down', 'ko', 'roll', 'held', 'shield', 'dodge', 'grab'];
   const out: CharacterData['sprite']['animations'] = {};
   for (const k of keep) out[k] = std[k];
   out.jump = { frames: 3, fps: 10, loop: true }; // wing flap cycle
@@ -101,3 +101,4 @@ export const halcyon: CharacterData = {
 };
 
 applyMovePoses(halcyon);
+addMotionRows(halcyon, { compact: true, jump2: false, tech: false }); // full-motion rows (after the prune in applyMovePoses)

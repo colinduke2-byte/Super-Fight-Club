@@ -2,7 +2,7 @@ import type { CharacterBehavior } from '../engine/behavior';
 import { parseMoves, validateReferences, validateVariants, type CharacterJson } from '../engine/moves';
 import type { CharacterData } from '../engine/types';
 import { applyMovePoses } from '../engine/movePoses';
-import { standardAnimations } from './common';
+import { addMotionRows, standardAnimations } from './common';
 import movesJson from './nova.moves.json';
 import fxJson from './nova.fx.json';
 import { validateFx, type CharacterFx } from '../engine/fxTypes';
@@ -123,3 +123,4 @@ export const nova: CharacterData = {
 };
 
 applyMovePoses(nova);
+addMotionRows(nova); // full-motion rows (after the prune in applyMovePoses)

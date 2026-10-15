@@ -1,7 +1,7 @@
 import type { PlaceholderLook } from '../../engine/types';
 import { drawFace } from './face';
 import { col, mix, mul, type Raster, type RGB, type V2 } from './raster';
-import { solveLimb, type Skel } from './skeleton';
+import { drape, solveLimb, type Skel } from './skeleton';
 
 /** Nova: an aether mage in a flowing violet robe and cloak, wide-brimmed pointed hat, and a staff crowned with a living orb. */
 export function drawNova(r: Raster, k: Skel, look: PlaceholderLook): void {
@@ -227,13 +227,23 @@ export function drawNova(r: Raster, k: Skel, look: PlaceholderLook): void {
     // hair wisps under the hat
     r.poly(P.cloak, [[hx - 2, hy + 6], [hx - 12 - sway(3), hy + hs - 2], [hx + 4, hy + hs - 6]]);
     // long silver hair framing the face and falling behind the shoulder
-    r.poly(P.hairD, [[hx - 4, hy + 4], [hx + 10, hy + 2], [hx + 12, hy + hs - 2], [hx - 10 - sway(4), hy + hs + 18], [hx - 12, hy + 14]]);
-    r.poly(P.hair, [[hx - 2, hy + 4], [hx + 8, hy + 3], [hx + 9, hy + hs - 4], [hx - 6 - sway(5), hy + hs + 14]]);
+    // the part below the jaw falls with the pose's gravity (spilling across the floor when she is knocked down)
+    const ax0 = hx + 2;
+    const ay0 = hy + hs - 6;
+    const fall = ([x, y]: V2): V2 => {
+      if (y <= ay0) return [x, y];
+      const [u, v] = drape(k, x - ax0, y - ay0);
+      return [ax0 + u, ay0 + v];
+    };
+    r.poly(P.hairD, ([[hx - 4, hy + 4], [hx + 10, hy + 2], [hx + 12, hy + hs - 2], [hx - 10 - sway(4), hy + hs + 18], [hx - 12, hy + 14]] as V2[]).map(fall));
+    r.poly(P.hair, ([[hx - 2, hy + 4], [hx + 8, hy + 3], [hx + 9, hy + hs - 4], [hx - 6 - sway(5), hy + hs + 14]] as V2[]).map(fall));
     // loose locks at the ends, then strands combed down the hair
     for (let i = 0; i < 3; i++) {
       const lx = hx - 8 - sway(5) + i * 4;
       const ly = hy + hs + 10 - i * 3;
-      r.seg(i === 1 ? P.hair : P.hairD, lx + 2, ly - 6, lx - 1 - sway(i + 6) * 0.4, ly + 3, 3.4, 1.4);
+      const [l0x, l0y] = fall([lx + 2, ly - 6]);
+      const [l1x, l1y] = fall([lx - 1 - sway(i + 6) * 0.4, ly + 3]);
+      r.seg(i === 1 ? P.hair : P.hairD, l0x, l0y, l1x, l1y, 3.4, 1.4);
     }
     for (let i = 0; i < 2; i++) {
       const ax = hx + 2 + i * 4;

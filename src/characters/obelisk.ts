@@ -4,7 +4,7 @@ import type { CharacterData } from '../engine/types';
 import { applyMovePoses } from '../engine/movePoses';
 import { shatterPillars } from '../engine/pillars';
 import { PILLAR_SLAM, pillarBehind } from './obeliskPillars';
-import { standardAnimations } from './common';
+import { addMotionRows, standardAnimations } from './common';
 import movesJson from './obelisk.moves.json';
 import fxJson from './obelisk.fx.json';
 import { validateFx, type CharacterFx } from '../engine/fxTypes';
@@ -96,3 +96,4 @@ export const obelisk: CharacterData = {
 };
 
 applyMovePoses(obelisk);
+addMotionRows(obelisk); // full-motion rows (after the prune in applyMovePoses)

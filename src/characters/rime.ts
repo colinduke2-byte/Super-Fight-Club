@@ -2,7 +2,7 @@ import type { CharacterBehavior } from '../engine/behavior';
 import { moveTotal, parseMoves, validateReferences, type CharacterJson } from '../engine/moves';
 import type { CharacterData } from '../engine/types';
 import { applyMovePoses } from '../engine/movePoses';
-import { standardAnimations } from './common';
+import { addMotionRows, standardAnimations } from './common';
 import movesJson from './rime.moves.json';
 import fxJson from './rime.fx.json';
 import { validateFx, type CharacterFx } from '../engine/fxTypes';
@@ -104,3 +104,4 @@ export const rime: CharacterData = {
 };
 
 applyMovePoses(rime);
+addMotionRows(rime); // full-motion rows (after the prune in applyMovePoses)
