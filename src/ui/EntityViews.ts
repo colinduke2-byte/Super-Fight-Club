@@ -1,8 +1,10 @@
 import Phaser from 'phaser';
 import { MAX_DEPLOYABLES, MAX_PROJECTILES } from '../engine/entities';
-import { MAX_ITEMS } from '../engine/items';
+import { MAX_FIGHTERS } from '../engine/fighter';
+import { CRATE, heldState, MAX_ITEMS, RAYGUN, type Item } from '../engine/items';
 import type { World } from '../engine/world';
-import { pillarCanvas } from '../art/entityTextures';
+import type { ProjectileDef, DeployableDef } from '../engine/moves';
+import { ART_D, CRATE_SCALE, DEP_ART, ITEM_SCALE, pillarCanvas, PROJ_ART, type DepArt, type ProjArt } from '../art/entityTextures';
 import { addCanvasTexture } from '../art/canvasTexture';
 import { slashStyle, type SlashStyle } from './SlashArcs';
 
@@ -23,7 +25,8 @@ function lighten(hex: string): string {
 const ITEM_TEX = new Map<string, string>();
 const LIGHT_TINT = new Map<string, number>();
 
-function itemTexture(kind: string): string {
+function itemTexture(kind: string, volatile = false): string {
+  if (kind === 'crate' && volatile) return 'item-crate-x';
   let k = ITEM_TEX.get(kind);
   if (k === undefined) {
     k = `item-${kind}`;
@@ -33,7 +36,17 @@ function itemTexture(kind: string): string {
 }
 
 /** Halo colour behind each item kind, so pickups read against busy stages. */
-const ITEM_GLOW: Record<string, number> = { heal: 0x5fe08a, cell: 0xffd04a, boost: 0xff6a5a, aegis: 0xfff4ff, bomb: 0x3ad0e8 };
+const ITEM_GLOW: Record<string, number> = { heal: 0xff7a7a, cell: 0xffd04a, boost: 0xff6a3a, aegis: 0xfff4ff, bomb: 0x3ad0e8, sword: 0x5ae8ff, raygun: 0x5af0c0, crate: 0xffd8a0, core: 0xffc84a };
+
+/** Art for a projectile / deployable def, resolved once per def object (defs belong to one character's data). */
+const PROJ_LOOK = new Map<ProjectileDef, ProjArt | null>();
+const DEP_LOOK = new Map<DeployableDef, DepArt | null>();
+const SPIN = 0.045;
+/** Beam Sword swing: blade angle (radians, 0 = forward, negative = up) from the start to the end of the active frames. */
+const SWING_ARC: Record<string, [number, number]> = { fwd: [-2.0, 0.65], back: [-2.0, 0.65], up: [0.4, -3.4], low: [-0.9, 0.45], down: [-0.4, 1.9], spin: [-1.6, 4.6] };
+const PRISM = [0xff6a8a, 0xffb04a, 0xffe85a, 0x6aff9a, 0x4ad8ff, 0xa07aff];
+const easeOut = (t: number): number => 1 - (1 - t) * (1 - t);
+const easeOutBack = (t: number): number => 1 + 2.4 * Math.pow(t - 1, 3) + 1.4 * Math.pow(t - 1, 2);
 
 /** A colour lifted toward white by k (0..1). */
 function mixWhite(c: number, k: number): number {
@@ -75,6 +88,17 @@ export class EntityViews {
   private readonly tether: Phaser.GameObjects.Graphics;
   private readonly items: Phaser.GameObjects.Image[] = [];
   private readonly itemGlow: Phaser.GameObjects.Image[] = [];
+  /** Per item: the Shock Bomb's lit-fuse spark. */
+  private readonly itemSpark: Phaser.GameObjects.Image[] = [];
+  /** Per fighter: a carried Beam Sword / Ray Gun, its muzzle flash, and the icon that pops over the head on a pickup. */
+  private readonly heldSword: Phaser.GameObjects.Image[] = [];
+  private readonly heldGun: Phaser.GameObjects.Image[] = [];
+  private readonly muzzle: Phaser.GameObjects.Image[] = [];
+  private readonly pop: Phaser.GameObjects.Image[] = [];
+  private readonly popGlow: Phaser.GameObjects.Image[] = [];
+  /** Additive strokes: sword swing arcs, Aegis shatter. */
+  private readonly itemFx: Phaser.GameObjects.Graphics;
+  private readonly glowTex: string;
   /** Per fighter: the crystal colour of its palette (null = the data's own), for pillars and shards. */
   private crystal: (string | null)[] = [];
 
@@ -84,6 +108,7 @@ export class EntityViews {
     private readonly world: World,
   ) {
     const glowTex = scene.textures.exists('fx-glow') ? 'fx-glow' : 'item-glow';
+    this.glowTex = glowTex;
     this.trails = scene.add.graphics().setBlendMode(Phaser.BlendModes.ADD);
     layer.add(this.trails);
     for (let i = 0; i < MAX_PROJECTILES; i++) {
@@ -112,11 +137,29 @@ export class EntityViews {
     }
     for (let i = 0; i < MAX_ITEMS; i++) {
       const gl = scene.add.image(0, 0, 'item-glow').setVisible(false).setBlendMode(Phaser.BlendModes.ADD);
-      const s = scene.add.image(0, 0, 'item-heal').setVisible(false).setScale(0.6);
+      const s = scene.add.image(0, 0, 'item-heal').setVisible(false).setScale(ITEM_SCALE);
+      const sp = scene.add.image(0, 0, glowTex).setVisible(false).setBlendMode(Phaser.BlendModes.ADD).setTint(0xffd060);
       layer.add(gl);
       layer.add(s);
+      layer.add(sp);
       this.itemGlow.push(gl);
       this.items.push(s);
+      this.itemSpark.push(sp);
+    }
+    this.itemFx = scene.add.graphics().setBlendMode(Phaser.BlendModes.ADD);
+    layer.add(this.itemFx);
+    for (let i = 0; i < MAX_FIGHTERS; i++) {
+      const sw = scene.add.image(0, 0, 'item-sword-blade').setVisible(false).setScale(1 / ART_D).setOrigin(10 / 150, 0.5);
+      const gun = scene.add.image(0, 0, 'item-raygun').setVisible(false).setScale(0.28).setOrigin(0.36, 0.5);
+      const mz = scene.add.image(0, 0, glowTex).setVisible(false).setBlendMode(Phaser.BlendModes.ADD).setTint(0xff4a7a);
+      const pg = scene.add.image(0, 0, 'item-glow').setVisible(false).setBlendMode(Phaser.BlendModes.ADD);
+      const pi = scene.add.image(0, 0, 'item-heal').setVisible(false);
+      for (const o of [sw, gun, mz, pg, pi]) layer.add(o);
+      this.heldSword.push(sw);
+      this.heldGun.push(gun);
+      this.muzzle.push(mz);
+      this.popGlow.push(pg);
+      this.pop.push(pi);
     }
     this.tether = scene.add.graphics().setDepth(5);
     layer.add(this.tether);
@@ -128,29 +171,9 @@ export class EntityViews {
 
   update(alpha: number, tick: number): void {
     const w = this.world;
-    for (let i = 0; i < this.items.length; i++) {
-      const it = w.items[i];
-      const s = this.items[i];
-      const gl = this.itemGlow[i];
-      if (!it.active) {
-        s.setVisible(false);
-        gl.setVisible(false);
-        continue;
-      }
-      if (it.thrown) {
-        // spinning in flight, flashing faster as the fuse burns down
-        const fast = it.fuse < 45 ? 2 : 3;
-        s.setTexture('item-bomb').setVisible(true).setPosition(it.x, it.y).setRotation(tick * 0.35 * Math.sign(it.vx || 1));
-        s.setTint((tick >> fast) % 2 === 0 ? 0xffffff : 0xff9a9a);
-        gl.setVisible(false);
-        continue;
-      }
-      const blink = it.age > 600 && (tick >> 2) % 2 === 0;
-      const y = it.y + Math.sin(tick * 0.1 + i) * (it.resting && it.vx === 0 ? 1.2 : 0);
-      s.setTexture(itemTexture(it.kind)).setVisible(!blink).setRotation(it.spin).clearTint().setPosition(it.x, y);
-      // a soft halo that breathes, in the item's colour
-      gl.setVisible(!blink).setPosition(it.x, y).setTint(ITEM_GLOW[it.kind] ?? 0xffffff).setScale(0.85 + 0.12 * Math.sin(tick * 0.12 + i)).setAlpha(0.85);
-    }
+    for (let i = 0; i < this.items.length; i++) this.drawItem(w.items[i], i, tick);
+    this.itemFx.clear();
+    this.drawHolders(alpha, tick);
     const tg = this.trails;
     tg.clear();
     for (let i = 0; i < this.proj.length; i++) {
@@ -166,9 +189,23 @@ export class EntityViews {
       }
       const look = p.def.look;
       const own = look.shape === 'shard' ? this.crystal[p.owner] : null;
-      s.setTexture(SHAPE_TEX[look.shape] ?? 'proj-orb').setVisible(true).setTint(own ? lightTint(own) : color(look.color));
+      const art = look.shape === 'beam' || look.shape === 'shard' ? null : this.projArt(p.def, p.owner, p.defId);
       s.setPosition(p.prevX + (p.x - p.prevX) * alpha, p.prevY + (p.y - p.prevY) * alpha);
       s.setFlipX(p.vx < 0);
+      const fade0 = p.def.life - p.age < 8 ? (p.def.life - p.age) / 8 : 1;
+      if (art) {
+        // hand-drawn art: full colour, its own size, turned along its flight (or spinning)
+        const frame = art.frames > 1 && ((tick + p.index * 3) >> 2) % 2 === 1 ? art.key + '-1' : art.key;
+        const k = (look.size ?? 1) / art.size / ART_D;
+        s.setTexture(frame).setVisible(true).clearTint().setOrigin(0.5, 0.5).setBlendMode(Phaser.BlendModes.NORMAL).setScale(k).setAlpha(fade0);
+        if (art.orient === 'vel') s.setRotation(Math.atan2(p.vy, Math.abs(p.vx) || 0.001) * (p.vx < 0 ? -1 : 1));
+        else if (art.orient === 'spin') s.setRotation(p.age * 0.32 * (p.vx < 0 ? -1 : 1));
+        else s.setRotation(0);
+        this.dressProjectile(p, s, gl, core, fade0, tick, color(look.color));
+        if (look.shape === 'orb') core.setAlpha(0.35 * fade0); // the art carries its own hot core
+        continue;
+      }
+      s.setTexture(SHAPE_TEX[look.shape] ?? 'proj-orb').setVisible(true).setTint(own ? lightTint(own) : color(look.color));
       const base = 0.5 * (look.size ?? 1);
       if (look.shape === 'bolt' || look.shape === 'bullet' || look.shape === 'shard') s.setRotation(Math.atan2(p.vy, Math.abs(p.vx)) * (p.vx < 0 ? -1 : 1));
       else s.setRotation(0);
@@ -201,8 +238,21 @@ export class EntityViews {
         continue;
       }
       s.setCrop().setOrigin(0.5, 1);
-      s.setTexture(DEP_TEX[look.shape] ?? 'dep-mine').setVisible(true).setTint(color(look.color));
+      const dart = this.depArt(d.def, d.owner, d.defId);
       const armed = d.age >= (d.def.armFrames ?? 0);
+      if (dart) {
+        const hover = dart.key === 'da-drone' ? Math.sin(tick * 0.09 + d.index) * 1.5 : 0;
+        const expiring = d.def.life ? d.def.life - d.age < 36 && (tick >> 2) % 2 === 0 : false;
+        s.setTexture(dart.key).setVisible(true).clearTint().setRotation(0).setScale(1 / ART_D).setFlipX(d.facing < 0).setPosition(d.x, d.y + hover).setAlpha(expiring ? 0.35 : 1);
+        // a hit-flash as it takes damage
+        if (d.def.health > 0 && d.hp < d.def.health && (tick >> 1) % 2 === 0 && d.hp / d.def.health < 0.35) s.setTint(0xffb0b0);
+        const blink = armed ? (tick >> 3) % 2 === 0 : true;
+        l.setVisible(blink).setPosition(d.x + (d.facing < 0 ? -dart.lx : dart.lx) / ART_D, d.y + hover + dart.ly / ART_D).setTexture(this.glowTex).setScale(0.085);
+        l.setTint(armed ? 0xff3030 : 0xffd040).setAlpha(armed ? 0.9 : 0.6);
+        continue;
+      }
+      l.setTexture('dep-light').setScale(0.5);
+      s.setTexture(DEP_TEX[look.shape] ?? 'dep-mine').setVisible(true).setTint(color(look.color));
       let y = d.y;
       if (look.shape === 'marker') y = d.y - 6 + Math.sin(tick * 0.12) * 2;
       s.setPosition(d.x, y);
@@ -240,6 +290,211 @@ export class EntityViews {
       g.lineStyle(1.2, 0x2a2a3a, 1).lineBetween(hx, hy, f.tetherX, f.tetherY);
       g.lineStyle(0.6, 0xd8d8f0, 1).lineBetween(hx, hy - 0.3, f.tetherX, f.tetherY - 0.3);
       g.fillStyle(0xffffff, 1).fillCircle(f.tetherX, f.tetherY, 1.4);
+    }
+  }
+
+
+  private projArt(def: ProjectileDef, owner: number, defId: string): ProjArt | null {
+    let a = PROJ_LOOK.get(def);
+    if (a === undefined) {
+      const ch = defId.startsWith('item:') ? '' : (this.world.fighters[owner]?.data.id ?? '');
+      a = PROJ_ART[ch ? `${ch}:${defId}` : defId] ?? null;
+      if (a && !this.scene.textures.exists(a.key)) a = null;
+      PROJ_LOOK.set(def, a);
+    }
+    return a;
+  }
+
+  private depArt(def: DeployableDef, owner: number, defId: string): DepArt | null {
+    let a = DEP_LOOK.get(def);
+    if (a === undefined) {
+      a = DEP_ART[`${this.world.fighters[owner]?.data.id ?? ''}:${defId}`] ?? null;
+      if (a && !this.scene.textures.exists(a.key)) a = null;
+      DEP_LOOK.set(def, a);
+    }
+    return a;
+  }
+
+  /** A loose item: bobbing and slowly turning on the spot (crates sit still), a breathing halo, a lit fuse on bombs. */
+  private drawItem(it: Item, i: number, tick: number): void {
+    const s = this.items[i];
+    const gl = this.itemGlow[i];
+    const sp = this.itemSpark[i];
+    if (!it.active) {
+      s.setVisible(false);
+      gl.setVisible(false);
+      sp.setVisible(false);
+      return;
+    }
+    if (it.thrown) {
+      // spinning in flight, flashing faster as the fuse burns down
+      const fast = it.fuse < 45 ? 2 : 3;
+      const rot = tick * 0.35 * Math.sign(it.vx || 1);
+      s.setTexture('item-bomb').setVisible(true).setPosition(it.x, it.y).setRotation(rot).setScale(ITEM_SCALE).setFlipX(false);
+      s.setTint((tick >> fast) % 2 === 0 ? 0xffffff : 0xff9a9a);
+      gl.setVisible(false);
+      this.fuseSpark(sp, it.x, it.y, rot, ITEM_SCALE, tick, 1.3);
+      return;
+    }
+    if (it.kind === 'crate') {
+      // planted on the floor (its origin at the base); shakes and flashes once primed
+      const k = it.primed ? (it.fuse < 15 ? 2 : 1) : 0;
+      const shake = it.primed ? Math.sin(tick * 2.1) * (0.6 + k * 0.4) : 0;
+      const hurt = 1 - Math.max(0, it.hp) / CRATE.hp;
+      const blink = (it.age > 660 && (tick >> 2) % 2 === 0) || (it.primed && (tick >> (3 - k)) % 2 === 0);
+      s.setTexture(itemTexture('crate', it.volatile)).setVisible(true).setOrigin(0.5, 1).setScale(CRATE_SCALE).setFlipX(false).setRotation(it.resting ? 0 : it.spin * 0.3);
+      s.setPosition(it.x + shake, it.y + 7 + 0.5);
+      if (blink && it.primed) s.setTint(0xff6040);
+      else if (blink) s.setTint(0x808080);
+      else {
+        const v = Math.round(255 * (1 - hurt * 0.3));
+        s.setTint((v << 16) | (v << 8) | v);
+      }
+      gl.setVisible(it.primed || it.volatile).setPosition(it.x, it.y - 2).setTint(0xff3a20).setScale(it.primed ? 1.1 + 0.3 * Math.sin(tick * 0.8) : 0.7).setAlpha(it.primed ? 0.9 : 0.35);
+      sp.setVisible(false);
+      return;
+    }
+    const blink = it.age > 600 && (tick >> 2) % 2 === 0;
+    const still = it.resting && it.vx === 0;
+    const y = it.y - (still ? 1.5 : 0) + Math.sin(tick * 0.1 + i) * (still ? 1.4 : 0);
+    // a slow turn on the spot: the sprite narrows and widens as if spinning about its vertical axis
+    const turn = still ? Math.cos(tick * SPIN + i * 1.7) : 1;
+    const sx = ITEM_SCALE * (0.55 + 0.45 * Math.abs(turn));
+    s.setTexture(itemTexture(it.kind)).setVisible(!blink).setOrigin(0.5, 0.5).setRotation(still ? 0 : it.spin).setFlipX(turn < 0 && it.kind !== 'raygun').setScale(sx, ITEM_SCALE).setPosition(it.x, y);
+    if (it.spent) s.setTint(0x9a9aa8);
+    else if (still && Math.abs(turn) < 0.35) s.setTint(0xd8d8e8); // the edge-on moment reads a touch darker
+    else s.clearTint();
+    // a soft halo that breathes, in the item's colour
+    gl.setVisible(!blink && !it.spent).setPosition(it.x, y).setTint(ITEM_GLOW[it.kind] ?? 0xffffff).setScale(0.9 + 0.12 * Math.sin(tick * 0.12 + i)).setAlpha(it.kind === 'core' ? 1 : 0.8);
+    if (it.kind === 'bomb') this.fuseSpark(sp, it.x, y, 0, ITEM_SCALE, tick, 1, turn < 0 ? -1 : 1);
+    else sp.setVisible(false);
+  }
+
+  /** The bomb's fuse tip (art px (30, 3.5) of a 40 px texture), flickering. */
+  private fuseSpark(sp: Phaser.GameObjects.Image, x: number, y: number, rot: number, k: number, tick: number, size: number, flip = 1): void {
+    const lx = (30 - 20) * k * flip;
+    const ly = (3.5 - 20) * k;
+    const c = Math.cos(rot);
+    const sn = Math.sin(rot);
+    const f = 0.7 + 0.3 * Math.sin(tick * 1.7) + ((tick * 7) % 5) * 0.05;
+    sp.setVisible(true).setPosition(x + lx * c - ly * sn, y + lx * sn + ly * c).setScale(0.07 * f * size).setAlpha(0.95).setTint((tick >> 1) % 2 ? 0xffe080 : 0xffffff);
+  }
+
+  /** Carried Beam Swords and Ray Guns, swing arcs, pickup icons popping over heads, an Aegis shattering when its holder strikes. */
+  private drawHolders(alpha: number, tick: number): void {
+    const w = this.world;
+    const g = this.itemFx;
+    for (let i = 0; i < this.heldSword.length; i++) {
+      const f = w.fighters[i];
+      const sw = this.heldSword[i];
+      const gun = this.heldGun[i];
+      const mz = this.muzzle[i];
+      const pi = this.pop[i];
+      const pg = this.popGlow[i];
+      if (!f || f.state === 'ko') {
+        for (const o of [sw, gun, mz, pi, pg]) o.setVisible(false);
+        continue;
+      }
+      const h = heldState(w, i);
+      const fx = f.prevX + (f.x - f.prevX) * alpha;
+      const fy = f.prevY + (f.y - f.prevY) * alpha;
+      const sm = f.sizeMul;
+      const handX = fx + f.facing * 7 * sm;
+      const handY = fy - f.h * 0.5 * sm;
+      const kind = f.heldBomb ? h.kind : null;
+      // --- Beam Sword ---
+      if (kind === 'sword') {
+        const m = f.move;
+        let ang = -0.95 + Math.sin(tick * 0.08) * 0.05; // carried blade up, slightly forward
+        let arc0 = 0;
+        let live = false;
+        if (h.swing && m === h.swing && f.state === 'attack') {
+          const [a0, a1] = SWING_ARC[h.swingDir];
+          const st = m.startup;
+          const end = st + Math.max(4, m.active);
+          const t = f.moveFrame < st ? f.moveFrame / Math.max(1, st) : f.moveFrame < end ? (f.moveFrame - st) / (end - st) : 1;
+          if (f.moveFrame < st) ang = ang + (a0 - ang) * easeOut(t);
+          else if (f.moveFrame < end) {
+            ang = a0 + (a1 - a0) * easeOut(t);
+            live = true;
+          } else ang = a1 + (-0.95 - a1) * Math.min(1, (f.moveFrame - end) / Math.max(6, m.recovery));
+          arc0 = a0;
+        }
+        const back = h.swingDir === 'back' && live ? -1 : 1;
+        const dirX = f.facing * back;
+        sw.setVisible(true).setPosition(handX, handY).setFlipX(dirX < 0).setRotation(dirX < 0 ? -ang : ang).setScale(sm / ART_D);
+        // dying blade flickers on its last swings
+        sw.setAlpha(h.uses <= 2 && (tick >> 2) % 3 === 0 ? 0.55 : 1);
+        if (live) {
+          const len = 42 * sm;
+          const steps = 10;
+          for (let k = 0; k < steps; k++) {
+            const t0 = arc0 + ((ang - arc0) * k) / steps;
+            const t1 = arc0 + ((ang - arc0) * (k + 1)) / steps;
+            const fade = (k + 1) / steps;
+            const p = (a: number, r: number): [number, number] => [handX + Math.cos(a) * r * dirX, handY + Math.sin(a) * r];
+            const [x0, y0] = p(t0, len * 0.35);
+            const [x1, y1] = p(t0, len);
+            const [x2, y2] = p(t1, len);
+            const [x3, y3] = p(t1, len * 0.35);
+            g.fillStyle(0x5ae8ff, 0.32 * fade).fillTriangle(x0, y0, x1, y1, x2, y2).fillTriangle(x0, y0, x2, y2, x3, y3);
+            g.lineStyle(1.4, 0xe8fdff, 0.75 * fade).lineBetween(x1, y1, x2, y2);
+          }
+        }
+      } else sw.setVisible(false);
+      // --- Ray Gun ---
+      if (kind === 'raygun') {
+        const since = tick - h.shotTick;
+        const kick = since < 6 ? (6 - since) * 0.35 : 0;
+        gun.setVisible(true).setPosition(handX - f.facing * kick, handY + 1).setFlipX(f.facing < 0).setRotation(f.facing * -kick * 0.06).setScale(0.28 * sm);
+        gun.setTint(h.uses <= 0 ? 0x8a8a96 : 0xffffff);
+        mz.setVisible(since < 5).setPosition(handX + f.facing * 9 * sm, handY + 0.5).setScale(0.22 * (1 - since / 6)).setAlpha(0.95);
+        // the charge light refills over the cooldown
+        if (h.uses > 0 && h.cd > 0) g.fillStyle(0xff4a7a, 0.5 * (1 - h.cd / RAYGUN.cooldown)).fillCircle(handX + f.facing * 10.5 * sm, handY + 1, 1.2);
+      } else {
+        gun.setVisible(false);
+        mz.setVisible(false);
+      }
+      // --- pickup icon: pops up over the head, hangs, floats off ---
+      const age = tick - h.popTick;
+      if (h.popKind && age >= 0 && age < 54) {
+        const t = age / 54;
+        const pop = age < 8 ? easeOutBack(age / 8) : 1;
+        const lift = 8 + 10 * easeOut(Math.min(1, age / 14)) + Math.max(0, age - 34) * 0.25;
+        const px = fx;
+        const py = fy - f.hurtH * sm - lift;
+        const a = t > 0.7 ? 1 - (t - 0.7) / 0.3 : 1;
+        pi.setTexture(itemTexture(h.popKind)).setVisible(true).setPosition(px, py).setScale(0.36 * pop).setAlpha(a).setRotation(0).setFlipX(false);
+        pg.setVisible(true).setPosition(px, py).setTint(ITEM_GLOW[h.popKind] ?? 0xffffff).setScale(1.1 * pop).setAlpha(0.8 * a);
+      } else {
+        pi.setVisible(false);
+        pg.setVisible(false);
+      }
+      // --- Aegis: a prism shimmer while it lasts, shards flying when a hit breaks it ---
+      if (f.aegisFrames > 0) {
+        const r = (f.h * 0.62 + 3) * sm;
+        const cy = fy - f.h * 0.5 * sm;
+        for (let k = 0; k < 6; k++) {
+          const a = tick * 0.05 + (k * Math.PI) / 3;
+          const c = PRISM[k];
+          const fl = f.aegisFrames < 50 && (tick >> 2) % 2 === 0 ? 0.3 : 1;
+          g.lineStyle(1.1, c, 0.55 * fl).lineBetween(fx + Math.cos(a) * r, cy + Math.sin(a) * r * 1.1, fx + Math.cos(a + 0.6) * r, cy + Math.sin(a + 0.6) * r * 1.1);
+        }
+      }
+      const lost = tick - h.aegisLostTick;
+      if (lost >= 0 && lost < 22) {
+        const cy = fy - f.h * 0.5 * sm;
+        const t = lost / 22;
+        for (let k = 0; k < 10; k++) {
+          const a = (k / 10) * Math.PI * 2 + 0.3;
+          const d = (12 + 30 * easeOut(t)) * sm;
+          const x = fx + Math.cos(a) * d;
+          const y = cy + Math.sin(a) * d * 0.9 + t * t * 10;
+          const s = 3.2 * (1 - t) + 0.6;
+          g.fillStyle(PRISM[k % 6], 0.9 * (1 - t)).fillTriangle(x - s, y, x, y - s * 1.6, x + s * 0.7, y + s * 0.4);
+        }
+        g.lineStyle(2, 0xffffff, 0.8 * (1 - t)).strokeCircle(fx, cy, (10 + 26 * easeOut(t)) * sm);
+      }
     }
   }
 

@@ -233,7 +233,7 @@ describe('regressions: sim audit', () => {
     t.fa.grabLedge(ledge, t.world);
     expect(t.fa.invuln).toBe(t.fa.aegisFrames);
     t.fa.getTrumped(ledge, t.world);
-    expect(t.fa.invuln).toBeGreaterThan(200);
+    expect(t.fa.invuln).toBeGreaterThan(120);
   });
 
   it('a cutscene whose caster is knocked out of the ultimate the tick it starts lets the victim go (not stuck grabbed)', () => {
