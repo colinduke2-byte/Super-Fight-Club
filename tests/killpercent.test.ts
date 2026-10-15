@@ -1,70 +1,133 @@
 import { writeFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
 import { CHARACTERS } from '../src/characters';
-import { makeInput } from '../src/engine/buttons';
-import { Fighter } from '../src/engine/fighter';
-import { World } from '../src/engine/world';
-import { STAGES } from '../src/stages';
+import { KILL_TARGETS, killPercent, NEVER, playableIds, type ProbeResult, type ProbeRow, probeFighter, STRICT_GRACE, victims } from './tools/killProbe';
 
-/** Lowest damage percent (in steps of 5) at which `moveId`'s hardest hit KOs `victimId` from centre stage with no DI; 999 = never. */
-export function killPercent(atkId: string, moveId: string, victimId: string, stage = 'classic'): number {
-  const data = CHARACTERS[atkId];
-  const mv = data.moves[moveId];
-  // a projectile smash (Havoc's rocket and mortar) is judged by its shot
-  const shot = mv.events?.find((e) => e.action === 'projectile');
-  const hbs = shot && shot.action === 'projectile' ? [...mv.hitboxes, data.projectiles![shot.id].hit] : mv.hitboxes;
-  const hb = hbs.reduce((a, b) => (b.damage > a.damage ? b : a));
-  for (let pct = 0; pct <= 250; pct += 5) {
-    const w = new World(STAGES[stage]);
-    const a = new Fighter(0, CHARACTERS[atkId]);
-    const v = new Fighter(1, CHARACTERS[victimId]);
-    w.addFighter(a);
-    w.addFighter(v);
-    const sp = STAGES[stage].spawns;
-    a.spawn(sp[0].x, sp[0].y - 1, 1);
-    v.spawn(0, sp[0].y - 1, 1);
-    for (let i = 0; i < 120; i++) w.step([makeInput(), makeInput()]);
-    v.damage = pct;
-    let ko = false;
-    w.listener = (t, f) => {
-      if (t === 'ko' && f === v) ko = true;
-    };
-    v.receiveHit({ damage: hb.damage, base: hb.base, scaling: hb.scaling, angle: hb.angle === 361 ? 44 : hb.angle, direction: 1, moveWeight: hb.weight, hitlag: 0, attackerId: 0 }, w);
-    for (let i = 0; i < 400 && !ko; i++) w.step([makeInput(), makeInput()]);
-    if (ko) return pct;
-  }
-  return 999;
-}
+/**
+ * Launch-kill percents (see tests/tools/killProbe.ts for the rules: no DI, HARD-CPU recovery once hitstun ends, a KO
+ * only counts before the victim is safe again).
+ *
+ *   npx vitest run tests/killpercent.test.ts                        fast sanity checks only
+ *   KILLTABLE=1 npx vitest run tests/killpercent.test.ts            regenerate docs/kill-percents.md (~1 min)
+ *     KILLTABLE_OUT=path.md / KILLTABLE_JSON=path.json             write the table elsewhere / also dump raw results
+ *   KILL_TARGETS=1 npx vitest run tests/killpercent.test.ts         check every fighter against the 110-140% design bands
+ *     KILL_RULE=strict                                              judge the bands on pure launch distance instead
+ */
+const ids = playableIds();
+const V = victims();
 
-const ids = Object.keys(CHARACTERS);
-
-describe('kill percents (classic stage, no DI)', () => {
-  it('every fighter has a horizontal smash that kills every fighter before 160% and an up smash that kills before 250%', () => {
-    for (const a of ids) {
-      for (const v of ids) {
-        const f = killPercent(a, 'fsmash', v);
-        const u = killPercent(a, 'usmash', v);
-        // forward smashes may be angled upward (e.g. Vex's second hit), so allow a looser cap than horizontal killers
-        expect(Math.min(f, u), `${a} cannot kill ${v} with a smash`).toBeLessThanOrEqual(250);
-      }
-    }
-  }, 120_000); // ten fighters x ten targets of launch sims: generous so a busy machine does not time it out
-
-  it('heavier fighters survive longer than lighter ones against the same hit', () => {
-    const byWeight = [...ids].sort((x, y) => CHARACTERS[x].stats.weight - CHARACTERS[y].stats.weight);
-    const light = killPercent('brick', 'fsmash', byWeight[0]);
-    const heavy = killPercent('brick', 'fsmash', byWeight[byWeight.length - 1]);
-    expect(heavy).toBeGreaterThan(light);
+describe('kill percents (launch kills, classic stage, no DI)', () => {
+  it('a fresh hit only counts as a KO if the launch kills, not if the victim later walks off', () => {
+    // a jab at 0% never kills, whoever takes it
+    expect(killPercent('brick', 'jab1', V.light, { maxPct: 60, step: 30 }).recover).toBe(NEVER);
   });
 
-  it('writes docs/kill-percents.md when KILLTABLE=1', () => {
-    if (!process.env.KILLTABLE) return;
-    let md = '# Kill percents (classic stage, no DI, centre stage)\n\nLowest damage percent at which the move KOs the victim. 999 = never within 250%.\n\n';
-    for (const move of ['fsmash', 'usmash', 'fair', 'bair', 'uair']) {
-      md += `## ${move}\n\n| attacker \\ victim | ${ids.join(' | ')} |\n|---|${ids.map(() => '---:').join('|')}|\n`;
-      for (const a of ids) md += `| ${a} | ${ids.map((v) => killPercent(a, move, v)).join(' | ')} |\n`;
-      md += '\n';
+  it('every fighter has a smash that kills a middleweight from centre stage before 250%', () => {
+    for (const a of ids) {
+      const best = Math.min(...['fsmash', 'usmash'].map((m) => killPercent(a, m, V.mid, { step: 10 }).recover));
+      expect(best, `${a} cannot kill ${V.mid} with a smash`).toBeLessThanOrEqual(250);
     }
-    writeFileSync('docs/kill-percents.md', md);
-  }, 600_000);
+  }, 120_000);
+
+  it('heavier fighters survive longer than lighter ones against the same hit, and the ledge kills earlier', () => {
+    const light = killPercent('brick', 'fsmash', V.light);
+    const heavy = killPercent('brick', 'fsmash', V.heavy);
+    expect(heavy.strict).toBeGreaterThan(light.strict); // pure launch distance: recovery quality differs per fighter
+    expect(killPercent('brick', 'fsmash', V.mid, { position: 'ledge' }).recover).toBeLessThan(killPercent('brick', 'fsmash', V.mid).recover);
+  }, 60_000);
+});
+
+// ---- the full table -------------------------------------------------------------------------------------------------
+
+const cell = (r: ProbeResult): string => {
+  if (r.recover === NEVER) return '-';
+  const d = r.dir ? r.dir[0].toUpperCase() : '';
+  return r.strict !== r.recover ? `${r.recover}${d} (${r.strict === NEVER ? '-' : r.strict})` : `${r.recover}${d}`;
+};
+const median = (xs: number[]): number => {
+  const s = xs.filter((x) => x < NEVER).sort((a, b) => a - b);
+  if (!s.length) return NEVER;
+  return s.length % 2 ? s[(s.length - 1) / 2] : (s[s.length / 2 - 1] + s[s.length / 2]) / 2;
+};
+
+function renderTable(rows: ProbeRow[]): string {
+  const vs = [V.light, V.mid, V.heavy];
+  const w = (c: string): number => CHARACTERS[c].stats.weight;
+  let md = `# Kill percents\n\nGenerated by \`KILLTABLE=1 npx vitest run tests/killpercent.test.ts\` (probe: \`tests/tools/killProbe.ts\`).\n\n`;
+  md += `Lowest damage percent (steps of 5) at which the move KOs the victim on Skyline Classic. Moves are fresh and uncharged; the victim gets no DI and no hitstun cancel, then a HARD CPU recovers (drifting home and jumping at once) the moment hitstun ends. A KO only counts if it lands before the victim is safe again (on solid ground or a ledge), so a victim that idles off the edge never counts.\n\n`;
+  md += `- **Cell**: \`recover\` percent + blast zone (T top, S side, B bottom = launched too far out to make it back). In brackets: the \`strict\` percent, a KO within ${STRICT_GRACE} frames of hitstun ending (pure launch distance), when it differs. \`-\` = never up to 300%.\n`;
+  md += `- **Victims**: light ${V.light} (weight ${w(V.light)}), mid ${V.mid} (${w(V.mid)}), heavy ${V.heavy} (${w(V.heavy)}). **Centre** = middle of the main platform; **ledge** = 16 px from the right edge, launched outward (backward moves are done with the attacker's back to the ledge).\n`;
+  md += `- **Moves**: the three smashes, the two aerials with the most knockback (spikes excluded), the strongest throw and the ultimate (performed for real with full meter). For multi-hit moves the hardest launcher is used and earlier hit groups add their damage once.\n`;
+  md += `- **Design target** (\`KILL_TARGETS\`, \`KILL_TARGETS=1 npx vitest run tests/killpercent.test.ts\`): strongest move kills a middleweight from centre at ${KILL_TARGETS.strongest.min}-${KILL_TARGETS.strongest.max}%, typical kill moves at ${KILL_TARGETS.typical.min}-${KILL_TARGETS.typical.max}%.\n\n`;
+
+  // summary
+  const midC = (r: ProbeRow): ProbeResult => r.results[V.mid].centre;
+  const nonUlt = rows.filter((r) => r.move !== 'ultimate');
+  const smashes = rows.filter((r) => r.move.endsWith('smash'));
+  md += `## Summary (vs ${V.mid}, centre)\n\n`;
+  md += `| fighter | strongest (non-ult) | typical (median of smashes + best aerial) | f-smash | u-smash | ultimate |\n|---|---|---:|---:|---:|---:|\n`;
+  for (const a of ids) {
+    const mine = nonUlt.filter((r) => r.attacker === a);
+    const best = mine.reduce((x, y) => (midC(y).recover < midC(x).recover ? y : x));
+    const typ = median(typicalRows(mine).map((r) => midC(r).recover));
+    const g = (m: string): string => {
+      const r = rows.find((x) => x.attacker === a && x.move === m);
+      return r ? cell(midC(r)) : 'n/a';
+    };
+    md += `| ${a} | ${best.label} ${cell(midC(best))} | ${typ === NEVER ? '-' : typ} | ${g('fsmash')} | ${g('usmash')} | ${g('ultimate')} |\n`;
+  }
+  const dirs = { top: 0, side: 0, bottom: 0 };
+  for (const r of nonUlt) for (const v of vs) for (const p of ['centre', 'ledge'] as const) if (r.results[v][p].strictDir) dirs[r.results[v][p].strictDir!]++;
+  const tot = dirs.top + dirs.side + dirs.bottom || 1;
+  md += `\nMedian over all fighters vs ${V.mid} at centre: smashes ${median(smashes.map((r) => midC(r).recover))}%, f-smash ${median(smashes.filter((r) => r.move === 'fsmash').map((r) => midC(r).recover))}%, u-smash ${median(smashes.filter((r) => r.move === 'usmash').map((r) => midC(r).recover))}%, d-smash ${median(smashes.filter((r) => r.move === 'dsmash').map((r) => midC(r).recover))}%; all non-ultimate moves ${median(nonUlt.map((r) => midC(r).recover))}%.\n`;
+  md += `Blast zone of the strict (pure launch) kills over every non-ultimate cell: top ${Math.round((100 * dirs.top) / tot)}%, side ${Math.round((100 * dirs.side) / tot)}%, bottom ${Math.round((100 * dirs.bottom) / tot)}%.\n\n`;
+
+  md += `## Every move\n\n| attacker | move | ${vs.map((v) => `${v} centre | ${v} ledge`).join(' | ')} | measured |\n|---|---|${vs.map(() => '---:|---:').join('|')}|---|\n`;
+  for (const r of rows) md += `| ${r.attacker} | ${r.label} | ${vs.map((v) => `${cell(r.results[v].centre)} | ${cell(r.results[v].ledge)}`).join(' | ')} | ${r.via} |\n`;
+  return md;
+}
+
+/** A fighter's "typical" kill moves: its smashes plus its strongest aerial. */
+function typicalRows(mine: ProbeRow[]): ProbeRow[] {
+  const aerial = mine.find((r) => ['nair', 'fair', 'bair', 'uair', 'dair'].includes(r.move));
+  return mine.filter((r) => r.move.endsWith('smash') || r === aerial);
+}
+
+describe.skipIf(!process.env.KILLTABLE)('kill percent table', () => {
+  it('writes docs/kill-percents.md', () => {
+    const rows = ids.flatMap((a) => probeFighter(a));
+    writeFileSync(process.env.KILLTABLE_OUT ?? 'docs/kill-percents.md', renderTable(rows));
+    if (process.env.KILLTABLE_JSON) writeFileSync(process.env.KILLTABLE_JSON, JSON.stringify({ victims: V, rows }, null, 1));
+  }, 1_800_000);
+});
+
+// ---- design targets -------------------------------------------------------------------------------------------------
+
+describe.skipIf(!process.env.KILL_TARGETS)(`kill power design targets (vs ${V.mid}, the 110-140% band)`, () => {
+  const pick = (r: ProbeResult): number => (process.env.KILL_RULE === 'strict' ? r.strict : r.recover);
+  const T = KILL_TARGETS;
+  for (const a of ids) {
+    it(a, () => {
+      const rows = probeFighter(a, {}, [V.mid]);
+      const c = (r: ProbeRow): number => pick(r.results[V.mid].centre);
+      const l = (r: ProbeRow): number => pick(r.results[V.mid].ledge);
+      const nonUlt = rows.filter((r) => r.move !== 'ultimate');
+      const fails: string[] = [];
+      const band = (what: string, v: number, b: { min: number; max: number }): void => {
+        if (v < b.min || v > b.max) fails.push(`${what} ${v === NEVER ? 'never' : `${v}%`} (want ${b.min}-${b.max})`);
+      };
+      const best = nonUlt.reduce((x, y) => (c(y) < c(x) ? y : x));
+      band(`strongest (${best.label}) at centre`, c(best), T.strongest);
+      band('typical kill moves (median) at centre', median(typicalRows(nonUlt).map(c)), T.typical);
+      for (const r of nonUlt) if (c(r) < T.floor) fails.push(`${r.label} kills at ${c(r)}% from centre (floor ${T.floor}%)`);
+      const fs = rows.find((r) => r.move === 'fsmash');
+      if (fs) {
+        band('f-smash at the ledge', l(fs), T.ledgeFsmash);
+      }
+      if (T.sideKiller && !nonUlt.some((r) => r.results[V.mid].centre.strictDir === 'side')) fails.push('no move launches a middleweight out of the side blast zone from centre stage');
+      const th = rows.find((r) => r.move.endsWith('throw'));
+      if (th) band(`${th.label} at the ledge`, l(th), T.ledgeThrow);
+      expect(fails, `${a}:\n  ${fails.join('\n  ')}`).toEqual([]);
+    }, 300_000);
+  }
 });
