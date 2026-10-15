@@ -132,7 +132,7 @@ export class MatchScene extends Phaser.Scene {
     return this.runner.world;
   }
   get fighters(): Fighter[] {
-    return this.runner.fighters;
+    return this.runner?.fighters ?? []; // [] before the first create() (test hooks poll this)
   }
   get match(): MatchRunner['match'] {
     return this.runner.match;
