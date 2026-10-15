@@ -57,22 +57,42 @@ export const DEFAULT_KEY_SCHEMES: Record<KeyboardSchemeId, KeyBindings> = {
     ultimate: ['KeyQ'],
     pause: ['Escape'],
   },
-  // P2: arrows + numpad (laptop-friendly alternates on , . / ; ' \ and right shift)
+  // P2: arrows for the right hand, the , . / ' cluster for the left (laptop-friendly: no numpad needed), with the
+  // numpad as alternates. Pause sits on Backspace (Enter is a match hotkey); the numpad's Enter also pauses.
   kb2: {
     left: ['ArrowLeft'],
     right: ['ArrowRight'],
     up: ['ArrowUp'],
     down: ['ArrowDown'],
-    jump: ['Numpad5', 'ShiftRight'],
-    attack: ['Numpad1', 'Comma'],
-    special: ['Numpad2', 'Period'],
-    shield: ['Numpad3', 'Slash'],
-    grab: ['Numpad4', 'Semicolon'],
-    smash: ['Numpad6', 'Quote'],
-    ultimate: ['Numpad0', 'Backslash'],
-    pause: ['NumpadEnter'],
+    jump: ['Quote', 'Numpad5'],
+    attack: ['Comma', 'Numpad1'],
+    special: ['Period', 'Numpad2'],
+    shield: ['Slash', 'Numpad3'],
+    grab: ['Semicolon', 'Numpad4'],
+    smash: ['ShiftRight', 'Numpad6'],
+    ultimate: ['Backslash', 'Numpad0'],
+    pause: ['Backspace', 'NumpadEnter'],
   },
 };
+
+/**
+ * Defaults of earlier versions, per scheme. A save whose action still holds exactly an old default (the player never
+ * rebound it) is moved to the current default on load; anything the player chose is kept.
+ */
+export const LEGACY_KEY_DEFAULTS: Partial<Record<KeyboardSchemeId, Partial<KeyBindings>>>[] = [
+  {
+    kb2: {
+      jump: ['Numpad5', 'ShiftRight'],
+      attack: ['Numpad1', 'Comma'],
+      special: ['Numpad2', 'Period'],
+      shield: ['Numpad3', 'Slash'],
+      grab: ['Numpad4', 'Semicolon'],
+      smash: ['Numpad6', 'Quote'],
+      ultimate: ['Numpad0', 'Backslash'],
+      pause: ['NumpadEnter'],
+    },
+  },
+];
 
 export type PadProfileId = 'nintendo' | 'standard';
 

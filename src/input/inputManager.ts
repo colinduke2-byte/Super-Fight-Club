@@ -2,6 +2,7 @@ import { KeyboardDevice, keyboardHub } from './keyboard';
 import { GamepadDevice, gamepadHub } from './gamepad';
 import type { InputDevice } from './device';
 import { bindings } from './bindings';
+import { touchDevice, type TouchDevice } from './touch';
 
 /**
  * Owns the device list: two keyboard schemes plus hot-plugged gamepads.
@@ -10,6 +11,8 @@ import { bindings } from './bindings';
 export class InputManager {
   readonly keyboards: KeyboardDevice[] = [new KeyboardDevice('kb1'), new KeyboardDevice('kb2')];
   readonly pads = new Map<number, GamepadDevice>();
+  /** The on-screen touch controller: one device, listed once the screen has been touched. */
+  readonly touch: TouchDevice = touchDevice;
   /** Every pad device ever created, by index: a pad that reconnects gets the same object back (callers compare by identity). */
   private readonly padDevices = new Map<number, GamepadDevice>();
   /** Fired when a pad connects / disconnects (UI toasts, pause-on-disconnect). */
@@ -23,6 +26,7 @@ export class InputManager {
     this.started = true;
     bindings.load();
     keyboardHub.attach();
+    this.touch.attach();
     gamepadHub.onConnect = (idx, id) => this.padConnected(idx, id);
     gamepadHub.onDisconnect = (idx) => this.padDisconnected(idx);
     gamepadHub.attach();
@@ -53,11 +57,14 @@ export class InputManager {
   }
 
   get allDevices(): InputDevice[] {
-    return [...this.keyboards, ...this.padList];
+    const list: InputDevice[] = [...this.keyboards, ...this.padList];
+    if (this.touch.used) list.push(this.touch);
+    return list;
   }
 
   endTick(): void {
     keyboardHub.clearLatches();
+    this.touch.clearLatches();
   }
 }
 

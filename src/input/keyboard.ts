@@ -1,6 +1,7 @@
-import { ALWAYS_PREVENT, DIR_ACTIONS, BUTTON_ACTIONS, ACTION_BUTTON, type KeyboardSchemeId } from './actions';
+import { ALWAYS_PREVENT, ALL_ACTIONS, DIR_ACTIONS, BUTTON_ACTIONS, ACTION_BUTTON, type KeyboardSchemeId } from './actions';
 import { bindings } from './bindings';
 import type { InputDevice, RawInput } from './device';
+import { noteKeyboard } from './lastDevice';
 
 /**
  * Global keyboard state. Tracks held keys plus a "latch" of keys pressed since the last sample so a
@@ -40,6 +41,7 @@ export class KeyboardHub {
     if (!e.repeat) {
       this.held.add(e.code);
       this.latched.add(e.code);
+      noteKeyboard(schemeOf(e.code));
       this.onKeyDown?.(e.code, e);
     }
   };
@@ -55,6 +57,12 @@ export class KeyboardHub {
 
 export const keyboardHub = new KeyboardHub();
 
+/** The keyboard scheme a key is bound in (null for keys of neither, like Enter). */
+export function schemeOf(code: string): KeyboardSchemeId | null {
+  for (const id of ['kb1', 'kb2'] as const) for (const a of ALL_ACTIONS) if (bindings.keys[id][a].includes(code)) return id;
+  return null;
+}
+
 export class KeyboardDevice implements InputDevice {
   readonly kind = 'keyboard' as const;
   readonly connected = true;
@@ -62,11 +70,11 @@ export class KeyboardDevice implements InputDevice {
   readonly label: string;
 
   constructor(
-    private readonly scheme: KeyboardSchemeId,
+    readonly scheme: KeyboardSchemeId,
     private readonly hub: KeyboardHub = keyboardHub,
   ) {
     this.id = `keyboard:${scheme}`;
-    this.label = scheme === 'kb1' ? 'Keyboard (WASD + JKLI)' : 'Keyboard (Arrows + Numpad)';
+    this.label = scheme === 'kb1' ? 'Keyboard (WASD + JKLI)' : 'Keyboard (Arrows + Numpad)'; // CharacterSelect shortens these two by name
   }
 
   private any(codes: string[]): boolean {

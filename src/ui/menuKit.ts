@@ -3,7 +3,9 @@ import { PIXEL_FONT, up } from '../art/pixelFont';
 import { music } from '../audio/music';
 import { sfx } from '../audio/sfx';
 import { inputManager } from '../input/inputManager';
-import { menuInput, type MenuEvent } from '../input/menuInput';
+import type { InputDevice } from '../input/device';
+import { menuInput, type MenuAction, type MenuEvent } from '../input/menuInput';
+import { footerHint, type MenuVerb } from '../input/prompts';
 import { BackgroundView } from './BackgroundView';
 
 /** Device pixels per UI art pixel (integer >= 2); scales text and panels with the window. */
@@ -61,7 +63,40 @@ export function drawPanel(g: Phaser.GameObjects.Graphics, x: number, y: number, 
   for (const [cx, cy] of [[x - u, y - u], [x + w - u * 2, y - u], [x - u, y + h - u * 2], [x + w - u * 2, y + h - u * 2]]) g.fillRect(cx, cy, u * 3, u * 3);
 }
 
-/** A vertical list of rows with a highlighted cursor; label on the left, value on the right. */
+/**
+ * The device a mouse click / finger tap acts for: the touch controller for a finger (so a tap in character select
+ * joins as the touch player), else keyboard 1 (a mouse sits with a keyboard).
+ */
+export function pointerDevice(p?: Phaser.Input.Pointer): InputDevice {
+  const t = inputManager.touch;
+  if (p?.wasTouch || t.recentTouch()) return t;
+  return inputManager.keyboards[0];
+}
+
+/**
+ * A pointer's position in canvas (render) pixels, the space all UI is laid out in. The canvas backing store is sized in
+ * render pixels and shown at CSS size (display.ts, Scale.NONE), and Phaser's pointer reports CSS pixels there; this
+ * converts whatever scale Phaser applied to the true one.
+ */
+export function pointerXY(scene: Phaser.Scene, p: Phaser.Input.Pointer): { x: number; y: number } {
+  const c = scene.game.canvas;
+  const r = c.getBoundingClientRect();
+  const ds = scene.scale.displayScale;
+  const kx = r.width > 0 ? c.width / r.width / (ds.x || 1) : 1;
+  const ky = r.height > 0 ? c.height / r.height / (ds.y || 1) : 1;
+  return { x: p.x * kx, y: p.y * ky };
+}
+
+/** Footer text generated from the live bindings for the last device used: `footer([['confirm', 'SELECT'], ['back', 'BACK']])`. */
+export function footer(entries: readonly (readonly [MenuVerb, string])[], device?: InputDevice | null): string {
+  return footerHint(entries, device);
+}
+
+/**
+ * A vertical list of rows with a highlighted cursor; label on the left, value on the right.
+ * Mouse / touch: hovering a row moves the cursor to it, a click / tap confirms it (or steps a value left / right when
+ * the value itself is clicked). Pointer presses are queued as menu events, so scenes handle them like key presses.
+ */
 
 export class MenuList {
   index = 0;
@@ -84,6 +119,10 @@ export class MenuList {
   /** Each row's last value text and when it last changed (for the pop on a changed setting). */
   private lastVals: (string | undefined)[] = [];
   private popAt: number[] = [];
+  /** Rows react to the mouse / touch (scenes turn it off while they wait for something else, e.g. a key to bind). */
+  interactive = true;
+  /** Text scale factor of the last update (the plate and the hit boxes follow it). */
+  private lastK = 1.5;
 
   constructor(
     private readonly scene: Phaser.Scene,
@@ -93,7 +132,55 @@ export class MenuList {
     this.panel = scene.add.graphics();
     layer.add(this.panel);
     this.rebuild();
+    scene.input.on(Phaser.Input.Events.POINTER_MOVE, this.onPointerMove, this);
+    scene.input.on(Phaser.Input.Events.POINTER_DOWN, this.onPointerDown, this);
+    scene.events.once(Phaser.Scenes.Events.SHUTDOWN, this.detachPointer, this);
+    if (scene instanceof MenuScene) scene.lists.push(this);
   }
+
+  private detachPointer(): void {
+    this.scene.input?.off(Phaser.Input.Events.POINTER_MOVE, this.onPointerMove, this);
+    this.scene.input?.off(Phaser.Input.Events.POINTER_DOWN, this.onPointerDown, this);
+  }
+
+  /** Row under a screen point (-1: none). Rows span the whole plate width. */
+  rowAt(px: number, py: number): number {
+    if (!this.visible || !this.interactive || !this.items.length) return -1;
+    const u = this.u;
+    const rh = this.rowH * u;
+    const pad = 6 * u;
+    const x = this.cx - (this.width / 2) * u - pad;
+    if (px < x || px > x + this.width * u + pad * 2) return -1;
+    const y0 = this.top - (rh - 7 * this.lastK * u) / 2;
+    const i = Math.floor((py - y0) / rh);
+    return i >= 0 && i < this.items.length ? i : -1;
+  }
+
+  private onPointerMove(p: Phaser.Input.Pointer): void {
+    const q = pointerXY(this.scene, p);
+    const i = this.rowAt(q.x, q.y);
+    if (i < 0 || i === this.index || !this.enabled(i)) return;
+    this.index = i;
+    sfx.play('menuMove', 0.45, 0);
+  }
+
+  private onPointerDown(p: Phaser.Input.Pointer): void {
+    if (p.rightButtonDown()) return;
+    const q = pointerXY(this.scene, p);
+    const i = this.rowAt(q.x, q.y);
+    if (i < 0 || !this.enabled(i)) return;
+    this.index = i;
+    const it = this.items[i];
+    let action: MenuAction | null = it.onConfirm ? 'confirm' : null;
+    if (it.onLeft || it.onRight) {
+      // on the value (or a row that only steps): its left half steps left, its right half right
+      const v = this.values[i];
+      const vl = v.x - v.displayWidth;
+      if (q.x >= vl - 6 * this.u || !action) action = it.onLeft && (q.x < vl + v.displayWidth / 2 || !it.onRight) ? 'left' : 'right';
+    }
+    if (action) menuInput.inject(action, pointerDevice(p), this);
+  }
+
 
   rebuild(): void {
     for (const t of [...this.labels, ...this.values]) t.destroy();
@@ -141,6 +228,7 @@ export class MenuList {
 
   /** Returns true if the event was consumed. */
   handle(e: MenuEvent): boolean {
+    if (e.target !== undefined && e.target !== this) return false; // a click on another widget
     const item = this.items[this.index];
     switch (e.action) {
       case 'up':
@@ -224,7 +312,7 @@ export class MenuList {
       worst = Math.max(worst, textPx(this.labels[i]) + (it.value ? textPx(this.values[i]) + 12 : 0));
     });
     // one text size for the whole menu: shrunk only when the widest row (label + value) would overflow the menu width
-    const k = Math.min(this.fontK, (this.width * this.u) / (worst * this.u));
+    const k = (this.lastK = Math.min(this.fontK, (this.width * this.u) / (worst * this.u)));
     for (let i = 0; i < this.items.length; i++) {
       this.labels[i].setScale(this.u * k);
       // a changed value pops (briefly larger, centred on its row) so a left / right press visibly lands
@@ -236,6 +324,7 @@ export class MenuList {
   }
 
   destroy(): void {
+    this.detachPointer();
     this.panel.destroy();
     for (const t of [...this.labels, ...this.values]) t.destroy();
   }
@@ -262,6 +351,12 @@ export abstract class MenuScene extends Phaser.Scene {
   private uiCam!: Phaser.Cameras.Scene2D.Camera;
   /** Set once a scene change has started (the fade-out is running): input is ignored and further changes dropped. */
   private leaving = false;
+  /** Show the clickable "< BACK" chip in the top-left corner (it sends the same 'back' event as Escape / B). */
+  protected backChip = true;
+  /** A click / tap that lands on no row or chip confirms (screens with nothing else to click: story cards, credits...). */
+  protected tapConfirms = false;
+  private chip: { g: Phaser.GameObjects.Graphics; t: Phaser.GameObjects.BitmapText; x: number; y: number; w: number; h: number; hover: boolean } | null = null;
+  private wheelAt = 0;
 
   protected abstract build(): void;
   protected abstract onEvent(e: MenuEvent): void;
@@ -282,6 +377,7 @@ export abstract class MenuScene extends Phaser.Scene {
     music.play('menu');
     this.bgLayer = this.add.layer();
     this.ui = this.add.layer();
+    this.lists.length = 0;
     const w = this.scale.width;
     const h = this.scale.height;
     const main = this.cameras.main;
@@ -295,6 +391,7 @@ export abstract class MenuScene extends Phaser.Scene {
     this.shade = this.add.graphics();
     this.bgLayer.add(this.shade);
     this.build();
+    this.buildPointer();
     this.scale.on('resize', this.onResize, this);
     this.events.once('shutdown', () => this.scale.off('resize', this.onResize, this));
     this.relayout(w, h);
@@ -319,6 +416,75 @@ export abstract class MenuScene extends Phaser.Scene {
     this.tick(time, 1 / 60);
   }
 
+  /** Mouse / touch: the BACK chip, right-click = back, the wheel moves up / down, and (opt-in) tap-anywhere = confirm. */
+  private buildPointer(): void {
+    this.chip = null;
+    if (this.backChip) {
+      const g = this.add.graphics();
+      this.ui.add(g);
+      const t = text(this, this.ui, '< BACK', COLORS.dim).setOrigin(0, 0.5);
+      this.chip = { g, t, x: 0, y: 0, w: 0, h: 0, hover: false };
+    }
+    const inChip = (pp: Phaser.Input.Pointer): boolean => {
+      const c = this.chip;
+      const p = pointerXY(this, pp);
+      // the hit box is a little larger than the drawn chip: fingers are fat
+      const s = this.u * 3;
+      return !!c && p.x >= c.x - s && p.x <= c.x + c.w + s && p.y >= c.y - s && p.y <= c.y + c.h + s;
+    };
+    this.input.on(Phaser.Input.Events.POINTER_MOVE, (p: Phaser.Input.Pointer) => {
+      const c = this.chip;
+      if (c && inChip(p) !== c.hover) {
+        c.hover = !c.hover;
+        this.drawChip();
+      }
+    });
+    this.input.on(Phaser.Input.Events.POINTER_DOWN, (p: Phaser.Input.Pointer) => {
+      if (this.leaving) return;
+      const dev = pointerDevice(p);
+      if (p.rightButtonDown() || inChip(p)) {
+        menuInput.inject('back', dev);
+        return;
+      }
+      if (!this.tapConfirms) return;
+      // rows handle their own clicks
+      const q = pointerXY(this, p);
+      if (!this.lists.some((l) => l.rowAt(q.x, q.y) >= 0)) menuInput.inject('confirm', dev);
+    });
+    this.input.on(Phaser.Input.Events.POINTER_WHEEL, (_p: Phaser.Input.Pointer, _o: unknown, _dx: number, dy: number) => {
+      const now = performance.now();
+      if (this.leaving || Math.abs(dy) < 1 || now - this.wheelAt < 90) return;
+      this.wheelAt = now;
+      menuInput.inject(dy > 0 ? 'down' : 'up', inputManager.keyboards[0]);
+    });
+  }
+
+  /** MenuLists the scene created (they register themselves), so a tap on a row is not also a tap on the screen. */
+  readonly lists: MenuList[] = [];
+
+  private drawChip(): void {
+    const c = this.chip;
+    if (!c) return;
+    const u = this.u;
+    c.t.setScale(u).setPosition(c.x + 4 * u, c.y + c.h / 2).setTint(c.hover ? COLORS.hot : COLORS.dim);
+    const g = c.g.clear();
+    g.fillStyle(PANEL.fill, c.hover ? 0.95 : 0.7).fillRect(c.x, c.y, c.w, c.h);
+    g.lineStyle(u, c.hover ? COLORS.hot : PANEL.border, c.hover ? 0.9 : 0.8).strokeRect(c.x - u / 2, c.y - u / 2, c.w + u, c.h + u);
+    g.fillStyle(c.hover ? COLORS.hot : PANEL.tick, 0.9).fillRect(c.x - u, c.y - u, u * 2, u * 2);
+  }
+
+  private placeChip(): void {
+    const c = this.chip;
+    if (!c) return;
+    const u = this.u;
+    c.t.setScale(u);
+    c.x = 5 * u;
+    c.y = 5 * u;
+    c.w = textPx(c.t) * u + 8 * u;
+    c.h = 7 * u + 6 * u;
+    this.drawChip();
+  }
+
   private onResize(size: Phaser.Structs.Size): void {
     this.cameras.main.setSize(size.width, size.height);
     this.uiCam.setSize(size.width, size.height);
@@ -331,6 +497,7 @@ export abstract class MenuScene extends Phaser.Scene {
     this.look = this.backdrop(w, h);
     this.drawShade(w, h);
     this.layoutUi(w, h, this.u);
+    this.placeChip();
   }
 
   /**

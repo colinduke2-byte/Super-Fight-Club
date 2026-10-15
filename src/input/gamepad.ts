@@ -96,6 +96,11 @@ export class GamepadDevice implements InputDevice {
     void act?.playEffect?.('dual-rumble', { startDelay: 0, duration: ms, strongMagnitude: Math.min(1, strong), weakMagnitude: Math.min(1, weak) })?.catch(() => undefined);
   }
 
+  /** The browser's id string of the pad at this index ('' if unknown). */
+  get padId(): string {
+    return gamepadHub.idOf(this.index) ?? '';
+  }
+
   get profile(): PadProfileId {
     return profileForPadId(gamepadHub.idOf(this.index) ?? '');
   }

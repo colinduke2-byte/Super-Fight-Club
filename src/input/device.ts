@@ -5,14 +5,18 @@ export interface RawInput {
   held: number;
 }
 
+export type DeviceKind = 'keyboard' | 'gamepad' | 'merged' | 'touch';
+
 export interface InputDevice {
   readonly id: string;
   readonly label: string;
-  readonly kind: 'keyboard' | 'gamepad' | 'merged';
+  readonly kind: DeviceKind;
   /** False once a gamepad is unplugged. Keyboards are always connected. */
   readonly connected: boolean;
   /** Called once per sim tick. Must be allocation-free. */
   sample(out: RawInput): void;
+  /** Optional: told who is reading it (a match player or the menus); the touch controller picks its layout from this. */
+  use?(purpose: 'fight' | 'menu'): void;
 }
 
 export function makeRaw(): RawInput {

@@ -3,7 +3,9 @@ import Phaser from 'phaser';
 import { fighterAnimKey, fighterTextureKey, uiTexK } from '../art/proceduralFighter';
 import { CHARACTER_LIST } from '../characters';
 import { inputManager } from '../input/inputManager';
-import type { MenuEvent } from '../input/menuInput';
+import { keyboardHub } from '../input/keyboard';
+import { menuInput, type MenuEvent } from '../input/menuInput';
+import { lastInput, menuPrompt, moveLabel } from '../input/prompts';
 import { sfx } from '../audio/sfx';
 import { COLORS, MenuScene, text, textPx, type MenuBackdrop } from '../ui/menuKit';
 import { PIXEL_FONT } from '../art/pixelFont';
@@ -34,6 +36,10 @@ export class TitleScene extends MenuScene {
   /** Next scene time a fighter in the lineup strikes a pose, and which one is posing. */
   private nextPose = 3;
   private flash!: Phaser.GameObjects.Rectangle;
+  /** Buttons each pad (by index) had down last frame: any fresh press, mapped or not, starts the game. */
+  private readonly padPrev = new Map<number, number>();
+  /** The title has no BACK: every key, button, click and tap is a "press". */
+  protected override backChip = false;
 
   constructor() {
     super('Title');
@@ -58,7 +64,19 @@ export class TitleScene extends MenuScene {
     this.logo2 = this.add.bitmapText(0, 0, PIXEL_FONT, 'FIGHT CLUB').setOrigin(0.5).setTint(0xff6a8a);
     this.ui.add([this.logo2Shadow, this.logo1, this.logo2, this.logo2Glow]);
     this.sub = text(this, this.ui, 'SCI-FI FANTASY PLATFORM BRAWLER', COLORS.accent).setOrigin(0.5);
-    this.prompt = text(this, this.ui, 'PRESS ANY BUTTON', COLORS.text).setOrigin(0.5);
+    this.prompt = text(this, this.ui, this.promptText(), COLORS.text).setOrigin(0.5);
+    // "PRESS ANY BUTTON" means any: every key (but browser / OS shortcuts), any pad button, any click or tap
+    const onKey = (code: string, e: KeyboardEvent): void => {
+      if (e.metaKey || e.ctrlKey || e.altKey || /^F\d+$/.test(code)) return;
+      this.pressFromRaw();
+    };
+    keyboardHub.onKeyDown = onKey;
+    this.events.once('shutdown', () => {
+      if (keyboardHub.onKeyDown === onKey) keyboardHub.onKeyDown = null;
+    });
+    this.input.on(Phaser.Input.Events.POINTER_DOWN, () => this.pressFromRaw());
+    this.padPrev.clear();
+    this.scanPads(false);
     this.footer = text(this, this.ui, '', COLORS.dim).setOrigin(0.5);
     for (const c of CHARACTER_LIST) {
       const s = this.add.sprite(0, 0, fighterTextureKey(c.id), 0).setOrigin(0.5, 1);
@@ -70,6 +88,34 @@ export class TitleScene extends MenuScene {
     // a white flash over everything when the player presses in
     this.flash = this.add.rectangle(0, 0, 1, 1, 0xffffff, 1).setOrigin(0, 0).setAlpha(0);
     this.ui.add(this.flash);
+  }
+
+  private promptText(): string {
+    return lastInput.kind === 'touch' ? 'TAP TO START' : 'PRESS ANY BUTTON';
+  }
+
+  /** A press the menu input does not report (an unmapped key, a pad's d-pad or Select, a click): same as confirm. */
+  private pressFromRaw(): void {
+    if (this.pressedAt >= 0) return;
+    sfx.play('menuOk', 0.7, 0);
+    this.onEvent({ action: 'confirm', device: inputManager.keyboards[0] });
+    // the key / button is now handled: do not let the menu input report it again
+    menuInput.reset();
+  }
+
+  /** Any fresh button on any pad (bitmask of the first 32), optionally counting it as a press. */
+  private scanPads(press: boolean): void {
+    if (typeof navigator === 'undefined' || !navigator.getGamepads) return;
+    const pads = navigator.getGamepads();
+    for (let i = 0; i < pads.length; i++) {
+      const p = pads[i];
+      if (!p || !p.connected) continue;
+      let mask = 0;
+      for (let b = 0; b < Math.min(32, p.buttons.length); b++) if (p.buttons[b].pressed) mask |= 1 << b;
+      const prev = this.padPrev.get(i) ?? mask;
+      this.padPrev.set(i, mask);
+      if (press && (mask & ~prev) !== 0) this.pressFromRaw();
+    }
   }
 
   /** Everything is stacked top to bottom from measured heights, so nothing can overlap at any window size. */
@@ -216,8 +262,13 @@ export class TitleScene extends MenuScene {
         s.once(Phaser.Animations.Events.ANIMATION_COMPLETE, () => s.play(fighterAnimKey(c.id, 'idle')));
       }
     }
+    this.scanPads(true);
+    const promptMsg = this.promptText();
+    if (this.prompt.text !== promptMsg) this.prompt.setText(promptMsg);
     const pads = inputManager.padList.length;
-    const msg = `${pads} CONTROLLER${pads === 1 ? '' : 'S'} CONNECTED  |  KEYBOARD: WASD+J  OR  ARROWS+ENTER`;
+    // generated from the live bindings, so a rebind shows here too
+    const keys = `KEYBOARD: ${moveLabel('kb1')} + ${menuPrompt('confirm', inputManager.keyboards[0]).split(' / ')[0]}  OR  ${moveLabel('kb2')} + ENTER`;
+    const msg = lastInput.kind === 'touch' ? `TOUCH CONTROLS ON  |  ${pads} CONTROLLER${pads === 1 ? '' : 'S'} CONNECTED` : `${pads} CONTROLLER${pads === 1 ? '' : 'S'} CONNECTED  |  ${keys}`;
     if (msg !== this.footerMsg) {
       this.footerMsg = msg;
       this.footer.setText(msg);
@@ -231,8 +282,8 @@ export class TitleScene extends MenuScene {
     this.stage.setAlpha(this.ease(time, 0.5, 0.5));
   }
 
-  protected onEvent(e: MenuEvent): void {
-    if (e.action !== 'confirm' && e.action !== 'start' && e.action !== 'alt') return;
+  protected onEvent(_e: MenuEvent): void {
+    // any button at all (directions and back included) presses in
     // a press during the intro skips it; after that it flashes the screen and heads to the menu
     if (this.pressedAt >= 0) return;
     this.pressedAt = (performance.now() - this.time0) / 1000;

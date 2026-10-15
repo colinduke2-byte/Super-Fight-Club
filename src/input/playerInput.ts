@@ -1,6 +1,7 @@
 import { Button, type FighterInput } from '../engine/buttons';
 import { makeRaw, type InputDevice, type RawInput } from './device';
 import { settings } from '../settings';
+import { notePad } from './lastDevice';
 
 const TAP_UP_THRESHOLD = -0.7;
 const TAP_UP_RELEASE = -0.4;
@@ -23,12 +24,16 @@ export class PlayerInput {
   /** Call exactly once per sim tick. */
   sample(out: FighterInput): void {
     const raw = this.raw;
-    this.device.sample(raw);
+    const d = this.device;
+    d.use?.('fight');
+    d.sample(raw);
+    if (raw.held !== 0 && d.kind === 'gamepad') notePad((d as { padId?: string }).padId ?? '');
     let held = raw.held;
     const sx = raw.stickX;
     const sy = raw.stickY;
 
-    if (settings.tapJump) {
+    // per device kind: keyboards have their own setting (default off), pads and touch use `tapJump` (default on)
+    if (d.kind === 'keyboard' ? settings.tapJumpKeyboard : settings.tapJump) {
       if (sy < TAP_UP_THRESHOLD && this.prevStickY >= TAP_UP_THRESHOLD) this.tapJumpHeld = true;
       if (sy > TAP_UP_RELEASE) this.tapJumpHeld = false;
       if (this.tapJumpHeld) held |= Button.Jump;

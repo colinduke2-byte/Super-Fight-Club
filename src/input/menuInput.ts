@@ -2,12 +2,17 @@ import { Button } from '../engine/buttons';
 import { makeRaw, type InputDevice, type RawInput } from './device';
 import { inputManager, type InputManager } from './inputManager';
 import { keyboardHub, type KeyboardHub } from './keyboard';
+import { notePad, noteTouch } from './lastDevice';
 
 export type MenuAction = 'up' | 'down' | 'left' | 'right' | 'confirm' | 'back' | 'alt' | 'start';
 
 export interface MenuEvent {
   action: MenuAction;
   device: InputDevice;
+  /** Set on events made by a pointer on a particular widget (a MenuList row): other widgets leave them alone. */
+  target?: unknown;
+  /** True for events injected by mouse / touch rather than read from a device. */
+  pointer?: boolean;
 }
 
 const STICK = 0.6;
@@ -56,6 +61,8 @@ export class MenuInput {
   private readonly keyPrev = new Set<string>();
   /** Keyboard schemes that have produced menu input through their own keys this session. */
   private readonly usedKeyboards = new Set<InputDevice>();
+  /** Pointer-made events waiting for the next poll. */
+  private readonly pending: MenuEvent[] = [];
 
   constructor(
     private readonly im: InputManager = inputManager,
@@ -65,6 +72,7 @@ export class MenuInput {
 
   /** Treat everything currently held as already handled (call when a scene starts). */
   reset(): void {
+    this.pending.length = 0;
     this.states.clear();
     this.keyPrev.clear();
     for (const [code] of SHARED_KEYS) if (this.hub.isHeld(code)) this.keyPrev.add(code);
@@ -77,6 +85,7 @@ export class MenuInput {
 
   /** Current state; a held direction counts as just pressed (first repeat due after REPEAT_DELAY). */
   private read(d: InputDevice, now: number): DevState {
+    d.use?.('menu');
     d.sample(this.raw);
     const r = this.raw;
     const next = now + REPEAT_DELAY;
@@ -88,7 +97,7 @@ export class MenuInput {
       confirm: (r.held & CONFIRM_BITS) !== 0,
       back: (r.held & BACK_BITS) !== 0,
       alt: (r.held & ALT_BITS) !== 0,
-      start: d.kind === 'gamepad' && (r.held & Button.Pause) !== 0,
+      start: (d.kind === 'gamepad' || d.kind === 'touch') && (r.held & Button.Pause) !== 0,
     };
   }
 
@@ -96,6 +105,8 @@ export class MenuInput {
   poll(): readonly MenuEvent[] {
     const ev = this.events;
     ev.length = 0;
+    for (const p of this.pending) ev.push(p);
+    this.pending.length = 0;
     const now = this.now();
     for (const d of this.im.allDevices) {
       const cur = this.read(d, now);
@@ -121,6 +132,8 @@ export class MenuInput {
       if (cur.back && !prev.back) ev.push({ action: 'back', device: d });
       if (cur.alt && !prev.alt) ev.push({ action: 'alt', device: d });
       if (cur.start && !prev.start) ev.push({ action: 'start', device: d });
+      if (d.kind === 'gamepad' && cur !== prev && (cur.up || cur.down || cur.left || cur.right || cur.confirm || cur.back || cur.alt || cur.start)) notePad((d as { padId?: string }).padId ?? '');
+      else if (d.kind === 'touch' && (cur.confirm || cur.back || cur.up || cur.down || cur.left || cur.right)) noteTouch();
       if (d.kind === 'keyboard' && (cur.up || cur.down || cur.left || cur.right || cur.confirm || cur.back || cur.alt)) this.usedKeyboards.add(d);
       this.states.set(d.id, cur);
     }
@@ -137,6 +150,11 @@ export class MenuInput {
     }
     this.im.endTick();
     return ev;
+  }
+
+  /** Queue an event made by a mouse / finger (menu rows, the BACK chip) for the next poll, so it flows like a key press. */
+  inject(action: MenuAction, device: InputDevice, target?: unknown): void {
+    this.pending.push({ action, device, target, pointer: true });
   }
 }
 
