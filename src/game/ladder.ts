@@ -1,6 +1,7 @@
 import { paletteCount } from '../art/palettes';
 import { CHARACTER_LIST } from '../characters';
 import type { CpuLevel } from './lobby';
+import { recordArcadeClear, type ArcadeClearOutcome } from './records';
 import type { MatchResult, PlayerSlot } from './session';
 
 export interface LadderOpponent {
@@ -34,6 +35,15 @@ export interface LadderState {
   seconds: number;
   /** The player has seen the intro card. */
   introduced: boolean;
+  /** CPU level the run is played at, for the score and the records (absent = normal, 2). */
+  difficulty?: CpuLevel;
+  /** Set when the run is cleared: the final score and what it improved in the arcade records (for the ending / results). */
+  clear?: ArcadeClearOutcome;
+}
+
+/** The run's difficulty (normal unless the run says otherwise). */
+export function ladderDifficulty(state: LadderState): CpuLevel {
+  return state.difficulty ?? 2;
 }
 
 export const LADDER_CONTINUES = 3;
@@ -114,7 +124,10 @@ export function applyLadderResult(state: LadderState, result: MatchResult | null
     state.kos += mine?.kos ?? 0;
     state.seconds += result!.durationSec;
     state.index++;
-    return state.index >= state.fights.length ? 'champion' : 'next';
+    if (state.index < state.fights.length) return 'next';
+    // cleared: score the run and keep it in the arcade records (once per run)
+    state.clear ??= recordArcadeClear(state.player, { kos: state.kos, seconds: state.seconds, continuesUsed: state.continuesUsed, difficulty: ladderDifficulty(state) });
+    return 'champion';
   }
   if (state.continuesLeft <= 0) return 'gameover';
   state.continuesLeft--;

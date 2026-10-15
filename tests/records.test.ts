@@ -4,6 +4,7 @@ import {
   bestLaunch,
   bestTargetTime,
   clearedChallenges,
+  emptyRecords,
   fighterRecords,
   invalidateRecordsCache,
   parseRecords,
@@ -49,7 +50,7 @@ describe('records', () => {
   });
 
   it('parses garbage to empty records', () => {
-    const empty = { targets: {}, fighters: {}, launch: {}, challenges: {} };
+    const empty = emptyRecords();
     expect(parseRecords(null)).toEqual(empty);
     expect(parseRecords('nope')).toEqual(empty);
     expect(parseRecords('[]')).toEqual(empty);
