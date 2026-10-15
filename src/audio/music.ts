@@ -63,6 +63,25 @@ export const FANFARES: Record<string, Fanfare> = {
   riptide: { notes: [[62, 1], [62, 1], [62, 1], [0, 1], [62, 1], [65, 1], [69, 2], [67, 1], [65, 1], [64, 1], [62, 5]], step: 0.09, wave: 'square', harmony: 4, drums: true, level: -0.4 },
 };
 
+/** One-shot stings for the boss fight, played through the same fanfare engine (the loop stops under them). */
+export type StingId = 'overseerDown' | 'bossClear';
+export const STINGS: Record<StingId, Fanfare> = {
+  // the Overseer falls: a grinding chromatic power-down in tritones, the machine dying with a last low hit
+  overseerDown: { notes: [[62, 1], [61, 1], [60, 1], [59, 1], [58, 2], [57, 2], [56, 3], [0, 1], [43, 8]], step: 0.1, wave: 'sawtooth', harmony: 6, drums: true, level: 2.3 },
+  // the boss is cleared: a long, triumphant fanfare climbing to a held high chord
+  bossClear: {
+    notes: [[67, 1], [67, 1], [67, 1], [72, 3], [74, 1], [76, 2], [74, 1], [76, 1], [79, 3], [0, 1], [79, 1], [81, 1], [83, 1], [84, 8]],
+    step: 0.09,
+    wave: 'square',
+    harmony: 7,
+    drums: true,
+    level: -1.9,
+  },
+};
+
+/** Track ids per boss phase (`setBossPhase`). */
+const BOSS_PHASE_TRACK = ['boss', 'boss', 'boss2'];
+
 /** Rough loudness match between waveforms, so a triangle lead sits at the same level as a square one. */
 const WAVE_GAIN: Record<OscillatorType, number> = { square: 1, sawtooth: 1.2, triangle: 1.6, sine: 1.5, custom: 1 };
 
@@ -113,14 +132,44 @@ export class Music {
     }
   }
 
+  /** The track id that is playing (or waiting for audio to unlock); '' when stopped. */
+  get playing(): string {
+    return this.current;
+  }
+
+  /**
+   * Switch the boss music to a phase's arrangement: 1 is the 'boss' track, 2 'boss2' (faster, with a counter-melody and
+   * busier drums). Restarts from the top of the song (which opens on a crash), so call it on the phase change itself.
+   */
+  setBossPhase(phase: number): void {
+    const id = BOSS_PHASE_TRACK[Math.max(1, Math.min(2, Math.round(phase) || 1))];
+    this.play(id);
+  }
+
   /** One-shot fanfare over a held loop: the winner's own victory theme (or a generic flourish), a falling minor phrase for a loss. */
   jingle(kind: 'win' | 'lose', who?: string): void {
+    this.fanfare(kind === 'lose' ? LOSE : (who && FANFARES[who]) || FANFARES.default);
+  }
+
+  /**
+   * A boss sting ('overseerDown' as the Overseer is defeated, 'bossClear' when the boss stage is won). The current loop
+   * stops under it; with `next` (e.g. 'results') that track starts once the sting has finished, otherwise the music
+   * stays silent. (Calling `play` straight after a sting would cut it off: pass `next` instead.)
+   */
+  sting(id: StingId, next?: string): void {
+    const f = STINGS[id];
+    if (!f) return;
+    if (next && TRACKS[next]) this.play(next);
+    else this.stop();
+    this.fanfare(f);
+  }
+
+  private fanfare(f: Fanfare): void {
     const ctx = sfx.context;
     if (!ctx) return;
     const bus = this.ensureBus(ctx);
     if (!bus) return;
     this.level(bus);
-    const f: Fanfare = kind === 'lose' ? LOSE : (who && FANFARES[who]) || FANFARES.default;
     let at = ctx.currentTime + 0.05;
     // the fanfare plays through the current track's bus: undo that track's level trim so every fanfare lands the same
     const lv = dbToGain((f.level ?? 0) - (this.track?.sound?.level ?? 0));
@@ -319,6 +368,12 @@ export class Music {
           this.osc(ctx, bus.filter, wave, midiToHz(e.midi), at, dur, vol * 0.65, look.detune, bus.send);
           this.osc(ctx, bus.filter, wave, midiToHz(e.midi), at, dur, vol * 0.65, -look.detune, bus.send);
         } else this.osc(ctx, bus.filter, wave, midiToHz(e.midi), at, dur, vol, 0, bus.send);
+        break;
+      }
+      case 'counter': {
+        // the second lead: held notes a little under the main one, through the same echo
+        const wave = look.counter ?? 'square';
+        this.osc(ctx, bus.filter, wave, midiToHz(e.midi), at, stepDur * e.steps * 0.95, 0.3 * WAVE_GAIN[wave] * vel, 0, bus.send);
         break;
       }
       case 'arp': {

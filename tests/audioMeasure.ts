@@ -4,8 +4,8 @@
  * clipper bypassed so the numbers describe the material itself (dry, at full volume).
  */
 import { Ambience } from '../src/audio/ambience';
-import { Music, loopSeconds } from '../src/audio/music';
-import { Sfx, sfx, type AudioStyle } from '../src/audio/sfx';
+import { Music, STINGS, loopSeconds, type StingId } from '../src/audio/music';
+import { SOUND_SPAN, Sfx, sfx, type AudioStyle } from '../src/audio/sfx';
 import type { SoundName } from '../src/audio/soundMap';
 import { TRACKS } from '../src/audio/tracks';
 import { settings } from '../src/settings';
@@ -57,8 +57,9 @@ export function measureSound(name: SoundName, style: AudioStyle = 'plain', inten
       const s = new Sfx();
       const ctx = dry(s);
       s.play(name, intensity, 0, style);
-      const long = name === 'ko' || name === 'ultimate' || name === 'shieldBreak' || name === 'charge';
-      return measure(ctx.render(long ? 2 : 1.2));
+      // long sounds get room to ring out fully (their span plus a margin), short ones a little over a second
+      const span = SOUND_SPAN[name] ?? (name === 'shieldBreak' || name === 'charge' ? 1.4 : 0.6);
+      return measure(ctx.render(Math.max(1.2, span + 0.6)));
     }, seed);
   } finally {
     restore();
@@ -82,13 +83,14 @@ export function measureTrack(id: string): Measured {
   }
 }
 
-/** A victory fanfare (or 'lose'). */
+/** A victory fanfare (or 'lose', or a sting such as 'overseerDown' / 'bossClear'). */
 export function measureFanfare(who: string): Measured {
   const restore = fullVolume();
   try {
     return seeded(() => {
       const ctx = dry(sfx);
-      new Music().jingle(who === 'lose' ? 'lose' : 'win', who);
+      if (who in STINGS) new Music().sting(who as StingId);
+      else new Music().jingle(who === 'lose' ? 'lose' : 'win', who);
       return measure(ctx.render(3));
     });
   } finally {

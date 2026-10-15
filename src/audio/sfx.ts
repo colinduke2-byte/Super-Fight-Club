@@ -18,9 +18,9 @@ const MIN_GAP = 0.028;
 /** Repeats inside this window are attenuated so rapid multi-hits do not build up. */
 const STACK_WINDOW = 0.1;
 /** Sounds that always get a voice, stealing the oldest ordinary one if the mix is full. */
-const PRIORITY: ReadonlySet<SoundName> = new Set<SoundName>(['ko', 'shieldBreak', 'parry', 'charge', 'ultimate', 'ready', 'go']);
+const PRIORITY: ReadonlySet<SoundName> = new Set<SoundName>(['ko', 'shieldBreak', 'parry', 'charge', 'ultimate', 'ready', 'go', 'roar', 'thunder', 'avalanche']);
 /** Random pitch spread (fraction) per sound so repeats are not machine-gun identical; musical cues stay in tune. */
-const NO_VARY: ReadonlySet<SoundName> = new Set<SoundName>(['ding', 'menuMove', 'menuOk', 'menuBack', 'freeze', 'ready', 'pickup', 'go', 'ultimate']);
+const NO_VARY: ReadonlySet<SoundName> = new Set<SoundName>(['ding', 'menuMove', 'menuOk', 'menuBack', 'freeze', 'ready', 'pickup', 'go', 'ultimate', 'taunt', 'coreGet']);
 const VARY = 0.06;
 
 /**
@@ -77,6 +77,44 @@ export const LOUDNESS_TARGET: Record<SoundName, number> = {
   go: -20,
   ultimate: -16,
   ko: -15,
+  // footsteps: soft, well under every other movement sound
+  stepMetal: -37,
+  stepStone: -38,
+  stepWood: -37,
+  stepSnow: -38,
+  stepGrass: -39,
+  stepCrystal: -37,
+  // character voices and flourishes
+  taunt: -26,
+  glint: -27,
+  crowd: -27,
+  // items
+  swordSwing: -28,
+  swordHit: -23,
+  rayShot: -26,
+  crateBreak: -23,
+  crateBoom: -21,
+  coreGet: -23,
+  // stage hazards and the boss: big moments, still under a KO
+  stalactite: -19,
+  waterSpout: -20,
+  geyser: -19,
+  avalanche: -18,
+  thunder: -17,
+  roar: -16,
+};
+
+/** Longest a sound may ring (seconds, audible span 40 dB under its peak); everything else stays under a second. */
+export const SOUND_SPAN: Partial<Record<SoundName, number>> = {
+  ko: 1.6,
+  ultimate: 1.6,
+  thunder: 2.4,
+  avalanche: 2.4,
+  roar: 2,
+  crowd: 2.4,
+  geyser: 1.6,
+  waterSpout: 1.4,
+  stalactite: 1.3,
 };
 
 /**
@@ -89,6 +127,9 @@ export const LEVEL_DB: Record<SoundName, number> = {
   ko: -1.0, shoot: 4.9, zap: 5.6, reflect: 3.1, place: 2.3, parry: 3.6, boom: 0.4, break: 1.9, burn: 13.1,
   freeze: 0.3, slow: -0.1, stun: 3.4, splash: 7.2, blink: 0.1, hook: 7.6, charge: -0.4, ding: -3.3, menuMove: 4.9,
   menuOk: 2.9, menuBack: 3.4, slice: 10.1, gust: 11.5, spawn: 5.6, pickup: 4.9, ready: 2.3, ultimate: 1.4, go: 1.3,
+  taunt: 8, roar: 1.4, thunder: 0, avalanche: -0.7, geyser: -2.0, waterSpout: 2.7, stalactite: -0.8,
+  stepMetal: 1.5, stepStone: 1.7, stepWood: -2.8, stepSnow: 5.5, stepGrass: -5.1, stepCrystal: 1.8, crowd: 7.9,
+  glint: 4.1, swordSwing: 6.1, swordHit: 3.6, rayShot: 3.4, crateBreak: 4.9, crateBoom: 4.6, coreGet: 2.3,
 };
 
 /** Extra trim (dB) for a style's swing / hits so every fighter lands at the same loudness (on top of LEVEL_DB). */
@@ -99,6 +140,8 @@ export const STYLE_DB: Partial<Record<string, number>> = {
   'hitHeavy:military': 0.3, 'hitHeavy:stone': 0.7, 'hitHeavy:water': 0.8, 'hitHeavy:wind': 2.3, 'swing:arcane': -5.2,
   'swing:blade': -6.4, 'swing:fire': -1.4, 'swing:heavy': -9.6, 'swing:ice': -12.6, 'swing:mech': -6.1,
   'swing:military': -3.9, 'swing:stone': -10.3, 'swing:water': -3.1, 'swing:wind': -5.8,
+  'taunt:heavy': -10.9, 'taunt:blade': -3.5, 'taunt:arcane': -6.7, 'taunt:mech': 1.6, 'taunt:fire': 3.2,
+  'taunt:wind': -4.0, 'taunt:water': 2.9, 'taunt:stone': -7.9, 'taunt:ice': -6.0, 'taunt:military': -3.4,
 };
 
 /** Sounds that dip the music and ambience for a moment ([gain, hold seconds]) so the big hits punch through. */
@@ -109,6 +152,10 @@ const DUCK: Partial<Record<SoundName, [number, number]>> = {
   boom: [0.72, 0.25],
   hitHeavy: [0.8, 0.16],
   go: [0.7, 0.3],
+  roar: [0.55, 1.2],
+  thunder: [0.65, 0.8],
+  avalanche: [0.65, 1.0],
+  geyser: [0.75, 0.5],
 };
 
 /** A room for the effects: reverb tail length (s), wet level and the tail's brightness (Hz). */
@@ -456,6 +503,8 @@ export class Sfx {
   play(name: SoundName, intensity = 0.7, pan = 0, style: AudioStyle = 'plain'): void {
     const ctx = this.context;
     if (!ctx || !this.master) return;
+    // the crowd is optional (a menu setting; read defensively, on by default)
+    if (name === 'crowd' && (settings as unknown as { crowd?: unknown }).crowd === false) return;
     const vol = this.syncVolume();
     if (vol <= 0) return;
     const now = ctx.currentTime;
@@ -810,6 +859,79 @@ export class Sfx {
     }
   }
 
+  /** A fighter's taunt, in their own flavour: a flourish of their element rather than a voice line. */
+  private taunt(d: AudioNode, k: number, style: AudioStyle): void {
+    switch (style) {
+      case 'heavy':
+        // Brick: knuckles cracked, then two chest thumps
+        this.crackle(d, 3, 0.08, 0.2 * k, 0, 2200);
+        this.tone(d, 'sine', 100, 55, 0.16, 0.5 * k, 0.16, { glide: 0.5 });
+        this.noiseBurst(d, 'lowpass', 800, 200, 0.1, 0.3 * k, 0.16);
+        this.tone(d, 'sine', 100, 55, 0.18, 0.55 * k, 0.36, { glide: 0.5 });
+        this.noiseBurst(d, 'lowpass', 800, 200, 0.12, 0.34 * k, 0.36);
+        break;
+      case 'blade':
+        // Vex: a twirl of the blade, two quick shings and a ringing edge
+        this.noiseBurst(d, 'bandpass', 2600, 6000, 0.09, 0.22 * k, 0, { attack: 0.02, q: 2 });
+        this.noiseBurst(d, 'bandpass', 3000, 7000, 0.09, 0.24 * k, 0.14, { attack: 0.02, q: 2 });
+        this.ring(d, 2217, 0.45, 0.08 * k, 0.2);
+        break;
+      case 'arcane':
+        // Nova: a twinkling run of stars, up through the octaves
+        [1319, 1568, 1976, 2637, 3136].forEach((f, i) => this.tone(d, 'sine', f, f, 0.22, 0.1 * k, i * 0.06, { fm: [2, 0.3] }));
+        this.noiseBurst(d, 'highpass', 5000, 8000, 0.4, 0.04 * k, 0.05, { attack: 0.1 });
+        break;
+      case 'mech':
+        // Gizmo (and the Overseer): a cheeky beep-boop and a servo whirr
+        [1568, 1047, 2093, 1319].forEach((f, i) => this.tone(d, 'square', f, f * (i === 3 ? 1.5 : 1), 0.07, 0.05 * k, i * 0.09, { attack: 0.003 }));
+        this.tone(d, 'sawtooth', 200, 480, 0.2, 0.04 * k, 0.36, { attack: 0.02, vib: [40, 0.03] });
+        break;
+      case 'fire':
+        // Agni: flame flaring up in the palm, crackling
+        this.noiseBurst(d, 'lowpass', 400, 3000, 0.35, 0.26 * k, 0, { attack: 0.1 });
+        this.noiseBurst(d, 'bandpass', 900, 500, 0.3, 0.1 * k, 0.05, { attack: 0.05, drive: true });
+        this.crackle(d, 8, 0.4, 0.14 * k, 0.05, 3800);
+        break;
+      case 'wind':
+        // Halcyon: a whistle swirling up on the breeze
+        this.tone(d, 'sine', 1200, 2400, 0.4, 0.1 * k, 0, { attack: 0.08, vib: [6, 0.05] });
+        this.noiseBurst(d, 'bandpass', 900, 3000, 0.45, 0.2 * k, 0, { attack: 0.1, q: 1 });
+        break;
+      case 'water':
+        // Riptide: water sloshed from hand to hand, bubbles and a drop
+        this.noiseBurst(d, 'bandpass', 1600, 700, 0.2, 0.24 * k, 0, { q: 1 });
+        this.noiseBurst(d, 'bandpass', 700, 1500, 0.2, 0.2 * k, 0.2, { q: 1 });
+        this.bubbles(d, 5, 0.35, 0.07 * k, 0.05);
+        this.tone(d, 'sine', 1400, 600, 0.08, 0.1 * k, 0.42);
+        break;
+      case 'stone':
+        // Obelisk: rock grinding, then a crystal chime
+        this.noiseBurst(d, 'lowpass', 500, 140, 0.35, 0.36 * k, 0, { attack: 0.06, drive: true });
+        this.tone(d, 'sine', 60, 42, 0.3, 0.3 * k, 0, { attack: 0.05 });
+        this.ring(d, 1568, 0.5, 0.08 * k, 0.3, GLASS);
+        break;
+      case 'ice':
+        // Rime: frost forming, a cascade of icy tinkles falling
+        [3520, 2960, 2637, 2217].forEach((f, i) => this.ring(d, f, 0.3, 0.06 * k, i * 0.07, GLASS));
+        this.noiseBurst(d, 'highpass', 6000, 8000, 0.35, 0.08 * k, 0, { attack: 0.06 });
+        break;
+      case 'military':
+        // Havoc: a rifle bolt worked, click-clack
+        this.click(d, 0.25 * k, 0, 2500);
+        this.ring(d, 1450, 0.07, 0.08 * k, 0, [1, 1.53, 2.92]);
+        this.noiseBurst(d, 'bandpass', 2400, 1600, 0.05, 0.2 * k, 0.02);
+        this.click(d, 0.3 * k, 0.16, 2000);
+        this.ring(d, 980, 0.1, 0.1 * k, 0.16, [1, 1.53, 2.92]);
+        this.tone(d, 'sine', 160, 90, 0.07, 0.25 * k, 0.16);
+        break;
+      default:
+        // a clap and a 'hup'
+        this.noiseBurst(d, 'bandpass', 1800, 1200, 0.06, 0.4 * k, 0, { q: 1, attack: 0.001 });
+        this.tone(d, 'sine', 220, 330, 0.12, 0.18 * k, 0.12);
+        break;
+    }
+  }
+
   private recipe(name: SoundName, k: number, d: AudioNode, style: AudioStyle = 'plain'): void {
     // harder hits are brighter as well as louder
     const bright = 0.7 + 0.3 * k;
@@ -1099,6 +1221,165 @@ export class Sfx {
         for (const f of [523, 659, 784, 1047]) {
           this.tone(d, 'square', f, f, 0.45, 0.04, 0.01);
           this.tone(d, 'triangle', f, f, 0.5, 0.1, 0.01);
+        }
+        break;
+      case 'taunt':
+        this.taunt(d, k, style);
+        break;
+      case 'roar':
+        // the Overseer's Overload Roar: a mechanical bellow (detuned saws through a growling formant), a sub drop and
+        // the crackle of overloaded circuits
+        this.tone(d, 'sawtooth', 70, 52, 1.5, 0.22, 0, { attack: 0.12, vib: [7, 0.04] });
+        this.tone(d, 'sawtooth', 71.5, 50, 1.5, 0.18, 0, { attack: 0.12, vib: [5.3, 0.05] });
+        this.tone(d, 'square', 105, 78, 1.3, 0.06, 0.03, { attack: 0.1, fm: [1.41, 2] });
+        this.noiseBurst(d, 'bandpass', 520, 300, 1.4, 0.34, 0, { attack: 0.1, q: 3, drive: true });
+        this.noiseBurst(d, 'bandpass', 1300, 800, 1.2, 0.12, 0.05, { attack: 0.12, q: 4 });
+        this.tone(d, 'sine', 55, 30, 1.4, 0.5, 0, { attack: 0.08, glide: 0.8 });
+        this.crackle(d, 10, 1.0, 0.1, 0.15, 3200);
+        break;
+      case 'thunder':
+        // lightning strikes: a split-second crack, a tearing sizzle, then the thunder rolling away in waves
+        this.click(d, 0.35, 0, 2500);
+        this.noiseBurst(d, 'highpass', 3000, 900, 0.18, 0.5, 0, { attack: 0.001, drive: true });
+        this.crackle(d, 9, 0.16, 0.22, 0, 4500);
+        this.noiseBurst(d, 'lowpass', 1400, 90, 0.7, 0.55, 0.02, { attack: 0.006, drive: true });
+        this.noiseBurst(d, 'lowpass', 300, 70, 1.6, 0.42, 0.25, { attack: 0.25 });
+        this.noiseBurst(d, 'lowpass', 220, 60, 1.4, 0.32, 0.8, { attack: 0.3 });
+        this.tone(d, 'sine', 70, 32, 0.9, 0.5, 0.01, { glide: 0.5, attack: 0.01 });
+        break;
+      case 'avalanche':
+        // snow breaking loose: a crack of ice, then a long, swelling roar of tumbling snow with chunks thudding down
+        this.noiseBurst(d, 'bandpass', 5200, 3200, 0.06, 0.3, 0, { q: 2.5 });
+        this.crackle(d, 6, 0.2, 0.14, 0, 6000);
+        this.noiseBurst(d, 'lowpass', 600, 140, 2.0, 0.5, 0.05, { attack: 0.35, drive: true });
+        this.noiseBurst(d, 'bandpass', 1400, 500, 1.6, 0.16, 0.1, { attack: 0.4, q: 0.8 });
+        this.tone(d, 'sine', 55, 38, 1.8, 0.4, 0.05, { attack: 0.3 });
+        for (let i = 0; i < 4; i++) this.tone(d, 'sine', 110, 45, 0.18, 0.3, 0.3 + i * 0.3 + Math.random() * 0.1, { glide: 0.5 });
+        this.ring(d, 2349, 0.4, 0.03, 0.05, GLASS);
+        break;
+      case 'geyser':
+        // the reactor vents: a pressure hiss, a deep whump and a gout of bubbling plasma with an electric sizzle
+        this.noiseBurst(d, 'highpass', 2000, 5000, 0.25, 0.2, 0, { attack: 0.12 });
+        this.tone(d, 'sine', 90, 34, 0.5, 0.55, 0.12, { glide: 0.5, attack: 0.01 });
+        this.noiseBurst(d, 'lowpass', 2400, 160, 1.1, 0.5, 0.12, { attack: 0.01, drive: true });
+        this.noiseBurst(d, 'bandpass', 700, 1600, 1.0, 0.16, 0.15, { attack: 0.05, q: 1.2 });
+        this.tone(d, 'sawtooth', 160, 110, 0.9, 0.05, 0.15, { fm: [2.71, 5], attack: 0.03 });
+        for (let i = 0; i < 6; i++) {
+          const f = 140 + Math.random() * 180;
+          this.tone(d, 'sine', f, f * 1.9, 0.07, 0.14, 0.25 + Math.random() * 0.8, { attack: 0.004 });
+        }
+        break;
+      case 'waterSpout':
+        // the wreck's spout: a rush of water climbing, a heavy gush and spray falling back with bubbles
+        this.noiseBurst(d, 'bandpass', 500, 2600, 0.45, 0.4, 0, { attack: 0.08, q: 0.9 });
+        this.tone(d, 'sine', 120, 50, 0.4, 0.45, 0.06, { glide: 0.5 });
+        this.noiseBurst(d, 'lowpass', 1200, 300, 0.9, 0.34, 0.05, { attack: 0.05 });
+        this.noiseBurst(d, 'highpass', 3000, 1800, 0.7, 0.12, 0.35, { attack: 0.15 });
+        this.bubbles(d, 8, 0.7, 0.07, 0.15);
+        break;
+      case 'stalactite':
+        // a stalactite gives way: a sharp crack high up, then the crash of crystal and stone on the floor
+        this.noiseBurst(d, 'bandpass', 4200, 2600, 0.05, 0.32, 0, { q: 3, attack: 0.001 });
+        this.crackle(d, 4, 0.06, 0.16, 0, 5000);
+        this.click(d, 0.3, 0.12, 3000);
+        this.tone(d, 'sine', 120, 38, 0.4, 0.6, 0.12, { glide: 0.5, attack: 0.004 });
+        this.noiseBurst(d, 'lowpass', 2800, 150, 0.45, 0.5, 0.12, { drive: true });
+        this.noiseBurst(d, 'highpass', 5000, 2000, 0.3, 0.22, 0.13);
+        for (let i = 0; i < 4; i++) this.ring(d, 1700 + Math.random() * 1800, 0.35, 0.05, 0.14 + i * 0.06, GLASS);
+        break;
+      case 'stepMetal':
+        // a boot on a grating: a tap and a short metal ring
+        this.click(d, 0.12 * k, 0, 3000);
+        this.ring(d, 1180, 0.09, 0.06 * k, 0, [1, 1.53, 2.92]);
+        this.tone(d, 'sine', 160, 110, 0.05, 0.12 * k);
+        break;
+      case 'stepStone':
+        // a scuff on rock: a dull tap and a whisper of grit
+        this.noiseBurst(d, 'lowpass', 900, 300, 0.08, 0.3 * k, 0, { attack: 0.002 });
+        this.noiseBurst(d, 'bandpass', 3200, 2200, 0.06, 0.06 * k, 0.005);
+        this.tone(d, 'sine', 130, 90, 0.07, 0.12 * k);
+        break;
+      case 'stepWood':
+        // a hollow knock on planks
+        this.tone(d, 'sine', 240, 190, 0.09, 0.24 * k, 0, { attack: 0.002 });
+        this.noiseBurst(d, 'bandpass', 800, 600, 0.07, 0.18 * k, 0, { q: 3 });
+        this.click(d, 0.05 * k, 0, 2000);
+        break;
+      case 'stepSnow':
+        // a soft crunch: a cluster of muffled grains
+        this.noiseBurst(d, 'bandpass', 2400, 1400, 0.08, 0.18 * k, 0, { attack: 0.01, q: 1.2 });
+        this.crackle(d, 5, 0.06, 0.08 * k, 0, 2600);
+        break;
+      case 'stepGrass':
+        // a brush through grass: an airy swish
+        this.noiseBurst(d, 'highpass', 3000, 4500, 0.09, 0.14 * k, 0, { attack: 0.02 });
+        this.noiseBurst(d, 'lowpass', 500, 250, 0.05, 0.08 * k);
+        break;
+      case 'stepCrystal':
+        // a tap on crystal: a click and a tiny glassy chime
+        this.click(d, 0.08 * k, 0, 4000);
+        this.ring(d, 2093 + Math.random() * 400, 0.14, 0.05 * k, 0, GLASS);
+        this.tone(d, 'sine', 180, 120, 0.04, 0.08 * k);
+        break;
+      case 'crowd':
+        // the stands react: a swell of many voices (bands of noise, each with its own breath) and a cheer on top
+        for (let i = 0; i < 5; i++) {
+          const f = 450 + i * 260 + Math.random() * 120;
+          this.noiseBurst(d, 'bandpass', f, f * 1.15, 1.6 + Math.random() * 0.4, (0.11 - i * 0.012) * k, Math.random() * 0.12, { attack: 0.35 + Math.random() * 0.2, q: 2.2 });
+        }
+        this.noiseBurst(d, 'lowpass', 600, 400, 1.5, 0.1 * k, 0.05, { attack: 0.4 });
+        for (let i = 0; i < 4; i++) {
+          const f = 500 + Math.random() * 350;
+          this.tone(d, 'triangle', f, f * 1.25, 0.5 + Math.random() * 0.3, 0.012 * k, 0.15 + Math.random() * 0.3, { attack: 0.12, vib: [5 + Math.random() * 3, 0.03] });
+        }
+        break;
+      case 'glint':
+        // the parry glint: a bright sparkle that flicks up and away
+        this.tone(d, 'sine', 3136, 4186, 0.16, 0.14 * k, 0, { attack: 0.003, fm: [2.5, 0.25] });
+        this.tone(d, 'sine', 5274, 5274, 0.12, 0.04 * k, 0.04);
+        this.noiseBurst(d, 'highpass', 7000, 9000, 0.08, 0.1 * k, 0, { attack: 0.004 });
+        break;
+      case 'swordSwing':
+        // the beam sword: a humming blade sweeping through the air
+        this.tone(d, 'sawtooth', 220, 330, 0.2, 0.05 * k, 0, { attack: 0.03, vib: [30, 0.02] });
+        this.tone(d, 'sine', 440, 660, 0.2, 0.12 * k, 0, { attack: 0.03 });
+        this.noiseBurst(d, 'bandpass', 2000, 5200, 0.16, 0.2 * k, 0, { attack: 0.03, q: 2 });
+        break;
+      case 'swordHit':
+        // the beam sword connects: an energised cut, a crackle of the blade and a ringing edge
+        this.click(d, 0.2 * k, 0, 4000);
+        this.noiseBurst(d, 'bandpass', 5200, 2400, 0.1, 0.34 * k, 0, { q: 1.5 });
+        this.tone(d, 'sawtooth', 660, 220, 0.16, 0.08 * k, 0, { fm: [1.5, 2] });
+        this.tone(d, 'sine', 180, 70, 0.14, 0.4 * k, 0, { glide: 0.4 });
+        this.ring(d, 1760, 0.25, 0.08 * k, 0.01);
+        break;
+      case 'rayShot':
+        // the ray gun: a sci-fi 'tsew' with a ringing FM tail
+        this.tone(d, 'square', 2400, 600, 0.14, 0.06 * k, 0, { glide: 0.5, fm: [0.5, 1.5] });
+        this.tone(d, 'sine', 1800, 400, 0.18, 0.2 * k, 0, { glide: 0.6 });
+        this.noiseBurst(d, 'highpass', 5000, 3000, 0.04, 0.12 * k);
+        break;
+      case 'crateBreak':
+        // a crate splinters open: a hollow knock, cracking planks and the clatter of boards
+        this.tone(d, 'sine', 200, 110, 0.12, 0.4 * k, 0, { glide: 0.5 });
+        this.noiseBurst(d, 'bandpass', 900, 500, 0.12, 0.36 * k, 0, { q: 1.5, drive: true });
+        this.crackle(d, 8, 0.12, 0.2 * k, 0, 1800);
+        for (let i = 0; i < 3; i++) this.tone(d, 'triangle', 300 + Math.random() * 200, 260, 0.06, 0.08 * k, 0.12 + i * 0.07 + Math.random() * 0.03);
+        break;
+      case 'crateBoom':
+        // a volatile crate blows: boards flung apart and splinters raining down (layered over the blast)
+        this.noiseBurst(d, 'bandpass', 1200, 400, 0.3, 0.36 * k, 0, { q: 1, drive: true });
+        this.crackle(d, 12, 0.5, 0.18 * k, 0.02, 2000);
+        for (let i = 0; i < 4; i++) this.tone(d, 'triangle', 250 + Math.random() * 200, 200, 0.07, 0.1 * k, 0.2 + i * 0.1 + Math.random() * 0.05);
+        this.tone(d, 'sine', 140, 50, 0.25, 0.35 * k, 0, { glide: 0.5 });
+        break;
+      case 'coreGet':
+        // a core fragment: power surging in, a rising FM sweep that resolves on a bright chord
+        this.tone(d, 'sine', 220, 880, 0.3, 0.2 * k, 0, { attack: 0.05, fm: [2, 0.6] });
+        this.noiseBurst(d, 'bandpass', 800, 5000, 0.3, 0.1 * k, 0, { attack: 0.15 });
+        for (const [f, at] of [[1047, 0.24], [1319, 0.27], [1568, 0.3]] as const) {
+          this.tone(d, 'triangle', f, f, 0.45, 0.12 * k, at);
+          this.tone(d, 'sine', f * 2, f * 2, 0.3, 0.03 * k, at);
         }
         break;
     }

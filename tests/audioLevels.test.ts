@@ -1,12 +1,16 @@
 import { describe, expect, it } from 'vitest';
-import { AUDIO_STYLES, LOUDNESS_TARGET, Sfx, type AudioStyle } from '../src/audio/sfx';
-import { SOUND_NAMES, hitLayer, soundFor, type SoundName } from '../src/audio/soundMap';
+import { AUDIO_STYLES, LOUDNESS_TARGET, SOUND_SPAN, Sfx, type AudioStyle } from '../src/audio/sfx';
+import { settings } from '../src/settings';
+import { ITEM, SOUND_NAMES, STAGE_SURFACE, SURFACES, footstepFor, hazardSounds, hitLayer, soundFor, soundsFor, type SoundName } from '../src/audio/soundMap';
+import { STAGES } from '../src/stages';
 import { RenderCtx, seeded } from './audioRender';
 import { SR, audibleSpan, bandProfile, measureSound } from './audioMeasure';
 
 /** Styles fighters actually use (plain is only the fallback). */
 const FIGHTER_STYLES = AUDIO_STYLES.filter((s) => s !== 'plain');
-const STYLED: SoundName[] = ['swing', 'hit', 'hitHeavy'];
+const STYLED: SoundName[] = ['swing', 'hit', 'hitHeavy', 'taunt'];
+/** Rendering every sound is slow on a loaded machine: generous timeouts so only a real failure fails. */
+const SLOW = { timeout: 120000 };
 
 /** Mean per-band level difference (dB) between two sounds' spectra: how different they sound in colour. */
 function colourDistance(a: Float32Array, b: Float32Array): number {
@@ -21,7 +25,7 @@ function colourDistance(a: Float32Array, b: Float32Array): number {
 }
 
 describe('sound effect levels (rendered)', () => {
-  it('every sound lands within 1.5 dB of its loudness target and never peaks above -0.5 dBFS on its own', { timeout: 60000 }, () => {
+  it('every sound lands within 1.5 dB of its loudness target and never peaks above -0.5 dBFS on its own', SLOW, () => {
     for (const name of SOUND_NAMES) {
       const styles: readonly AudioStyle[] = STYLED.includes(name) ? AUDIO_STYLES : ['plain'];
       for (const st of styles) {
@@ -42,13 +46,13 @@ describe('sound effect levels (rendered)', () => {
     for (const n of SOUND_NAMES) if (n !== 'ko') expect(T[n], n).toBeLessThanOrEqual(T.ko);
   });
 
-  it('louder cues for harder hits: intensity scales the level', () => {
+  it('louder cues for harder hits: intensity scales the level', SLOW, () => {
     const soft = measureSound('hit', 'blade', 0.3);
     const hard = measureSound('hit', 'blade', 1);
     expect(hard.momentary - soft.momentary).toBeGreaterThan(6);
   });
 
-  it('every sound fades out instead of being cut off (no click at the end)', { timeout: 60000 }, () => {
+  it('every sound fades out instead of being cut off (no click at the end)', SLOW, () => {
     for (const name of SOUND_NAMES) {
       const m = measureSound(name, STYLED.includes(name) ? 'stone' : 'plain');
       const { end } = audibleSpan(m.x, SR, -90);
@@ -60,17 +64,30 @@ describe('sound effect levels (rendered)', () => {
     }
   });
 
-  it('every sound is long enough to read (no click-length blips) and short enough not to smear the mix', () => {
+  // deterministic (seeded) renders; the old flakiness was the default 5 s timeout on a loaded machine
+  it('every sound is long enough to read (no click-length blips) and short enough not to smear the mix', SLOW, () => {
     for (const name of SOUND_NAMES) {
       const m = measureSound(name);
       const { start, end } = audibleSpan(m.x, SR, m.peak - 40);
       expect(end - start, name).toBeGreaterThan(0.035);
-      expect(end - start, name).toBeLessThan(name === 'ko' || name === 'ultimate' ? 1.6 : 1);
+      expect(end - start, name).toBeLessThan(SOUND_SPAN[name] ?? 1);
     }
   });
 
-  it('each fighter flavour has its own colour: no two styles sound alike on a swing or a hit', { timeout: 30000 }, () => {
-    const min: Record<string, number> = { swing: 4, hit: 3.5, hitHeavy: 1.5 };
+  it('footsteps are soft: every surface sits well under a jump or a landing', () => {
+    const T = LOUDNESS_TARGET;
+    for (const s of SURFACES) {
+      const cue = footstepFor(Object.keys(STAGE_SURFACE).find((id) => STAGE_SURFACE[id] === s), 6, 1);
+      expect(cue.name.toLowerCase()).toContain(s);
+      expect(T[cue.name]).toBeLessThan(Math.min(T.jump, T.land, T.dodge) - 4);
+    }
+    // every stage has a floor (unknown ones walk on stone)
+    for (const id of Object.keys(STAGES)) expect(STAGE_SURFACE[id], id).toBeDefined();
+    expect(footstepFor('nowhere').name).toBe('stepStone');
+  });
+
+  it('each fighter flavour has its own colour: no two styles sound alike on a swing, a hit or a taunt', SLOW, () => {
+    const min: Record<string, number> = { swing: 4, hit: 3.5, hitHeavy: 1.5, taunt: 3 };
     for (const name of STYLED) {
       const xs = FIGHTER_STYLES.map((st) => measureSound(name, st).x);
       for (let i = 0; i < xs.length; i++)
@@ -81,7 +98,7 @@ describe('sound effect levels (rendered)', () => {
     }
   });
 
-  it('the new cues have distinct sounds: ultimate ready is not the clock ding, an ultimate is not a charge', () => {
+  it('the new cues have distinct sounds: ultimate ready is not the clock ding, an ultimate is not a charge', SLOW, () => {
     expect(soundFor('meterFull', 0, 0)!.name).toBe('ready');
     expect(soundFor('cinematicStart', 0, 0)!.name).toBe('ultimate');
     expect(soundFor('itemSpawn', 0, 0)!.name).toBe('spawn');
@@ -89,6 +106,50 @@ describe('sound effect levels (rendered)', () => {
     expect(hitLayer('gust', 40, 8)!.name).toBe('gust');
     expect(colourDistance(measureSound('ready').x, measureSound('ding').x)).toBeGreaterThan(8);
     expect(colourDistance(measureSound('ultimate').x, measureSound('charge').x)).toBeGreaterThan(4);
+  });
+});
+
+describe('event mapping for the newer cues', () => {
+  it('taunts, the boss roar, items, hazards and the crowd each get their own sound', () => {
+    expect(soundFor('fx', 0, 0, 'taunt')!.name).toBe('taunt');
+    expect(soundFor('fx', 0, 0, 'roar')!.name).toBe('roar');
+    expect(soundFor('fx', 0, 0, 'someMoveFx')).toBeNull();
+    expect(soundFor('itemThrow', 1, ITEM.sword)!.name).toBe('swordSwing');
+    expect(soundFor('itemThrow', 3, 0)).toBeNull(); // a bomb throw: the presenter's whoosh only
+    expect(soundFor('itemPickup', ITEM.core, 0)!.name).toBe('coreGet');
+    expect(soundFor('itemPickup', ITEM.heal, 0)).toBeNull();
+    expect(soundFor('itemSpawn', ITEM.heal, 1)!.name).toBe('crateBreak');
+    expect(soundFor('itemSpawn', ITEM.heal, 0)!.name).toBe('spawn');
+    expect(soundFor('itemBoom', 46, 0)!.name).toBe('crateBoom');
+    expect(soundFor('itemBoom', 30, 0)).toBeNull();
+    expect(hazardSounds('bolt').map((c) => c.name)).toEqual(['thunder']);
+    expect(hazardSounds('avalanche').map((c) => c.name)).toEqual(['avalanche']);
+    expect(hazardSounds('stalactite').map((c) => c.name)).toEqual(['stalactite']);
+    expect(hazardSounds('geyser').map((c) => c.name)).toEqual(['geyser']);
+    expect(hazardSounds('geyser', 'water').map((c) => c.name)).toEqual(['waterSpout']);
+    expect(soundsFor('parry', 0, 0).map((c) => c.name)).toEqual(['parry', 'glint']);
+    expect(soundsFor('ko', 0, 0).map((c) => c.name)).toEqual(['ko', 'crowd']);
+    expect(soundsFor('cinematicStart', 0, 0).map((c) => c.name)).toEqual(['ultimate', 'crowd']);
+    expect(soundsFor('hit', 100, 8)[0]).toEqual(soundFor('hit', 100, 8));
+  });
+
+  it('the crowd stays quiet when the crowd setting is off', () => {
+    const st = settings as unknown as { crowd?: boolean };
+    const before = st.crowd;
+    try {
+      const s = new Sfx();
+      const ctx = new RenderCtx(SR);
+      s.attach(ctx as unknown as BaseAudioContext);
+      st.crowd = false;
+      s.play('crowd', 1);
+      expect(s.activeSounds).toBe(0);
+      st.crowd = true;
+      s.play('crowd', 1);
+      expect(s.activeSounds).toBe(1);
+    } finally {
+      if (before === undefined) delete st.crowd;
+      else st.crowd = before;
+    }
   });
 });
 

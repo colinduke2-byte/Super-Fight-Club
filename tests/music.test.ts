@@ -9,6 +9,7 @@ describe('chiptune tracks', () => {
       expect(t.arp.length).toBe(STEPS_PER_BAR);
       expect(t.drums.length).toBe(STEPS_PER_BAR);
       for (const bar of t.lead) expect(leadCellCount(bar)).toBe(STEPS_PER_BAR);
+      for (const bar of t.counter ?? []) expect(leadCellCount(bar)).toBe(STEPS_PER_BAR);
       expect(t.minor.length).toBe(4);
     });
     it(`${t.id}: loops and produces audible notes in a sane range`, () => {
@@ -16,7 +17,7 @@ describe('chiptune tracks', () => {
       for (let s = 0; s < LOOP_STEPS; s++) {
         for (const e of stepEvents(t, s)) {
           n++;
-          if (e.voice === 'lead' || e.voice === 'bass' || e.voice === 'arp') {
+          if (e.voice === 'lead' || e.voice === 'counter' || e.voice === 'bass' || e.voice === 'arp') {
             const hz = midiToHz(e.midi);
             expect(hz).toBeGreaterThan(30);
             expect(hz).toBeLessThan(4000);
