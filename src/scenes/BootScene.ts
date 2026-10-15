@@ -1,6 +1,8 @@
 import { launchSlots } from '../game/launch';
 import Phaser from 'phaser';
-import { buildPlaceholderSheet, fighterTextureKey, registerAnimations, registerPixels } from '../art/proceduralFighter';
+import { buildPlaceholderSheet, ensureFightersReady, ensurePalettesReady, fighterTextureKey, palettesReady, registerAnimations, registerPixels } from '../art/proceduralFighter';
+import { assignPalettes } from '../art/palettes';
+import { ensureSession } from './match/setup';
 import { addCanvasTexture } from '../art/canvasTexture';
 import { sheetLayout } from '../art/sheetLayout';
 import type { CharacterData } from '../engine/types';
@@ -16,7 +18,7 @@ import { session } from '../game/session';
 import { inputManager } from '../input/inputManager';
 import { buildHudTextures } from '../art/hudTextures';
 import { buildPixelFont, PIXEL_FONT } from '../art/pixelFont';
-import { BOSSES, CHARACTER_LIST, devCharacter } from '../characters';
+import { BOSSES, CHARACTER_LIST, characterById, devCharacter } from '../characters';
 
 /**
  * Builds every texture in code (placeholder art) or loads real sheets when a character supplies
@@ -41,7 +43,9 @@ export class BootScene extends Phaser.Scene {
     buildEntityTextures(this);
     buildHudTextures(this);
     buildPixelFont(this);
-    const all = [...CHARACTER_LIST, ...Object.values(BOSSES), ...(devCharacter() ? [devCharacter()!] : [])];
+    // the boss is only fought at the end of the arcade ladder (or a challenge): its sheet is built in the background once
+    // the title screen is up (see finish), not on the boot critical path
+    const all = [...CHARACTER_LIST, ...(devCharacter() ? [devCharacter()!] : [])];
     // Fighter sheets are drawn procedurally at full resolution, which takes a moment: one fighter per frame behind a progress bar
     const w = this.scale.width;
     const h = this.scale.height;
@@ -81,7 +85,7 @@ export class BootScene extends Phaser.Scene {
       }
       label.destroy();
       bar.destroy();
-      this.finish();
+      void this.finish();
     });
   }
 
@@ -114,9 +118,21 @@ export class BootScene extends Phaser.Scene {
     }
   }
 
-  private finish(): void {
+  /** Fighters left out of boot (the boss): built in the background, or awaited when a shortcut skips the menus. */
+  private deferredFighters(): Promise<void> {
+    return ensureFightersReady(this, Object.values(BOSSES));
+  }
+
+  private async finish(): Promise<void> {
     // dev shortcuts: ?char=<id> drops straight into training; ?scene=<Key> opens any scene
     const q = new URLSearchParams(location.search);
+    // the menus give the boss's background build plenty of time; a shortcut straight to the ladder, to any scene, or into
+    // a match with the boss needs it at once
+    const values = [...q.values()].flatMap((v) => v.split(','));
+    const needsBoss = q.has('arcade') || q.has('scene') || Object.keys(BOSSES).some((id) => values.includes(id));
+    if (needsBoss) await this.deferredFighters();
+    // (a plain timer: this scene's own clock stops with it once the title starts)
+    else setTimeout(() => void this.deferredFighters(), 300);
     const arcade = q.get('arcade');
     if (arcade) {
       // ?arcade=<char>[&fight=<0-6>] starts the ladder directly (keyboard player 1)
@@ -150,6 +166,27 @@ export class BootScene extends Phaser.Scene {
       this.scene.start('Match');
       return;
     }
-    this.scene.start(q.get('scene') ?? ((q.has('char') || q.has('stage')) ? 'Match' : 'Title'));
+    const next = q.get('scene') ?? (q.has('char') || q.has('stage') ? 'Match' : 'Title');
+    if (next === 'Match' && !q.has('scene')) await this.prepareDirectMatch();
+    this.scene.start(next);
+  }
+
+  /**
+   * ?char / ?stage go straight into a match: build its outfits (duplicate fighters get bumped palettes, see
+   * assignPalettes) on the workers first, so the match does not render them on the main thread when it starts.
+   */
+  private async prepareDirectMatch(): Promise<void> {
+    try {
+      ensureSession();
+      const players = session.players;
+      const palettes = assignPalettes(players);
+      const wants = players.flatMap((p, i) => {
+        const data = characterById(p.character);
+        return data ? [{ data, palette: palettes[i] }] : [];
+      });
+      if (!palettesReady(this, wants)) await ensurePalettesReady(this, wants);
+    } catch (err) {
+      console.warn('[boot] could not prebuild the match outfits (the match builds them itself):', err);
+    }
   }
 }

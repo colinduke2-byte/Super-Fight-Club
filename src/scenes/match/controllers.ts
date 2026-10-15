@@ -1,0 +1,94 @@
+import { BossController } from '../../ai/boss';
+import { CpuController } from '../../ai/cpu';
+import { Button, makeInput, type FighterInput } from '../../engine/buttons';
+import type { Fighter } from '../../engine/fighter';
+import type { World } from '../../engine/world';
+import { DummyController, NullController, type Controller } from '../../game/controllers';
+import type { MatchRunner } from '../../game/runner';
+import type { PlayerSlot } from '../../game/session';
+import type { GamepadDevice } from '../../input/gamepad';
+import { inputManager } from '../../input/inputManager';
+import { PlayerInput } from '../../input/playerInput';
+
+export interface ControllerOptions {
+  /** Watching a replay: every slot's input comes from the recording. */
+  replay: boolean;
+  isTraining: boolean;
+  isLaunch: boolean;
+}
+
+/**
+ * Input gathering for every slot: humans on their devices, CPUs / the boss brain / the training dummy, and gamepads
+ * dropping out mid-match. Humans are sampled every sim tick (so START can pause during the countdown); controllers (CPU AI,
+ * with its RNG) only run on ticks that actually step the world.
+ */
+export class MatchControllers {
+  readonly humans: (PlayerInput | null)[];
+  readonly controllers: Controller[];
+  readonly inputs: FighterInput[];
+  /** The training dummy (slot 1 in training). */
+  readonly dummy = new DummyController();
+
+  constructor(
+    readonly slots: PlayerSlot[],
+    runner: MatchRunner,
+    opts: ControllerOptions,
+  ) {
+    this.humans = slots.map((s) => (s.type === 'human' && s.device ? new PlayerInput(s.device) : null));
+    this.controllers = slots.map((s, i) =>
+      opts.replay || s.type !== 'cpu' ? new NullController() : s.boss ? new BossController(() => runner.match.scores[i].stocks, 1) : opts.isTraining && i === 1 ? this.dummy : opts.isLaunch && i === 1 ? new DummyController() : new CpuController(s.cpuLevel, i + 1),
+    );
+    this.inputs = slots.map(() => makeInput());
+  }
+
+  /** Samples every human's device into its input. Returns true if one of them pressed pause. */
+  sampleHumans(): boolean {
+    let pausePressed = false;
+    for (let i = 0; i < this.slots.length; i++) {
+      const h = this.humans[i];
+      if (!h) continue;
+      h.sample(this.inputs[i]);
+      if (this.inputs[i].pressed & Button.Pause) pausePressed = true;
+    }
+    return pausePressed;
+  }
+
+  /** Runs the non-human controllers (CPU AI, dummy...) for the tick about to be simulated. */
+  updateControllers(fighters: Fighter[], world: World): void {
+    for (let i = 0; i < this.slots.length; i++) if (!this.humans[i]) this.controllers[i].update(fighters[i], world, this.inputs[i]);
+  }
+
+  resetHumans(): void {
+    this.humans.forEach((h) => h?.reset());
+  }
+
+  /**
+   * A human slot whose gamepad vanished: re-attach a free pad if there is one. Returns the label of a slot still missing its
+   * pad ('' if none); `toast` reports reconnections.
+   */
+  checkConnections(toast: (msg: string) => void): string {
+    let missing = '';
+    for (let i = 0; i < this.slots.length; i++) {
+      const s = this.slots[i];
+      if (s.type !== 'human' || !s.device || s.device.kind !== 'gamepad' || s.device.connected) continue;
+      // compare by id: a pad that dropped out and came back may be a new device object for the same controller
+      const used = new Set(this.slots.map((o) => o.device?.id));
+      const free = inputManager.padList.find((p) => p.connected && !used.has(p.id));
+      if (free) {
+        s.device = free;
+        this.humans[i]!.device = free;
+        this.humans[i]!.reset();
+        toast(`P${i + 1} controller reconnected`);
+      } else {
+        missing = `P${i + 1}`;
+      }
+    }
+    return missing;
+  }
+
+  /** Vibrate the gamepad of the human slot that owns `f` (no-op for keyboards / CPUs). */
+  rumble(f: Fighter, strong: number, weak: number, ms: number): void {
+    const d = this.slots[f.id]?.device;
+    if (d && d.kind === 'gamepad') (d as GamepadDevice).rumble(strong, weak, ms);
+  }
+}

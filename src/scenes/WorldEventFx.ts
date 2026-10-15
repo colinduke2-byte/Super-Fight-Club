@@ -20,7 +20,8 @@ export interface WorldEventHost {
   /** Briefly run the sim at `scale` x speed for `ticks` sim ticks (kill cam / heavy-hit crunch). */
   slow(scale: number, ticks: number): void;
   rumble(f: Fighter, strong: number, weak: number, ms: number): void;
-  onKo(f: Fighter, lastHitBy: number): void;
+  /** KO visual (the blast from the screen edge). Presentation only: MatchRunner has already scored the KO. */
+  koFx(f: Fighter, lastHitBy: number): void;
 }
 
 /** Turns simulation events into particles, camera kicks, sounds and rumble. Presentation only. */
@@ -400,7 +401,7 @@ export class WorldEventFx {
         e.burst(kx, ky, 24, 140, 0xff5a7a, 0.9, 5);
         this.host.shake(10);
         this.host.rumble(f, 1, 0.6, 300);
-        this.host.onKo(f, extra);
+        this.host.koFx(f, extra);
         this.host.slow(0.35, 40);
         break;
       }
