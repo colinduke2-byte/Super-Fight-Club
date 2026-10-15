@@ -353,6 +353,11 @@ export class CpuController implements Controller {
     const m = self.move;
     if (p) this.runPlan(self, world);
     if (!m) return;
+    // a ground move (a charging smash) that slid off the stage: let go of the charge now, recovery comes first
+    if (!self.grounded && m.charge && m.kind === 'smash' && offstage(self, world)) {
+      this.held &= ~(Button.Smash | Button.Attack);
+      if (p) p.holdFrames = 0;
+    }
     // a hit that put the target in hitstun: follow it up (chase it, decide every frame) for a moment after this move
     if (self.moveHit && tgt && tgt.state === 'hitstun' && world.tick >= this.comboUntil - 5 && this.rnd() < this.params.combo * 0.25) {
       this.comboUntil = world.tick + (moveTotal(m) - self.moveFrame) + Math.min(40, tgt.hitstun + 10);
@@ -1350,8 +1355,10 @@ export class CpuController implements Controller {
       if (m.proj && (world.tick < this.shotReady[m.index] || (m.maxX > 120 && dist < 60))) return;
       const fwdDir = m.kind === 'special' || NORMAL_INPUTS[m.id]?.fwd !== 0 ? dir : self.facing;
       // a lunge (and a dash attack carries the run's momentum too) must not slide us off the platform
-      const slide = m.travel + (m.kind === 'dash' || m.kind === 'special' ? Math.abs(self.vx) * 10 : 0);
-      if (grounded && slide > 0 && this.lungesOff(self, slide + 6, fwdDir)) return;
+      if (grounded && m.travel > 0 && this.lungesOff(self, m.travel + 6 + Math.max(0, self.vx * fwdDir) * 10, fwdDir)) return;
+      // any ground move started while still sliding toward an edge (a landing, a run) carries that slide with it
+      const sl = Math.sign(self.vx);
+      if (grounded && Math.abs(self.vx) > 0.8 && this.lungesOff(self, Math.abs(self.vx) * 12 + (m.charge ? 30 : 0) + (sl === fwdDir ? m.travel : 0), sl)) return;
       if (!grounded && m.kind === 'special' && m.travel > 0 && this.airLungesOff(self, world, m.travel, fwdDir)) return;
       // the target cannot be hurt for the whole of this move's hit (respawn / roll / get-up invincibility)
       if (tgt.invuln >= m.startup + m.active) return;

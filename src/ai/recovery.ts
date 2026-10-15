@@ -2,6 +2,7 @@ import type { Fighter } from '../engine/fighter';
 import type { Ledge } from '../engine/platform';
 import type { World } from '../engine/world';
 import type { CharacterAi, LevelParams } from './profiles';
+import { driftThenReaches, jumpThenReaches, pathReaches, upBPath, drift, type Sim } from './recoveryPlan';
 
 /**
  * True if the fighter is airborne with no stage under it: no solid platform spans its x with a top at or below its feet.
@@ -196,6 +197,53 @@ export function recoveryStep(f: Fighter, world: World, ai: CharacterAi, ep: Reco
       return;
     }
   }
+  // physics-planned recovery (fixed up specials): fire the up special at the last frame its flown path still reaches the
+  // ledge / stage, spend the double jump only when waiting longer would lose it, air dodge in when that is what it takes
+  const path = rec.aim === 'fixed' && !(above && Math.abs(toCorner) < 60) ? upBPath(f, world, rec.slot) : null;
+  if (path && ep.mix > 0.1) {
+    const dirIn = -l.side;
+    const out2 = (f.x - l.x) * l.side; // px outside the corner
+    // drift in at full speed while level with / above the stage; below it, stay out from under the stage's underside
+    if (f.y - f.h < l.y) {
+      if (out2 > -4) out.sx = dirIn;
+    } else out.sx = out2 < f.hw + 6 ? l.side : out2 > f.hw + 16 ? dirIn : 0;
+    const s: Sim = { x: f.x, y: f.y, vx: f.vx, vy: f.vy };
+    const now = pathReaches(f, l, path, s.x, s.y, s.vx);
+    const s3: Sim = { ...s };
+    for (let i = 0; i < 3; i++) drift(f, s3, dirIn);
+    const later = pathReaches(f, l, path, s3.x, s3.y, s3.vx);
+    if (now && !ep.specialPressed && !later && t >= ep.specialDelay) {
+      out.special = true;
+      out.steering = true;
+      out.sy = -1;
+      out.sx = dirIn;
+      return;
+    }
+    if (now) return; // reachable later too: keep drifting in, keep the jump
+    if (f.jumpsLeft > 0) {
+      const jNow = jumpThenReaches(f, l, path, s, 0);
+      if (jNow) {
+        if (!jumpThenReaches(f, l, path, s, 3) && t >= ep.jumpDelay) out.jump = true;
+        return;
+      }
+      if (driftThenReaches(f, l, path, s)) return;
+      // nothing reaches: fall back to the plain rules below (jump once falling)
+    } else if (!f.airDodgeUsed && ep.mix > 0 && f.vy > -1) {
+      // a directional air dodge in and up (~40 px) then the up special
+      // the dodge carries ~30 px each way, then ~12 frames of falling with no drift before control returns
+      const d: Sim = { x: f.x + dirIn * 30, y: f.y - 26, vx: 0, vy: 0 };
+      for (let i = 0; i < 12; i++) {
+        d.vy = Math.min(f.stats.fallSpeed, d.vy + f.stats.gravity);
+        d.y += d.vy;
+      }
+      if (pathReaches(f, l, path, d.x, d.y, 0) || driftThenReaches(f, l, path, d, 30)) {
+        out.dodge = true;
+        out.sx = dirIn * 0.7;
+        out.sy = -0.7;
+        return;
+      }
+    }
+  }
   // horizontal recovery special (Pirate's Dash, Frost Step, Skewer Dash): from far out, at about stage height, it covers
   // the gap the jump and the up special could not
   const side = ai.sideRecovery;
@@ -225,6 +273,8 @@ export function recoveryStep(f: Fighter, world: World, ai: CharacterAi, ep: Reco
     out.sy = -1; // Up must be held on the press frame to select the up special; aim is refined while it runs
     out.sx = Math.abs(dx) < 4 ? 0 : Math.sign(dx);
   }
+  // never drift in under the stage's underside while below it (an up special from there hits the floor's bottom)
+  if (!out.special && f.y - f.h > l.y + 2 && (f.x - l.x) * l.side < f.hw + 4) out.sx = l.side;
   // winged fighters out of flaps hold Jump to glide toward the stage
   if (f.data.glide && f.jumpsLeft === 0 && !out.special && f.vy > f.data.glide.fall && Math.abs(dx) > 8 && f.glideFrames < f.data.glide.max) out.jump = true;
 }
