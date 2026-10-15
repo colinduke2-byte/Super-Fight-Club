@@ -74,7 +74,7 @@ export function hitboxActive(f: Fighter, m: MoveDef, hb: HitboxDef): boolean {
 function canHit(world: World, atk: Fighter, def: Fighter, hb: HitboxDef): boolean {
   const g = hb.group ?? 0;
   if ((atk.hitMask[def.id] & (1 << g)) !== 0) return false;
-  if (def.state === 'ko' || def.id === atk.id || world.allied(atk.id, def.id)) return false;
+  if (def.state === 'ko' || def.id === atk.id || world.shielded(atk.id, def.id)) return false;
   if (hb.throw) return def.grabbedBy === atk.id;
   if (def.state === 'grabbed') return false; // grabbed fighters can only be hit by their captor's throw
   if (def.invuln > 0) return false;

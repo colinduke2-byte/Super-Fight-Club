@@ -1,10 +1,38 @@
 import Phaser from 'phaser';
 import { PIXEL_FONT } from '../art/pixelFont';
+import { ensurePalettesReady, palettesReady, type PaletteWant } from '../art/proceduralFighter';
+import { assignPalettes } from '../art/palettes';
+import { characterById } from '../characters';
 import { session } from '../game/session';
+import { footerHint, type MenuVerb } from '../input/prompts';
+
+const FOOTER: readonly (readonly [MenuVerb, string])[] = [
+  ['updown', 'MOVE'],
+  ['confirm', 'FIGHT'],
+  ['back', 'BACK'],
+];
 import type { MenuEvent } from '../input/menuInput';
 import { STAGE_LIST } from '../stages';
 import { COLORS, MenuList, MenuScene, drawPanel, text, textPx, type MenuBackdrop } from '../ui/menuKit';
 import { stageThumb } from '../ui/stageThumb';
+
+/** A random stage id from the pool (absent / empty / all unknown: every stage). */
+export function randomStage(pool: readonly string[] | undefined, rand: () => number = Math.random): string {
+  const list = STAGE_LIST.filter((s) => !pool?.length || pool.includes(s.id));
+  const from = list.length ? list : STAGE_LIST;
+  return from[Math.min(from.length - 1, Math.floor(rand() * from.length))].id;
+}
+
+/** The session lineup's fighters in their (bumped) palettes, written back to the session so the match uses the same ones. */
+function outfitWants(): PaletteWant[] {
+  const players = session.players;
+  const pals = assignPalettes(players);
+  players.forEach((p, i) => (p.palette = pals[i]));
+  return players.flatMap((p, i) => {
+    const data = characterById(p.character);
+    return data ? [{ data, palette: pals[i] }] : [];
+  });
+}
 
 /** Pick a stage from the list; a preview draws its platforms and blast zones. RANDOM is always last. */
 export class StageSelectScene extends MenuScene {
@@ -29,23 +57,42 @@ export class StageSelectScene extends MenuScene {
 
   protected build(): void {
     this.theme = '';
+    this.waiting = false;
+    // the lineup's outfits (duplicates already bumped in the lobby) keep building while the stage is chosen
+    const wants = outfitWants();
+    if (!palettesReady(this, wants)) ensurePalettesReady(this, wants).catch(() => undefined);
     this.title = this.add.bitmapText(0, 0, PIXEL_FONT, 'CHOOSE A STAGE').setOrigin(0.5).setTint(COLORS.title);
     this.ui.add(this.title);
     this.list = new MenuList(this, this.ui, [
       ...STAGE_LIST.map((s) => ({ label: s.name, onConfirm: () => this.pick(s.id) })),
-      { label: 'RANDOM', onConfirm: () => this.pick(STAGE_LIST[Math.floor(Math.random() * STAGE_LIST.length)].id) },
+      { label: 'RANDOM', onConfirm: () => this.pick(randomStage(session.rules.stagePool)) },
     ]);
     this.thumb = this.add.image(0, 0, stageThumb(this, STAGE_LIST[0])).setOrigin(0, 0);
     this.preview = this.add.graphics();
     this.ui.add([this.thumb, this.preview]);
     this.blurb = text(this, this.ui, '', COLORS.text).setOrigin(0, 0).setLineSpacing(3);
     this.tags = text(this, this.ui, '', COLORS.accent).setOrigin(0, 0);
-    this.hint = text(this, this.ui, 'UP/DOWN: MOVE   J / ENTER: FIGHT   K / ESC: BACK', COLORS.dim).setOrigin(0.5);
+    this.hint = text(this, this.ui, footerHint(FOOTER), COLORS.dim).setOrigin(0.5);
   }
 
+  /** Set while the picked fighters' outfit sheets finish building (the match would otherwise build them on the main thread). */
+  private waiting = false;
+
   private pick(id: string): void {
+    if (this.waiting) return;
     session.stage = id;
-    this.go('Match');
+    const wants = outfitWants();
+    if (palettesReady(this, wants)) {
+      this.go('Match');
+      return;
+    }
+    this.waiting = true;
+    this.hint.setText('PREPARING FIGHTERS...');
+    ensurePalettesReady(this, wants)
+      .catch((err: unknown) => console.warn('[stage select] outfit prebuild failed (the match builds them itself):', err))
+      .finally(() => {
+        if (this.scene.isActive()) this.go('Match');
+      });
   }
 
   protected override layoutUi(w: number, h: number, u: number): void {
@@ -75,6 +122,8 @@ export class StageSelectScene extends MenuScene {
   }
 
   protected override tick(time: number): void {
+    const hint = this.waiting ? 'PREPARING FIGHTERS...' : footerHint(FOOTER);
+    if (hint !== this.hint.text) this.hint.setText(hint);
     this.list.update(time);
     const g = this.preview;
     g.clear();
@@ -94,7 +143,8 @@ export class StageSelectScene extends MenuScene {
       g.fillStyle(0x0b0a24, 0.85).fillRect(a.x, a.y, a.w, a.h);
     }
     g.lineStyle(3, COLORS.title, 1).strokeRect(a.x - 2, a.y - 2, a.w + 4, a.h + 4);
-    const blurb = stage ? (stage.blurb ?? '').toUpperCase() : 'A RANDOM STAGE FROM THE LIST.';
+    const pool = session.rules.stagePool?.length ? STAGE_LIST.filter((st) => session.rules.stagePool!.includes(st.id)).length : 0;
+    const blurb = stage ? (stage.blurb ?? '').toUpperCase() : pool ? `A RANDOM STAGE FROM YOUR POOL OF ${pool}.` : 'A RANDOM STAGE FROM THE LIST.';
     if (stage) {
       const bw0 = stage.blast.right - stage.blast.left;
       const size = bw0 > 1500 ? 'LARGE' : bw0 > 1150 ? 'MEDIUM' : 'SMALL';
@@ -150,7 +200,9 @@ export class StageSelectScene extends MenuScene {
   }
 
   protected onEvent(e: MenuEvent): void {
+    if (this.waiting) return;
     if (this.list.handle(e)) return;
+    // back to the lobby: it rebuilds everyone's picks from the session
     if (e.action === 'back') this.go('CharacterSelect');
   }
 }

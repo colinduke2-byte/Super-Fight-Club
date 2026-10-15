@@ -80,6 +80,10 @@ export interface WorldConfig {
   smashFlick: boolean;
   /** Item drops: 0 off, 1 low, 2 high. */
   itemRate: number;
+  /** Item kinds switched off, one bit per ITEM_KINDS index (0 / absent = every kind drops). */
+  itemsOff?: number;
+  /** Team attack: teammates' attacks hit each other (CPUs still never target a teammate). */
+  teamAttack?: boolean;
 }
 
 /** Holds the stage and fighters and advances them one fixed tick at a time. Deterministic. */
@@ -141,6 +145,11 @@ export class World {
     const x = this.fighters[a];
     const y = this.fighters[b];
     return !!x && !!y && a !== b && x.team >= 0 && x.team === y.team;
+  }
+
+  /** True when `a`'s attacks pass through `b`: same team and team attack is off. */
+  shielded(a: number, b: number): boolean {
+    return !this.config.teamAttack && this.allied(a, b);
   }
 
   /**

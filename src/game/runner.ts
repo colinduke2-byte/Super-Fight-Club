@@ -14,8 +14,22 @@ export interface RunnerSetup {
   rules: MatchConfig;
   /** Per-slot starting stocks (handicap / boss stocks); a missing or 0 entry keeps `rules.stocks`. */
   stocks?: (number | undefined)[];
-  /** Team battle: with exactly four fighters, slots 0-1 are team 0 and slots 2-3 team 1. */
+  /** Team battle: each slot's team from `teamOf`; without it, four fighters split 0-1 against 2-3. */
   teams?: boolean;
+  /** Team per slot (used when `teams` is on and it names at least two teams). */
+  teamOf?: readonly number[];
+  /** Team attack: teammates' hits land. */
+  teamAttack?: boolean;
+  /** Handicap: damage each slot starts the match with (respawns start clean). */
+  startDamage?: readonly number[];
+  /** Handicap: stocks added to (or taken from) each slot's starting stocks (at least 1 is left). */
+  stockBonus?: readonly number[];
+  /** Item kinds switched off (bit per ITEM_KINDS index). */
+  itemsOff?: number;
+  /** false: a tie at the bell is a draw instead of sudden death. */
+  suddenDeath?: boolean;
+  /** Stock matches: a time limit as well (seconds); at the bell most stocks, then least damage, wins. */
+  stockTimeSec?: number;
   /** Item drop rate (0 = off). */
   itemRate?: number;
   /** Launch Contest: fighter 1 is the bag, and the contest ends the match. */
@@ -52,6 +66,10 @@ export class MatchRunner {
   /** Tick each fighter was eliminated on (-1 = still in). */
   readonly elimAt: number[];
   smashFlick: boolean;
+  /** A tie at the bell goes to sudden death (else it is a draw). */
+  readonly allowSuddenDeath: boolean;
+  /** Stock-match time limit in ticks (0 = none). */
+  readonly stockTicks: number;
   private readonly listeners: WorldListener[] = [];
   private readonly sdListeners: ((ids: number[]) => void)[] = [];
 
@@ -65,19 +83,42 @@ export class MatchRunner {
       this.world.addFighter(f);
       this.respawn(f.id);
     }
-    if (setup.teams && this.fighters.length === 4) this.fighters.forEach((f, i) => (f.team = i < 2 ? 0 : 1));
+    if (setup.teams) {
+      const n = this.fighters.length;
+      const own = setup.teamOf?.slice(0, n);
+      if (own && own.length === n && new Set(own).size >= 2) this.fighters.forEach((f, i) => (f.team = own[i]));
+      else if (n === 4) this.fighters.forEach((f, i) => (f.team = i < 2 ? 0 : 1));
+    }
     this.isTargets = !!setup.targets && this.world.targets.length > 0;
     this.world.config.itemRate = setup.itemRate ?? 0;
+    if (setup.itemsOff) this.world.config.itemsOff = setup.itemsOff;
+    if (setup.teamAttack) this.world.config.teamAttack = true;
+    this.allowSuddenDeath = setup.suddenDeath !== false;
+    this.stockTicks = setup.rules.mode === 'stock' && (setup.stockTimeSec ?? 0) > 0 ? Math.round(setup.stockTimeSec! * 60) : 0;
     // Launch Contest: no stocks (falls just respawn); the contest ends the match itself
     this.launch = setup.launch ? new LaunchContest(this.fighters[1]) : null;
     if (this.launch) this.fighters.forEach((f) => (f.invuln = 0)); // the bag can be hit from the first frame
     this.match = new Match(this.world, setup.rules);
     this.match.onRespawn = (f) => this.respawn(f.id, true);
     this.match.onSuddenDeath = (ids) => {
+      if (!this.allowSuddenDeath) {
+        // sudden death is off: the tie stands as a draw
+        this.match.over = true;
+        this.match.winner = -1;
+        this.match.winnerTeam = -1;
+        return;
+      }
       for (const l of this.sdListeners) l(ids);
     };
     setup.stocks?.forEach((s, i) => {
       if (s && this.match.scores[i]) this.match.scores[i].stocks = s;
+    });
+    setup.stockBonus?.forEach((b, i) => {
+      const sc = this.match.scores[i];
+      if (b && sc) sc.stocks = Math.max(1, sc.stocks + b);
+    });
+    setup.startDamage?.forEach((d, i) => {
+      if (d > 0 && this.fighters[i]) this.fighters[i].damage = d;
     });
     this.world.listener = (type, f, x, y, mag, extra, tag) => {
       if (type === 'ko') this.match.onKo(f, extra);
@@ -109,12 +150,42 @@ export class MatchRunner {
     return this.match.over;
   }
 
+  /** Ticks left on a stock match's clock (null when it has none). */
+  get stockClock(): number | null {
+    return this.stockTicks > 0 ? Math.max(0, this.stockTicks - this.world.tick) : null;
+  }
+
+  /** Stock match with a time limit, at the bell: most stocks (team total in team battles), then least damage, wins; else a draw. */
+  private stockTimeUp(): void {
+    const m = this.match;
+    const fs = this.fighters;
+    const live = (i: number): boolean => !m.scores[i].eliminated;
+    const teams = fs.some((f) => f.team >= 0);
+    const key = (ids: number[]): [number, number] => [ids.reduce((a, i) => a + (live(i) ? m.scores[i].stocks : 0), 0), ids.reduce((a, i) => a + (live(i) ? fs[i].damage : 0), 0)];
+    const groups = teams ? [...new Set(fs.map((f) => f.team))].map((t) => fs.filter((f) => f.team === t).map((f) => f.id)) : fs.map((f) => [f.id]);
+    const scored = groups.map((ids) => ({ ids, k: key(ids) })).filter((g) => g.k[0] > 0);
+    scored.sort((a, b) => b.k[0] - a.k[0] || a.k[1] - b.k[1]);
+    m.over = true;
+    m.winner = -1;
+    m.winnerTeam = -1;
+    const best = scored[0];
+    if (!best || (scored[1] && scored[1].k[0] === best.k[0] && scored[1].k[1] === best.k[1])) return; // a dead heat: draw
+    const top = best.ids.filter(live).sort((a, b) => m.scores[b].kos - m.scores[a].kos)[0] ?? best.ids[0];
+    m.winner = top;
+    if (teams) m.winnerTeam = fs[top].team;
+    // everyone else is out at the bell (results rank the winner first)
+    m.scores.forEach((s, i) => {
+      if (!best.ids.includes(i)) s.eliminated = true;
+    });
+  }
+
   /** One 60 Hz tick: the world, then stocks / respawns / win conditions, then the mode's own end conditions. */
   step(inputs: FighterInput[]): void {
     const w = this.world;
     w.config.smashFlick = this.smashFlick;
     w.step(inputs);
     this.match.step();
+    if (this.stockTicks > 0 && !this.match.over && !this.match.suddenDeath && w.tick >= this.stockTicks) this.stockTimeUp();
     const lc = this.launch;
     if (lc && !this.match.over) {
       const was = lc.phase;

@@ -1,9 +1,13 @@
 import Phaser from 'phaser';
-import { animFrameIndex, ensurePalette, fighterAnimKey, fighterTextureKey, paletteReady, portraitCrop, portraitK, releasePalettes, requestPalette, skinKey } from '../art/proceduralFighter';
-import { ALT_LOOKS, lookName, paletteCount } from '../art/palettes';
+import { animFrameIndex, ensurePalette, ensurePalettesReady, fighterAnimKey, fighterTextureKey, paletteReady, palettesReady, portraitCrop, portraitK, releasePalettes, requestPalette, skinKey } from '../art/proceduralFighter';
+import { ALT_LOOKS, assignPalettes, lookName, paletteCount } from '../art/palettes';
 import { PIXEL_FONT } from '../art/pixelFont';
 import { CHARACTER_LIST } from '../characters';
-import { Lobby } from '../game/lobby';
+import { Lobby, skillName, skillOfLevel, type CardRow } from '../game/lobby';
+import { rememberFighter } from '../game/quick';
+import { saveLastRules } from '../game/rulesets';
+import { footerHint, type MenuVerb } from '../input/prompts';
+import type { InputDevice } from '../input/device';
 import { buildLadder } from '../game/ladder';
 import { launchSlots } from '../game/launch';
 import { challengeById, challengeSlots } from '../game/challenges';
@@ -11,7 +15,11 @@ import { introCards } from '../game/story';
 import { session, type PlayerSlot } from '../game/session';
 import { inputManager } from '../input/inputManager';
 import type { MenuEvent } from '../input/menuInput';
-import { COLORS, MenuScene, PANEL, drawPanel, text, textPx, type MenuBackdrop } from '../ui/menuKit';
+import { COLORS, MenuScene, PANEL, drawPanel, pointerDevice, pointerXY, text, textPx, type MenuBackdrop } from '../ui/menuKit';
+
+/** Team colour names (team index = player colour index). */
+const TEAM_NAMES = ['BLUE', 'RED', 'GREEN', 'YELLOW'];
+const ROW_NAMES: Record<CardRow, string> = { cpu: 'CPU', fighter: 'FIGHTER', outfit: 'OUTFIT', level: 'LEVEL', team: 'TEAM', damage: 'START %', stock: 'STOCKS' };
 
 interface Card {
   header: Phaser.GameObjects.BitmapText;
@@ -29,6 +37,12 @@ interface Card {
   swatches: Phaser.GameObjects.Image[];
   /** Outfit and colour name of the chosen palette. */
   outfit: Phaser.GameObjects.BitmapText;
+  /** RANDOM fighter: a big question mark in place of the sprite. */
+  q: Phaser.GameObjects.BitmapText;
+  /** Handicap summary under the header band ("+30%  +1 STOCK"). */
+  handi: Phaser.GameObjects.BitmapText;
+  /** Rows of the card while someone sets it up (CPU card, or a locked player's team / handicap). */
+  rows: Phaser.GameObjects.BitmapText;
   /** Card geometry from the last layout: centre x, top, width and the card's own art unit. */
   cx: number;
   top: number;
@@ -46,15 +60,20 @@ export class CharacterSelectScene extends MenuScene {
   private lobby!: Lobby;
   private title!: Phaser.GameObjects.BitmapText;
   private cards: Card[] = [];
-  private roster: { img: Phaser.GameObjects.Image; name: Phaser.GameObjects.BitmapText; pips: Phaser.GameObjects.Image[]; box: { x: number; y: number; w: number; h: number } }[] = [];
+  private roster: { img: Phaser.GameObjects.Image | null; q: Phaser.GameObjects.BitmapText | null; name: Phaser.GameObjects.BitmapText; pips: Phaser.GameObjects.Image[]; box: { x: number; y: number; w: number; h: number } }[] = [];
   /** Card plates (drawn per frame: they light up as players join and lock) and the roster strip with its cursors. */
   private cardG!: Phaser.GameObjects.Graphics;
   private rosterG!: Phaser.GameObjects.Graphics;
   private rosterPlate = { x: 0, y: 0, w: 0, h: 0, u: 1 };
   private warn!: Phaser.GameObjects.BitmapText;
   private hint!: Phaser.GameObjects.BitmapText;
-  /** Chosen colour palette per slot. */
-  private palettes: number[] = [];
+  /** Card overlay (row plates over the fighter's stage while a card is being set up); drawn above the sprites. */
+  private editG!: Phaser.GameObjects.Graphics;
+  /** Per slot: when its locked owner last touched their team / handicap rows (the overlay shows for a while after). */
+  private ownEditAt = [-99, -99, -99, -99];
+  /** The device that last sent an event (the footer names its controls). */
+  private lastDevice: InputDevice | null = null;
+  private now = 0;
 
   constructor() {
     super('CharacterSelect');
@@ -65,12 +84,22 @@ export class CharacterSelectScene extends MenuScene {
     this.events.once('shutdown', () => releasePalettes(this, (session.players ?? []).filter((p) => (p.palette ?? 0) > 0).map((p) => skinKey(p.character, p.palette))));
     this.cards = [];
     this.roster = [];
-    this.palettes = (session.players.length ? session.players.map((p) => (p.type === 'human' ? (p.palette ?? 0) : 0)) : []).concat([0, 0, 0, 0]).slice(0, 4);
-    this.lobby = new Lobby(session.playerCount, CHARACTER_LIST.length);
-    this.lobby.slots.forEach((s, i) => (s.character = i % CHARACTER_LIST.length));
-    // a challenge with a set fighter: the cursor starts (and stays) on them
+    this.ownEditAt = [-99, -99, -99, -99];
+    this.lastDevice = null;
+    // a challenge with a set fighter: the cursor starts (and stays) on them (and there is no RANDOM tile)
     const fixed = this.fixedFighter();
+    this.lobby = new Lobby(session.playerCount, CHARACTER_LIST.length, { random: fixed < 0, palettes: (ci) => (CHARACTER_LIST[ci] ? paletteCount(CHARACTER_LIST[ci].id) : 1) });
+    const versus = session.mode === 'versus';
+    this.lobby.teams = versus && session.rules.teams;
+    this.lobby.stockRule = session.rules.mode !== 'time';
+    this.lobby.handicaps = versus;
+    this.lobby.slots.forEach((s, i) => {
+      s.character = i % CHARACTER_LIST.length;
+      const t = session.rules.teamOf?.[i];
+      if (versus && t !== undefined) s.team = t;
+    });
     if (fixed >= 0) this.lobby.slots.forEach((s) => (s.character = fixed));
+    else this.restorePicks();
     const title = session.mode === 'versus' ? 'CHOOSE YOUR FIGHTERS' : session.mode === 'arcade' ? 'CHOOSE YOUR CHAMPION' : session.mode === 'targets' ? 'TARGET SMASH' : session.mode === 'launch' ? 'LAUNCH CONTEST' : session.mode === 'challenge' ? `CHALLENGE: ${challengeById(session.challenge)?.title ?? ''}` : 'TRAINING: CHOOSE A FIGHTER';
     this.title = this.add.bitmapText(0, 0, PIXEL_FONT, title).setOrigin(0.5).setTint(COLORS.title);
     this.ui.add(this.title);
@@ -82,6 +111,9 @@ export class CharacterSelectScene extends MenuScene {
       const col = COLORS.p[i];
       const sprite = this.add.sprite(0, 0, fighterTextureKey(CHARACTER_LIST[0].id), 0).setOrigin(0.5, 1);
       const card: Card = {
+        q: text(this, this.ui, '?', COLORS.title).setOrigin(0.5).setVisible(false),
+        handi: text(this, this.ui, '', COLORS.accent).setOrigin(0.5, 0),
+        rows: text(this, this.ui, '', COLORS.text).setOrigin(0, 0).setLineSpacing(2).setVisible(false),
         header: text(this, this.ui, `P${i + 1}`, col),
         device: text(this, this.ui, '', COLORS.dim),
         sprite,
@@ -114,19 +146,30 @@ export class CharacterSelectScene extends MenuScene {
       }
       this.cards.push(card);
     }
+    const pipsFor = () =>
+      COLORS.p.slice(0, session.playerCount).map((col) => {
+        const p = this.add.image(0, 0, 'px').setTint(col);
+        this.ui.add(p);
+        return p;
+      });
     CHARACTER_LIST.forEach((c) => {
       const img = this.add.image(0, 0, fighterTextureKey(c.id), animFrameIndex(c, 'idle', 0)).setOrigin(0.5, 0.5).setCrop(...portraitCrop(c));
       img.setData('k', portraitK(c));
       img.setData('crop', portraitCrop(c));
       const name = text(this, this.ui, c.name, COLORS.text).setOrigin(0.5, 0);
-      const pips = COLORS.p.slice(0, session.playerCount).map((col) => {
-        const p = this.add.image(0, 0, 'px').setTint(col);
-        this.ui.add(p);
-        return p;
-      });
       this.ui.add(img);
-      this.roster.push({ img, name, pips, box: { x: 0, y: 0, w: 0, h: 0 } });
+      this.roster.push({ img, q: null, name, pips: pipsFor(), box: { x: 0, y: 0, w: 0, h: 0 } });
     });
+    if (this.lobby.random) {
+      // the RANDOM tile: a question mark, last on the strip
+      const q = text(this, this.ui, '?', COLORS.title).setOrigin(0.5);
+      this.roster.push({ img: null, q, name: text(this, this.ui, 'RANDOM', COLORS.text).setOrigin(0.5, 0), pips: pipsFor(), box: { x: 0, y: 0, w: 0, h: 0 } });
+    }
+    // the edit overlay sits above the card sprites; its row text above that
+    this.editG = this.add.graphics();
+    this.ui.add(this.editG);
+    for (const c of this.cards) this.ui.bringToTop(c.rows);
+    this.input.on(Phaser.Input.Events.POINTER_DOWN, (p: Phaser.Input.Pointer) => this.onPointer(p));
     this.warn = text(this, this.ui, '', COLORS.warn).setOrigin(0.5);
     this.hint = text(this, this.ui, '', COLORS.dim).setOrigin(0.5);
   }
@@ -159,10 +202,13 @@ export class CharacterSelectScene extends MenuScene {
     this.rosterPlate = { x: w / 2 - (rn * rw) / 2 - 2 * ru, y: stripTop, w: rn * rw + 4 * ru, h: pipY + 4 * ru - stripTop, u: ru };
     this.roster.forEach((r, i) => {
       const cx = w / 2 + (i - (rn - 1) / 2) * rw;
-      const sc = ru * 1.35 * (r.img.getData('k') as number);
-      // centre the cropped portrait (not the whole frame) over the name
-      const cr = r.img.getData('crop') as [number, number, number, number];
-      r.img.setScale(sc).setPosition(cx + (r.img.width / 2 - (cr[0] + cr[2] / 2)) * sc, portBottom + (r.img.height / 2 - (cr[1] + cr[3])) * sc);
+      if (r.img) {
+        const sc = ru * 1.35 * (r.img.getData('k') as number);
+        // centre the cropped portrait (not the whole frame) over the name
+        const cr = r.img.getData('crop') as [number, number, number, number];
+        r.img.setScale(sc).setPosition(cx + (r.img.width / 2 - (cr[0] + cr[2] / 2)) * sc, portBottom + (r.img.height / 2 - (cr[1] + cr[3])) * sc);
+      }
+      r.q?.setScale(Math.max(1, Math.floor(Math.min(portH * 0.8, rw * 0.8) / 7))).setPosition(cx, portBottom - portH / 2);
       r.name.setScale(nameS).setPosition(cx, nameY);
       r.pips.forEach((p, k) => p.setScale((3 * ru) / 4).setPosition(cx - ((r.pips.length - 1) * 4 * ru) / 2 + k * 4 * ru, pipY));
       r.box = { x: cx - rw / 2 + ru, y: stripTop + ru, w: rw - 2 * ru, h: pipY + 3 * ru - stripTop - ru };
@@ -183,10 +229,14 @@ export class CharacterSelectScene extends MenuScene {
       c.header.setOrigin(0, 0.5).setPosition(x0 + 6 * u, top + 10.5 * u);
       c.device.setOrigin(1, 0.5).setPosition(x0 + cw * 0.94 - 6 * u, top + 10.5 * u);
       this.fitFighter(c, CHARACTER_LIST[this.lobby.slots[i].character] ?? CHARACTER_LIST[0]);
+      c.q.setScale(Math.max(1, Math.floor((50 * u) / 7))).setPosition(cx, top + 58 * u);
+      c.handi.setScale(legible(u)).setPosition(cx, top + 23 * u);
+      c.rows.setData('u', u);
       c.name.setScale(u * 1.5).setOrigin(0.5, 0).setPosition(cx, top + 95 * u);
       c.status.setOrigin(0.5, 0).setPosition(cx, top + 107 * u);
       c.outfit.setOrigin(0.5, 0).setPosition(cx, top + 118 * u).setData('u', u);
-      c.tagline.setScale(u * 0.85).setOrigin(0.5, 0).setPosition(cx, top + 128 * u);
+      // the tagline's scale is fitted (wrapped and shrunk) in tick: clearing its key re-fits it to the new card size
+      c.tagline.setOrigin(0.5, 0).setPosition(cx, top + 128 * u).setData('src', '');
       // the outfit swatches (one per look, the fighter's own first) run down the right edge of the fighter's stage
       c.swatches.forEach((sw, k) => sw.setPosition(x0 + cw * 0.94 - 9 * u, top + 29 * u + k * 7 * u).setData('u', u));
       c.bars.forEach((b, k) => {
@@ -213,7 +263,7 @@ export class CharacterSelectScene extends MenuScene {
       const u = c.cu;
       const x0 = c.cx - c.cw / 2;
       const H = this.cardH * u;
-      const col = session.rules.teams && session.playerCount === 4 ? COLORS.p[i < 2 ? 0 : 1] : COLORS.p[i];
+      const col = this.cardColor(i);
       drawPanel(g, x0, c.top, c.cw, H, u, slot.kind === 'empty' ? 0.7 : 0.92);
       g.fillStyle(col, slot.kind === 'empty' ? 0.1 : 0.22).fillRect(x0 + u, c.top + u, c.cw - 2 * u, 20 * u);
       g.fillStyle(col, slot.kind === 'empty' ? 0.4 : 1).fillRect(x0 + u, c.top + 20 * u, c.cw - 2 * u, u);
@@ -281,15 +331,19 @@ export class CharacterSelectScene extends MenuScene {
   }
 
   protected override tick(time: number): void {
+    this.now = time;
     const l = this.lobby;
-    const u = this.u;
+    const editors = this.editors(time);
     this.cards.forEach((c, i) => {
       const slot = l.slots[i];
-      const data = CHARACTER_LIST[slot.character];
-      const pal = slot.kind === 'human' ? this.palettes[i] % paletteCount(data.id) : 0;
+      const random = l.isRandom(slot);
+      const data = CHARACTER_LIST[random ? 0 : slot.character] ?? CHARACTER_LIST[0];
+      const filled = slot.kind !== 'empty';
+      const fighter = filled && !random;
+      const pal = fighter ? Math.max(0, slot.palette) % paletteCount(data.id) : 0;
       // outfits are built off the main thread: until one is ready the card shows the fighter's default look, and the next
       // outfit along is prepared ahead so flicking through them never stalls the menu
-      if (slot.kind === 'human') {
+      if (fighter) {
         if (!paletteReady(this, data, pal)) requestPalette(this, data, pal);
         requestPalette(this, data, (pal + 1) % paletteCount(data.id));
       }
@@ -302,47 +356,58 @@ export class CharacterSelectScene extends MenuScene {
       }
       const looks = [data.sprite.placeholder, ...(ALT_LOOKS[data.id] ?? [])];
       c.swatches.forEach((sw, k) => {
-        const su = (sw.getData('u') as number) ?? u;
-        const on = slot.kind === 'human' && k < looks.length;
+        const su = (sw.getData('u') as number) ?? this.u;
+        const on = fighter && k < looks.length;
         sw.setVisible(on);
         if (!on) return;
         sw.setTint(parseInt(looks[k].armor.slice(1), 16)).setScale(((k === pal ? 6 : 4) * su) / 4).setAlpha(k === pal ? 1 : 0.5);
       });
-      c.outfit.setVisible(slot.kind === 'human').setText(up(lookName(data.id, pal)));
-      const dev = slot.kind === 'human' ? (inputManager.allDevices.find((d) => d.id === slot.deviceId)?.label ?? slot.deviceId ?? '') : slot.kind === 'cpu' ? `CPU LV ${slot.cpuLevel}` : '';
-      const teamTag = session.rules.teams && session.playerCount === 4 ? (i < 2 ? ' BLUE' : ' RED') : '';
-      c.header.setText(up(`P${i + 1}${teamTag}`));
-      c.header.setScale(legible(Math.min(c.cu * 2, (c.cw * 0.4) / Math.max(1, textPx(c.header)))));
+      c.outfit.setVisible(filled).setText(random ? (slot.palette < 0 ? 'RANDOM OUTFIT' : 'DEFAULT OUTFIT') : up(lookName(data.id, pal)));
+      const dev = slot.kind === 'human' ? (inputManager.allDevices.find((d) => d.id === slot.deviceId)?.label ?? slot.deviceId ?? '') : slot.kind === 'cpu' ? `CPU ${skillName(slot.skill).replace(' ', '')}` : '';
+      const teamTag = l.teams ? ` ${TEAM_NAMES[slot.team] ?? ''}` : '';
+      c.header.setText(up(`P${i + 1}${teamTag}`)).setTint(this.cardColor(i));
+      c.header.setScale(legible(Math.min(c.cu * 2, (c.cw * 0.45) / Math.max(1, textPx(c.header)))));
       // a short device name beside the player tag, as large as the header band allows
       c.device.setText(up(dev.replace('Keyboard (WASD + JKLI)', 'WASD KEYS').replace('Keyboard (Arrows + Numpad)', 'ARROW KEYS').slice(0, 12)));
       const room = c.cw - c.header.displayWidth - 18 * c.cu;
       c.device.setScale(legible(Math.min(c.cu * 1.2, room / Math.max(1, textPx(c.device)))));
       c.outfit.setScale(legible(Math.min(c.cu, (c.cw * 0.92) / Math.max(1, textPx(c.outfit)))));
-      const shown = slot.kind !== 'empty';
-      c.sprite.setVisible(shown).setAlpha(slot.kind === 'cpu' ? 0.75 : 1);
-      c.name.setText(shown ? up(data.name) : '');
-      c.status.setText(slot.kind === 'empty' ? 'PRESS A BUTTON' : slot.kind === 'cpu' ? 'CPU' : slot.locked ? 'READY!' : 'SELECTING')
-        .setTint(slot.locked ? COLORS.good : slot.kind === 'empty' ? ((time * 2) | 0) % 2 === 0 ? COLORS.warn : COLORS.dim : COLORS.text);
+      c.sprite.setVisible(fighter).setAlpha(slot.kind === 'cpu' ? 0.85 : 1);
+      c.q.setVisible(filled && random).setAlpha(0.6 + 0.4 * Math.abs(Math.sin(time * 2.5)));
+      c.name.setText(filled ? (random ? 'RANDOM' : up(data.name)) : '');
+      c.name.setScale(Math.min(c.cu * 1.5, (c.cw * 0.9) / Math.max(1, textPx(c.name))));
+      const emptyMsg = session.mode === 'versus' && l.humans() > 0 ? 'EMPTY: CPU FILLS' : 'PRESS A BUTTON';
+      c.status
+        .setText(slot.kind === 'empty' ? emptyMsg : slot.kind === 'cpu' ? 'CPU' : slot.locked ? 'READY!' : 'SELECTING')
+        .setTint(slot.locked ? COLORS.good : slot.kind === 'empty' ? (((time * 2) | 0) % 2 === 0 ? COLORS.warn : COLORS.dim) : COLORS.text);
       c.status.setScale(Math.min(c.cu * 1.2, (c.cw * 0.9) / Math.max(1, textPx(c.status))));
       c.status.setY(c.top + (slot.kind === 'empty' ? 80 : 107) * c.cu);
+      // handicap summary under the header band
+      const hparts: string[] = [];
+      if (filled && slot.damage > 0) hparts.push(`${slot.damage}%`);
+      if (filled && slot.stock !== 0 && l.stockRule) hparts.push(`${slot.stock > 0 ? '+' : ''}${slot.stock} STOCK`);
+      c.handi.setText(hparts.length ? `HANDICAP ${hparts.join(' ')}` : '');
+      c.handi.setScale(legible(Math.min(c.cu, (c.cw * 0.9) / Math.max(1, textPx(c.handi)))));
       const stats = [this.norm(data.stats.weight, 80, 110), this.norm(data.stats.runSpeed, 1.6, 3.3), this.norm(data.stats.jumpHeight, 55, 82), (data.difficulty ?? 3) / 5];
-      c.bars.forEach((b, k) => b.setVisible(shown).setScale((stats[k] * c.barW) / 4, (4 * c.cu) / 4));
-      c.barBg.forEach((b) => b.setVisible(shown));
-      c.barLabels.forEach((t) => t.setVisible(shown));
+      c.bars.forEach((b, k) => b.setVisible(fighter).setScale((stats[k] * c.barW) / 4, (4 * c.cu) / 4));
+      c.barBg.forEach((b) => b.setVisible(fighter));
+      c.barLabels.forEach((t) => t.setVisible(fighter));
       c.tagline.setVisible(!this.compact);
-      const tagKey = `${data.id}:${c.cw}:${c.cu}`;
-      if (shown && c.tagline.getData('src') !== tagKey) {
+      const tagKey = `${random ? 'random' : data.id}:${c.cw}:${c.cu}`;
+      if (filled && c.tagline.getData('src') !== tagKey) {
         // wrap to the card (fixed-width font: measure one glyph), at most two lines, shrinking if needed
-        c.tagline.setData('src', tagKey).setText('M');
-        const glyph = Math.max(1, textPx(c.tagline));
+        // the advance of one glyph (letter + spacing), measured over a run so the gap is counted
+        c.tagline.setData('src', tagKey).setText('MMMMMMMMMM');
+        const glyph = Math.max(1, textPx(c.tagline) / 10);
         // small text keeps a whole-pixel scale so the 5x7 glyphs stay even
         let sc = crisp(c.cu * 0.85);
         let lines: string[] = [];
+        const tag = random ? 'Anyone on the roster: rolled when the match starts.' : data.tagline;
         for (let tries = 0; tries < 12; tries++) {
           const per = Math.max(8, Math.floor((c.cw * 0.9) / (glyph * sc)));
           lines = [];
           let line = '';
-          for (const word of up(data.tagline).split(' ')) {
+          for (const word of up(tag).split(' ')) {
             if (line && (line + ' ' + word).length > per) {
               lines.push(line);
               line = word;
@@ -354,14 +419,15 @@ export class CharacterSelectScene extends MenuScene {
           sc = sc > 1 ? sc - 0.25 : sc * 0.85;
         }
         c.tagline.setText(lines.join('\n')).setScale(sc);
-      } else if (!shown) {
+      } else if (!filled) {
         c.tagline.setText('').setData('src', '');
       }
     });
+    this.drawEdit(editors, time);
     this.roster.forEach((r, i) => {
       const pickedBy = l.active.map((s, k) => (s.kind !== 'empty' && s.character === i ? k : -1));
       r.pips.forEach((p, k) => p.setVisible(pickedBy[k] >= 0));
-      r.img.setAlpha(pickedBy.some((k) => k >= 0) ? 1 : 0.7);
+      (r.img ?? r.q)?.setAlpha(pickedBy.some((k) => k >= 0) ? 1 : 0.7);
     });
     this.drawCards(time);
     this.drawRoster();
@@ -373,11 +439,163 @@ export class CharacterSelectScene extends MenuScene {
       this.warn.setScale(Math.min(k, (this.scale.width * 0.95) / Math.max(1, textPx(this.warn))));
     }
     this.warn.setTint(l.ready ? (((time * 3) | 0) % 2 === 0 ? COLORS.good : COLORS.hot) : COLORS.warn);
-    const hint = up('LEFT/RIGHT: PICK   UP/DOWN: OUTFIT   J / ENTER: JOIN + LOCK   K / ESC: BACK' + (session.mode === 'versus' ? '   U / TAB: ADD CPU' : ''));
+    const hint = this.footerText(time);
     if (hint !== this.hint.text) {
       this.hint.setText(hint);
       this.layoutUi(this.scale.width, this.scale.height, this.u);
     }
+  }
+
+  /** Footer for the device that last acted: picking a fighter, or setting up a card. */
+  private footerText(time: number): string {
+    const l = this.lobby;
+    const d = this.lastDevice;
+    const i = d ? l.slotOf(d.id) : -1;
+    const card = d ? l.focusOf(d.id) : -1;
+    const cpus: [MenuVerb, string][] = session.mode === 'versus' ? [['alt', 'SET UP CPUS']] : [];
+    if (d && i >= 0 && card !== i) return footerHint([['updown', 'ROW'], ['leftright', 'CHANGE'], ['confirm', 'NEXT CARD'], ['back', 'DONE']], d);
+    if (d && i >= 0 && this.ownOpen(i, time)) return footerHint([['updown', 'ROW'], ['leftright', 'CHANGE'], ['confirm', 'CONTINUE'], ['back', 'CLOSE']], d);
+    if (d && i >= 0 && l.slots[i].locked) {
+      const extra: [MenuVerb, string][] = l.rows(i).length ? [['updown', l.teams ? 'TEAM / HANDICAP' : 'HANDICAP']] : [];
+      return footerHint([['confirm', 'CONTINUE'], ...extra, ...cpus, ['back', 'UNLOCK']], d);
+    }
+    return footerHint([['leftright', 'FIGHTER'], ['updown', 'OUTFIT'], ['confirm', 'JOIN + LOCK'], ['back', 'BACK'], ...cpus], d);
+  }
+
+  /** The locked player's own team / handicap rows are open (they touched them in the last few seconds). */
+  private ownOpen(i: number, time = this.now): boolean {
+    return time - this.ownEditAt[i] < 4 && this.lobby.slots[i].locked && this.lobby.rows(i).length > 0;
+  }
+
+  /** Who is setting up which card: card index -> the editing slot (first editor wins). */
+  private editors(time: number): Map<number, number> {
+    const l = this.lobby;
+    const out = new Map<number, number>();
+    l.active.forEach((s, i) => {
+      if (s.kind !== 'human' || !s.deviceId) return;
+      const card = l.focusOf(s.deviceId);
+      if (card === i && !this.ownOpen(i, time)) return;
+      if (l.rowOf(s.deviceId) === null || out.has(card)) return;
+      out.set(card, i);
+    });
+    return out;
+  }
+
+  /** The row overlay on each card someone is setting up: a plate over the fighter's stage, the rows, the cursor bar. */
+  private drawEdit(editors: Map<number, number>, time: number): void {
+    const g = this.editG.clear();
+    const l = this.lobby;
+    this.cards.forEach((c, card) => {
+      const who = editors.get(card);
+      if (who === undefined) {
+        c.rows.setVisible(false);
+        return;
+      }
+      const s = l.slots[who];
+      const rows = l.rows(card);
+      const cur = Math.min(s.row, rows.length - 1);
+      const u = c.cu;
+      const lines = rows.map((r, k) => {
+        const v = this.rowValue(card, r);
+        return k === cur ? `${ROW_NAMES[r]}: < ${v} >` : `${ROW_NAMES[r]}: ${v}`;
+      });
+      c.rows.setText(lines.join('\n')).setVisible(true);
+      const widest = Math.max(1, textPx(c.rows));
+      const k = Math.min(u, (c.cw - 14 * u) / widest);
+      // never below 1x: smaller pixel text is unreadable (the shortest rows fit a narrow card at 1x)
+      c.rows.setScale(Math.max(1, Math.floor(k * 4) / 4));
+      const lineH = c.rows.displayHeight / Math.max(1, lines.length);
+      const x0 = c.cx - c.cw / 2 + 4 * u;
+      const top = c.top + 22 * u;
+      const h = 72 * u;
+      g.fillStyle(PANEL.fill, 0.86).fillRect(x0, top, c.cw - 8 * u, h);
+      const col = COLORS.p[who] ?? COLORS.title;
+      g.lineStyle(Math.max(1, u / 2), col, 0.9).strokeRect(x0, top, c.cw - 8 * u, h);
+      const ty = top + (h - c.rows.displayHeight) / 2;
+      c.rows.setPosition(x0 + 4 * u, ty);
+      const pulse = 0.25 + 0.15 * Math.sin(time * 8);
+      g.fillStyle(col, pulse).fillRect(x0 + 2 * u, ty + cur * lineH - u, c.cw - 12 * u, lineH);
+    });
+  }
+
+  private rowValue(card: number, row: CardRow): string {
+    const l = this.lobby;
+    const s = l.slots[card];
+    const data = CHARACTER_LIST[s.character];
+    switch (row) {
+      case 'cpu':
+        return s.kind === 'cpu' ? 'ON' : 'OFF';
+      case 'fighter':
+        return l.isRandom(s) || !data ? 'RANDOM' : up(data.name);
+      case 'outfit':
+        return l.isRandom(s) || !data ? (s.palette < 0 ? 'RANDOM' : 'DEFAULT') : up(lookName(data.id, Math.max(0, s.palette) % paletteCount(data.id)).split('/').pop()?.trim() ?? '').slice(0, 12);
+      case 'level':
+        return skillName(s.skill);
+      case 'team':
+        return TEAM_NAMES[s.team] ?? '';
+      case 'damage':
+        return `${s.damage}%`;
+      case 'stock':
+        return s.stock > 0 ? `+${s.stock}` : String(s.stock);
+    }
+  }
+
+  /** Card colour: the player's own, or their team's in a team battle. */
+  private cardColor(i: number): number {
+    return this.lobby.teams ? (COLORS.p[this.lobby.slots[i].team] ?? COLORS.p[i]) : COLORS.p[i];
+  }
+
+  /** Back from Stage Select / CHARACTER SELECT on the results screen: everyone's last picks come back. */
+  private restorePicks(): void {
+    const l = this.lobby;
+    const idx = (id: string): number => Math.max(0, CHARACTER_LIST.findIndex((c) => c.id === id));
+    if (session.mode !== 'versus') {
+      // single-player modes: the cursor starts on the fighter picked last time
+      const p = session.players[0];
+      if (p?.type === 'human') {
+        l.slots[0].character = p.random && l.random ? l.randomIndex : idx(p.character);
+        l.slots[0].palette = p.randomOutfit ? -1 : p.random ? 0 : (p.palette ?? 0);
+      }
+      return;
+    }
+    const players = session.versusLineup;
+    if (!players?.length) return;
+    const r = session.rules;
+    const live = new Set(inputManager.allDevices.map((d) => d.id));
+    l.restore(
+      players.map((p) => (p.type === 'human' ? { kind: 'human' as const, deviceId: p.device && live.has(p.device.id) ? p.device.id : null } : { kind: 'cpu' as const })),
+      players.map((p, i) => ({ character: idx(p.character), palette: p.palette ?? 0, random: p.random, randomOutfit: p.randomOutfit, skill: p.cpuSkill ?? skillOfLevel(p.cpuLevel), team: r.teamOf?.[i], damage: r.handicap?.[i]?.damage, stock: r.handicap?.[i]?.stock })),
+    );
+  }
+
+  /** Mouse / tap on the roster: joins (as the pointer's device), moves the cursor there, a second tap locks in. */
+  private onPointer(p: Phaser.Input.Pointer): void {
+    if (p.rightButtonDown()) return;
+    const q = pointerXY(this, p);
+    const tile = this.roster.findIndex((r) => q.x >= r.box.x && q.x <= r.box.x + r.box.w && q.y >= r.box.y && q.y <= r.box.y + r.box.h);
+    if (tile < 0) return;
+    const l = this.lobby;
+    const dev = pointerDevice(p);
+    this.lastDevice = dev;
+    if (l.slotOf(dev.id) < 0 && l.join(dev.id) < 0) return;
+    const s = l.slots[l.slotOf(dev.id)];
+    l.focusHome(dev.id);
+    if (s.locked) return;
+    if (this.fixedFighter() >= 0 || s.character === tile) l.confirm(dev.id);
+    else {
+      s.character = tile;
+      s.palette = 0;
+    }
+  }
+
+  /** Start building the picked outfits (duplicates already bumped) so the match does not stall on them. */
+  private prepareOutfits(slots: readonly PlayerSlot[]): void {
+    const wants = slots.flatMap((p) => {
+      const data = CHARACTER_LIST.find((c) => c.id === p.character);
+      return data ? [{ data, palette: p.palette ?? 0 }] : [];
+    });
+    if (palettesReady(this, wants)) return;
+    ensurePalettesReady(this, wants).catch((err: unknown) => console.warn('[lobby] outfit prebuild failed (the match builds them itself):', err));
   }
 
   /** Roster index of the fighter a challenge imposes, or -1. */
@@ -393,31 +611,41 @@ export class CharacterSelectScene extends MenuScene {
 
   private proceed(): void {
     const l = this.lobby;
-    if (session.mode === 'versus') l.fillWithCpu();
+    const versus = session.mode === 'versus';
+    if (versus) l.fillWithCpu();
     if (!l.ready) return;
-    const used = new Set<number>();
+    if (versus && l.teams && l.teamCount() < 2) return; // everyone on one team: the warning says so
+    const picks = l.resolve();
     const slots: PlayerSlot[] = l.active.map((s, i) => {
-      let ci = s.character;
-      if (s.kind === 'cpu') {
-        // CPUs pick a fighter nobody has taken yet (random among the free ones)
-        const taken = new Set(l.active.filter((o) => o.kind === 'human').map((o) => o.character));
-        const free = CHARACTER_LIST.map((_, k) => k).filter((k) => !taken.has(k) && !used.has(k));
-        const pool = free.length ? free : CHARACTER_LIST.map((_, k) => k);
-        ci = pool[Math.floor(Math.random() * pool.length)];
-      }
-      used.add(ci);
-      const palette = s.kind === 'human' ? this.palettes[i] % paletteCount(CHARACTER_LIST[ci].id) : 0;
-      return { index: i, type: s.kind === 'human' ? 'human' : 'cpu', device: s.kind === 'human' ? this.deviceById(s.deviceId) : null, character: CHARACTER_LIST[ci].id, cpuLevel: s.cpuLevel, palette };
+      const pk = picks[i];
+      const human = s.kind === 'human';
+      const slot: PlayerSlot = { index: i, type: human ? 'human' : 'cpu', device: human ? this.deviceById(s.deviceId) : null, character: CHARACTER_LIST[pk.character].id, cpuLevel: s.cpuLevel, palette: pk.palette };
+      if (!human && s.skill !== skillOfLevel(s.cpuLevel)) slot.cpuSkill = s.skill;
+      if (pk.random) slot.random = true;
+      if (pk.randomOutfit) slot.randomOutfit = true;
+      return slot;
     });
+    // duplicate fighters get their bumped colours now (the match does the same), so those sheets build during stage select
+    const bumped = assignPalettes(slots);
+    slots.forEach((sl, k) => (sl.palette = bumped[k]));
+    const me = slots.find((p) => p.type === 'human' && !p.random);
+    if (me) rememberFighter(me.character, me.palette);
     session.players = slots;
-    if (session.mode === 'versus') this.go('StageSelect');
+    if (versus) {
+      session.versusLineup = slots;
+      const r = session.rules;
+      if (l.teams) r.teamOf = l.active.map((s) => s.team);
+      r.handicap = l.active.some((s) => s.damage || s.stock) ? l.active.map((s) => ({ damage: s.damage, stock: s.stock })) : undefined;
+      saveLastRules(r, session.playerCount);
+    }
+    this.prepareOutfits(slots);
+    if (versus) this.go('StageSelect');
     else if (session.mode === 'arcade') {
       session.arcadeHuman = slots[0];
       session.ladder = buildLadder(slots[0].character);
       session.ladder.introduced = true;
       this.go('Story', { cards: introCards(slots[0].character), next: 'LadderMap' });
-    }
-    else if (session.mode === 'challenge') {
+    } else if (session.mode === 'challenge') {
       const ch = challengeById(session.challenge);
       if (!ch) return;
       session.stage = ch.stage;
@@ -441,33 +669,62 @@ export class CharacterSelectScene extends MenuScene {
   protected onEvent(e: MenuEvent): void {
     const l = this.lobby;
     const id = e.device.id;
+    this.lastDevice = e.device;
+    const i = l.slotOf(id);
+    const onOther = i >= 0 && l.focusOf(id) !== i;
+    const ownLocked = i >= 0 && !onOther && l.slots[i].locked && l.rows(i).length > 0;
+    /** Locked player's own rows: the first press opens them, later presses edit. */
+    const touchOwn = (): boolean => {
+      const open = this.ownOpen(i);
+      this.ownEditAt[i] = this.now;
+      return open;
+    };
     switch (e.action) {
       case 'left':
-      case 'right':
-        if (this.fixedFighter() < 0) l.move(id, e.action === 'left' ? -1 : 1);
+      case 'right': {
+        const dir = e.action === 'left' ? -1 : 1;
+        if (onOther) l.adjust(id, dir);
+        else if (ownLocked) {
+          if (touchOwn()) l.adjust(id, dir);
+        } else if (this.fixedFighter() < 0) l.move(id, dir);
         break;
+      }
       case 'up':
       case 'down': {
-        // colour palette for this player's fighter
-        const i = l.slotOf(id);
-        if (i < 0 || l.slots[i].kind !== 'human') break;
-        const n = paletteCount(CHARACTER_LIST[l.slots[i].character].id);
-        this.palettes[i] = (this.palettes[i] + (e.action === 'down' ? 1 : -1) + n) % n;
+        const dir = e.action === 'down' ? 1 : -1;
+        if (onOther) l.moveRow(id, dir);
+        else if (ownLocked) {
+          if (touchOwn()) l.moveRow(id, dir);
+        } else l.outfit(id, dir); // colour palette for this player's fighter
         break;
       }
       case 'confirm': {
-        const i = l.slotOf(id);
+        if (onOther) {
+          l.focusNext(id); // on to the next CPU card (or back to your own)
+          break;
+        }
         if (i >= 0 && l.slots[i].locked && (l.ready || session.mode !== 'versus')) this.proceed();
         else l.confirm(id);
         break;
       }
       case 'back': {
+        if (onOther) {
+          l.focusHome(id);
+          break;
+        }
+        if (i >= 0 && this.ownOpen(i)) {
+          this.ownEditAt[i] = -99;
+          break;
+        }
         const r = l.back(id);
         if (r === 'none' && l.humans() === 0) this.go(session.mode === 'versus' ? 'VersusSetup' : session.mode === 'challenge' ? 'Challenges' : 'ModeSelect');
         break;
       }
       case 'alt':
-        if (session.mode === 'versus') l.cycleCpu();
+        if (session.mode !== 'versus') break;
+        // move your cursor onto the CPU / empty cards to set them up (not joined yet: just add a CPU)
+        if (i >= 0) l.focusNext(id);
+        else l.cycleCpu();
         break;
       case 'start':
         if (l.ready) this.proceed();

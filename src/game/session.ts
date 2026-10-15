@@ -1,6 +1,9 @@
 import type { InputDevice } from '../input/device';
 import type { LadderState } from './ladder';
 import type { CpuLevel } from './lobby';
+import { ITEM_KINDS } from '../engine/items';
+
+const ITEM_KIND_IDS: readonly string[] = ITEM_KINDS;
 
 export type GameMode = 'versus' | 'arcade' | 'training' | 'targets' | 'launch' | 'challenge';
 
@@ -39,6 +42,17 @@ export interface PlayerSlot {
   boss?: boolean;
   /** Colour palette (0 = the fighter's own); duplicates in a match are bumped to a free one. */
   palette?: number;
+  /** CPU skill on the 1..9 scale (absent = the level's own: 1 / 5 / 9). */
+  cpuSkill?: number;
+  /** Lobby: the fighter (and `randomOutfit`: the outfit) was rolled from RANDOM; going back to the lobby shows RANDOM again. */
+  random?: boolean;
+  randomOutfit?: boolean;
+}
+
+/** Per-slot handicap: starting damage and extra (or fewer) stocks. */
+export interface Handicap {
+  damage: number;
+  stock: number;
 }
 
 export interface MatchRules {
@@ -53,6 +67,20 @@ export interface MatchRules {
   items: 0 | 1 | 2;
   /** Stage hazards (lightning, geysers) on or off: off is the "omega" version of every stage. */
   hazards: boolean;
+  /** Stock matches: a time limit as well (seconds, 0 = none); at the bell most stocks, then least damage, wins. */
+  stockTimeSec?: number;
+  /** A tie at the bell goes to sudden death (default) or ends as a draw. */
+  suddenDeath?: boolean;
+  /** Team battle: each slot's team (0 blue, 1 red, 2 green, 3 yellow). Absent = P1+P2 vs P3+P4 with four players. */
+  teamOf?: number[];
+  /** Team attack: teammates' hits land (friendly fire). */
+  teamAttack?: boolean;
+  /** Item kinds switched off (ITEM_KINDS ids). */
+  itemsOff?: string[];
+  /** Per-slot handicap (starting % and stock adjustment). */
+  handicap?: Handicap[];
+  /** Stage ids RANDOM picks from (absent / empty = every stage). */
+  stagePool?: string[];
 }
 
 export interface PlayerResult {
@@ -105,9 +133,65 @@ export interface Session {
   challenge: string | null;
   /** Attract-mode demo match (started by an idle title screen). */
   demo?: boolean;
+  /** The last versus lineup picked in the lobby (Quick Match too): character select comes back to it. */
+  versusLineup?: PlayerSlot[] | null;
 }
 
 export const DEFAULT_RULES: MatchRules = { mode: 'stock', stocks: 3, timeSec: 180, teams: false, items: 0, hazards: true, staminaHp: 150 };
+
+/** Default team per slot for `n` players: 2 -> 1v1, 3 -> P1 vs P2+P3, 4 -> P1+P2 vs P3+P4. */
+export function defaultTeams(n: number): number[] {
+  return n === 4 ? [0, 0, 1, 1] : n === 3 ? [0, 1, 1] : [0, 1, 0, 1].slice(0, n);
+}
+
+/** Each slot's team for these rules and player count, or null when it is not a team battle (fewer than two teams). */
+export function teamsFor(rules: MatchRules, n: number): number[] | null {
+  if (!rules.teams || n < 2) return null;
+  const def = defaultTeams(n);
+  const t = Array.from({ length: n }, (_, i) => clampInt(rules.teamOf?.[i] ?? def[i], 0, 3));
+  return new Set(t).size >= 2 ? t : null;
+}
+
+function clampInt(v: number, lo: number, hi: number): number {
+  return Math.max(lo, Math.min(hi, Math.round(Number(v) || 0)));
+}
+
+/**
+ * The match options beyond the basic rules, as RunnerSetup fields (see MatchRunner): teams per slot, team attack, handicaps,
+ * item kinds switched off, sudden death and the stock-match time limit. Everything is derived from the rules, so a replay
+ * (which stores its rules) plays back with the same options. Absent fields keep the old behaviour.
+ */
+export function runnerExtras(rules: MatchRules, n = rules.teamOf?.length ?? 4): {
+  teamOf?: number[];
+  teamAttack?: boolean;
+  startDamage?: number[];
+  stockBonus?: number[];
+  itemsOff?: number;
+  suddenDeath?: boolean;
+  stockTimeSec?: number;
+} {
+  const out: ReturnType<typeof runnerExtras> = {};
+  const teams = rules.teams ? teamsFor(rules, Math.max(2, Math.min(4, n))) : null;
+  if (teams) out.teamOf = teams;
+  if (rules.teamAttack) out.teamAttack = true;
+  const hc = rules.handicap ?? [];
+  if (hc.some((h) => h && h.damage > 0)) out.startDamage = hc.map((h) => clampInt(h?.damage ?? 0, 0, 300));
+  if (rules.mode !== 'time' && hc.some((h) => h && h.stock)) out.stockBonus = hc.map((h) => clampInt(h?.stock ?? 0, -4, 4));
+  if (rules.itemsOff?.length) out.itemsOff = itemMask(rules.itemsOff);
+  if (rules.suddenDeath === false) out.suddenDeath = false;
+  if (rules.mode === 'stock' && (rules.stockTimeSec ?? 0) > 0) out.stockTimeSec = rules.stockTimeSec;
+  return out;
+}
+
+/** Bit mask (one bit per ITEM_KINDS index) of the switched-off item kinds. */
+export function itemMask(off: readonly string[]): number {
+  let m = 0;
+  for (const k of off) {
+    const i = ITEM_KIND_IDS.indexOf(k);
+    if (i >= 0) m |= 1 << i;
+  }
+  return m;
+}
 
 export function newSession(): Session {
   return { mode: 'versus', players: [], stage: 'classic', rules: { ...DEFAULT_RULES }, playerCount: 2, lastResult: null, ladder: null, arcadeHuman: null, replay: null, watchReplay: false, targetRun: null, launchRun: null, challenge: null };

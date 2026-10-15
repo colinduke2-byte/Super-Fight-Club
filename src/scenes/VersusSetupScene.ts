@@ -1,8 +1,49 @@
 import Phaser from 'phaser';
 import { PIXEL_FONT, up } from '../art/pixelFont';
 import type { MenuEvent } from '../input/menuInput';
-import { session } from '../game/session';
-import { COLORS, MenuList, MenuScene, drawPanel, text, textPx, type MenuBackdrop } from '../ui/menuKit';
+import { DEFAULT_RULES, session, teamsFor, type MatchRules } from '../game/session';
+import { PRESETS, applyRules, loadSavedRules, presetName, saveCustomRules, saveLastRules, type SavedRules } from '../game/rulesets';
+import { ITEM_KINDS } from '../engine/items';
+import { footerHint } from '../input/prompts';
+import { STAGE_LIST } from '../stages';
+import { COLORS, MenuList, MenuScene, drawPanel, text, textPx, type MenuBackdrop, type MenuItem } from '../ui/menuKit';
+
+/** The saved rules are applied once per run (on the first visit). */
+let rulesRestored = false;
+
+const ITEM_NAMES: Record<string, string> = { heal: 'HEART', cell: 'ENERGY CELL', boost: 'OVERDRIVE', bomb: 'SHOCK BOMB', aegis: 'AEGIS PRISM', sword: 'BEAM SWORD', raygun: 'RAY GUN', crate: 'CRATE', core: 'POWER CORE' };
+const ITEM_HINTS: Record<string, string> = {
+  heal: 'Heals 25% damage.',
+  cell: 'A chunk of ultimate meter.',
+  boost: 'Overdrive: a burst of power for a while.',
+  bomb: 'Carried and thrown: bursts on contact.',
+  aegis: 'A few seconds of invincibility.',
+  sword: 'Long-reach swings until it burns out.',
+  raygun: 'Seven straight laser shots.',
+  crate: 'Break it open for items (some explode).',
+  core: 'Fills the ultimate meter.',
+};
+
+/** Team layouts the TEAMS row cycles through, per player count. */
+const TEAM_LAYOUTS: Record<number, number[][]> = {
+  2: [[0, 1]],
+  3: [[0, 0, 1], [0, 1, 1]],
+  4: [[0, 0, 1, 1], [0, 0, 0, 1], [0, 1, 1, 1], [0, 0, 1, 2]],
+};
+
+/** "2 V 1": team sizes, in team order. */
+function teamLabel(t: readonly number[]): string {
+  const sizes = [0, 1, 2, 3].map((k) => t.filter((x) => x === k).length).filter((n) => n > 0);
+  return sizes.join(' V ');
+}
+
+function sameTeams(a: readonly number[], b: readonly number[]): boolean {
+  return a.length === b.length && a.every((v, i) => v === b[i]);
+}
+
+function inPool(r: MatchRules, id: string): boolean {
+  return !r.stagePool?.length || r.stagePool.includes(id);
+}
 
 const clamp = (v: number, lo: number, hi: number): number => Math.max(lo, Math.min(hi, v));
 
@@ -26,42 +67,26 @@ export class VersusSetupScene extends MenuScene {
     super('VersusSetup');
   }
 
+  /** Which page of rows is showing: the rules, the presets, the item switches or the RANDOM stage pool. */
+  private page: 'main' | 'presets' | 'items' | 'stages' = 'main';
+  private saved: SavedRules = loadSavedRules();
+
   protected build(): void {
     this.title = this.add.bitmapText(0, 0, PIXEL_FONT, 'VERSUS SETUP').setOrigin(0.5).setTint(COLORS.title);
     this.ui.add(this.title);
-    const r = session.rules;
+    // the last rules used come back (once per run: changes made since stay in the session)
+    this.saved = loadSavedRules();
+    if (!rulesRestored) {
+      rulesRestored = true;
+      if (this.saved.last) {
+        applyRules(session.rules, this.saved.last);
+        session.playerCount = this.saved.playerCount;
+      }
+    }
     // single-player modes leave playerCount at 1: versus always needs at least two
     session.playerCount = clamp(session.playerCount, 2, 4);
-    const timed = (): boolean => r.mode === 'time';
-    const MODES = ['stock', 'time', 'stamina'] as const;
-    const NAMES = { stock: 'STOCKS', time: 'TIMED', stamina: 'STAMINA' };
-    const cycle = (d: number) => (): void => {
-      r.mode = MODES[(MODES.indexOf(r.mode) + d + MODES.length) % MODES.length];
-    };
-    this.list = new MenuList(this, this.ui, [
-      { label: 'PLAYERS', hint: 'How many fighters. Empty slots are filled with CPUs.', value: () => String(session.playerCount), onLeft: () => (session.playerCount = clamp(session.playerCount - 1, 2, 4)), onRight: () => (session.playerCount = clamp(session.playerCount + 1, 2, 4)) },
-      { label: 'RULES', hint: () => ({ stock: 'Lose all your stocks and you are out. Last one standing wins.', time: 'Most KOs when the clock runs out wins. Falling costs a point.', stamina: 'No launching for keeps: run out of HP and you are out.' })[r.mode], value: () => NAMES[r.mode], onLeft: cycle(-1), onRight: cycle(1), onConfirm: cycle(1) },
-      {
-        label: () => (timed() ? 'TIME LIMIT' : 'STOCKS'),
-        hint: () => (timed() ? 'Length of the match.' : 'Lives each fighter starts with.'),
-        value: () => (timed() ? `${Math.round(r.timeSec / 60)} MIN` : String(r.stocks)),
-        onLeft: () => (timed() ? (r.timeSec = clamp(r.timeSec - 60, 60, 480)) : (r.stocks = clamp(r.stocks - 1, 1, 5))),
-        onRight: () => (timed() ? (r.timeSec = clamp(r.timeSec + 60, 60, 480)) : (r.stocks = clamp(r.stocks + 1, 1, 5))),
-      },
-      {
-        label: 'STAMINA HP',
-        hint: 'Hit points in a stamina match.',
-        value: () => (r.mode === 'stamina' ? String(r.staminaHp) : '-'),
-        enabled: () => r.mode === 'stamina',
-        onLeft: () => (r.staminaHp = clamp(r.staminaHp - 50, 50, 300)),
-        onRight: () => (r.staminaHp = clamp(r.staminaHp + 50, 50, 300)),
-      },
-      { label: 'TEAMS', hint: 'Four players only: blue team against red, no friendly fire.', value: () => (r.teams && session.playerCount === 4 ? '2 V 2' : 'OFF'), enabled: () => session.playerCount === 4, onLeft: () => (r.teams = !r.teams), onRight: () => (r.teams = !r.teams), onConfirm: () => (r.teams = !r.teams) },
-      { label: 'ITEMS', hint: 'Hearts, energy cells, overdrive, aegis cores and shock bombs.', value: () => ['OFF', 'LOW', 'HIGH'][r.items], onLeft: () => (r.items = ((r.items + 2) % 3) as 0 | 1 | 2), onRight: () => (r.items = ((r.items + 1) % 3) as 0 | 1 | 2), onConfirm: () => (r.items = ((r.items + 1) % 3) as 0 | 1 | 2) },
-      { label: 'STAGE HAZARDS', hint: 'Geysers, lightning and water spouts. Off is the plain stage.', value: () => (r.hazards ? 'ON' : 'OFF'), onLeft: () => (r.hazards = !r.hazards), onRight: () => (r.hazards = !r.hazards), onConfirm: () => (r.hazards = !r.hazards) },
-      { label: 'CHOOSE FIGHTERS', hint: 'On to the lobby.', onConfirm: () => this.next() },
-      { label: 'BACK', onConfirm: () => this.go('ModeSelect') },
-    ]);
+    this.page = 'main';
+    this.list = new MenuList(this, this.ui, this.mainItems());
     this.lastT = -1;
     this.chipG = this.add.graphics();
     this.ui.add(this.chipG);
@@ -71,11 +96,175 @@ export class VersusSetupScene extends MenuScene {
     this.chipLabels = [0, 1, 2, 3].map((i) => text(this, this.ui, `P${i + 1}`, COLORS.p[i]).setOrigin(0.5));
     this.chipInfo = [0, 1, 2, 3].map(() => text(this, this.ui, '', COLORS.text).setOrigin(0.5));
     this.desc = text(this, this.ui, '', COLORS.accent).setOrigin(0.5);
-    this.hint = text(this, this.ui, 'LEFT/RIGHT: CHANGE   J / ENTER: SELECT   K / ESC: BACK', COLORS.dim).setOrigin(0.5);
+    this.hint = text(this, this.ui, '', COLORS.dim).setOrigin(0.5);
+  }
+
+  private mainItems(): MenuItem[] {
+    const r = session.rules;
+    const timed = (): boolean => r.mode === 'time';
+    const MODES = ['stock', 'time', 'stamina'] as const;
+    const NAMES = { stock: 'STOCKS', time: 'TIMED', stamina: 'STAMINA' };
+    const cycle = (d: number) => (): void => {
+      r.mode = MODES[(MODES.indexOf(r.mode) + d + MODES.length) % MODES.length];
+    };
+    const n = (): number => session.playerCount;
+    const toggle = (get: () => boolean, set: (v: boolean) => void) => (): void => set(!get());
+    const stockLimit = (d: number) => (): void => {
+      // OFF, then 1-10 minutes
+      r.stockTimeSec = clamp(Math.round((r.stockTimeSec ?? 0) / 60) + d, 0, 10) * 60;
+    };
+    const layouts = (): number[][] => TEAM_LAYOUTS[n()] ?? [];
+    const teamIdx = (): number => (r.teams ? Math.max(0, layouts().findIndex((t) => sameTeams(t, teamsFor(r, n()) ?? []))) + 1 : 0);
+    const setTeam = (d: number) => (): void => {
+      const opts = layouts();
+      const k = (teamIdx() + d + opts.length + 1) % (opts.length + 1);
+      r.teams = k > 0;
+      if (k > 0) r.teamOf = [...opts[k - 1]];
+    };
+    const onCount = (all: readonly string[], off: readonly string[] | undefined): string => `${all.filter((k) => !off?.includes(k)).length} / ${all.length} ON`;
+    return [
+      { label: 'PRESET', hint: 'Load Competitive, Party or a saved custom set, or save these rules.', value: () => presetName(r, this.saved) ?? 'CUSTOM', onConfirm: () => this.showPage('presets'), onRight: () => this.showPage('presets') },
+      { label: 'PLAYERS', hint: 'How many fighters. Empty slots are filled with CPUs.', value: () => String(n()), onLeft: () => this.setPlayers(n() - 1), onRight: () => this.setPlayers(n() + 1) },
+      { label: 'RULES', hint: () => ({ stock: 'Lose all your stocks and you are out. Last one standing wins.', time: 'Most KOs when the clock runs out wins. Falling costs a point.', stamina: 'No launching for keeps: run out of HP and you are out.' })[r.mode], value: () => NAMES[r.mode], onLeft: cycle(-1), onRight: cycle(1), onConfirm: cycle(1) },
+      {
+        label: 'STOCKS',
+        hint: 'Lives each fighter starts with.',
+        value: () => (timed() ? '-' : String(r.stocks)),
+        enabled: () => !timed(),
+        onLeft: () => (r.stocks = clamp(r.stocks - 1, 1, 99)),
+        onRight: () => (r.stocks = clamp(r.stocks + 1, 1, 99)),
+      },
+      {
+        label: 'TIME LIMIT',
+        hint: () => (timed() ? 'Length of the match.' : 'Optional clock: at the bell, most stocks left wins (then least damage).'),
+        value: () => (timed() ? `${Math.round(r.timeSec / 60)} MIN` : r.mode === 'stamina' ? '-' : r.stockTimeSec ? `${Math.round(r.stockTimeSec / 60)} MIN` : 'OFF'),
+        enabled: () => r.mode !== 'stamina',
+        onLeft: () => (timed() ? (r.timeSec = clamp(r.timeSec - 60, 60, 600)) : stockLimit(-1)()),
+        onRight: () => (timed() ? (r.timeSec = clamp(r.timeSec + 60, 60, 600)) : stockLimit(1)()),
+      },
+      {
+        label: 'STAMINA HP',
+        hint: 'Hit points in a stamina match.',
+        value: () => (r.mode === 'stamina' ? String(r.staminaHp) : '-'),
+        enabled: () => r.mode === 'stamina',
+        onLeft: () => (r.staminaHp = clamp(r.staminaHp - 50, 50, 300)),
+        onRight: () => (r.staminaHp = clamp(r.staminaHp + 50, 50, 300)),
+      },
+      {
+        label: 'SUDDEN DEATH',
+        hint: 'A tie at the bell: fight on at 300% (on), or call it a draw (off).',
+        value: () => (timed() || (r.mode === 'stock' && r.stockTimeSec) ? (r.suddenDeath === false ? 'OFF' : 'ON') : '-'),
+        enabled: () => timed() || (r.mode === 'stock' && !!r.stockTimeSec),
+        onLeft: toggle(() => r.suddenDeath !== false, (v) => (r.suddenDeath = v)),
+        onRight: toggle(() => r.suddenDeath !== false, (v) => (r.suddenDeath = v)),
+        onConfirm: toggle(() => r.suddenDeath !== false, (v) => (r.suddenDeath = v)),
+      },
+      { label: 'TEAMS', hint: 'Team battle layout. Each card can change its own team colour in the lobby.', value: () => (r.teams ? teamLabel(teamsFor(r, n()) ?? []) : 'OFF'), enabled: () => n() >= 3, onLeft: setTeam(-1), onRight: setTeam(1), onConfirm: setTeam(1) },
+      {
+        label: 'TEAM ATTACK',
+        hint: 'On: your attacks hurt your teammates too.',
+        value: () => (r.teams ? (r.teamAttack ? 'ON' : 'OFF') : '-'),
+        enabled: () => r.teams && n() >= 3,
+        onLeft: toggle(() => !!r.teamAttack, (v) => (r.teamAttack = v)),
+        onRight: toggle(() => !!r.teamAttack, (v) => (r.teamAttack = v)),
+        onConfirm: toggle(() => !!r.teamAttack, (v) => (r.teamAttack = v)),
+      },
+      { label: 'ITEMS', hint: 'How often items drop.', value: () => ['OFF', 'LOW', 'HIGH'][r.items], onLeft: () => (r.items = ((r.items + 2) % 3) as 0 | 1 | 2), onRight: () => (r.items = ((r.items + 1) % 3) as 0 | 1 | 2), onConfirm: () => (r.items = ((r.items + 1) % 3) as 0 | 1 | 2) },
+      { label: 'ITEM SWITCH', hint: 'Turn single items on or off.', value: () => onCount(ITEM_KINDS, r.itemsOff), onConfirm: () => this.showPage('items'), onRight: () => this.showPage('items') },
+      { label: 'STAGE HAZARDS', hint: 'Geysers, lightning and water spouts. Off is the plain stage.', value: () => (r.hazards ? 'ON' : 'OFF'), onLeft: () => (r.hazards = !r.hazards), onRight: () => (r.hazards = !r.hazards), onConfirm: () => (r.hazards = !r.hazards) },
+      { label: 'RANDOM STAGES', hint: 'The stages RANDOM can pick.', value: () => `${STAGE_LIST.filter((st) => inPool(r, st.id)).length} / ${STAGE_LIST.length}`, onConfirm: () => this.showPage('stages'), onRight: () => this.showPage('stages') },
+      { label: 'CHOOSE FIGHTERS', hint: 'On to the lobby.', onConfirm: () => this.next() },
+      { label: 'BACK', onConfirm: () => this.go('ModeSelect') },
+    ];
+  }
+
+  private presetItems(): MenuItem[] {
+    const r = session.rules;
+    const load = (rules: MatchRules) => (): void => {
+      applyRules(r, rules);
+      this.showPage('main', 0);
+    };
+    return [
+      { label: 'STANDARD', hint: '3 stocks, no items, hazards on.', onConfirm: load(DEFAULT_RULES) },
+      ...PRESETS.map((p) => ({ label: p.name, hint: p.hint, onConfirm: load(p.rules) })),
+      ...[0, 1, 2].map((k) => ({
+        label: `CUSTOM ${k + 1}`,
+        hint: () => (this.saved.custom[k] ? 'Load this saved rule set.' : 'Empty: save the current rules here first.'),
+        value: () => (this.saved.custom[k] ? 'LOAD' : 'EMPTY'),
+        enabled: () => !!this.saved.custom[k],
+        onConfirm: () => this.saved.custom[k] && load(this.saved.custom[k]!)(),
+      })),
+      ...[0, 1, 2].map((k) => ({
+        label: `SAVE TO CUSTOM ${k + 1}`,
+        hint: 'Store the current rules in this slot.',
+        value: () => (this.savedFlash === k && this.now - this.savedAt < 1.2 ? 'SAVED!' : ''),
+        onConfirm: () => {
+          saveCustomRules(k, r);
+          this.saved = loadSavedRules();
+          this.savedFlash = k;
+          this.savedAt = this.now;
+        },
+      })),
+      { label: 'DONE', onConfirm: () => this.showPage('main', 0) },
+    ];
+  }
+
+  private itemItems(): MenuItem[] {
+    const r = session.rules;
+    const flip = (k: string) => (): void => {
+      const off = new Set(r.itemsOff ?? []);
+      if (off.has(k)) off.delete(k);
+      else off.add(k);
+      r.itemsOff = [...off];
+    };
+    return [
+      ...ITEM_KINDS.map((k) => ({ label: ITEM_NAMES[k] ?? k.toUpperCase(), hint: ITEM_HINTS[k] ?? '', value: () => (r.itemsOff?.includes(k) ? 'OFF' : 'ON'), onLeft: flip(k), onRight: flip(k), onConfirm: flip(k) })),
+      { label: 'ALL ON', onConfirm: () => (r.itemsOff = []) },
+      { label: 'DONE', onConfirm: () => this.showPage('main', 10) },
+    ];
+  }
+
+  private stageItems(): MenuItem[] {
+    const r = session.rules;
+    const flip = (id: string) => (): void => {
+      const pool = new Set(r.stagePool?.length ? r.stagePool : STAGE_LIST.map((st) => st.id));
+      if (pool.has(id)) pool.delete(id);
+      else pool.add(id);
+      // never empty: the last one stays
+      if (pool.size === 0) return;
+      r.stagePool = pool.size === STAGE_LIST.length ? undefined : [...pool];
+    };
+    return [
+      ...STAGE_LIST.map((st) => ({ label: st.name, value: () => (inPool(r, st.id) ? 'ON' : 'OFF'), onLeft: flip(st.id), onRight: flip(st.id), onConfirm: flip(st.id) })),
+      { label: 'ALL ON', onConfirm: () => (r.stagePool = undefined) },
+      { label: 'DONE', onConfirm: () => this.showPage('main', 12) },
+    ];
+  }
+
+  private savedFlash = -1;
+  private savedAt = 0;
+  private now = 0;
+
+  private showPage(page: 'main' | 'presets' | 'items' | 'stages', index = 0): void {
+    this.page = page;
+    this.list.items = page === 'main' ? this.mainItems() : page === 'presets' ? this.presetItems() : page === 'items' ? this.itemItems() : this.stageItems();
+    this.list.rebuild();
+    this.list.index = index;
+    this.title.setText(page === 'main' ? 'VERSUS SETUP' : page === 'presets' ? 'RULE PRESETS' : page === 'items' ? 'ITEM SWITCH' : 'RANDOM STAGES');
+    this.layoutUi(this.scale.width, this.scale.height, this.u);
+  }
+
+  private setPlayers(v: number): void {
+    session.playerCount = clamp(v, 2, 4);
+    // a team layout made for another player count falls back to that count's default
+    const r = session.rules;
+    if (r.teamOf && r.teamOf.length !== session.playerCount) r.teamOf = undefined;
+    if (session.playerCount < 3) r.teams = false;
   }
 
   private next(): void {
     session.mode = 'versus';
+    saveLastRules(session.rules, session.playerCount);
     this.go('CharacterSelect');
   }
 
@@ -98,7 +287,7 @@ export class VersusSetupScene extends MenuScene {
     const g = this.chipG.clear();
     const u = this.u;
     const r = session.rules;
-    const teams = r.teams && session.playerCount === 4;
+    const teams = teamsFor(r, session.playerCount);
     const { x, y, w: cw, h: ch, gap } = this.chipBox;
     const dt = this.lastT < 0 ? 0 : Math.min(0.1, time - this.lastT);
     this.lastT = time;
@@ -106,9 +295,9 @@ export class VersusSetupScene extends MenuScene {
       const on = i < session.playerCount;
       this.chipOn[i] += ((on ? 1 : 0) - this.chipOn[i]) * Math.min(1, dt * 12);
       const a = this.chipOn[i];
-      const col = teams ? COLORS.p[i < 2 ? 0 : 1] : COLORS.p[i];
-      const info = !on ? 'OFF' : r.mode === 'time' ? `${Math.round(r.timeSec / 60)} MIN` : r.mode === 'stamina' ? `${r.staminaHp} HP` : '@'.repeat(r.stocks);
-      const key = `${on}|${info}|${teams}`;
+      const col = teams && i < teams.length ? COLORS.p[teams[i]] : COLORS.p[i];
+      const info = !on ? 'OFF' : r.mode === 'time' ? `${Math.round(r.timeSec / 60)} MIN` : r.mode === 'stamina' ? `${r.staminaHp} HP` : r.stocks > 5 ? `@ X${r.stocks}` : '@'.repeat(r.stocks);
+      const key = `${on}|${info}|${teams?.join('')}`;
       if (this.chipKey[i] && key !== this.chipKey[i]) this.chipPop[i] = time;
       this.chipKey[i] = key;
       const pop = 1 + 0.12 * Math.max(0, 1 - (time - this.chipPop[i]) / 0.18);
@@ -134,6 +323,9 @@ export class VersusSetupScene extends MenuScene {
   }
 
   protected override tick(time: number): void {
+    this.now = time;
+    const hint = footerHint(this.page === 'main' ? [['leftright', 'CHANGE'], ['confirm', 'SELECT'], ['back', 'BACK']] : [['leftright', 'TOGGLE'], ['confirm', 'SELECT'], ['back', 'DONE']]);
+    if (hint !== this.hint.text) this.hint.setText(hint);
     this.list.update(time);
     this.drawChips(time);
     this.desc.setText(up(this.list.hint));
@@ -142,6 +334,8 @@ export class VersusSetupScene extends MenuScene {
 
   protected onEvent(e: MenuEvent): void {
     if (this.list.handle(e)) return;
-    if (e.action === 'back') this.go('ModeSelect');
+    if (e.action !== 'back') return;
+    if (this.page === 'main') this.go('ModeSelect');
+    else this.showPage('main', this.page === 'presets' ? 0 : this.page === 'items' ? 10 : 12);
   }
 }

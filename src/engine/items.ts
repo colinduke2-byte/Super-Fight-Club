@@ -184,12 +184,15 @@ function rnd(world: World): number {
 
 const r = [0, 0, 0, 0];
 
-function rollKind(world: World, noCrate: boolean): ItemKind {
+function rollKind(world: World, noCrate: boolean): ItemKind | null {
+  const off = world.config.itemsOff ?? 0;
+  const skip = (k: ItemKind): boolean => (noCrate && k === 'crate') || (off & (1 << ITEM_KINDS.indexOf(k))) !== 0;
   let total = 0;
-  for (const [k, w] of SPAWN_WEIGHTS) if (!(noCrate && k === 'crate')) total += w;
+  for (const [k, w] of SPAWN_WEIGHTS) if (!skip(k)) total += w;
+  if (total <= 0) return null; // every kind switched off
   let roll = rnd(world) * total;
   for (const [k, w] of SPAWN_WEIGHTS) {
-    if (noCrate && k === 'crate') continue;
+    if (skip(k)) continue;
     roll -= w;
     if (roll < 0) return k;
   }
@@ -255,8 +258,9 @@ export function stepItems(world: World): void {
     for (const it of items) if (it.active) live++;
     if (live < 2) {
       const slot = items.find((it) => !it.active);
-      if (slot) {
-        resetItem(slot, rollKind(world, false));
+      const kind = slot ? rollKind(world, false) : null;
+      if (slot && kind) {
+        resetItem(slot, kind);
         if (slot.kind === 'crate') slot.volatile = rnd(world) < CRATE.volatileChance;
         pickSpawn(world);
         slot.x = spawnAt.x;
@@ -420,7 +424,7 @@ function swordHits(world: World, f: Fighter, h: HeldState): void {
     const facing: 1 | -1 = d === 'back' ? (f.facing === 1 ? -1 : 1) : d === 'fwd' || d === 'low' ? f.facing : v.x >= f.x ? 1 : -1;
     SWORD_HB.angle = d === 'up' ? 86 : d === 'down' ? 285 : d === 'low' ? 28 : SWORD.angle;
     SWORD_HB.base = d === 'down' ? 24 : SWORD.base;
-    deliverHit(world, { atk: f, ownerId: f.id, def: v, hb: SWORD_HB, damage: SWORD.damage * f.outMul, facing, originX: f.x, kbMult: 1 });
+    deliverHit(world, { atk: f, ownerId: f.id, def: v, hb: SWORD_HB, damage: SWORD.damage * f.outMul, facing, originX: f.x, kbMult: 1, rect: rb });
     f.moveHit = true;
   }
 }
@@ -560,8 +564,9 @@ function damageCrate(world: World, it: Item, dmg: number, by: number): void {
   it.active = false;
   for (let k = 0; k < n; k++) {
     const slot = k === 0 ? it : world.items.find((o) => !o.active);
-    if (!slot) break;
-    resetItem(slot, rollKind(world, true));
+    const kind = slot ? rollKind(world, true) : null;
+    if (!slot || !kind) break;
+    resetItem(slot, kind);
     slot.x = x;
     slot.y = y;
     slot.vx = n === 1 ? 0 : k === 0 ? -1.3 : 1.3;
