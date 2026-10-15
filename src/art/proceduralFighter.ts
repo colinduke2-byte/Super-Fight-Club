@@ -539,30 +539,119 @@ function paletteData(data: CharacterData, palette: number): CharacterData | null
 
 /** Outfit sheets built in the background (requestPalette), waiting to be turned into textures by ensurePalette. */
 const readyOutfits = new Map<string, PackedSheet>();
-const buildingOutfits = new Set<string>();
+/** Outfit builds in flight, by skin id (each resolves to the sheet, or null if it failed). */
+const buildingOutfits = new Map<string, Promise<PackedSheet | null>>();
 /** Bumped by releasePalettes: a background build that started before a release is stale and its result is dropped. */
 let outfitGeneration = 0;
 
-/** Start building an alternate palette's sheet off the main thread, so ensurePalette is instant when it is needed. */
-export function requestPalette(scene: Phaser.Scene, data: CharacterData, palette: number): void {
-  const alt = paletteData(data, palette);
-  if (!alt || scene.textures.exists(fighterTextureKey(alt.id)) || readyOutfits.has(alt.id) || buildingOutfits.has(alt.id)) return;
-  buildingOutfits.add(alt.id);
+/** Start (or join) the background build of an outfit sheet. */
+function outfitBuild(alt: CharacterData): Promise<PackedSheet | null> {
+  const inFlight = buildingOutfits.get(alt.id);
+  if (inFlight) return inFlight;
   const gen = outfitGeneration;
-  buildSheetPixels(sheetSpec(alt))
-    .then((px) => {
-      if (gen !== outfitGeneration) return; // released while building: nobody wants this sheet any more
-      readyOutfits.set(alt.id, px);
-      // keep only a few unclaimed sheets around (each is several MB): drop the oldest
-      while (readyOutfits.size > 4) readyOutfits.delete(readyOutfits.keys().next().value!);
+  const p = buildSheetPixels(sheetSpec(alt))
+    .then((px): PackedSheet | null => {
+      if (gen === outfitGeneration) {
+        readyOutfits.set(alt.id, px);
+        // keep only a few unclaimed sheets around (each is several MB): drop the oldest
+        while (readyOutfits.size > 4) readyOutfits.delete(readyOutfits.keys().next().value!);
+      }
+      return px;
     })
     .catch((err: unknown) => {
       // not fatal: ensurePalette builds the sheet inline when it is needed
       console.warn(`[palette] background build of ${alt.id} failed:`, err);
+      return null;
     })
     .finally(() => {
-      if (gen === outfitGeneration) buildingOutfits.delete(alt.id);
+      if (buildingOutfits.get(alt.id) === p) buildingOutfits.delete(alt.id);
     });
+  buildingOutfits.set(alt.id, p);
+  return p;
+}
+
+/** Start building an alternate palette's sheet off the main thread, so ensurePalette is instant when it is needed. */
+export function requestPalette(scene: Phaser.Scene, data: CharacterData, palette: number): void {
+  const alt = paletteData(data, palette);
+  if (!alt || scene.textures.exists(fighterTextureKey(alt.id)) || readyOutfits.has(alt.id)) return;
+  void outfitBuild(alt);
+}
+
+/** A fighter in a palette, as passed to ensurePalettesReady / palettesReady. */
+export interface PaletteWant {
+  data: CharacterData;
+  palette: number;
+}
+
+/** True when every listed fighter / palette can be shown without building anything (see ensurePalettesReady). */
+export function palettesReady(scene: Phaser.Scene, wants: readonly PaletteWant[]): boolean {
+  return wants.every((w) => scene.textures.exists(fighterTextureKey(w.data.id)) && paletteReady(scene, w.data, w.palette));
+}
+
+/**
+ * Make every listed fighter's sheet in its palette ready without blocking the main thread: missing outfits (and base
+ * sheets) are built on the art workers, or come from the persistent cache, and are registered as textures as they arrive.
+ * Resolves with each entry's skin id (for fighterTextureKey / fighterAnimKey), in order, once all are registered; after
+ * that ensurePalette is instant for them. Call it before a scene that needs the sheets (match start), e.g.
+ * `const skins = await ensurePalettesReady(this, fighters.map((f, i) => ({ data: f.data, palette: palettes[i] })))`.
+ */
+export async function ensurePalettesReady(scene: Phaser.Scene, wants: readonly PaletteWant[]): Promise<string[]> {
+  await ensureFightersReady(
+    scene,
+    wants.map((w) => w.data),
+  );
+  await Promise.all(
+    wants.map(async (w) => {
+      const alt = paletteData(w.data, w.palette);
+      if (!alt || scene.textures.exists(fighterTextureKey(alt.id)) || readyOutfits.has(alt.id)) return;
+      const px = await outfitBuild(alt);
+      // registered straight away (not left in readyOutfits, which only keeps a few unclaimed sheets)
+      if (px && !scene.textures.exists(fighterTextureKey(alt.id))) {
+        readyOutfits.delete(alt.id);
+        registerPixels(scene, alt, px);
+      }
+    }),
+  );
+  // anything still missing (a build that failed even inline) is attempted once more here, synchronously
+  return wants.map((w) => ensurePalette(scene, w.data, w.palette));
+}
+
+/** Base-sheet builds in flight (fighters left out of boot, e.g. the boss), by fighter id. */
+const buildingBase = new Map<string, Promise<void>>();
+
+/**
+ * Make sure each fighter's own (palette 0) sheet exists, building any that are missing off the main thread (or loading
+ * them from the persistent cache). Boot builds the roster; fighters it defers (the arcade boss) are started in the
+ * background after the title screen appears, and anything that needs them awaits this first.
+ */
+export function ensureFightersReady(scene: Phaser.Scene, datas: readonly CharacterData[]): Promise<void> {
+  const tm = scene.textures; // game-wide: outlives the scene that asked
+  const anims = scene.anims;
+  const target = { textures: tm, anims } as Phaser.Scene;
+  return Promise.all(
+    datas.map((data) => {
+      if (tm.exists(fighterTextureKey(data.id))) return undefined;
+      let p = buildingBase.get(data.id);
+      if (!p) {
+        p = (async () => {
+          try {
+            if (data.sprite.sheetUrl) return; // loaded by the boot preloader
+            if (!hasHeroArt(data.sprite.placeholder)) buildPlaceholderSheet(target, data);
+            else {
+              const px = await buildSheetPixels(sheetSpec(data));
+              if (!tm.exists(fighterTextureKey(data.id))) registerPixels(target, data, px);
+            }
+          } catch (err) {
+            console.error(`[fighters] could not build ${data.id}'s sheet:`, err);
+          } finally {
+            buildingBase.delete(data.id);
+          }
+        })();
+        buildingBase.set(data.id, p);
+      }
+      return p;
+    }),
+  ).then(() => undefined);
 }
 
 /**
@@ -571,12 +660,18 @@ export function requestPalette(scene: Phaser.Scene, data: CharacterData, palette
  */
 export function releasePalettes(scene: Phaser.Scene, keep: Iterable<string>): void {
   const kept = new Set(keep);
+  const dropped: string[] = [];
   for (const key of scene.textures.getTextureKeys()) {
     if (!key.startsWith('fighter:') || !key.includes('~')) continue;
     const skin = key.slice('fighter:'.length);
     if (kept.has(skin)) continue;
-    for (const a of scene.anims.toJSON().anims) if (a.key.startsWith(`${skin}:`)) scene.anims.remove(a.key);
+    dropped.push(`${skin}:`);
     scene.textures.remove(key);
+  }
+  if (dropped.length) {
+    // one pass over the animation keys (no anims.toJSON(), which serialises every frame of every animation)
+    const all = (scene.anims as unknown as { anims: Phaser.Structs.Map<string, Phaser.Animations.Animation> }).anims.keys();
+    for (const k of all) if (dropped.some((d) => k.startsWith(d))) scene.anims.remove(k);
   }
   readyOutfits.clear();
   // builds still in flight belong to the old generation: drop their results and let them be requested again
@@ -590,15 +685,29 @@ export function paletteReady(scene: Phaser.Scene, data: CharacterData, palette: 
   return palette === 0 || !ALT_LOOKS[data.id]?.[palette - 1] || scene.textures.exists(fighterTextureKey(key)) || readyOutfits.has(key);
 }
 
-/** Build (once) the sheet for a fighter in an alternate palette and return its id for fighterTextureKey / fighterAnimKey. */
+/**
+ * Build (once) the sheet for a fighter in an alternate palette and return its id for fighterTextureKey / fighterAnimKey.
+ * Instant when the sheet is already registered or was built in the background (requestPalette / ensurePalettesReady);
+ * otherwise it renders on the main thread as a last resort, which stalls for seconds: await ensurePalettesReady first.
+ */
 export function ensurePalette(scene: Phaser.Scene, data: CharacterData, palette: number): string {
   const alt = paletteData(data, palette);
-  if (!alt) return data.id;
+  if (!alt) {
+    // the base sheet of a fighter boot deferred (the boss), needed before its background build landed
+    if (!data.sprite.sheetUrl && !scene.textures.exists(fighterTextureKey(data.id))) {
+      console.warn(`[fighters] ${data.id}'s sheet was not ready: building it on the main thread (await ensureFightersReady first)`);
+      buildPlaceholderSheet(scene, data);
+    }
+    return data.id;
+  }
   if (scene.textures.exists(fighterTextureKey(alt.id))) return alt.id;
   const px = readyOutfits.get(alt.id);
   readyOutfits.delete(alt.id);
   if (px) registerPixels(scene, alt, px);
-  else buildPlaceholderSheet(scene, alt);
+  else {
+    console.warn(`[palette] ${alt.id} was not ready: building it on the main thread (await ensurePalettesReady first)`);
+    buildPlaceholderSheet(scene, alt);
+  }
   return alt.id;
 }
 

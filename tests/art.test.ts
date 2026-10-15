@@ -106,6 +106,38 @@ describe('art pipeline', () => {
     expect(n).toBeGreaterThan(0);
   }, 300_000);
 
+  it('renders sheets frame by frame byte-identical to packing the full grid sheet', () => {
+    // the streaming builder (packedHeroSheet) must never change a pixel: compare with the reference grid-then-pack path
+    const all = [...m.chars.CHARACTER_LIST, ...Object.values(m.chars.BOSSES)];
+    const pick = ['halcyon', 'gizmo', 'overseer'].map((id) => all.find((c) => c.id === id)!).filter(Boolean);
+    const rime = all.find((c) => c.id === 'rime');
+    if (rime && m.palettes.ALT_LOOKS.rime?.length) pick.push(withPalette(rime, 1));
+    expect(pick.length).toBeGreaterThan(2);
+    for (const c of pick) {
+      const spec = m.sheet.sheetSpec(c);
+      const L = m.layout.sheetLayout(c);
+      const ref = m.sheet.packSheet(m.sheet.heroSheetPixels(spec), c.sprite.frameWidth ?? c.sprite.frameSize, c.sprite.frameSize, L.total);
+      const px = m.sheet.packedHeroSheet(spec);
+      expect([px.width, px.height, px.cellW, px.cellH], c.id).toEqual([ref.width, ref.height, ref.cellW, ref.cellH]);
+      expect(Buffer.from(px.frames.buffer).equals(Buffer.from(ref.frames.buffer)), `${c.id} frame boxes`).toBe(true);
+      expect(Buffer.from(px.data.buffer).equals(Buffer.from(ref.data.buffer)), `${c.id} pixels`).toBe(true);
+    }
+  }, 300_000);
+
+  it('keys the sheet cache by art version and every sheet input', async () => {
+    const cache = await import('../src/art/sheetCache');
+    const brick = m.chars.CHARACTER_LIST[0];
+    const spec = m.sheet.sheetSpec(brick);
+    const k = cache.sheetCacheKey('v1', spec);
+    expect(cache.sheetCacheKey('v1', m.sheet.sheetSpec(brick))).toBe(k);
+    expect(cache.sheetCacheKey('v2', spec)).not.toBe(k);
+    const alts = m.palettes.ALT_LOOKS[brick.id] ?? [];
+    if (alts.length) expect(cache.sheetCacheKey('v1', m.sheet.sheetSpec(withPalette(brick, 1)))).not.toBe(k);
+    // no IndexedDB here: the cache degrades to a miss / no-op, never throws
+    expect(await cache.cacheGet(k)).toBeNull();
+    await expect(cache.cachePut(k, m.sheet.packedHeroSheet(spec))).resolves.toBeUndefined();
+  }, 120_000);
+
   it('builds every stage structure and platform', () => {
     let n = 0;
     for (const st of Object.values(m.stages.STAGES)) {

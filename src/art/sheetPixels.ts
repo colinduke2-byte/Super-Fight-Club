@@ -61,30 +61,48 @@ export interface PackedSheet extends SheetPixels {
   cellH: number;
 }
 
-export function packSheet(px: SheetPixels, cellW: number, cellH: number, cells: number): PackedSheet {
-  const cols = Math.floor(px.width / cellW);
-  const boxes: { cell: number; x: number; y: number; w: number; h: number }[] = [];
-  const src = px.data;
-  for (let cell = 0; cell < cells; cell++) {
-    const ox = (cell % cols) * cellW;
-    const oy = Math.floor(cell / cols) * cellH;
-    let x0 = cellW;
-    let y0 = cellH;
-    let x1 = -1;
-    let y1 = -1;
-    for (let y = 0; y < cellH; y++) {
-      const row = ((oy + y) * px.width + ox) * 4 + 3;
-      for (let x = 0; x < cellW; x++) {
-        if (src[row + x * 4] === 0) continue;
-        if (x < x0) x0 = x;
-        if (x > x1) x1 = x;
-        if (y < y0) y0 = y;
-        y1 = y;
-      }
+/** One frame's opaque bounding box inside its cell, with just that box's pixels (row-major RGBA). */
+interface TrimmedFrame {
+  cell: number;
+  x: number;
+  y: number;
+  w: number;
+  h: number;
+  data: Uint8ClampedArray;
+}
+
+/** The opaque bounding box of a cellW x cellH region of `src` (row stride `stride` px) at (ox, oy); a blank cell is a 1x1 box at 0,0. */
+function opaqueBox(src: Uint8ClampedArray, stride: number, ox: number, oy: number, cellW: number, cellH: number): { x: number; y: number; w: number; h: number } {
+  let x0 = cellW;
+  let y0 = cellH;
+  let x1 = -1;
+  let y1 = -1;
+  for (let y = 0; y < cellH; y++) {
+    const row = ((oy + y) * stride + ox) * 4 + 3;
+    for (let x = 0; x < cellW; x++) {
+      if (src[row + x * 4] === 0) continue;
+      if (x < x0) x0 = x;
+      if (x > x1) x1 = x;
+      if (y < y0) y0 = y;
+      y1 = y;
     }
-    boxes.push(x1 < 0 ? { cell, x: 0, y: 0, w: 1, h: 1 } : { cell, x: x0, y: y0, w: x1 - x0 + 1, h: y1 - y0 + 1 });
   }
-  // shelf packing, tallest first, into a width near the square root of the total area
+  return x1 < 0 ? { x: 0, y: 0, w: 1, h: 1 } : { x: x0, y: y0, w: x1 - x0 + 1, h: y1 - y0 + 1 };
+}
+
+/** Copy a frame's box out of `src` (row stride `stride` px, cell origin at ox, oy) into its own tight buffer. */
+function trimFrame(cell: number, src: Uint8ClampedArray, stride: number, ox: number, oy: number, cellW: number, cellH: number): TrimmedFrame {
+  const b = opaqueBox(src, stride, ox, oy, cellW, cellH);
+  const data = new Uint8ClampedArray(b.w * b.h * 4);
+  for (let r = 0; r < b.h; r++) {
+    const from = ((oy + b.y + r) * stride + ox + b.x) * 4;
+    data.set(src.subarray(from, from + b.w * 4), r * b.w * 4);
+  }
+  return { cell, ...b, data };
+}
+
+/** Shelf-pack trimmed frames (tallest first, into a width near the square root of the total area) with a 1px transparent gutter. */
+function packFrames(boxes: TrimmedFrame[], cellW: number, cellH: number, cells: number): PackedSheet {
   const G = 1;
   const area = boxes.reduce((s, b) => s + (b.w + G * 2) * (b.h + G * 2), 0);
   const W = Math.min(4096, Math.max(...boxes.map((b) => b.w + G * 2), Math.ceil(Math.sqrt(area) * 1.08)));
@@ -110,18 +128,49 @@ export function packSheet(px: SheetPixels, cellW: number, cellH: number, cells: 
   for (const b of boxes) {
     const ax = at[b.cell * 2];
     const ay = at[b.cell * 2 + 1];
-    const ox = (b.cell % cols) * cellW + b.x;
-    const oy = Math.floor(b.cell / cols) * cellH + b.y;
-    for (let r = 0; r < b.h; r++) out.set(src.subarray(((oy + r) * px.width + ox) * 4, ((oy + r) * px.width + ox + b.w) * 4), ((ay + r) * W + ax) * 4);
+    const row = b.w * 4;
+    for (let r = 0; r < b.h; r++) out.set(b.data.subarray(r * row, (r + 1) * row), ((ay + r) * W + ax) * 4);
     frames.set([ax, ay, b.w, b.h, b.x, b.y], b.cell * 6);
   }
   return { width: W, height: H, data: out, frames, cellW, cellH };
 }
 
-/** Build a hero sheet and pack it (what the workers return). */
+/** Pack a full grid sheet (the reference path: packedHeroSheet must produce exactly this from heroSheetPixels). */
+export function packSheet(px: SheetPixels, cellW: number, cellH: number, cells: number): PackedSheet {
+  const cols = Math.floor(px.width / cellW);
+  const boxes: TrimmedFrame[] = [];
+  for (let cell = 0; cell < cells; cell++) boxes.push(trimFrame(cell, px.data, px.width, (cell % cols) * cellW, Math.floor(cell / cols) * cellH, cellW, cellH));
+  return packFrames(boxes, cellW, cellH, cells);
+}
+
+/**
+ * Build a hero sheet and pack it (what the workers return). Frames are rendered one at a time and trimmed to their opaque
+ * box as they come, so the padded grid sheet (hundreds of MB for the big fighters) never exists: the result is
+ * byte-identical to packSheet(heroSheetPixels(spec)) (tests/art.test.ts checks it).
+ */
 export function packedHeroSheet(spec: SheetSpec): PackedSheet {
-  const px = heroSheetPixels(spec);
-  const fw = spec.sprite.frameWidth ?? spec.sprite.frameSize;
-  const L = sheetLayout({ sprite: spec.sprite } as CharacterData);
-  return packSheet(px, fw, spec.sprite.frameSize, L.total);
+  const { sprite } = spec;
+  const size = sprite.frameSize;
+  const fw = sprite.frameWidth ?? size;
+  const L = sheetLayout({ sprite } as CharacterData);
+  setMovePoses(spec.poses);
+  const boxes: TrimmedFrame[] = new Array(L.total);
+  for (const name of L.names) {
+    const def = sprite.animations[name];
+    for (let f = 0; f < def.frames; f++) {
+      const cell = L.start[name] + f;
+      const img = renderHeroImage(fw, size, sprite.placeholder, poseFor(name, f, def.frames), f);
+      finishHeroImage(img, sprite.placeholder);
+      boxes[cell] = trimFrame(cell, img.data, fw, 0, 0, fw, size);
+    }
+  }
+  return packFrames(boxes, fw, size, L.total);
+}
+
+/** Rough cost of building a sheet (rendered pixels), so the pool can start the biggest jobs first. */
+export function sheetCost(spec: SheetSpec): number {
+  const s = spec.sprite;
+  let frames = 0;
+  for (const a of Object.values(s.animations)) frames += a.frames;
+  return frames * (s.frameWidth ?? s.frameSize) * s.frameSize;
 }
