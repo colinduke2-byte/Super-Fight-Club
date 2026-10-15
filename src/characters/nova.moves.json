@@ -190,8 +190,8 @@
     "h": 1,
     "damage": 15.4,
     "angle": 40,
-    "base": 85,
-    "scaling": 1.05,
+    "base": 61.2,
+    "scaling": 0.756,
     "hitlag": 1.4,
     "fx": "zap",
     "status": {

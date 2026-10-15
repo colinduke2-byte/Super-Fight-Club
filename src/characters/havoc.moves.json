@@ -171,8 +171,8 @@
     "h": 1,
     "damage": 7.0,
     "angle": 70,
-    "base": 50,
-    "scaling": 0.6,
+    "base": 43.5,
+    "scaling": 0.522,
     "hitlag": 1.0,
     "fx": "blast"
    },

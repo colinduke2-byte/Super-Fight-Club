@@ -1563,8 +1563,8 @@
       "damage": 12,
       "launch": true,
       "angle": 60,
-      "base": 120,
-      "scaling": 0.95
+      "base": 98.4,
+      "scaling": 0.779
      }
     ]
    },
