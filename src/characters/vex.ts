@@ -68,7 +68,7 @@ export const vex: CharacterData = {
     victory: 'Too slow. Again.',
   },
   stats: {
-    weight: 107,
+    weight: 92,
     runSpeed: 3.0,
     airSpeed: 2.2,
     groundAccel: 0.42,

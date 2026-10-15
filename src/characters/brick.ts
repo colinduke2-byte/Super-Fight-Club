@@ -37,8 +37,8 @@ export const brick: CharacterData = {
     victory: 'Shake it off. Or don\'t.',
   },
   stats: {
-    weight: 108,
-    runSpeed: 1.9,
+    weight: 120,
+    runSpeed: 2.0,
     airSpeed: 1.45,
     groundAccel: 0.22,
     groundFriction: 0.28,
