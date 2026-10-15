@@ -124,7 +124,7 @@ describe('air: fast-fall aerials', () => {
 describe('hitstun canceling', () => {
   const launched = (hitstun: number) => {
     const { world, f } = setup(agni);
-    f.y = f.prevY = -150;
+    f.y = f.prevY = -300; // high enough not to reach the floor (and splat) inside the tested window
     f.grounded = false;
     f.groundPlat = null;
     f.launch(0, -2, hitstun);

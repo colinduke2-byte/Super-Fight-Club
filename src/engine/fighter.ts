@@ -7,7 +7,7 @@ import { executeMoveEvent } from './actions';
 import { moveTotal, type MoveDef, type StatusApply } from './moves';
 import type { Ledge, Platform } from './platform';
 import type { CharacterData, CharacterStats } from './types';
-import { GENERIC_MOVES } from './genericMoves';
+import { derivedMove, GENERIC_MOVES } from './genericMoves';
 import { throwBomb } from './items';
 import type { World } from './world';
 
@@ -45,12 +45,14 @@ export const MAX_GROUPS = 8;
 const LANDING_FRAMES = 2;
 const DOWNED_FRAMES = 28;
 const TECH_GROUND_FRAMES = 18;
-const TECH_WINDOW = 20;
+const TECH_WINDOW = 12;
 const TECH_LOCKOUT = 50;
 const TECH_INVULN = 14;
 const BOUNCE_MIN_SPEED = 3;
 const BOUNCE_FLOOR = 0.7;
 const BOUNCE_WALL = 0.75;
+/** A spike on a grounded victim bounces them off the floor at this fraction of the downward launch speed. */
+const SPIKE_BOUNCE = 0.7;
 /** A storable charge held at full releases by itself after this many frames in the move (no infinite stalling). */
 const STORE_HOLD_MAX = 240;
 /** An untech'd slam into a floor, wall or ceiling at least this fast (px/frame) is a splat: it hurts. */
@@ -71,12 +73,20 @@ export const STALE_PER_USE = 0.045;
 export const RAGE_START = 35;
 export const RAGE_RANGE = 115;
 export const RAGE_MAX = 0.1;
-/** Combo scaling: each further hit of a combo deals this much less damage (floor COMBO_MIN) and shortens hitstun. */
-export const COMBO_STEP = 0.03;
-export const COMBO_MIN = 0.65;
+/**
+ * Combo scaling (hitstun decay): each further hit of a TRUE combo (landing while the victim is still in hitstun) gives
+ * COMBO_STUN_STEP less hitstun, down to COMBO_STUN_MIN. Damage is never cut by combos; stale-move negation handles repeats.
+ */
 export const COMBO_STUN_STEP = 0.04;
 export const COMBO_STUN_MIN = 0.6;
-/** Frames of actionable state after which a combo is considered over. */
+/** Ultimate with an empty meter taunts only after this many frames out of an attack / hitstun / grab (no accidental taunts). */
+export const TAUNT_LOCKOUT = 30;
+const TAUNT_BUSY: ReadonlySet<FighterState> = new Set<FighterState>(['attack', 'hitstun', 'grabbed', 'holding', 'shieldstun', 'stunned', 'frozen', 'tech', 'downed']);
+/** Run speed above which a grab out of a run becomes a dash grab / pivot grab. */
+const DASH_GRAB_MIN_SPEED = 1.6;
+/** A KO is credited to the last attacker only if it happens within this many frames of the victim getting back to safety. */
+export const KILL_CREDIT_FRAMES = 300;
+/** Frames of actionable state after which a combo (as counted for the combo counter / burst) is considered over. */
 export const COMBO_GAP = 24;
 /** Soak (water status): frames stack up to SOAK_MAX; every SOAK_LEVEL frames is one level (1-3). */
 export const SOAK_MAX = 360;
@@ -130,7 +140,7 @@ export const SLOW_GETUP_DAMAGE = 100;
 /** Knockback multiplier when hit while crouching on the ground. */
 export const CROUCH_CANCEL = 0.8;
 /** Gravity multiplier while launched (floaty launches: upward hits can actually reach the top blast zone). */
-export const HITSTUN_RISE_GRAVITY = 0.2;
+export const HITSTUN_RISE_GRAVITY = 0.25;
 export const HITSTUN_FALL_GRAVITY = 0.9;
 /** Max trajectory bend from directional influence (radians, ~17 degrees). */
 export const DI_MAX_ANGLE = 0.3;
@@ -160,6 +170,8 @@ const ROLL_FRAMES = 32;
 const ROLL_INVULN: [number, number] = [3, 22];
 const ROLL_SPEED = 3.4;
 const SHIELDBREAK_FRAMES = 200;
+/** Shieldstun per point of damage from an aerial (grounded moves: 0.5 per point + 3). */
+const AERIAL_SHIELDSTUN_PER_DAMAGE = 0.33;
 const FLICK_FRAMES = 4;
 const FLICK_HI = 0.8;
 const FLICK_LO = 0.5;
@@ -257,6 +269,9 @@ export class Fighter implements Body {
   techWindow = 0;
   techLock = 0;
   lastHitBy = -1;
+  /** Ticks since the victim got back to safety (landed / grabbed a ledge) after its last hit; -1 = not yet. */
+  private creditClock = -1;
+  private creditFor = -1;
   /** Human projectiles: fighters this one has already crashed into during the current launch (bit per id). */
   collideMask = 0;
   /** Carrying a Shock Bomb item: the next Attack throws it. */
@@ -272,6 +287,10 @@ export class Fighter implements Body {
   /** Hits taken in the current combo and frames spent actionable since (a combo ends after COMBO_GAP). */
   comboHits = 0;
   private comboIdle = COMBO_GAP;
+  /** Consecutive hits taken while already in hitstun (true combo length, drives hitstun decay). */
+  private trueComboHits = 0;
+  /** Frames left before an empty-meter Ultimate press may taunt (see TAUNT_LOCKOUT). */
+  private tauntLock = 0;
   private sdiCount = 0;
   private sdiWasNeutral = true;
   dodgeStale = 0;
@@ -443,6 +462,8 @@ export class Fighter implements Body {
     this.staleIdx = 0;
     this.comboHits = 0;
     this.comboIdle = COMBO_GAP;
+    this.trueComboHits = 0;
+    this.tauntLock = 0;
     this.parryFrames = 0;
     this.shieldCooldown = 0;
     this.dodgeStale = 0;
@@ -468,6 +489,8 @@ export class Fighter implements Body {
     this.grabTarget = -1;
     this.grabbedBy = -1;
     this.lastHitBy = -1;
+    this.creditClock = -1;
+    this.creditFor = -1;
     this.heldBomb = false;
     this.damageMult = 1;
     this.speedBonus = 1;
@@ -512,16 +535,21 @@ export class Fighter implements Body {
         return Math.abs(this.vx) < this.stats.runSpeed * 0.62 ? pick('walk', 'run') : 'run';
       case 'crouch':
       case 'jumpsquat':
-      case 'landing':
         return 'crouch';
+      case 'landing':
+        return pick('land', 'crouch');
       case 'tech':
-        return pick('roll', 'crouch');
+        // a tech roll spins the tucked sprite (FighterView); a tech in place pops up to the feet
+        return Math.abs(this.vx) > 1 ? pick('roll', 'crouch') : pick('tech', pick('roll', 'crouch'));
       case 'air':
         if (this.gliding) return pick('glide', 'fall');
-        return this.vy < 0 ? 'jump' : 'fall';
+        if (this.vy >= 0) return 'fall';
+        // rising on a double jump (a jump spent in the air): the fighter's own flip / flap / jet
+        return this.jumpsLeft < this.stats.doubleJumps ? pick('jump2', 'jump') : 'jump';
       case 'ledge':
-      case 'ledgeClimb':
         return 'ledge';
+      case 'ledgeClimb':
+        return pick('ledgeClimb', 'ledge');
       case 'hitstun':
         return pick(this.hurtKind, 'hurt');
       case 'grabbed':
@@ -535,8 +563,9 @@ export class Fighter implements Body {
       case 'roll':
         return pick('roll', 'dodge');
       case 'spotdodge':
-      case 'airdodge':
         return 'dodge';
+      case 'airdodge':
+        return pick('airdodge', 'dodge');
       case 'holding':
         return 'grab';
       case 'dash':
@@ -546,7 +575,7 @@ export class Fighter implements Body {
       case 'frozen':
         return 'hurt';
       case 'stunned':
-        return 'hurt';
+        return pick('dizzy', 'hurt');
       case 'attack':
         return this.move ? this.move.anim : 'idle';
       case 'ko':
@@ -843,10 +872,11 @@ export class Fighter implements Body {
     const inCombo = this.state === 'hitstun' || this.state === 'grabbed' || this.comboIdle < COMBO_GAP;
     this.comboHits = inCombo ? this.comboHits + 1 : 1;
     this.comboIdle = 0;
-    const dmgScale = this.comboHits <= 1 ? 1 : Math.max(COMBO_MIN, 1 - COMBO_STEP * (this.comboHits - 1));
-    const dealt = hit.damage * dmgScale;
+    this.trueComboHits = this.state === 'hitstun' ? this.trueComboHits + 1 : 0;
+    const dealt = hit.damage;
     this.damage += dealt;
     if (hit.attackerId !== undefined) this.lastHitBy = hit.attackerId;
+    this.creditClock = -1;
     if (hit.attackerId !== undefined && hit.attackerId !== this.id) {
       world.damageDealt[hit.attackerId] = (world.damageDealt[hit.attackerId] ?? 0) + dealt;
       world.bestCombo[hit.attackerId] = Math.max(world.bestCombo[hit.attackerId] ?? 0, this.comboHits);
@@ -867,7 +897,7 @@ export class Fighter implements Body {
     if (angle === 361) angle = this.grounded && kb < 32 ? 0 : 44; // "Sakurai angle"
     launchVelocity(kb, angle, hit.direction, tmpLaunch);
     if (hit.carryVx) tmpLaunch.vx += hit.carryVx;
-    const stunScale = this.comboHits <= 1 ? 1 : Math.max(COMBO_STUN_MIN, 1 - COMBO_STUN_STEP * (this.comboHits - 1));
+    const stunScale = Math.max(COMBO_STUN_MIN, 1 - COMBO_STUN_STEP * this.trueComboHits);
     this.launch(tmpLaunch.vx, tmpLaunch.vy, Math.round(Math.max(hitstunFrames(kb), hit.minHitstun ?? 0) * stunScale));
     // recoil: knocked sideways, the victim turns to face where the hit came from; near-vertical launches keep their facing
     if (Math.abs(tmpLaunch.vx) > 0.6 && Math.abs(tmpLaunch.vx) > Math.abs(tmpLaunch.vy) * 0.35) this.facing = tmpLaunch.vx > 0 ? -1 : 1;
@@ -914,6 +944,29 @@ export class Fighter implements Body {
     }
   }
 
+  /**
+   * Kill credit: the last attacker keeps the credit for a later KO only until KILL_CREDIT_FRAMES after the victim is back
+   * to safety (standing / lying on the ground or holding a ledge, outside hitstun). A new hit (or a new credited attacker
+   * from any source) restarts it.
+   */
+  private tickKillCredit(): void {
+    if (this.lastHitBy < 0) return;
+    if (this.lastHitBy !== this.creditFor) {
+      this.creditFor = this.lastHitBy;
+      this.creditClock = -1;
+    }
+    if (this.creditClock < 0) {
+      const safe = this.state === 'ledge' || (this.grounded && this.state !== 'hitstun' && this.state !== 'grabbed');
+      if (!safe) return;
+      this.creditClock = 0;
+    }
+    if (++this.creditClock >= KILL_CREDIT_FRAMES) {
+      this.lastHitBy = -1;
+      this.creditFor = -1;
+      this.creditClock = -1;
+    }
+  }
+
   /** Clank recoil: the current attack is cancelled, a short lag in place, pushed `dir` a little. */
   rebound(frames: number, dir: number): void {
     this.endMoveState();
@@ -922,10 +975,13 @@ export class Fighter implements Body {
     this.vx = dir * 1.6;
   }
 
-  /** Called by the combat system when a hit lands on a shielding fighter. */
-  shieldHit(damage: number, breaks: boolean, shieldMult: number, pushDir: number, world: World): void {
+  /**
+   * Called by the combat system when a hit lands on a shielding fighter. Aerials cause less shieldstun than grounded
+   * moves, so a fresh aerial landing on a shield is about -3 to -6 for the attacker (shieldstun minus landing lag).
+   */
+  shieldHit(damage: number, breaks: boolean, shieldMult: number, pushDir: number, world: World, aerial = false): void {
     this.shieldHP -= breaks ? SHIELD_MAX : damage * shieldMult;
-    this.shieldStun = Math.min(24, Math.floor(damage * 0.5) + 3);
+    this.shieldStun = aerial ? Math.min(12, Math.floor(damage * AERIAL_SHIELDSTUN_PER_DAMAGE) + 1) : Math.min(24, Math.floor(damage * 0.5) + 3);
     this.vx = pushDir * Math.min(4, 1 + damage * 0.12);
     if (this.shieldHP <= 0) {
       this.shieldHP = 0;
@@ -986,6 +1042,9 @@ export class Fighter implements Body {
     if (this.pummelCd > 0) this.pummelCd--;
     if (this.parryFrames > 0) this.parryFrames--;
     if (this.shieldCooldown > 0) this.shieldCooldown--;
+    this.tickKillCredit();
+    if (TAUNT_BUSY.has(this.state)) this.tauntLock = TAUNT_LOCKOUT;
+    else if (this.tauntLock > 0) this.tauntLock--;
     if (this.state === 'hitstun' || this.state === 'grabbed') this.comboIdle = 0;
     else if (this.comboIdle < COMBO_GAP && ++this.comboIdle >= COMBO_GAP) this.comboHits = 0;
     if (this.state !== 'spotdodge' && this.state !== 'roll' && this.state !== 'airdodge' && this.dodgeStale > 0 && ++this.dodgeStaleTimer >= DODGE_DECAY) {
@@ -1215,7 +1274,7 @@ export class Fighter implements Body {
       this.parryFrames = PARRY_FRAMES;
       return true;
     }
-    if (this.buffer.consume(Button.Grab)) return this.startMove('grab', inp, world);
+    if (this.buffer.consume(Button.Grab)) return this.startGrab(inp, world);
     if (this.tryStartSpecial(inp, world)) return true;
     const dash = this.data.dash;
     if (dash && this.dashCd === 0 && this.flickX > 0 && !this.buffer.has(Button.Attack) && !this.buffer.has(Button.Smash)) {
@@ -1228,11 +1287,30 @@ export class Fighter implements Body {
     return this.tryStartAttack(inp, world, true);
   }
 
+  /**
+   * Grab from the ground: standing grab; out of a run a lunging dash grab; out of a run with the stick pulled back a
+   * pivot grab (turns around, longest reach, most lag). The variants are derived from the fighter's own grab.
+   */
+  private startGrab(inp: FighterInput, world: World): boolean {
+    if (this.state === 'run' && Math.abs(this.vx) > DASH_GRAB_MIN_SPEED && this.data.moves.grab) {
+      const dir = Math.sign(this.vx);
+      if (inp.stickX * dir < -0.5) {
+        this.facing = (dir > 0 ? -1 : 1) as 1 | -1;
+        return this.startMove('pivotGrab', inp, world);
+      }
+      this.facing = (dir > 0 ? 1 : -1) as 1 | -1;
+      return this.startMove('dashGrab', inp, world);
+    }
+    return this.startMove('grab', inp, world);
+  }
+
   private tryStartSpecial(inp: FighterInput, world: World): boolean {
     if (this.buffer.has(Button.Ultimate) && this.data.moves.ultimate) {
       this.buffer.consume(Button.Ultimate);
       const cost = this.data.ultimate?.cost ?? ULT_COST;
-      if (this.meter < cost) return this.grounded && this.startMove('taunt', inp, world); // no meter: taunt instead
+      // no meter: taunt instead, but only from a calm moment (not straight out of an attack, a hit or a grab), so mashing
+      // Ultimate for a burst or a not-quite-full meter never taunts by accident
+      if (this.meter < cost) return this.grounded && this.tauntLock === 0 && this.startMove('taunt', inp, world);
 
       this.meter = 0;
       return this.startMove('ultimate', inp, world);
@@ -1438,11 +1516,11 @@ export class Fighter implements Body {
 
   startMove(id: string, inp: FighterInput | null, world: World): boolean {
     id = this.resolveVariant(id);
-    let m = this.data.moves[id] ?? GENERIC_MOVES[id];
+    let m = this.data.moves[id] ?? GENERIC_MOVES[id] ?? derivedMove(this.data.moves, id);
     if (!m && !this.data.behavior?.remapMove) return false;
     if (this.data.behavior?.remapMove) {
       id = this.data.behavior.remapMove(this, id);
-      m = this.data.moves[id] ?? GENERIC_MOVES[id];
+      m = this.data.moves[id] ?? GENERIC_MOVES[id] ?? derivedMove(this.data.moves, id);
     }
     if (!m) return false;
     if (m.requires && (this.res[m.requires.key] ?? 0) < m.requires.min) return false;
@@ -2016,6 +2094,20 @@ export class Fighter implements Body {
       this.burst(world);
       return;
     }
+    // a downward hit on a grounded victim: the floor bounces them up (or they tech it), never a pin in place
+    if (this.grounded && this.vy >= BOUNCE_MIN_SPEED) {
+      if (this.techWindow > 0 || this.buffer.consume(Button.Shield)) {
+        this.doTech(inp, world, 'floor');
+        return;
+      }
+      const impact = this.vy;
+      this.vy = -impact * SPIKE_BOUNCE;
+      this.vx *= 0.8;
+      this.grounded = false;
+      this.groundPlat = null;
+      world.emit('bounce', this, this.x, this.y, impact, 0);
+      this.splat(world, impact, this.x, this.y);
+    }
     // hitstun canceling out of a big launch
     if (!this.grounded && this.hitstunTotal >= HITSTUN_CANCEL_MIN && this.hitstun > 0) {
       const t = this.stateFrame;
@@ -2059,9 +2151,7 @@ export class Fighter implements Body {
     this.sdiWasNeutral = false;
     this.sdiCount++;
     const dx = (inp.stickX / mag) * SDI_DIST;
-    let dy = (inp.stickY / mag) * SDI_DIST;
-    if (this.grounded && dy > 0) dy = 0;
-    if (this.grounded) dy = Math.min(0, dy) * 0; // grounded victims only slide sideways
+    const dy = this.grounded ? 0 : (inp.stickY / mag) * SDI_DIST; // grounded victims only slide sideways
     this.x += dx;
     this.y += dy;
     world.emit('sdi', this, this.x, this.y - this.h / 2, 0, 0);

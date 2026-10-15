@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { computeKnockback, hitstunFrames, launchVelocity, MAX_LAUNCH_SPEED, type LaunchVector } from '../src/engine/knockback';
+import { computeKnockback, hitstunFrames, KB_TO_SPEED, launchVelocity, MAX_LAUNCH_SPEED, type LaunchVector } from '../src/engine/knockback';
 
 describe('computeKnockback', () => {
   it('follows (base + damage * scaling) * moveWeight / targetWeight', () => {
@@ -39,11 +39,11 @@ describe('hitstun + launch', () => {
   it('launch angle comes from the move and mirrors with direction (up is negative y)', () => {
     const v: LaunchVector = { vx: 0, vy: 0 };
     launchVelocity(100, 0, 1, v);
-    expect(v.vx).toBeCloseTo(5);
+    expect(v.vx).toBeCloseTo(100 * KB_TO_SPEED);
     expect(v.vy).toBeCloseTo(0);
     launchVelocity(100, 90, 1, v);
     expect(v.vx).toBeCloseTo(0);
-    expect(v.vy).toBeCloseTo(-5);
+    expect(v.vy).toBeCloseTo(-100 * KB_TO_SPEED);
     launchVelocity(100, 45, -1, v);
     expect(v.vx).toBeLessThan(0);
     expect(v.vy).toBeLessThan(0);

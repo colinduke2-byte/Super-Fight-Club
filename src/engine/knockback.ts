@@ -12,12 +12,12 @@
 export const DEFAULT_MOVE_WEIGHT = 100;
 
 /** Launch speed (px / sim frame) per point of knockback. */
-export const KB_TO_SPEED = 0.05;
+export const KB_TO_SPEED = 0.065;
 export const MAX_LAUNCH_SPEED = 24;
 /** Hitstun frames per point of knockback. */
 export const HITSTUN_PER_KB = 0.4;
 /** Horizontal drag (px/frame^2) applied while in hitstun. */
-export const LAUNCH_DRAG = 0.085;
+export const LAUNCH_DRAG = 0.045;
 
 export interface KnockbackParams {
   base: number;

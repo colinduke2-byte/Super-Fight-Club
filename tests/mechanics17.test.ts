@@ -2,7 +2,8 @@ import { describe, expect, it } from 'vitest';
 import { agni } from '../src/characters/agni';
 import { brick } from '../src/characters/brick';
 import { Button, makeInput, type FighterInput } from '../src/engine/buttons';
-import { COMBO_GAP, COMBO_MIN, PARRY_FRAMES, PARRY_HITLAG, SDI_DIST, SHIELD_DROP_LAG, STALE_PER_USE, Fighter } from '../src/engine/fighter';
+import { COMBO_GAP, COMBO_STUN_MIN, PARRY_FRAMES, PARRY_HITLAG, SDI_DIST, SHIELD_DROP_LAG, STALE_PER_USE, Fighter } from '../src/engine/fighter';
+import { computeKnockback, hitstunFrames } from '../src/engine/knockback';
 import type { StageData } from '../src/engine/types';
 import { World } from '../src/engine/world';
 import { classicStage } from '../src/stages/classic';
@@ -160,24 +161,26 @@ describe('Rage', () => {
 });
 
 describe('Combo scaling', () => {
-  it('each further hit of a combo deals a bit less, floored; the combo resets after the victim recovers', () => {
+  it('true combos (hits into hitstun) decay hitstun, floored; damage is never cut; the decay resets once the victim is free', () => {
     const r = rig();
     const hit = { damage: 10, base: 20, scaling: 0.1, angle: 80, direction: 1 as const, hitlag: 0, attackerId: 0 };
     const gains: number[] = [];
+    const stuns: number[] = [];
     for (let i = 0; i < 20; i++) {
       const before = r.b.damage;
       r.b.receiveHit(hit, r.world);
       gains.push(r.b.damage - before);
+      stuns.push(r.b.hitstunTotal / hitstunFrames(computeKnockback({ base: 20, scaling: 0.1, damagePercent: r.b.damage, targetWeight: r.b.stats.weight })));
       r.run(3); // stays in hitstun between hits
     }
-    expect(gains[0]).toBeCloseTo(10, 5);
-    expect(gains[3]).toBeLessThan(gains[1]);
-    expect(Math.min(...gains)).toBeCloseTo(10 * COMBO_MIN, 5);
+    for (const g of gains) expect(g).toBeCloseTo(10, 5);
+    expect(stuns[0]).toBeCloseTo(1, 1);
+    expect(stuns[3]).toBeLessThan(stuns[1]);
+    expect(Math.min(...stuns)).toBeGreaterThanOrEqual(COMBO_STUN_MIN - 0.05);
     r.run(200);
     expect(r.b.comboHits).toBe(0);
-    const before = r.b.damage;
     r.b.receiveHit(hit, r.world);
-    expect(r.b.damage - before).toBeCloseTo(10, 5);
+    expect(r.b.hitstunTotal).toBe(hitstunFrames(computeKnockback({ base: 20, scaling: 0.1, damagePercent: r.b.damage, targetWeight: r.b.stats.weight })));
     expect(COMBO_GAP).toBeGreaterThan(0);
   });
 });

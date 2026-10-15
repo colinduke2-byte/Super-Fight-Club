@@ -249,7 +249,8 @@ function applyHit(world: World, c: Candidate): void {
     return;
   }
 
-  deliverHit(world, { atk, ownerId: atk.id, def, hb, damage: c.damage, facing: atk.facing, originX: atk.x, kbMult });
+  hitboxRect(atk, hb, rA);
+  deliverHit(world, { atk, ownerId: atk.id, def, hb, damage: c.damage, facing: atk.facing, originX: atk.x, kbMult, rect: rA });
 }
 
 /** Everything needed to land one hit, whatever produced it (a fighter's hitbox, a projectile, a trap). */
@@ -266,6 +267,18 @@ export interface HitDelivery {
   kbMult: number;
   /** Projectiles / traps do not freeze their owner. */
   freezeOwner?: boolean;
+  /** World rect [x, y, w, h] of the hitting box. When given, a shield only blocks the hit if the box touches the bubble. */
+  rect?: readonly number[];
+}
+
+/** Does the hit rect touch the defender's shield bubble (the circle the view draws: body centre, `shieldRadius`)? */
+export function hitsShieldBubble(def: Fighter, r: readonly number[]): boolean {
+  const cx = def.x;
+  const cy = def.y - def.h / 2;
+  const nx = Math.max(r[0], Math.min(cx, r[0] + r[2]));
+  const ny = Math.max(r[1], Math.min(cy, r[1] + r[3]));
+  const rad = def.shieldRadius;
+  return (nx - cx) * (nx - cx) + (ny - cy) * (ny - cy) <= rad * rad;
 }
 
 /** Shield -> armor -> clean-hit resolution shared by every hit source. */
@@ -276,6 +289,8 @@ export function deliverHit(world: World, d: HitDelivery): void {
   const direction: 1 | -1 = hb.dir === 'away' ? away : d.facing;
   const hl = Math.round(Math.min(HITLAG_MAX, (d.damage * HITLAG_PER_DAMAGE + HITLAG_BASE + Math.max(0, d.damage - HEAVY_FREEZE_FROM) * HEAVY_FREEZE_PER_DAMAGE) * (hb.hitlag ?? 1)));
   const owner = d.freezeOwner === false ? null : atk;
+  // a hit that slips past a shrunken bubble (a poke at the feet / head) is not blocked at all
+  const covered = !d.rect || hitsShieldBubble(def, d.rect);
 
   // --- counter: a hit into a counter window is absorbed and answered ---
   const cm = def.move;
@@ -297,7 +312,7 @@ export function deliverHit(world: World, d: HitDelivery): void {
   }
 
   // --- perfect shield: a shield raised in the last few frames deflects the hit for free ---
-  if (def.state === 'shield' && def.parryFrames > 0 && !hb.unblockable) {
+  if (def.state === 'shield' && def.parryFrames > 0 && !hb.unblockable && covered) {
     def.parryCount++;
     def.hitlag = 2;
     def.vx = 0;
@@ -311,8 +326,9 @@ export function deliverHit(world: World, d: HitDelivery): void {
   }
 
   // --- shield ---
-  if ((def.state === 'shield' || def.state === 'shieldstun') && !hb.unblockable) {
-    def.shieldHit(d.damage, !!hb.breaksShield, hb.shieldDamage ?? 1, away, world);
+  if ((def.state === 'shield' || def.state === 'shieldstun') && !hb.unblockable && covered) {
+    const aerial = !!atk && d.freezeOwner !== false && atk.move?.kind === 'aerial';
+    def.shieldHit(d.damage, !!hb.breaksShield, hb.shieldDamage ?? 1, away, world, aerial);
     def.hitlag = Math.round(hl * 0.8);
     if (owner) {
       owner.hitlag = Math.round(hl * 0.8);
