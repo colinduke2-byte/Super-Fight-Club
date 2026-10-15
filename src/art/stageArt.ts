@@ -34,10 +34,15 @@ export function prebuildStageArt(scene: Phaser.Scene, stages: StageData[]): void
     for (const j of jobs(st)) {
       if (tm.exists(j.key) || building.has(j.key)) continue;
       building.add(j.key);
-      void buildStageArt(j.task).then((px) => {
-        building.delete(j.key);
-        if (!tm.exists(j.key)) addCanvasTexture({ textures: tm } as Phaser.Scene, j.key, artCanvas(px));
-      });
+      buildStageArt(j.task)
+        .then((px) => {
+          if (!tm.exists(j.key)) addCanvasTexture({ textures: tm } as Phaser.Scene, j.key, artCanvas(px));
+        })
+        .catch((err: unknown) => {
+          // not fatal: ensureStageArt builds any missing piece when the stage is entered
+          console.warn(`[stageArt] background build of ${j.key} failed:`, err);
+        })
+        .finally(() => building.delete(j.key));
     }
   }
 }

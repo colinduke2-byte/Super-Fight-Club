@@ -11,6 +11,8 @@ import { attackDecel, moveTable, NORMAL_INPUTS, travel, type AiMove } from './mo
 import { aiFor, LEVELS, type CharacterAi, type CpuLevel, type LevelParams } from './profiles';
 import { newEpisode, offstage, recoveryStep, type RecoveryEpisode, type RecoveryOut } from './recovery';
 import { chooseTarget } from './targeting';
+// deterministic PRNG: the CPU must not use Math.random so matches can be replayed from inputs
+import { mulberry32 } from '../art/rng';
 
 /** Default distance band for gap-closing specials. */
 const CLOSER_RANGE: [number, number] = [120, 320];
@@ -18,18 +20,6 @@ const CLOSER_RANGE: [number, number] = [120, 320];
 const SHOT_GAP = 120;
 const CAN_ACT = new Set(['idle', 'run', 'crouch', 'dash', 'air']);
 const SPECIAL_DIR: Record<string, [number, number]> = { neutralB: [0, 0], sideB: [1, 0], upB: [0, -1], downB: [0, 1] };
-
-/** Deterministic PRNG (the CPU must not use Math.random so matches can be replayed from inputs). */
-function mulberry32(seed: number): () => number {
-  let a = seed >>> 0;
-  return () => {
-    a = (a + 0x6d2b79f5) >>> 0;
-    let t = a;
-    t = Math.imul(t ^ (t >>> 15), t | 1);
-    t ^= t + Math.imul(t ^ (t >>> 7), t | 61);
-    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
-  };
-}
 
 /** One scripted button press: what to hold and where to point the stick, for a few frames. */
 interface Plan {

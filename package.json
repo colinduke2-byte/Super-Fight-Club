@@ -10,7 +10,9 @@
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
     "framedata": "node scripts/framedata.mjs",
-    "artifact": "npm run build && node scripts/make-artifact.mjs"
+    "artifact": "npm run build && node scripts/make-artifact.mjs",
+    "smoke": "node tests/e2e/smoke.mjs",
+    "ci": "tsc --noEmit -p . && vitest run && vite build && node scripts/make-artifact.mjs"
   },
   "dependencies": {
     "phaser": "^3.90.0"

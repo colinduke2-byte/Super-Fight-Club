@@ -540,18 +540,29 @@ function paletteData(data: CharacterData, palette: number): CharacterData | null
 /** Outfit sheets built in the background (requestPalette), waiting to be turned into textures by ensurePalette. */
 const readyOutfits = new Map<string, PackedSheet>();
 const buildingOutfits = new Set<string>();
+/** Bumped by releasePalettes: a background build that started before a release is stale and its result is dropped. */
+let outfitGeneration = 0;
 
 /** Start building an alternate palette's sheet off the main thread, so ensurePalette is instant when it is needed. */
 export function requestPalette(scene: Phaser.Scene, data: CharacterData, palette: number): void {
   const alt = paletteData(data, palette);
   if (!alt || scene.textures.exists(fighterTextureKey(alt.id)) || readyOutfits.has(alt.id) || buildingOutfits.has(alt.id)) return;
   buildingOutfits.add(alt.id);
-  void buildSheetPixels(sheetSpec(alt)).then((px) => {
-    buildingOutfits.delete(alt.id);
-    readyOutfits.set(alt.id, px);
-    // keep only a few unclaimed sheets around (each is several MB): drop the oldest
-    while (readyOutfits.size > 4) readyOutfits.delete(readyOutfits.keys().next().value!);
-  });
+  const gen = outfitGeneration;
+  buildSheetPixels(sheetSpec(alt))
+    .then((px) => {
+      if (gen !== outfitGeneration) return; // released while building: nobody wants this sheet any more
+      readyOutfits.set(alt.id, px);
+      // keep only a few unclaimed sheets around (each is several MB): drop the oldest
+      while (readyOutfits.size > 4) readyOutfits.delete(readyOutfits.keys().next().value!);
+    })
+    .catch((err: unknown) => {
+      // not fatal: ensurePalette builds the sheet inline when it is needed
+      console.warn(`[palette] background build of ${alt.id} failed:`, err);
+    })
+    .finally(() => {
+      if (gen === outfitGeneration) buildingOutfits.delete(alt.id);
+    });
 }
 
 /**
@@ -568,6 +579,9 @@ export function releasePalettes(scene: Phaser.Scene, keep: Iterable<string>): vo
     scene.textures.remove(key);
   }
   readyOutfits.clear();
+  // builds still in flight belong to the old generation: drop their results and let them be requested again
+  outfitGeneration++;
+  buildingOutfits.clear();
 }
 
 /** True when ensurePalette can return without building a sheet on the main thread. */

@@ -13,7 +13,12 @@ export type ArtTask =
   | { kind: 'mass'; args: Parameters<typeof stageMassPixels> }
   | { kind: 'plat'; args: Parameters<typeof platformArtPixels> };
 
-type Pending = { resolve: (px: unknown) => void; reject: (e: unknown) => void };
+type Pending = { resolve: (px: unknown) => void; reject: (e: unknown) => void; worker: Worker; timer: ReturnType<typeof setTimeout> };
+type Reply = { job: number; result?: unknown; error?: string };
+
+/** A job that has not come back after this long (plus a little per job queued ahead of it) is built inline instead. */
+const JOB_TIMEOUT_MS = 15000;
+const QUEUED_JOB_MS = 4000;
 
 let workers: Worker[] | null = null;
 let failed = false;
@@ -29,6 +34,19 @@ function pool(): Promise<Worker[] | null> {
   return starting;
 }
 
+function settle(job: number): Pending | undefined {
+  const p = pending.get(job);
+  if (!p) return undefined; // timed out earlier (already rebuilt inline) or unknown: drop the late reply
+  pending.delete(job);
+  clearTimeout(p.timer);
+  return p;
+}
+
+/** Reject every job waiting on one worker (their callers rebuild those jobs inline). */
+function rejectWorker(w: Worker, reason: unknown): void {
+  for (const [job, p] of [...pending]) if (p.worker === w) settle(job)?.reject(reason);
+}
+
 async function startPool(): Promise<Worker[] | null> {
   if (workers || failed) return workers;
   if (typeof Worker === 'undefined') {
@@ -39,16 +57,19 @@ async function startPool(): Promise<Worker[] | null> {
     const n = Math.max(1, Math.min(6, (navigator.hardwareConcurrency || 4) - 1));
     workers = Array.from({ length: n }, () => {
       const w = new SheetWorker();
-      w.onmessage = (e: MessageEvent<{ job: number; result: unknown }>) => {
-        const p = pending.get(e.data.job);
-        pending.delete(e.data.job);
-        p?.resolve(e.data.result);
+      w.onmessage = (e: MessageEvent<Reply>) => {
+        const p = settle(e.data.job);
+        if (!p) return;
+        if (e.data.error !== undefined) p.reject(new Error(e.data.error));
+        else p.resolve(e.data.result);
       };
+      // a reply that cannot be deserialized carries no job id: retry that worker's outstanding jobs inline
+      w.onmessageerror = (e) => rejectWorker(w, e);
       w.onerror = (e) => {
         // a worker that cannot run (CSP, old browser): build everything inline from now on
+        e.preventDefault();
         failed = true;
-        for (const p of pending.values()) p.reject(e);
-        pending.clear();
+        rejectWorker(w, e);
       };
       return w;
     });
@@ -68,12 +89,21 @@ async function run<T>(task: ArtTask): Promise<T> {
   if (!ws || failed) return inline(task) as T;
   const job = nextJob++;
   const w = ws[rr++ % ws.length];
+  let queued = 0;
+  for (const p of pending.values()) if (p.worker === w) queued++;
   try {
     return await new Promise<T>((resolve, reject) => {
-      pending.set(job, { resolve: resolve as (px: unknown) => void, reject });
-      w.postMessage({ job, task });
+      const timer = setTimeout(() => settle(job)?.reject(new Error(`art job ${job} (${task.kind}) timed out`)), JOB_TIMEOUT_MS + queued * QUEUED_JOB_MS);
+      pending.set(job, { resolve: resolve as (px: unknown) => void, reject, worker: w, timer });
+      try {
+        w.postMessage({ job, task });
+      } catch (err) {
+        settle(job)?.reject(err);
+      }
     });
-  } catch {
+  } catch (err) {
+    console.warn('[sheetPool] worker job failed, building inline:', err);
+    // only this job falls back; an inline failure propagates to the caller
     return inline(task) as T;
   }
 }

@@ -4,6 +4,8 @@ import type { World } from '../engine/world';
 import { applyHeld, clearInput, type Controller } from '../game/controllers';
 import { newEpisode, offstage, recoveryStep, type RecoveryEpisode, type RecoveryOut } from './recovery';
 import { LEVELS, type CharacterAi } from './profiles';
+// deterministic PRNG: the boss must not use Math.random so matches can be replayed from inputs
+import { mulberry32 } from '../art/rng';
 
 const BOSS_RECOVERY: CharacterAi = {
   ranged: [],
@@ -16,17 +18,6 @@ const BOSS_RECOVERY: CharacterAi = {
   ultimateRange: 0,
   spacing: 60,
 };
-
-function mulberry32(seed: number): () => number {
-  let a = seed >>> 0;
-  return () => {
-    a = (a + 0x6d2b79f5) >>> 0;
-    let t = a;
-    t = Math.imul(t ^ (t >>> 15), t | 1);
-    t ^= t + Math.imul(t ^ (t >>> 7), t | 61);
-    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
-  };
-}
 
 type PatternId = 'claws' | 'slam' | 'quake' | 'volley' | 'beam' | 'drones' | 'sky' | 'leap' | 'combo' | 'cataclysm';
 

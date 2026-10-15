@@ -25,4 +25,3 @@ export interface FighterInput {
 export function makeInput(): FighterInput {
   return { stickX: 0, stickY: 0, held: 0, pressed: 0, released: 0 };
 }
-export const NEUTRAL_INPUT: Readonly<FighterInput> = Object.freeze(makeInput());

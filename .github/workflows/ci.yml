@@ -1,0 +1,38 @@
+name: CI
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  build-test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - name: Typecheck
+        run: npx tsc --noEmit -p .
+      - name: Unit tests
+        run: npx vitest run
+      - name: Build
+        run: npx vite build
+      - name: Single-file artifact
+        run: node scripts/make-artifact.mjs
+      - name: Install Playwright (Chromium)
+        # not a project dependency: installed for this job only
+        run: |
+          npm install --no-save playwright
+          npx playwright install --with-deps chromium
+      - name: Browser smoke test (boot, 10 s 4-CPU match, no page errors)
+        run: node tests/e2e/smoke.mjs dist/super-fight-club.html
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: super-fight-club-html
+          path: dist/super-fight-club.html
+          if-no-files-found: ignore

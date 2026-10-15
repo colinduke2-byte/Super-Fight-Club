@@ -36,13 +36,24 @@ export function applySize(): void {
   }
 }
 
+let resizeFrame = 0;
+
+/** Resize events arrive in bursts while a window is dragged: resize the canvas at most once per animation frame. */
+function scheduleApplySize(): void {
+  if (resizeFrame) return;
+  resizeFrame = requestAnimationFrame(() => {
+    resizeFrame = 0;
+    applySize();
+  });
+}
+
 export function initDisplay(g: Phaser.Game): void {
   game = g;
-  window.addEventListener('resize', applySize);
+  window.addEventListener('resize', scheduleApplySize);
   // dragging the window to a monitor with a different DPR fires a resolution media-query change
   const watchDpr = (): void => {
     const mq = window.matchMedia(`(resolution: ${window.devicePixelRatio}dppx)`);
-    mq.addEventListener('change', () => { applySize(); watchDpr(); }, { once: true });
+    mq.addEventListener('change', () => { scheduleApplySize(); watchDpr(); }, { once: true });
   };
   watchDpr();
   g.events.once('ready', applySize);

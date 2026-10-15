@@ -1,6 +1,9 @@
 import { launchSlots } from '../game/launch';
 import Phaser from 'phaser';
-import { buildPlaceholderSheet, registerAnimations, registerPixels } from '../art/proceduralFighter';
+import { buildPlaceholderSheet, fighterTextureKey, registerAnimations, registerPixels } from '../art/proceduralFighter';
+import { addCanvasTexture } from '../art/canvasTexture';
+import { sheetLayout } from '../art/sheetLayout';
+import type { CharacterData } from '../engine/types';
 import { hasHeroArt } from '../art/hero';
 import { sheetSpec } from '../art/sheetPixels';
 import { prebuildStageArt } from '../art/stageArt';
@@ -56,20 +59,59 @@ export class BootScene extends Phaser.Scene {
     let done = 0;
     const t0 = performance.now();
     // every sheet is built in parallel off the main thread (sheetPool), then turned into a texture as it arrives
+    // one fighter that fails to build gets a stand-in sheet: boot never hangs (or dies) on a single bad sheet
     const jobs = all.map(async (c) => {
-      if (c.sprite.sheetUrl) registerAnimations(this, c);
-      else if (hasHeroArt(c.sprite.placeholder)) registerPixels(this, c, await buildSheetPixels(sheetSpec(c)));
-      else buildPlaceholderSheet(this, c);
+      try {
+        if (c.sprite.sheetUrl) registerAnimations(this, c);
+        else if (hasHeroArt(c.sprite.placeholder)) registerPixels(this, c, await buildSheetPixels(sheetSpec(c)));
+        else buildPlaceholderSheet(this, c);
+      } catch (err) {
+        console.error(`[boot] could not build ${c.id}'s sheet, using a stand-in:`, err);
+        this.standInSheet(c);
+      }
       draw(++done);
     });
     void Promise.all(jobs).then(() => {
       console.info(`[boot] ${all.length} fighter sheets built in ${Math.round(performance.now() - t0)} ms`);
       // stage art keeps building on the workers while the player is in the menus
-      prebuildStageArt(this, Object.values(STAGES));
+      try {
+        prebuildStageArt(this, Object.values(STAGES));
+      } catch (err) {
+        console.error('[boot] stage art prebuild failed (stages build on demand):', err);
+      }
       label.destroy();
       bar.destroy();
       this.finish();
     });
+  }
+
+  /** Last resort for a fighter whose sheet failed to build: a flat silhouette in its colours on every frame, so it is still playable. */
+  private standInSheet(c: CharacterData): void {
+    try {
+      const L = sheetLayout(c);
+      const size = c.sprite.frameSize;
+      const fw = c.sprite.frameWidth ?? size;
+      const canvas = document.createElement('canvas');
+      canvas.width = L.cols * fw;
+      canvas.height = L.rows * size;
+      const g = canvas.getContext('2d')!;
+      const look = c.sprite.placeholder;
+      for (let cell = 0; cell < L.total; cell++) {
+        const x = (cell % L.cols) * fw;
+        const y = Math.floor(cell / L.cols) * size;
+        g.fillStyle = look.armor || '#8888aa';
+        g.fillRect(x + fw * 0.3, y + size * 0.3, fw * 0.4, size * 0.66);
+        g.fillStyle = look.accent || '#ffffff';
+        g.fillRect(x + fw * 0.36, y + size * 0.14, fw * 0.28, size * 0.18);
+      }
+      const key = fighterTextureKey(c.id);
+      if (this.textures.exists(key)) this.textures.remove(key);
+      const tex = addCanvasTexture(this, key, canvas);
+      for (let cell = 0; cell < L.total; cell++) tex.add(cell, 0, (cell % L.cols) * fw, Math.floor(cell / L.cols) * size, fw, size);
+      registerAnimations(this, c);
+    } catch (err) {
+      console.error(`[boot] stand-in sheet for ${c.id} failed too:`, err);
+    }
   }
 
   private finish(): void {

@@ -35,13 +35,6 @@ export function characterById(id: string): CharacterData | undefined {
   return CHARACTERS[id] ?? BOSSES[id] ?? devCharacter() ?? undefined;
 }
 
-/** The character the sandbox player uses: `?char=<id>` (roster id or the dev-only `proto`), default Brick. */
-export function playerCharacter(): CharacterData {
-  if (typeof location === 'undefined') return brick;
-  const id = new URLSearchParams(location.search).get('char') ?? '';
-  return CHARACTERS[id] ?? devCharacter() ?? brick;
-}
-
 /** Dev-only characters, selectable with `?char=<id>`. */
 export function devCharacter(): CharacterData | null {
   if (typeof location === 'undefined') return null;

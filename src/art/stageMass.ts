@@ -1659,6 +1659,3 @@ export function stageMass(themeId: string | undefined, w: number, h: number, see
   return artCanvas(stageMassPixels(themeId, w, h, seed, seated));
 }
 
-export function platformArt(themeId: string | undefined, w: number, h: number, moving: boolean, seed: number): HTMLCanvasElement {
-  return artCanvas(platformArtPixels(themeId, w, h, moving, seed));
-}
