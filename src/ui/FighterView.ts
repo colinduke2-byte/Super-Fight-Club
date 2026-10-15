@@ -1,9 +1,13 @@
 import Phaser from 'phaser';
 import { PIXEL_FONT } from '../art/pixelFont';
 import { animFrameIndex, fighterAnimKey, fighterTextureKey } from '../art/proceduralFighter';
+import { flipsOnDoubleJump } from '../art/poses';
+import type { CharacterData } from '../engine/types';
 import type { Fighter } from '../engine/fighter';
 import type { Platform } from '../engine/platform';
 import { fighterTrailColor } from '../fx/runner';
+import { applyMechSkin } from './mechSkin';
+import { RimLight } from './RimLight';
 
 /** Pixels the body is drawn left of the frame centre in the procedural sprite sheet (see proceduralFighter). */
 const BODY_SHIFT = 5;
@@ -25,6 +29,9 @@ function aegisColor(tick: number): number {
   if (!aegisColors) aegisColors = Array.from({ length: AEGIS_STEPS }, (_, i) => Phaser.Display.Color.HSVToRGB(i / AEGIS_STEPS, 0.55, 1).color);
   return aegisColors[((tick % AEGIS_STEPS) + AEGIS_STEPS) % AEGIS_STEPS];
 }
+
+/** Transition rows that play out into the idle instead of being cut off by it (the idle waits for them to finish). */
+const SETTLE = new Set(['land', 'getup', 'ledgeClimb', 'tech']);
 
 interface AttackView {
   sx: number;
@@ -59,6 +66,11 @@ export class FighterView {
   private poseAnim = '';
   private poseFrame = -1;
   private readonly animKeys = new Map<string, string>();
+  /** Row name of the timed animation playing (not set while posed). */
+  private lastName = '';
+  private lastHitlag = 0;
+  /** This fighter's double jump is a somersault: the view spins the sprite through `jump2`. */
+  private readonly flips: boolean;
   private readonly av: AttackView = { sx: 1, sy: 1, rot: 0 };
   /** Trail tint for the smear when it does not depend on the fighter's state (null = resolve each frame). */
   private readonly trailTint: number | null;
@@ -81,12 +93,15 @@ export class FighterView {
 
   /** Texture / animation id (the fighter's id, or its palette variant). */
   private readonly skin: string;
+  /** Stage rim light on the body's lit edge (drawn behind it; follows the body by itself). */
+  private rim: RimLight | null = null;
 
   constructor(scene: Phaser.Scene, layer: Phaser.GameObjects.Layer, readonly fighter: Fighter, tint?: number, skin?: string) {
     this.baseTint = tint;
     this.layer = layer;
     this.scene = scene;
     this.skin = skin ?? fighter.data.id;
+    this.flips = flipsOnDoubleJump(fighter.data.sprite.placeholder?.build?.helmet ?? '');
     const trail = fighter.data.fx?.trail;
     this.trailTint = typeof trail === 'object' ? null : fighterTrailColor(fighter, 0);
     this.accentHex = parseInt(fighter.data.sprite.placeholder.accent.slice(1), 16);
@@ -101,6 +116,7 @@ export class FighterView {
       this.smear.push(g);
       layer.add(g);
     }
+    this.rim = new RimLight(scene, layer, this.sprite, key);
     layer.add(this.sprite);
     this.glow = scene.add.sprite(0, 0, key, 0).setBlendMode(Phaser.BlendModes.ADD).setVisible(false);
     layer.add(this.glow);
@@ -129,6 +145,9 @@ export class FighterView {
   x = 0;
   y = 0;
 
+  /** What the fighter carries (set by the match scene each frame): only a bomb is drawn here; EntityViews draws the sword and ray gun. */
+  heldKind: string | null = null;
+
   update(alpha: number, tick: number): void {
     const f = this.fighter;
     const a = f.snapped ? 1 : alpha;
@@ -146,7 +165,7 @@ export class FighterView {
     const s = this.sprite;
     s.setVisible(f.state !== 'ko');
     this.placeShadow(f);
-    this.held.setVisible(f.heldBomb && f.state !== 'ko');
+    this.held.setVisible(f.heldBomb && (this.heldKind ?? 'bomb') === 'bomb' && f.state !== 'ko');
     // came back from a KO: light the way down until they land (or the invincibility runs out)
     if (this.wasKo && f.state !== 'ko') this.haloT = 1;
     this.wasKo = f.state === 'ko';
@@ -176,22 +195,28 @@ export class FighterView {
         this.poseAnim = f.anim;
         this.poseFrame = frame;
         this.lastAnim = '';
+        this.lastName = '';
       }
     } else {
-      let anim = this.animKeys.get(f.anim);
+      const name = this.timedRow(f);
+      let anim = this.animKeys.get(name);
       if (anim === undefined) {
-        anim = fighterAnimKey(this.skin, f.anim);
-        this.animKeys.set(f.anim, anim);
+        anim = fighterAnimKey(this.skin, name);
+        this.animKeys.set(name, anim);
       }
       if (anim !== this.lastAnim) {
         s.anims.play(anim, true);
         this.lastAnim = anim;
+        this.lastName = name;
         this.poseAnim = '';
-      } else if (f.anim === 'jump' && f.jumpsLeft < this.lastJumps) {
-        s.anims.restart(); // a double jump replays the take-off
+      } else if ((name === 'jump' || name === 'jump2') && f.jumpsLeft < this.lastJumps) {
+        s.anims.restart(); // another double jump replays the take-off / flip
+      } else if (name.startsWith('hurt') && f.hitlag > 0 && this.lastHitlag === 0) {
+        s.anims.restart(); // a fresh hit replays the recoil
       }
     }
     this.lastJumps = f.jumpsLeft;
+    this.lastHitlag = f.hitlag;
     // hitlag: victims shake
     const shake = f.hitlag > 0 && f.state === 'hitstun' ? ((tick & 1) === 0 ? 1.5 : -1.5) : 0;
     // the sprite body is drawn BODY_SHIFT px left of the frame centre (weapon reach); re-centre it on the hurtbox
@@ -201,9 +226,15 @@ export class FighterView {
     // launched victims tumble around their centre, rolls spin the tucked sprite; everything else stands upright on its feet
     const tumbling = f.state === 'hitstun' && !f.grounded && Math.hypot(f.vx, f.vy) > 5;
     const rolling = f.state === 'roll' || (f.state === 'tech' && Math.abs(f.vx) > 1);
+    // a somersault double jump: one full turn around the middle of the body, eased in and out over the row
+    const flipping = this.flips && !rolling && !tumbling && this.lastName === 'jump2' && s.anims.isPlaying;
     if (rolling) {
       this.spin += Math.sign(f.vx || f.facing) * 0.45 * dt;
       s.setOrigin(0.5, 0.5).setPosition(s.x, this.y - f.h * 0.35 * f.sizeMul).setRotation(this.spin);
+    } else if (flipping) {
+      const t = s.anims.getProgress();
+      this.spin = t * t * (3 - 2 * t) * Math.PI * 2 * f.facing;
+      s.setOrigin(0.5, 0.55).setPosition(s.x, this.y - f.h * 0.45 * f.sizeMul).setRotation(this.spin);
     } else if (tumbling) {
       if (f.hitlag === 0) this.spin += Math.sign(f.vx || f.facing) * Math.min(0.5, Math.hypot(f.vx, f.vy) * 0.03) * dt;
       s.setOrigin(0.5, 0.62).setPosition(s.x, this.y - f.h * 0.5 * f.sizeMul).setRotation(this.spin);
@@ -251,9 +282,16 @@ export class FighterView {
     const st = f.status;
     let glowCol = -1;
     let glowA = 0;
+    // Mega Mech: the suit's own sheet (Gizmo at the cockpit controls) shown steady, its seams lit in the art itself; until
+    // that sheet is built (in the background), a steady cool tint stands in. No flicker: that read as taking damage.
+    const mech = !!tr && applyMechSkin(this.scene, f.data, this.skin, big > 1, s, this.smear);
     if (st.freeze > 0) s.setTint(0x9fe9ff);
     else if (st.slow > 0) s.setTint(0x8aa0ff);
-    else if (tr && big > 1) s.setTint(((tick >> 3) & 1) === 0 ? tr.tint : 0xffffff);
+    else if (tr && big > 1) {
+      if (!mech) s.setTint(tr.tint);
+      else if (this.baseTint !== undefined) s.setTint(this.baseTint);
+      else s.clearTint();
+    }
     else if (f.hitlag > 0 && f.state === 'hitstun' && (tick & 3) < 2) s.setTintFill(HIT_FLASH[f.lastHitFx] ?? 0xffffff); // impact flash during hit-stop, coloured by the hit's element
     else if (this.baseTint !== undefined) s.setTint(this.baseTint);
     else s.clearTint();
@@ -314,7 +352,8 @@ export class FighterView {
    */
   private attackView(f: Fighter): AttackView {
     const m = f.move;
-    if (f.state !== 'attack' || !m) return setView(this.av, 1, 1, 0);
+    // a taunt is a pose, not a strike: no squash, stretch or lean
+    if (f.state !== 'attack' || !m || m.id === 'taunt') return setView(this.av, 1, 1, 0);
     const k = m.kind;
     const d = k === 'smash' ? AV_SMASH : k === 'tilt' || k === 'dashAttack' ? AV_TILT : k === 'aerial' ? AV_AERIAL : k === 'jab' ? AV_JAB : AV_NONE;
     const st = m.view?.stretch ?? d[0];
@@ -340,7 +379,7 @@ export class FighterView {
     const m = f.move;
     const strength = m?.view?.smear ?? 1;
     const phase = f.attackPhase;
-    const on = f.state === 'attack' && !!m && strength > 0 && phase >= 2 && phase <= 4 && (f.data.sprite.animations[m.anim]?.frames ?? 0) >= 6;
+    const on = f.state === 'attack' && !!m && m.id !== 'taunt' && strength > 0 && phase >= 2 && phase <= 4 && (f.data.sprite.animations[m.anim]?.frames ?? 0) >= 6;
     const s = this.sprite;
     for (let i = 0; i < 2; i++) {
       const g = this.smear[i];
@@ -359,6 +398,18 @@ export class FighterView {
         .setAlpha((i === 0 ? 0.34 : 0.18) * Math.min(1.5, strength) * (phase === 3 ? 1 : 0.7))
         .setVisible(true);
     }
+  }
+
+  /**
+   * The timed row to play: the state's row, except that transitions (land, get-up, ledge climb, tech) play out into the idle
+   * instead of being cut off by it, and standing up from a knockdown plays the get-up.
+   */
+  private timedRow(f: Fighter): string {
+    const want = f.anim;
+    if (want !== 'idle') return want;
+    if ((this.lastName === 'down' || this.lastName === 'ko') && f.data.sprite.animations.getup) return 'getup';
+    if (SETTLE.has(this.lastName) && this.sprite.anims.isPlaying) return this.lastName;
+    return want;
   }
 
   /** Stage platforms, for the drop shadow under an airborne fighter (set by the scene). */
@@ -485,6 +536,7 @@ export class FighterView {
   }
 
   destroy(): void {
+    this.rim?.destroy();
     this.sprite.destroy();
     this.shadow.destroy();
     for (const g of this.smear) g.destroy();
@@ -502,4 +554,24 @@ function setView(v: AttackView, sx: number, sy: number, rot: number): AttackView
   v.sy = sy;
   v.rot = rot;
   return v;
+}
+
+/**
+ * Results screen / menus: play a fighter's end-of-match animation on any sprite that uses its sheet (`skin` = the texture id,
+ * the fighter id or its palette variant). A win plays `victory` (a one-shot action) chained into `victoryHold` (the end pose,
+ * looping); a loss loops `lose`. Sheets without those rows fall back to the idle. Returns the animation key started.
+ */
+export function playResultPose(sprite: Phaser.GameObjects.Sprite, data: CharacterData, skin: string, won: boolean): string {
+  const rows = data.sprite.animations;
+  sprite.anims.stop();
+  sprite.anims.chain(); // drop anything chained before
+  if (won && rows.victory) {
+    const key = fighterAnimKey(skin, 'victory');
+    sprite.anims.play(key);
+    if (rows.victoryHold) sprite.anims.chain(fighterAnimKey(skin, 'victoryHold'));
+    return key;
+  }
+  const key = fighterAnimKey(skin, !won && rows.lose ? 'lose' : 'idle');
+  sprite.anims.play(key);
+  return key;
 }

@@ -36,6 +36,11 @@ export interface Backdrop {
   glowAlpha?: number;
   /** An overcast of cloud undersides hung across the top of the sky (a cloud-bank texture, flipped). */
   overcast?: string;
+  /**
+   * Push the near skyline back into the haze: `drop` world units lower (so nothing in it sits at play height), drawn at
+   * `alpha` so the sky shows through. For skylines of floating islands, which otherwise read as platforms you could stand on.
+   */
+  nearHaze?: { drop: number; alpha: number; farDrop?: number; farAlpha?: number };
 }
 
 export type Extra = 'rain' | 'flash' | 'sun' | 'birds' | 'godrays' | 'shooting' | 'clouds' | 'embers' | 'glow' | 'lightning' | 'beams' | 'grid' | 'motes' | 'aurora' | 'airships' | 'moon' | 'beacon' | 'ceiling' | 'drips' | 'snow' | 'smoke' | 'shafts' | 'fireflies' | 'searchlights' | 'traffic' | 'datastream' | 'wisps' | 'petals' | 'flare' | 'wind';
@@ -90,10 +95,12 @@ export const BACKDROPS: Record<string, Backdrop> = {
     planet: false,
     nebula: 0xffffff,
     far: 0xffffff,
-    near: 0xffffff,
     tiles: 0xffe8d8,
     farTex: 'bg-islands-far',
     nearTex: 'bg-islands-near',
+    // the islands sit below the bridge deck in a desaturated haze, so none of them reads as a ledge at play height
+    near: 0xe8c8cc,
+    nearHaze: { drop: 70, alpha: 0.62, farDrop: 60, farAlpha: 0.7 },
     bankTex: 'bg-cloudsea',
     stars: false,
     nebulaOn: false,
@@ -169,10 +176,11 @@ export const BACKDROPS: Record<string, Backdrop> = {
     planet: false,
     nebula: 0xffffff,
     far: 0xffd8c0,
-    near: 0xffffff,
+    near: 0xe0b8c0,
     tiles: 0xffe8d8,
     farTex: 'bg-thunderheads-far',
     nearTex: 'bg-islands-near',
+    nearHaze: { drop: 80, alpha: 0.58 },
     bankTex: 'bg-cloudsea',
     stars: false,
     nebulaOn: false,
@@ -242,6 +250,8 @@ export class BackgroundView {
   private flashNow = 0;
   private extras: Extra[] = [];
   private scroll = 0;
+  private nearDrop = 0;
+  private farDrop = 0;
   private sky = SKY;
   private w = 1;
   private h = 1;
@@ -278,6 +288,10 @@ export class BackgroundView {
     this.nebula.setTint(b.nebula);
     this.far.setTint(b.far);
     this.near.setTint(b.near);
+    this.nearDrop = b.nearHaze?.drop ?? 0;
+    this.near.setAlpha(b.nearHaze?.alpha ?? 1);
+    this.farDrop = b.nearHaze?.farDrop ?? 0;
+    this.far.setAlpha(b.nearHaze?.farAlpha ?? 1);
     this.far.setTexture(b.farTex ?? 'bg-ruins-far');
     this.near.setTexture(b.nearTex ?? 'bg-ruins-near');
     if (b.ground) ensureGroundTextures(this.scene, b.ground);
@@ -398,8 +412,8 @@ export class BackgroundView {
 
     // skylines: art pixel = 0.5 world units * layer scale; base line follows the camera with parallax
     const layers: [Phaser.GameObjects.TileSprite, number, number, number][] = [
-      [this.far, 0.12, 0.5 * 0.55, 20],
-      [this.near, 0.26, 0.5 * 0.85, 52],
+      [this.far, 0.12, 0.5 * 0.55, 20 + this.farDrop],
+      [this.near, 0.26, 0.5 * 0.85, 52 + this.nearDrop],
     ];
     for (const [t, f, k, baseY] of layers) {
       const s = zoom * k;

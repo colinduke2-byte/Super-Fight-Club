@@ -42,7 +42,7 @@ export const hollowStage: StageData = {
     { x: -20, y: -4 },
     { x: 80, y: -4 },
   ],
-  background: { topColor: 0x05030a, bottomColor: 0x4a2670, layers: ['stars'], theme: 'cavern' },
+  background: { topColor: 0x05030a, bottomColor: 0x4a2670, layers: ['stars'], theme: 'cavern', light: { rim: 0xc8a0ff, dir: [0.4, 0.9], strength: 0.7 } },
   music: 'hollow',
   blurb: 'A geode cavern under the arena: a crystal floor, a low tier, rock shelves, and stalactites that crack loose from the roof.',
 };

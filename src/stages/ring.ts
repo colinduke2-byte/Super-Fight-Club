@@ -12,7 +12,7 @@ export const ringStage: StageData = {
     { x: -40, y: -4 },
     { x: 40, y: -4 },
   ],
-  background: { topColor: 0x061424, bottomColor: 0x2a6e8a, layers: ['stars'], theme: 'void' },
+  background: { topColor: 0x061424, bottomColor: 0x2a6e8a, layers: ['stars'], theme: 'void', light: { rim: 0x8ff0ff, dir: [0.7, -0.7], strength: 0.4 } },
   music: 'ring',
   blurb: 'One wide, flat platform and nothing to hide behind. Pure fundamentals.',
 };

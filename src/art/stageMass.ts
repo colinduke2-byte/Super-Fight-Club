@@ -28,10 +28,17 @@ interface MassTheme {
   stone: string[]; // 6 shades, dark -> light
   accent: string[]; // 5 shades, dark -> bright (emissive)
   alt?: string[]; // second accent
-  body: 'ashlar' | 'plate' | 'hull';
+  body: 'ashlar' | 'plate' | 'hull' | 'rock';
   cap: 'metal' | 'tech' | 'hazard' | 'slate' | 'grass' | 'deck' | 'crystal' | 'snow';
   panel: 'window' | 'holo' | 'vent' | 'rune' | 'alcove' | 'glyph' | 'porthole' | 'geode';
-  under: 'crystal' | 'tech' | 'machine' | 'shard' | 'roots' | 'reef' | 'galleon';
+  under: 'crystal' | 'tech' | 'machine' | 'shard' | 'roots' | 'reef' | 'galleon' | 'ice';
+  /**
+   * The structure's outline below the cornice (art only: the collision box is unchanged). 'hull' tapers like a ship, bow left;
+   * 'steps' is a stepped temple; 'outcrop' a jagged rock mass; 'shelf' an undercut ice shelf; 'housing' a machined reactor
+   * casing with stepped chamfers; 'chamfer' a bevelled tech block; 'setback' an art-deco setback; 'ruin' broken corners;
+   * 'bridge' a straight bridge deck whose arches are open to the sky.
+   */
+  shape: 'hull' | 'steps' | 'outcrop' | 'shelf' | 'housing' | 'chamfer' | 'setback' | 'ruin' | 'bridge';
   fog: string;
 }
 
@@ -44,6 +51,7 @@ const THEMES: Record<string, MassTheme> = {
     cap: 'metal',
     panel: 'window',
     under: 'crystal',
+    shape: 'setback',
     fog: '#2a1846',
   },
   void: {
@@ -53,6 +61,7 @@ const THEMES: Record<string, MassTheme> = {
     cap: 'tech',
     panel: 'holo',
     under: 'tech',
+    shape: 'chamfer',
     fog: '#0c2a40',
   },
   reactor: {
@@ -63,6 +72,7 @@ const THEMES: Record<string, MassTheme> = {
     cap: 'hazard',
     panel: 'vent',
     under: 'machine',
+    shape: 'housing',
     fog: '#3a1208',
   },
   storm: {
@@ -72,6 +82,7 @@ const THEMES: Record<string, MassTheme> = {
     cap: 'slate',
     panel: 'rune',
     under: 'shard',
+    shape: 'ruin',
     fog: '#141e30',
   },
   temple: {
@@ -82,6 +93,7 @@ const THEMES: Record<string, MassTheme> = {
     cap: 'grass',
     panel: 'glyph',
     under: 'roots',
+    shape: 'steps',
     fog: '#163c3a',
   },
   tide: {
@@ -93,6 +105,7 @@ const THEMES: Record<string, MassTheme> = {
     cap: 'deck',
     panel: 'porthole',
     under: 'reef',
+    shape: 'hull',
     fog: '#0c2a3a',
   },
   cavern: {
@@ -100,10 +113,11 @@ const THEMES: Record<string, MassTheme> = {
     stone: ['#16121a', '#221c26', '#302834', '#423846', '#58505c', '#746a78'],
     accent: ['#3a1f66', '#6a34a0', '#a868e0', '#d8b0ff', '#f4e8ff'],
     alt: ['#0e3a40', '#1c6a70', '#3ac8c0', '#9ff4e8', '#e8fffc'],
-    body: 'ashlar',
+    body: 'rock',
     cap: 'crystal',
     panel: 'geode',
     under: 'crystal',
+    shape: 'outcrop',
     fog: '#120a22',
   },
   frost: {
@@ -114,7 +128,8 @@ const THEMES: Record<string, MassTheme> = {
     body: 'ashlar',
     cap: 'snow',
     panel: 'alcove',
-    under: 'shard',
+    under: 'ice',
+    shape: 'shelf',
     fog: '#1c3462',
   },
   airship: {
@@ -126,6 +141,7 @@ const THEMES: Record<string, MassTheme> = {
     cap: 'deck',
     panel: 'porthole',
     under: 'galleon',
+    shape: 'hull',
     fog: '#4a2a5e',
   },
   dawn: {
@@ -136,6 +152,7 @@ const THEMES: Record<string, MassTheme> = {
     cap: 'grass',
     panel: 'alcove',
     under: 'roots',
+    shape: 'bridge',
     fog: '#b07890',
   },
 };
@@ -210,6 +227,17 @@ class Buf {
     const i = (y * this.w + x) * 3;
     return [this.c[i], this.c[i + 1], this.c[i + 2]];
   }
+  /** Remove a pixel (cut away from the silhouette, or open to the sky). */
+  clear(x: number, y: number): void {
+    x = Math.round(x);
+    y = Math.round(y);
+    if (x < 0 || y < 0 || x >= this.w || y >= this.h) return;
+    const i = y * this.w + x;
+    this.a[i] = 0;
+    this.em[i] = 0;
+    this.c[i * 3] = this.c[i * 3 + 1] = this.c[i * 3 + 2] = 0;
+    this.glow[i * 3] = this.glow[i * 3 + 1] = this.glow[i * 3 + 2] = 0;
+  }
   /** Multiply an existing pixel (shadows / highlights) without changing coverage. */
   tint(x: number, y: number, k: number, toward?: RGB, t = 0): void {
     x = Math.round(x);
@@ -239,7 +267,8 @@ export function stageMassPixels(themeId: string | undefined, w: number, h: numbe
   const BH = Math.round(h * 2); // body height (collision box)
   const UNDER = seated ? 0 : Math.round(Math.min(220, Math.max(70, BW * 0.36))); // a tier resting on another block has no keel
   const W = BW + MASS_OVER * 2;
-  const H = MASS_HEAD + BH + UNDER;
+  const TAIL = seated ? 0 : 44; // room below the keel for what hangs from it (crystals, a lantern, a pendant)
+  const H = MASS_HEAD + BH + UNDER + TAIL;
   const b = new Buf(W, H);
   const X0 = MASS_OVER; // body left
   const Y0 = MASS_HEAD; // walking surface
@@ -295,7 +324,8 @@ export function stageMassPixels(themeId: string | undefined, w: number, h: numbe
       }
     }
   };
-  for (let y = bodyTop + CORN, row = 0; y < bodyBot; row++) {
+  if (T.body === 'rock') rockFace(b, S, X0, bodyTop, BW, bodyBot - bodyTop, n1, n2, rnd);
+  else for (let y = bodyTop + CORN, row = 0; y < bodyBot; row++) {
     const hull = T.body === 'hull';
     const bh = T.body === 'plate' ? 22 + Math.floor(rnd() * 8) : hull ? 7 + Math.floor(rnd() * 2) : 14 + Math.floor(rnd() * 7);
     let x = X0 - (row % 2 === 0 ? 0 : 10 + Math.floor(rnd() * (hull ? 40 : 14)));
@@ -330,17 +360,35 @@ export function stageMassPixels(themeId: string | undefined, w: number, h: numbe
   const centreBay = bays >= 3 && bays % 2 ? (bays - 1) / 2 : -1;
   const panelTop = bodyTop + CORN + 8;
   const panelBot = Math.min(bodyBot - 10, panelTop + Math.max(36, Math.round(BH * 0.55)));
-  for (let i = 0; i + 1 < pillars.length; i++) {
-    const px0 = pillars[i] + PW + 6;
-    const px1 = pillars[i + 1] - 6;
-    if (px1 - px0 < 20) continue;
-    if (!(i === centreBay && T.panel === 'porthole')) panel(b, T, S, A, A2, px0, panelTop, px1 - px0, panelBot - panelTop, rnd, n2);
-    if (i === centreBay) centrepiece(b, T, S, A, A2, px0, panelTop, px1 - px0, panelBot - panelTop);
+  if (T.body === 'hull') {
+    // a ship's side is one continuous run of planking: no bays or pillars, one even row of portholes along the whole length
+    portholes(b, S, A, A2, X0 + 16, panelTop, BW - 32, panelBot - panelTop, rnd, T.under === 'galleon', 40);
+    hullPaint(b, T, S, A, A2, X0, BW, panelBot, bodyBot, n2);
+  } else if (T.body === 'rock') {
+    // a cave outcrop: geodes cracked open at random in the rock, no masonry or columns
+    geodeScatter(b, S, A, A2, X0 + 10, panelTop - 4, BW - 20, Math.max(24, bodyBot - panelTop - 6), rnd);
+  } else {
+    for (let i = 0; i + 1 < pillars.length; i++) {
+      const px0 = pillars[i] + PW + 6;
+      const px1 = pillars[i + 1] - 6;
+      if (px1 - px0 < 20) continue;
+      panel(b, T, S, A, A2, px0, panelTop, px1 - px0, panelBot - panelTop, rnd, n2, i === centreBay || bays === 1, i);
+      if (i === centreBay) centrepiece(b, T, S, A, A2, px0, panelTop, px1 - px0, panelBot - panelTop);
+    }
+    for (const x of pillars) pillar(b, S, A, T, x, bodyTop, PW, bodyBot - bodyTop, panelBot);
   }
-  for (const x of pillars) pillar(b, S, A, T, x, bodyTop, PW, bodyBot - bodyTop, panelBot);
+  if (T.under === 'ice') iceShelf(b, X0, BW, panelBot + 6, bodyBot, n1, n2, rnd);
 
-  // ---- 3. cornice under the cap: protruding band with dentils and a cast shadow ---------------------------------
-  for (let x = X0; x < X0 + BW; x++) {
+  // ---- 3. cornice under the cap: protruding band with dentils and a cast shadow (a rough rock lip on an outcrop) -----
+  if (T.body === 'rock') {
+    for (let x = X0; x < X0 + BW; x++) {
+      for (let y = bodyTop; y < bodyTop + CORN; y++) {
+        const k = y - bodyTop < 2 ? 4 : n2(x / 3, y / 3) > 0.7 ? 3 : 2;
+        b.set(x, y, S[k]);
+      }
+      for (let k = 0; k < 4; k++) b.tint(x, bodyTop + CORN + k, 0.6 + k * 0.1);
+    }
+  } else for (let x = X0; x < X0 + BW; x++) {
     b.set(x, bodyTop, S[5]);
     b.set(x, bodyTop + 1, S[4]);
     for (let y = bodyTop + 2; y < bodyTop + 6; y++) b.set(x, y, S[3]);
@@ -355,12 +403,18 @@ export function stageMassPixels(themeId: string | undefined, w: number, h: numbe
     // glowing inlay along the cornice
     for (let x = X0 + 4; x < X0 + BW - 4; x++) b.set(x, bodyTop + 3, (x >> 3) % 2 === 0 ? A[2] : A[1], (x >> 3) % 2 === 0);
   }
+  // the facade sits right under the fighters' feet: its lights are kept low so the fighters stay the brightest thing at play
+  // height, and the stage's light show moves to the underside, below the playfield
+  dimEmissive(b, bodyTop, bodyBot, FACADE_LIGHT);
 
   // ---- 4. the walking surface -------------------------------------------------------------------------------------
   cap(b, T, S, A, A2, Y0, CAP, W, rnd);
 
   // ---- 5. underside keel -------------------------------------------------------------------------------------------
   if (!seated) underside(b, T, S, A, A2, X0, bodyBot, BW, UNDER, rnd, n1);
+
+  // ---- 5b. the stage's own silhouette: carve the outline below the cornice (the walkable top and ledges stay square) ---
+  if (!seated) carve(b, T, S, X0, BW, bodyTop + CORN + 6, bodyBot, bodyBot + UNDER, n1);
 
   // ---- 6. silhouette edges: rim light left, dark outline right / bottom -------------------------------------------
   for (let y = Y0 + CAP; y < H; y++) {
@@ -497,26 +551,49 @@ function centrepiece(b: Buf, T: MassTheme, S: Ramp, A: Ramp, A2: Ramp, x0: numbe
       break;
     }
     case 'alcove': {
-      // a bronze temple bell hung in the arch on a rope: domed crown, straight waist, flared lip
-      const BR: Ramp = ['#2e1c0c', '#5a3a18', '#8e5e28', '#c89048', '#f4d08a'].map(hex);
-      const H = Math.min(ph - 12, 30);
-      const R = Math.round(H * 0.5);
-      const top = y0 + Math.max(4, Math.round((ph - H) / 2) - 4);
-      for (let y = y0 + 1; y < top + 2; y++) b.set(cx, y, S[0]); // rope
-      b.rect(cx - 2, top, 5, 3, BR[1]); // the hanging loop
-      for (let y = 0; y < H; y++) {
-        const t = y / (H - 1);
-        const half = t < 0.22 ? R * 0.42 * Math.sqrt(Math.max(0, t / 0.22)) + 1 : t < 0.8 ? R * (0.45 + (t - 0.22) * 0.55) : R * (0.77 + (t - 0.8) * 1.15);
-        const hw = Math.round(half);
-        for (let x = -hw; x <= hw; x++) {
-          const u = (x + hw) / (2 * hw + 1); // 0 left .. 1 right; lit from the left
-          let k = u < 0.18 ? 3 : u < 0.5 ? 2 : u < 0.85 ? 1 : 0;
-          if (u > 0.08 && u < 0.14) k = 4; // specular stripe
-          if (y === H - 1 || (t > 0.55 && t < 0.6)) k = Math.max(0, k - 1); // lip and a cast band
-          b.set(cx + x, top + 3 + y, BR[k]);
+      if (T.cap === 'snow') {
+        // the mountain shrine's middle arch holds a frozen waterfall: pale ice columns spilling from the arch and heaping
+        // into a frozen pool at its foot, a few glints catching the lantern light
+        const ICEF: Ramp = ['#2e5e86', '#4e88b4', '#86bce0', '#bfe2f8', '#eefaff'].map(hex);
+        const fw = Math.max(10, Math.round(pw * 0.42));
+        const fx = cx - Math.floor(fw / 2);
+        const fTop = y0 + Math.round(ph * 0.12);
+        const fBot = y0 + ph - 2;
+        for (let x = 0; x < fw; x++) {
+          const u = x / (fw - 1);
+          const col = Math.floor(x / 3); // columns of ice
+          const start = fTop + ((col * 5) % 7);
+          const flare = Math.round(Math.max(0, Math.abs(u - 0.5) * 2 - 0.55) * 14); // the foot spreads out
+          for (let y = start; y < fBot; y++) {
+            if (fBot - y < flare && (u < 0.2 || u > 0.8)) continue;
+            const v = (y - start) / Math.max(1, fBot - start);
+            let k = col % 2 === 0 ? 3 : 2;
+            if (u < 0.15) k += 1; // lit from the left
+            if (u > 0.85) k -= 1;
+            if (x % 3 === 2) k -= 1; // the groove between columns
+            if (v > 0.82) k = Math.max(k, 3); // the frozen pool
+            b.set(fx + x, y, ICEF[clampI(k, 0, 4)]);
+          }
         }
+        // the frozen pool widens under the fall
+        for (let x = -Math.round(fw * 0.7); x <= Math.round(fw * 0.7); x++) {
+          const hgt = Math.round(4 * Math.sqrt(Math.max(0, 1 - (x / (fw * 0.7)) ** 2)));
+          for (let k = 0; k < hgt; k++) b.set(cx + x, fBot - k, ICEF[k === hgt - 1 ? 4 : 2]);
+        }
+        for (let g = 0; g < 4; g++) b.set(fx + 2 + Math.round((g / 3) * (fw - 5)), fTop + 6 + ((g * 11) % Math.max(1, fBot - fTop - 10)), ICEF[4], true);
+        break;
       }
-      for (let x = -2; x <= 2; x++) b.set(cx + x, top + 3 + H, A[3], true); // lantern light pooled under the lip
+      // the sunlit bridge's middle arch: a gilded keystone medallion where the bell used to hang (metal catching the sun)
+      const BR: Ramp = ['#5a3a18', '#8e5e28', '#c89048', '#f4d08a', '#fff4d0'].map(hex);
+      const ky = y0 + 3;
+      const kr = 7;
+      for (let dy = -kr - 2; dy <= kr + 2; dy++) for (let dx = -kr - 2; dx <= kr + 2; dx++) {
+        const d = Math.hypot(dx, dy);
+        if (d > kr + 2.3) continue;
+        const lit = (-dx - dy) / (kr * 1.4);
+        const k = d > kr + 0.8 ? 0 : d > kr - 1 ? (lit > 0.2 ? 4 : lit > -0.3 ? 3 : 1) : d < 2 ? 4 : (Math.round(Math.atan2(dy, dx) / (Math.PI / 6)) & 1) === 0 ? 3 : 2;
+        b.set(cx + dx, ky + dy, BR[k]);
+      }
       break;
     }
     case 'porthole': {
@@ -539,6 +616,296 @@ function centrepiece(b: Buf, T: MassTheme, S: Ramp, A: Ramp, A2: Ramp, x0: numbe
       disc(Math.round(r * 0.7), (d) => (d < r * 0.25 ? A[4] : d < r * 0.5 ? A[3] : A[1]), true);
     }
   }
+}
+
+/** How bright the facade's own lights stay (1 = as drawn): they sit right under the fighters, so they are kept low. */
+const FACADE_LIGHT = 0.6;
+
+/** Glacier ice: deep blue to the pale lit face. */
+const ICE: Ramp = ['#14283e', '#1e3e5e', '#2e5e86', '#4e88b4', '#86bce0', '#d4f0ff'].map(hex);
+
+/** Scales the emissive pixels in rows y0..y1 (colour and the light they spread), leaving everything else alone. */
+function dimEmissive(b: Buf, y0: number, y1: number, k: number): void {
+  for (let y = Math.max(0, y0); y < Math.min(b.h, y1); y++) {
+    for (let x = 0; x < b.w; x++) {
+      const i = y * b.w + x;
+      if (!b.em[i]) continue;
+      for (let c = 0; c < 3; c++) {
+        b.c[i * 3 + c] *= k;
+        b.glow[i * 3 + c] *= k;
+      }
+    }
+  }
+}
+
+/**
+ * Cuts the structure's own outline out of the art below the cornice (see `MassTheme.shape`). The cap, cornice and the top of
+ * the facade stay square, so the ledges read exactly where they are; only the art changes, never the collision box. Surfaces
+ * the cut exposes (step treads, chamfers, the curve of a hull) catch the top-left key light.
+ */
+function carve(b: Buf, T: MassTheme, S: Ramp, X0: number, BW: number, top: number, bodyBot: number, keelBot: number, n: (x: number, y: number) => number): void {
+  const W = b.w;
+  const H = b.h;
+  const cut = new Uint8Array(W * H);
+  const span = Math.max(1, keelBot - top);
+  const bodyH = Math.max(1, bodyBot - top);
+  const maxIn = Math.floor(BW * 0.42);
+  for (let y = top; y < H; y++) {
+    const g = Math.min(1, (y - top) / span); // 0 under the cornice .. 1 at the bottom of the keel
+    const f = Math.min(1, (y - top) / bodyH); // through the facade
+    const u = y < bodyBot ? 0 : Math.min(1, (y - bodyBot) / Math.max(1, keelBot - bodyBot)); // through the underside
+    let l = 0;
+    let r = 0;
+    switch (T.shape) {
+      case 'hull':
+        // the sides tumble home toward the keel: a raked bow on the left, a fuller stern on the right
+        l = BW * 0.11 * Math.pow(g, 1.5);
+        r = BW * 0.05 * Math.pow(g, 1.9);
+        break;
+      case 'steps': {
+        // a stepped temple: three terraces down the facade, then the foundation steps on in under it
+        const s = clampI(Math.round(BW * 0.03), 8, 20);
+        const tier = y < bodyBot ? (f < 0.4 ? 0 : f < 0.72 ? 1 : 2) : 3 + Math.floor(u * 4);
+        l = r = tier * s;
+        break;
+      }
+      case 'outcrop': {
+        // a jagged mass of rock narrowing unevenly, chunks broken out of its flanks
+        const j = (n(y / 5, 11) - 0.5) * 14 * g;
+        l = BW * 0.08 * Math.pow(g, 1.3) + j + (n(y / 14, 4) > 0.6 ? 7 * g : 0);
+        r = BW * 0.06 * Math.pow(g, 1.2) - j * 0.7 + (n(y / 11, 8) > 0.62 ? 6 * g : 0);
+        break;
+      }
+      case 'shelf': {
+        // straight down through the shrine, then the ice undercuts back in a jagged diagonal of icicle teeth
+        const d = Math.max(0, g - 0.26);
+        l = d * BW * 0.17 + (((y >> 2) * 7) % 5) * d * 5;
+        r = d * BW * 0.14 + (((y >> 2) * 3) % 5) * d * 5;
+        break;
+      }
+      case 'housing': {
+        // a machined casing: the lower half bevels in 45-degree steps
+        const c = Math.max(0, y - (bodyBot - Math.round(bodyH * 0.45)));
+        l = r = Math.floor((c * 0.8) / 6) * 6;
+        break;
+      }
+      case 'chamfer':
+        l = r = Math.max(0, y - (top + bodyH * 0.55));
+        break;
+      case 'setback':
+        l = r = (f > 0.62 ? 8 : 0) + (y >= bodyBot ? 10 : 0);
+        break;
+      case 'ruin': {
+        // weathered corners: blocks missing from both lower flanks
+        const row = Math.floor(y / 10);
+        const k = Math.min(1, Math.max(0, (g - 0.3) * 3));
+        l = Math.floor(n(row, 21) * 3) * 9 * k;
+        r = Math.floor(n(row, 37) * 3) * 9 * k;
+        break;
+      }
+      default:
+        break; // 'bridge': a straight deck, its arches opened instead
+    }
+    l = clampI(Math.round(l), 0, maxIn);
+    r = clampI(Math.round(r), 0, maxIn);
+    if (l === 0 && r === 0) continue;
+    for (let x = 0; x < X0 + l; x++) if (b.filled(x, y)) { b.clear(x, y); cut[y * W + x] = 1; }
+    for (let x = X0 + BW - r; x < W; x++) if (b.filled(x, y)) { b.clear(x, y); cut[y * W + x] = 1; }
+  }
+  for (let y = top + 1; y < H; y++) {
+    for (let x = 0; x < W; x++) {
+      const i = y * W + x;
+      if (!b.a[i] || b.em[i] || !cut[i - W]) continue;
+      const left = x < X0 + BW / 2;
+      b.tint(x, y, left ? 1.3 : 1.1, S[5], left ? 0.35 : 0.12);
+      if (y + 1 < H && b.a[i + W] && !b.em[i + W]) b.tint(x, y + 1, left ? 1.12 : 1.04);
+    }
+  }
+}
+
+/** Cave rock: warped strata with lit seams and speckle, a few fissures. */
+function rockFace(b: Buf, S: Ramp, x0: number, y0: number, w: number, h: number, n1: (x: number, y: number) => number, n2: (x: number, y: number) => number, rnd: () => number): void {
+  for (let y = y0; y < y0 + h; y++) {
+    for (let x = x0; x < x0 + w; x++) {
+      const warp = n1(x / 38, y / 30) * 16 + n2(x / 90, 3) * 10;
+      const fb = (y + warp) / 11;
+      const band = Math.floor(fb);
+      const inBand = fb - band;
+      let k = 2 + ((band * 7) % 5 === 0 ? 1 : 0) - ((band * 3) % 4 === 0 ? 1 : 0);
+      const nn = n2(x / 3.4, y / 3.4);
+      if (nn > 0.76) k += 1;
+      else if (nn < 0.22) k -= 1;
+      if (inBand < 0.1) k = 1;
+      else if (inBand < 0.2) k += 1;
+      b.set(x, y, S[clampI(k, 0, 5)]);
+    }
+  }
+  for (let i = 0; i < w / 50; i++) {
+    let x = x0 + Math.floor(rnd() * w);
+    let y = y0 + Math.floor(rnd() * h * 0.5);
+    const len = 10 + Math.floor(rnd() * h * 0.6);
+    for (let k = 0; k < len && y < y0 + h; k++) {
+      b.set(x, y, S[0]);
+      b.set(x + 1, y, S[3]);
+      y++;
+      if (rnd() > 0.55) x += rnd() > 0.5 ? 1 : -1;
+    }
+  }
+}
+
+/** A ship's side under its portholes: a heavy wale, then the airship's oxblood-painted bottom or the wreck's weed-fouled planks. */
+function hullPaint(b: Buf, T: MassTheme, S: Ramp, A: Ramp, A2: Ramp, X0: number, BW: number, panelBot: number, bodyBot: number, n: (x: number, y: number) => number): void {
+  const sky = T.under === 'galleon';
+  const wy = panelBot + 2;
+  if (wy + 4 >= bodyBot) return;
+  for (let x = X0; x < X0 + BW; x++) {
+    b.set(x, wy, sky ? A[3] : S[4]);
+    b.set(x, wy + 1, sky ? (x % 24 === 6 ? A[4] : A[2]) : S[3]);
+    b.set(x, wy + 2, sky ? A[1] : S[2]);
+    b.set(x, wy + 3, S[0]);
+  }
+  const WEED = hex('#1a4a2a');
+  for (let y = wy + 4; y < bodyBot; y++) {
+    const t = (y - wy - 4) / Math.max(1, bodyBot - wy - 4);
+    for (let x = X0; x < X0 + BW; x++) {
+      if (!b.filled(x, y) || b.em[y * b.w + x]) continue;
+      if (sky) b.tint(x, y, 1, A2[0], 0.42);
+      else if (n(x / 9, y / 5) > 0.5 - t * 0.35) b.tint(x, y, 1, WEED, 0.22 + t * 0.25);
+    }
+  }
+}
+
+/** One geode cracked open: a rough rim, a lining of crystal teeth shading in to a glowing hollow. */
+function geode(b: Buf, S: Ramp, C: Ramp, cx: number, cy: number, rx: number, ry: number): void {
+  for (let yy = -ry - 2; yy <= ry + 2; yy++) {
+    for (let xx = -rx - 2; xx <= rx + 2; xx++) {
+      const d = Math.hypot(xx / (rx + 2), yy / (ry + 2));
+      if (d > 1) continue;
+      const e = Math.hypot(xx / rx, yy / ry);
+      if (e > 1) {
+        b.set(cx + xx, cy + yy, S[xx + yy < 0 ? 4 : 1]); // rough rim, lit top-left
+      } else if (e > 0.62) {
+        const ang = Math.atan2(yy, xx);
+        const tooth = Math.floor((ang + Math.PI) * 4) % 2 === 0;
+        b.set(cx + xx, cy + yy, tooth ? C[2] : C[1], tooth && e < 0.75);
+      } else {
+        b.set(cx + xx, cy + yy, e < 0.3 ? C[4] : C[3], true);
+      }
+    }
+  }
+}
+
+/** Geodes of different sizes broken open at random through a rock face (never a row), glowing veins between them. */
+function geodeScatter(b: Buf, S: Ramp, A: Ramp, A2: Ramp, x0: number, y0: number, pw: number, ph: number, rnd: () => number): void {
+  const want = Math.max(1, Math.round(pw / 85));
+  const placed: [number, number, number][] = [];
+  for (let tries = 0; tries < want * 8 && placed.length < want; tries++) {
+    const rx = 6 + Math.floor(rnd() * 12);
+    const ry = Math.max(5, Math.round(rx * (0.55 + rnd() * 0.3)));
+    if (pw < 2 * rx + 12 || ph < 2 * ry + 8) continue;
+    const cx = x0 + rx + 4 + Math.floor(rnd() * (pw - 2 * rx - 8));
+    const cy = y0 + ry + 3 + Math.floor(rnd() * (ph - 2 * ry - 6));
+    if (placed.some(([px, py, pr]) => Math.hypot(px - cx, (py - cy) * 1.6) < pr + rx + 16)) continue;
+    placed.push([cx, cy, rx]);
+    geode(b, S, rnd() > 0.75 ? A2 : A, cx, cy, rx, ry);
+  }
+  for (let v = 0; v < Math.max(1, Math.floor(pw / 90)); v++) {
+    let x = x0 + Math.floor(rnd() * pw);
+    for (let y = y0 + 2; y < y0 + ph - 2; y++) {
+      b.set(x, y, A[1], (y & 7) === 0);
+      if (rnd() > 0.6) x = clampI(x + (rnd() > 0.5 ? 1 : -1), x0, x0 + pw - 1);
+    }
+  }
+}
+
+/** The lower facade of the mountain shrine is glacier: blue ice with vertical striations and a few lit fracture lines. */
+function iceShelf(b: Buf, X0: number, BW: number, top: number, bot: number, n1: (x: number, y: number) => number, n2: (x: number, y: number) => number, rnd: () => number): void {
+  for (let x = X0; x < X0 + BW; x++) {
+    const start = top + Math.round(n1(x / 9, 31) * 8);
+    for (let y = start; y < bot; y++) {
+      if (!b.filled(x, y)) continue;
+      const d = (y - start) / Math.max(1, bot - start);
+      const streak = n2(x / 2.2, y / 26);
+      let k = 3 - Math.floor(d * 2.2) + (streak > 0.68 ? 1 : streak < 0.25 ? -1 : 0);
+      if (y - start < 2) k = 5;
+      b.set(x, y, ICE[clampI(k, 0, 5)]);
+    }
+  }
+  for (let i = 0; i < BW / 70; i++) {
+    let x = X0 + 6 + Math.floor(rnd() * (BW - 12));
+    let y = top + 10 + Math.floor(rnd() * Math.max(1, bot - top - 20));
+    const len = 6 + Math.floor(rnd() * 14);
+    const dx = rnd() > 0.5 ? 1 : -1;
+    for (let k = 0; k < len && y < bot - 1; k++) {
+      b.set(x, y, ICE[5]);
+      b.set(x + 1, y, ICE[2]);
+      y++;
+      if (k % 2) x += dx;
+    }
+  }
+}
+
+/** A reactor bay of instruments: three pressure gauges on a dark panel, their needles at different readings. */
+function gauges(b: Buf, S: Ramp, A: Ramp, A2: Ramp, ix: number, iy: number, iw: number, ih: number): void {
+  const n = Math.max(1, Math.min(3, Math.floor(iw / 26)));
+  const r = Math.max(5, Math.min(10, Math.floor(ih * 0.28), Math.floor(iw / n / 2) - 4));
+  const FACE = hex('#cfc4a8');
+  for (let i = 0; i < n; i++) {
+    const cx = ix + Math.round(((i + 0.5) / n) * iw);
+    const cy = iy + Math.round(ih * 0.42);
+    for (let dy = -r - 2; dy <= r + 2; dy++) for (let dx = -r - 2; dx <= r + 2; dx++) {
+      const d = Math.hypot(dx, dy);
+      if (d > r + 2.2) continue;
+      const lit = (-dx - dy) / (r * 1.4);
+      b.set(cx + dx, cy + dy, d > r + 0.5 ? S[lit > 0 ? 5 : 2] : d > r - 0.8 ? S[0] : dy > r * 0.45 ? A2[1] : FACE);
+    }
+    for (let t = 0; t < 7; t++) {
+      const a = Math.PI * (0.8 + (t / 6) * 1.4);
+      b.set(cx + Math.round(Math.cos(a) * (r - 2)), cy + Math.round(Math.sin(a) * (r - 2)), S[1]);
+    }
+    const na = Math.PI * (0.95 + ((i * 0.37 + 0.2) % 1) * 1.1);
+    for (let k = 0; k < r - 2; k++) b.set(cx + Math.round(Math.cos(na) * k), cy + Math.round(Math.sin(na) * k), A2[2]);
+    b.set(cx, cy, S[0]);
+    // the pipe each gauge reads, running down to the manifold
+    for (let y = cy + r + 2; y < iy + ih; y++) {
+      b.set(cx - 1, y, S[4]);
+      b.set(cx, y, S[3]);
+      b.set(cx + 1, y, S[1]);
+    }
+  }
+  // a small amber status lamp
+  b.rect(ix + iw - 7, iy + 2, 3, 3, A[3], true);
+}
+
+/** A run of pipe across the foot of a bay, flanged every 26 px. */
+function pipes(b: Buf, S: Ramp, x0: number, pw: number, py: number): void {
+  for (let x = x0 - 2; x < x0 + pw + 2; x++) {
+    b.set(x, py, S[5]);
+    b.set(x, py + 1, S[4]);
+    b.set(x, py + 2, S[2]);
+    b.set(x, py + 3, S[0]);
+    if ((x - x0) % 26 === 0) for (let y = py - 1; y < py + 5; y++) b.set(x, y, S[3]);
+  }
+}
+
+/** A stepped pyramid carved in relief (base centred on `cx`, standing on `base`), a dark doorway, a gold altar on top. */
+function stepRelief(b: Buf, S: Ramp, A: Ramp, cx: number, base: number, w: number, h: number): void {
+  const tiers = 4;
+  const th = Math.max(3, Math.floor(h / (tiers + 1)));
+  for (let t = 0; t < tiers; t++) {
+    const tw = Math.round(w * (1 - t / (tiers + 0.6)));
+    const x0 = Math.round(cx - tw / 2);
+    const y0 = base - (t + 1) * th;
+    for (let y = 0; y < th; y++) for (let x = 0; x < tw; x++) b.set(x0 + x, y0 + y, S[y === 0 ? 5 : x === 0 ? 4 : x === tw - 1 ? 1 : 3]);
+  }
+  const shrine = Math.max(4, Math.round(w * 0.16));
+  const sy = base - tiers * th - th;
+  b.rect(cx - shrine / 2, sy, shrine, th, S[2]);
+  b.rect(cx - shrine / 2, sy, shrine, 1, A[2]); // gilded lintel, not lit
+  b.rect(cx - 2, sy + 1, 4, th - 1, S[0]);
+  // a stair up the middle, and the doorway at its foot
+  for (let y = base - tiers * th; y < base; y += 2) b.rect(cx - 3, y, 6, 1, S[4]);
+  b.rect(cx - 3, base - th + 1, 6, th - 1, S[0]);
 }
 
 function pillar(b: Buf, S: Ramp, A: Ramp, T: MassTheme, x0: number, y0: number, pw: number, ph: number, panelBot: number): void {
@@ -597,9 +964,10 @@ function pillar(b: Buf, S: Ramp, A: Ramp, T: MassTheme, x0: number, y0: number, 
   }
 }
 
-function panel(b: Buf, T: MassTheme, S: Ramp, A: Ramp, A2: Ramp, x0: number, y0: number, pw: number, ph: number, rnd: () => number, n: (x: number, y: number) => number): void {
+/** One recessed bay of the facade. `focal` is the middle (or only) bay, which carries the stage's emblem; `idx` the bay's index. */
+function panel(b: Buf, T: MassTheme, S: Ramp, A: Ramp, A2: Ramp, x0: number, y0: number, pw: number, ph: number, rnd: () => number, n: (x: number, y: number) => number, focal = true, idx = 0): void {
   if (T.panel === 'porthole') {
-    portholes(b, S, A, A2, x0, y0, pw, ph, rnd, T.cap === 'deck' && T.body === 'hull' && T.under === 'machine');
+    portholes(b, S, A, A2, x0, y0, pw, ph, rnd, T.under === 'galleon');
     return;
   }
   if (T.panel === 'geode') {
@@ -675,6 +1043,9 @@ function panel(b: Buf, T: MassTheme, S: Ramp, A: Ramp, A2: Ramp, x0: number, y0:
       }
       b.rect(cx - 2, cy - 2, 4, 4, A[4], true);
     }
+  } else if (T.panel === 'vent' && !focal && idx % 2 === 1) {
+    gauges(b, S, A, A2, ix, iy, iw, ih);
+    pipes(b, S, x0, pw, iy + ih + 1);
   } else if (T.panel === 'vent') {
     // furnace grille: dark slats with heat glowing behind, brightest in the middle
     for (let y = iy; y < iy + ih; y++) {
@@ -695,15 +1066,7 @@ function panel(b: Buf, T: MassTheme, S: Ramp, A: Ramp, A2: Ramp, x0: number, y0:
       b.rect(px0, iy - 4, 20, 6, S[0]);
       for (let x = 0; x < 18; x++) for (let y = 0; y < 4; y++) b.set(px0 + 1 + x, iy - 3 + y, ((x + y) >> 1) % 2 === 0 ? A[3] : S[0]);
     }
-    // pipes across the panel
-    const py = iy + ih + 1;
-    for (let x = x0 - 2; x < x0 + pw + 2; x++) {
-      b.set(x, py, S[5]);
-      b.set(x, py + 1, S[4]);
-      b.set(x, py + 2, S[2]);
-      b.set(x, py + 3, S[0]);
-      if ((x - x0) % 26 === 0) for (let y = py - 1; y < py + 5; y++) b.set(x, y, S[3]);
-    }
+    pipes(b, S, x0, pw, iy + ih + 1);
   } else if (T.panel === 'rune') {
     // one large sigil per panel, a few small carved glyphs around it
     const cx = ix + iw / 2;
@@ -758,21 +1121,26 @@ function panel(b: Buf, T: MassTheme, S: Ramp, A: Ramp, A2: Ramp, x0: number, y0:
     const cx = ix + iw / 2;
     const cy = iy + ih / 2;
     const r = Math.max(6, Math.min(iw, ih) * 0.26);
-    for (let a = 0; a < 16; a++) {
+    if (!focal) {
+      // the side bays are carved, not lit: a stepped pyramid in relief with a dark doorway and a gold altar on top
+      stepRelief(b, S, A, cx, iy + ih - 4, Math.min(iw - 16, Math.round(ih * 1.5)), ih - 12);
+    } else for (let a = 0; a < 16; a++) {
       const rad = (a / 16) * Math.PI * 2;
       const r1 = r + 2;
       const r2 = r + (a % 2 === 0 ? 9 : 5);
       for (let t = r1; t < r2; t += 0.5) b.set(cx + Math.cos(rad) * t, cy + Math.sin(rad) * t, a % 2 === 0 ? A[3] : A[2], a % 2 === 0);
     }
-    for (let y = -r; y <= r; y++) for (let x = -r; x <= r; x++) {
-      const d = Math.hypot(x, y);
-      if (d > r) continue;
-      b.set(cx + x, cy + y, d > r - 1.5 ? A[3] : d < r * 0.4 ? A[4] : A[1], d > r - 1.5 || d < r * 0.4);
+    if (focal) {
+      for (let y = -r; y <= r; y++) for (let x = -r; x <= r; x++) {
+        const d = Math.hypot(x, y);
+        if (d > r) continue;
+        b.set(cx + x, cy + y, d > r - 1.5 ? A[3] : d < r * 0.4 ? A[4] : A[1], d > r - 1.5 || d < r * 0.4);
+      }
+      // a face in the disc: two eyes and a mouth line
+      b.rect(cx - r * 0.45, cy - r * 0.2, 2, 2, S[0]);
+      b.rect(cx + r * 0.3, cy - r * 0.2, 2, 2, S[0]);
+      b.rect(cx - r * 0.35, cy + r * 0.35, r * 0.7, 1, S[0]);
     }
-    // a face in the disc: two eyes and a mouth line
-    b.rect(cx - r * 0.45, cy - r * 0.2, 2, 2, S[0]);
-    b.rect(cx + r * 0.3, cy - r * 0.2, 2, 2, S[0]);
-    b.rect(cx - r * 0.35, cy + r * 0.35, r * 0.7, 1, S[0]);
     for (let m = 0; m < iw / 6; m++) {
       const mx = x0 + Math.floor(rnd() * pw);
       const my = y0 + Math.floor(rnd() * 6);
@@ -791,7 +1159,8 @@ function panel(b: Buf, T: MassTheme, S: Ramp, A: Ramp, A2: Ramp, x0: number, y0:
         if (y < archY * 0.6) continue;
         const edge = y < archY * 0.6 + 2 || x < 2 || x >= aw - 2;
         const t = y / ah;
-        b.set(ax + x, iy + y, edge ? A[2] : mix(S[0], hex('#3a2030'), 0.5 + t * 0.3));
+        if (!edge && T.cap === 'grass') b.clear(ax + x, iy + y); // the sunlit bridge's arches are open to the sky
+        else b.set(ax + x, iy + y, edge ? A[2] : mix(S[0], hex('#3a2030'), 0.5 + t * 0.3));
       }
     }
     if (aw > 30) {
@@ -875,11 +1244,11 @@ function geodes(b: Buf, S: Ramp, A: Ramp, A2: Ramp, x0: number, y0: number, pw: 
 }
 
 /** Brass-rimmed portholes glowing with sea light (one has a fish swimming past), kelp draped down the planks, barnacles. */
-function portholes(b: Buf, S: Ramp, A: Ramp, A2: Ramp, x0: number, y0: number, pw: number, ph: number, rnd: () => number, sky = false): void {
+function portholes(b: Buf, S: Ramp, A: Ramp, A2: Ramp, x0: number, y0: number, pw: number, ph: number, rnd: () => number, sky = false, spread = 18): void {
   const BRASS: Ramp = ['#3a2a10', '#7a5a20', '#c09a40', '#f0d080', '#fff4c0'].map(hex);
   const KELP: Ramp = ['#0e2a1a', '#1a4a2a', '#2e7040', '#4aa058', '#8ad07a'].map(hex);
   const r = Math.max(6, Math.min(11, Math.floor(ph * 0.22)));
-  const count = Math.max(1, Math.floor(pw / (r * 2 + 18)));
+  const count = Math.max(1, Math.floor(pw / (r * 2 + spread)));
   const cy = y0 + Math.floor(ph * 0.42);
   const fishIn = Math.floor(rnd() * count);
   for (let i = 0; i < count; i++) {
@@ -1136,6 +1505,7 @@ function cap(b: Buf, T: MassTheme, S: Ramp, A: Ramp, A2: Ramp, y0: number, ch: n
 
 function underside(b: Buf, T: MassTheme, S: Ramp, A: Ramp, A2: Ramp, x0: number, y0: number, bw: number, uh: number, rnd: () => number, n: (x: number, y: number) => number): void {
   const prof: number[] = [];
+  const R = T.under === 'ice' ? ICE : S; // the shrine stands on a glacier: its underside is ice, not rock
   const stepped = T.under === 'tech' || T.under === 'machine';
   const hull = T.under === 'reef' || T.under === 'galleon'; // a ship's planked hull, not rock
   for (let x = 0; x < bw; x++) {
@@ -1181,22 +1551,22 @@ function underside(b: Buf, T: MassTheme, S: Ramp, A: Ramp, A2: Ramp, x0: number,
         k = 3 - Math.floor(depth * 2.5) - (band === 1 ? 1 : 0);
         if (n(x / 2.3, y / 2.3) > 0.76) k += 1;
       }
-      b.set(x0 + x, y0 + y, S[clampI(k, 0, 5)]);
+      b.set(x0 + x, y0 + y, R[clampI(k, 0, 5)]);
     }
-    b.set(x0 + x, y0 + bot - 1, S[stepped ? 4 : 1]);
+    b.set(x0 + x, y0 + bot - 1, R[stepped ? 4 : 1]);
     if (hull) for (let k = 2; k <= 4; k++) if (bot - k > 6) b.set(x0 + x, y0 + bot - k, S[k === 2 ? 0 : 1]); // the keel timber
   }
   // shadow right under the facade
   for (let x = 0; x < bw; x++) for (let k = 0; k < 6; k++) b.tint(x0 + x, y0 + k, 0.5 + k * 0.08);
 
   const tip = (x: number): number => y0 + prof[clampI(Math.round(x), 0, bw - 1)] - 1;
-  if (T.under === 'crystal' || T.under === 'shard') {
+  if (T.under === 'crystal' || T.under === 'shard' || T.under === 'ice') {
     const count = Math.round(bw / 26);
     for (let i = 0; i < count; i++) {
       const x = 16 + Math.floor(rnd() * (bw - 32));
       const y = tip(x);
-      const hh = 8 + Math.floor(rnd() * (T.under === 'shard' ? 22 : 16));
-      const C = rnd() > 0.5 ? A : A2;
+      const hh = 8 + Math.floor(rnd() * (T.under === 'crystal' ? 16 : 22));
+      const C = T.under === 'ice' || rnd() > 0.5 ? A : A2;
       for (let k = 0; k < hh; k++) {
         const ww = Math.max(1, Math.round(4 * (1 - k / hh)));
         for (let j = 0; j < ww; j++) b.set(x0 + x - Math.floor(ww / 2) + j, y + k, j === 0 ? C[1] : j === ww - 1 ? C[3] : C[2], true);
@@ -1204,7 +1574,7 @@ function underside(b: Buf, T: MassTheme, S: Ramp, A: Ramp, A2: Ramp, x0: number,
       b.set(x0 + x, y + hh - 1, C[4], true);
     }
     // glowing veins in the rock
-    for (let i = 0; i < bw / 60; i++) {
+    for (let i = 0; i < (T.under === 'ice' ? 0 : bw / 60); i++) {
       let x = 10 + Math.floor(rnd() * (bw - 20));
       let y = y0 + 6 + Math.floor(rnd() * 20);
       for (let k = 0; k < 30 && y < tip(x) - 2; k++) {
@@ -1390,6 +1760,100 @@ function underside(b: Buf, T: MassTheme, S: Ramp, A: Ramp, A2: Ramp, x0: number,
       const d = Math.hypot(xx, yy);
       if (d <= 6) b.set(x0 + cx + xx, cy + yy, d < 2.5 ? A[4] : d < 4.5 ? A[3] : A[1], d < 4.5);
     }
+  }
+  // ---- the stage's focal light hangs under the playfield, where it frames the fighters instead of competing with them
+  const mid = Math.round(bw / 2);
+  if (bw < 120) return;
+  if (T.under === 'machine') reactorCore(b, S, A, A2, x0 + mid, y0 + Math.round(prof[mid] * 0.5), Math.max(8, Math.min(18, Math.round(prof[mid] * 0.3))));
+  else if (T.cap === 'crystal') crystalCluster(b, A, A2, x0 + mid, tip(mid) - 6, 1, rnd);
+  else if (T.under === 'shard') crystalCluster(b, A, A, x0 + mid, tip(mid) - 4, 0.7, rnd);
+  else if (T.under === 'ice') shrineLantern(b, S, A2, x0 + mid, tip(mid) - 2);
+  else if (T.under === 'roots' && T.panel === 'glyph') sunPendant(b, S, A, x0 + mid, tip(mid) - 2);
+}
+
+/** The reactor's core seen through a round port in the keel: a heavy bolted collar, a hot ring and a white-hot heart. */
+function reactorCore(b: Buf, S: Ramp, A: Ramp, A2: Ramp, cx: number, cy: number, r: number): void {
+  for (let dy = -r - 5; dy <= r + 5; dy++) for (let dx = -r - 5; dx <= r + 5; dx++) {
+    const d = Math.hypot(dx, dy);
+    if (d > r + 5.3) continue;
+    if (d > r + 1) {
+      // the collar, lit from the top-left, with hazard notches and bolts
+      const lit = (-dx - dy) / ((r + 5) * 1.4);
+      const ang = Math.atan2(dy, dx);
+      const notch = d > r + 3.2 && (Math.floor((ang + Math.PI) * 3) & 1) === 0;
+      b.set(cx + dx, cy + dy, notch ? A[3] : S[lit > 0.3 ? 5 : lit > -0.2 ? 3 : 1]);
+    } else if (d > r - 2) b.set(cx + dx, cy + dy, S[0]);
+    else {
+      const t = d / (r - 2);
+      const swirl = Math.sin(Math.atan2(dy, dx) * 3 + d * 0.6) > 0.3;
+      b.set(cx + dx, cy + dy, t < 0.3 ? A[4] : t < 0.6 ? (swirl ? A[4] : A[3]) : swirl ? A2[3] : A2[2], true);
+    }
+  }
+  for (let k = 0; k < 8; k++) {
+    const a = (k / 8) * Math.PI * 2 + 0.2;
+    b.set(cx + Math.round(Math.cos(a) * (r + 3)), cy + Math.round(Math.sin(a) * (r + 3)), S[0]);
+  }
+}
+
+/** A cluster of big crystals hanging from the keel, glowing brightest at their tips. */
+function crystalCluster(b: Buf, A: Ramp, A2: Ramp, x: number, y: number, scale: number, rnd: () => number): void {
+  const n = 5;
+  for (let i = 0; i < n; i++) {
+    const off = i - (n - 1) / 2;
+    const len = Math.round((22 + (2 - Math.abs(off)) * 9 + rnd() * 8) * scale);
+    const hw = Math.max(2, Math.round((3 + (2 - Math.abs(off)) * 0.8) * scale));
+    const lean = off * 0.22;
+    const C = i === 1 ? A2 : A;
+    const x0 = x + Math.round(off * hw * 1.6);
+    for (let k = 0; k < len; k++) {
+      const t = k / len;
+      const half = Math.max(0, Math.round(hw * (t < 0.75 ? 1 : (1 - t) / 0.25)));
+      const cxk = x0 + Math.round(k * lean);
+      for (let j = -half; j <= half; j++) {
+        const face = j < 0 ? 3 : j === 0 ? 4 : 1; // lit facet left, ridge, shaded facet right
+        b.set(cxk + j, y + k, C[t > 0.7 ? Math.min(4, face + 1) : face], t > 0.35 || j === 0);
+      }
+    }
+  }
+}
+
+/** A red paper lantern hung on a rope from the shrine's ice keel, warm light inside, a tassel below. */
+function shrineLantern(b: Buf, S: Ramp, A2: Ramp, x: number, y: number): void {
+  const WARM: Ramp = ['#6a3a10', '#c07a28', '#ffb84a', '#ffe0a0', '#fff6dc'].map(hex);
+  for (let k = 0; k < 8; k++) b.set(x, y + k, S[0]);
+  const top = y + 8;
+  const h = 16;
+  b.rect(x - 4, top, 9, 2, S[0]);
+  for (let k = 0; k < h; k++) {
+    const t = k / (h - 1);
+    const half = Math.round(4 + Math.sin(t * Math.PI) * 3);
+    for (let j = -half; j <= half; j++) {
+      const u = (j + half) / (2 * half);
+      const rib = k % 4 === 0;
+      const inner = Math.abs(j) < half - 1 && !rib;
+      b.set(x + j, top + 2 + k, inner ? (u < 0.45 ? WARM[3] : WARM[2]) : rib ? A2[1] : A2[u < 0.3 ? 3 : 2], inner);
+    }
+  }
+  b.rect(x - 4, top + 2 + h, 9, 2, S[0]);
+  for (let k = 0; k < 6; k++) b.set(x + (k % 2), top + 4 + h + k, A2[2]);
+  b.set(x - 1, top + 6, WARM[4], true);
+  b.set(x, top + 7, WARM[4], true);
+}
+
+/** A gold sun disc on a chain under the temple: the shrine's emblem, moved below the fighters' feet. */
+function sunPendant(b: Buf, S: Ramp, A: Ramp, x: number, y: number): void {
+  for (let k = 0; k < 8; k++) b.set(x, y + k, (k & 1) === 0 ? A[1] : S[0]);
+  const cy = y + 19;
+  const r = 7;
+  for (let a = 0; a < 12; a++) {
+    const rad = (a / 12) * Math.PI * 2;
+    const r2 = r + (a % 2 === 0 ? 7 : 4);
+    for (let t = r + 1; t < r2; t += 0.5) b.set(x + Math.cos(rad) * t, cy + Math.sin(rad) * t, a % 2 === 0 ? A[3] : A[2], a % 2 === 0);
+  }
+  for (let dy = -r; dy <= r; dy++) for (let dx = -r; dx <= r; dx++) {
+    const d = Math.hypot(dx, dy);
+    if (d > r + 0.3) continue;
+    b.set(x + dx, cy + dy, d > r - 1.5 ? A[3] : d < r * 0.45 ? A[4] : A[2], true);
   }
 }
 

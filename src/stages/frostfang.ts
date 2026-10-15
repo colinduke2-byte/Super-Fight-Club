@@ -40,7 +40,7 @@ export const frostfangStage: StageData = {
     { x: -40, y: -4 },
     { x: 40, y: -4 },
   ],
-  background: { topColor: 0x0a1430, bottomColor: 0x7a92b4, layers: ['stars'], theme: 'frost' },
+  background: { topColor: 0x0a1430, bottomColor: 0x7a92b4, layers: ['stars'], theme: 'frost', light: { rim: 0xdff0ff, dir: [-0.7, -0.7], strength: 0.3 } },
   music: 'frostfang',
   blurb: "Rime's mountain shrine: a snowy terrace, icy timber platforms, and avalanches that roll across from either side.",
 };

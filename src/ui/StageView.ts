@@ -3,6 +3,8 @@ import { MASS_HEAD, MASS_OVER, PLAT_HEAD } from '../art/stageMass';
 import { ensureStageArt, stageArtKey } from '../art/stageArt';
 import { addCanvasTexture } from '../art/canvasTexture';
 import type { World } from '../engine/world';
+import { stageLight } from '../stages/lighting';
+import { STAGE_LIGHT_KEY } from './RimLight';
 
 interface PlatView {
   index: number;
@@ -90,6 +92,7 @@ export class StageView {
     private readonly world: World,
   ) {
     ensureStageArt(scene, world.stage); // usually prebuilt in the background since boot
+    scene.data.set(STAGE_LIGHT_KEY, stageLight(world.stage.background)); // the fighters' rim light (RimLight) reads it
     world.platforms.forEach((p, index) => {
       const parts: PlatView['parts'] = [];
       const key = stageArtKey(world.stage, index);

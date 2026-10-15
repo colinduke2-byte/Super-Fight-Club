@@ -17,7 +17,7 @@ export const classicStage: StageData = {
     { x: -30, y: -4 },
     { x: 30, y: -4 },
   ],
-  background: { topColor: 0x0b0a24, bottomColor: 0x3a1f5c, layers: ['stars', 'ruins'], theme: 'skyline' },
+  background: { topColor: 0x0b0a24, bottomColor: 0x3a1f5c, layers: ['stars', 'ruins'], theme: 'skyline', light: { rim: 0xc890ff, dir: [-0.6, -0.8], strength: 0.45 } },
   music: 'classic',
   blurb: 'A floating dusk platform with a skyline backdrop. Three pass-through platforms, no tricks.',
 };

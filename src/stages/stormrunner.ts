@@ -23,7 +23,7 @@ export const stormrunnerStage: StageData = {
     { x: -40, y: -4 },
     { x: 60, y: -4 },
   ],
-  background: { topColor: 0x1a1030, bottomColor: 0xffc88a, layers: ['stars'], theme: 'airship' },
+  background: { topColor: 0x1a1030, bottomColor: 0xffc88a, layers: ['stars'], theme: 'airship', light: { rim: 0xffc890, dir: [0.9, -0.4], strength: 0.3 } },
   music: 'stormrunner',
   blurb: 'A sky galleon in a sunset storm: a long deck, a quarterdeck, the crow\'s nest, a skiff that comes alongside, and lightning on the mainmast.',
 };

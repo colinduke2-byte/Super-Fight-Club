@@ -23,6 +23,7 @@ import { AdaptiveQuality } from '../ui/adaptiveQuality';
 import { BackgroundView } from '../ui/BackgroundView';
 import { CinematicArt } from '../ui/CinematicArt';
 import { BossCinematic } from '../ui/BossCinematic';
+import { heldItem } from '../engine/items';
 import { DebugOverlay } from '../ui/DebugOverlay';
 import { Effects } from '../ui/Effects';
 import { EntityViews } from '../ui/EntityViews';
@@ -453,7 +454,10 @@ export class MatchScene extends Phaser.Scene {
     this.hazardView?.update(this.world.tick);
     this.targetView?.update(performance.now() / 1000);
     this.launchView?.update(performance.now() / 1000);
-    for (const v of this.views) v.update(alpha, this.world.tick);
+    this.views.forEach((v, i) => {
+      v.heldKind = heldItem(this.world, i);
+      v.update(alpha, this.world.tick);
+    });
     if (this.countdownSeq.active) this.countdownSeq.entrances();
     this.entityViews.update(alpha, this.world.tick);
     this.trainer.update();
