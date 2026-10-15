@@ -4,9 +4,10 @@ import { PIXEL_FONT, up } from '../art/pixelFont';
 import type { CharacterData } from '../engine/types';
 import { addCanvasTexture } from '../art/canvasTexture';
 import type { BossBar } from './BossBar';
+import { COLORS, drawPortShape } from './menuKit';
+import { settings } from '../settings';
 
 const MAX_PIPS = 5;
-const PLAYER_COLORS = [0x4aa3ff, 0xff6a5a, 0x5fe08a, 0xffd04a];
 /** Stock pips text by count: spaced ("@ @ @") while three fit beside the name, packed ("@@@@@") for bigger stock counts. */
 const PIPS = Array.from({ length: MAX_PIPS + 1 }, (_, n) => '@'.repeat(n).split('').join(' '));
 const PIPS_PACKED = Array.from({ length: MAX_PIPS + 1 }, (_, n) => '@'.repeat(n));
@@ -91,6 +92,11 @@ export class FighterHud {
   private tu = 3;
   private texK = 1;
   private crop: [number, number, number, number] = [6, 0, 40, 40];
+  /** Port shape on the portrait well (PORT SHAPES setting) and the timed-score tab above the plate. */
+  private readonly deco: Phaser.GameObjects.Graphics;
+  private readonly ptsTag: Phaser.GameObjects.BitmapText;
+  private readonly port: number;
+  private readonly color: number;
 
   constructor(
     scene: Phaser.Scene,
@@ -101,13 +107,15 @@ export class FighterHud {
     skin = data.id,
   ) {
     const key = fighterTextureKey(skin);
+    this.port = index % 4;
+    const color = (this.color = COLORS.p[this.port]);
     const frame = animFrameIndex(data, 'idle', 0);
     this.panel = scene.add.image(0, 0, 'hud-panel').setOrigin(0.5, 1);
-    this.accent = scene.add.image(0, 0, 'px').setOrigin(0, 0).setTint(PLAYER_COLORS[index % 4]);
+    this.accent = scene.add.image(0, 0, 'px').setOrigin(0, 0).setTint(color);
     this.portrait = scene.add.image(0, 0, key, frame).setOrigin(0, 0).setCrop(...portraitCrop(data));
     this.crop = portraitCrop(data);
     this.texK = portraitK(data);
-    this.name = scene.add.bitmapText(0, 0, PIXEL_FONT, up(label)).setTint(PLAYER_COLORS[index % 4]);
+    this.name = scene.add.bitmapText(0, 0, PIXEL_FONT, up(label)).setTint(color);
     this.percent = scene.add.bitmapText(0, 0, PIXEL_FONT, '0%').setOrigin(0, 0);
     this.hpTag = scene.add.bitmapText(0, 0, PIXEL_FONT, 'HP').setOrigin(0, 0).setVisible(false);
     this.sub = scene.add.bitmapText(0, 0, PIXEL_FONT, '').setTint(0x9a96d8).setOrigin(1, 0);
@@ -115,8 +123,10 @@ export class FighterHud {
     this.meter = scene.add.image(0, 0, 'px').setOrigin(0, 0).setTint(0x34d6d0);
     this.seam = scene.add.image(0, 0, 'px').setOrigin(0, 0).setVisible(false);
     this.seamGlow = scene.add.image(0, 0, 'px').setOrigin(0, 0).setVisible(false).setBlendMode(Phaser.BlendModes.ADD);
-    this.pips = scene.add.bitmapText(0, 0, PIXEL_FONT, '').setTint(PLAYER_COLORS[index % 4]).setOrigin(1, 0);
-    layer.add([this.panel, this.accent, this.portrait, this.name, this.percent, this.hpTag, this.sub, this.pips, this.meter, this.seam, this.seamGlow]);
+    this.pips = scene.add.bitmapText(0, 0, PIXEL_FONT, '').setTint(color).setOrigin(1, 0);
+    this.deco = scene.add.graphics();
+    this.ptsTag = scene.add.bitmapText(0, 0, PIXEL_FONT, 'PTS').setOrigin(1, 1).setTint(0xc8c4ec).setVisible(false);
+    layer.add([this.panel, this.accent, this.portrait, this.name, this.percent, this.hpTag, this.sub, this.deco, this.pips, this.ptsTag, this.meter, this.seam, this.seamGlow]);
     for (const _ of data.hud?.marks ?? []) {
       const m = scene.add.image(0, 0, 'px').setOrigin(0, 0).setTint(0xffffff).setAlpha(0.8);
       this.marks.push(m);
@@ -134,7 +144,7 @@ export class FighterHud {
   private bossBar: BossBar | null = null;
   useBossBar(bar: BossBar): void {
     this.bossBar = bar;
-    for (const o of [this.panel, this.accent, this.portrait, this.name, this.percent, this.hpTag, this.sub, this.pips, this.meter, this.seam, this.seamGlow, ...this.marks, ...this.statusIcons]) o.setVisible(false);
+    for (const o of [this.panel, this.accent, this.portrait, this.name, this.percent, this.hpTag, this.sub, this.pips, this.ptsTag, this.deco, this.meter, this.seam, this.seamGlow, ...this.marks, ...this.statusIcons]) o.setVisible(false);
   }
 
   /**
@@ -167,6 +177,31 @@ export class FighterHud {
     const hm = this.hudDef;
     this.marks.forEach((m, i) => m.setPosition(left + 40 * u + ((68 * u) * (hm!.marks![i] ?? 0)) / hm!.max, top + 33 * u).setScale(u / 4, (4 * u) / 4));
     for (const ic of this.statusIcons) ic.setScale(tu);
+    this.ptsTag.setScale(tu);
+    this.decoKey = '';
+  }
+
+  /** What `deco` was last drawn for (redrawn only when the layout, the setting or the timed tab changes). */
+  private decoKey = '';
+
+  /** The port shape in the portrait well's top-left corner, and in timed matches the score tab above the plate's right end. */
+  private drawDeco(): void {
+    const timed = this.timedScore !== null;
+    const key = `${this.left},${this.top},${this.u},${settings.portShapes},${timed}`;
+    if (key === this.decoKey) return;
+    this.decoKey = key;
+    const g = this.deco.clear();
+    const u = this.u;
+    if (settings.portShapes) drawPortShape(g, this.port, this.left + 8 * u, this.top + 8 * u, 2.5 * u, this.color, 1, u);
+    if (timed) {
+      // a tab rising from the plate's top edge: the score reads big without crowding the damage digits
+      const x = this.left + 62 * u;
+      const w = 48 * u;
+      const y = this.top - 16 * u;
+      g.fillStyle(0x0a0820, 0.92).fillRect(x, y, w, 16 * u);
+      g.lineStyle(u, 0x3c3478, 1).strokeRect(x - u / 2, y - u / 2, w + u, 16 * u + u);
+      g.fillStyle(this.color, 1).fillRect(x, y, w, u);
+    }
   }
 
   /** @param meterFrac ultimate meter 0..1 (drawn over the plate's conduit; pulses gold when full) */
@@ -197,7 +232,7 @@ export class FighterHud {
       // hit points: green while healthy, through yellow, red when nearly out (and flashing at the end)
       const left = Math.max(0, Math.ceil(this.hpMax - damage));
       const f = left / this.hpMax;
-      const low = f < 0.2 && ((tick >> 3) & 1) === 0;
+      const low = f < 0.2 && !settings.reduceFlashes && ((tick >> 4) & 1) === 0;
       if (left !== this.shownValue || !this.shownHp) {
         this.shownValue = left;
         this.shownHp = true;
@@ -223,8 +258,10 @@ export class FighterHud {
     if (this.hpMax > 0) this.hpTag.setPosition(this.percent.x + this.percent.width + this.u, this.percentAt[1] + 16 * this.u - 8 * this.tu);
     this.sub.setText(training ? 'INF' : out ? 'OUT' : '');
     this.sub.setVisible(training || out);
+    this.drawDeco();
+    this.ptsTag.setVisible(this.timedScore !== null);
     if (this.timedScore !== null) {
-      // a timed match: the KO score instead of stock pips (stocks mean nothing there)
+      // a timed match: the KO score instead of stock pips (stocks mean nothing there), big on its own tab above the plate
       const sc = this.timedScore;
       if (sc !== this.shownScore) {
         this.shownPips = -1;
@@ -233,9 +270,13 @@ export class FighterHud {
         this.pips.setText(sc > 0 ? `+${sc}` : String(sc));
       }
       this.scorePop = Math.max(0, this.scorePop - 0.04 * k);
-      // swells to double size on a change, then settles; green when ahead, red when behind
-      const flash = this.scorePop > 0.6 && ((tick >> 2) & 1) === 0;
-      this.pips.setScale(this.tu * (1 + Math.round(this.scorePop * 2) / 2));
+      // swells on a change, then settles; green when ahead, red when behind (the flash stays under 3 Hz)
+      const flash = !settings.reduceFlashes && this.scorePop > 0.6 && ((tick >> 4) & 1) === 0;
+      const u = this.u;
+      const right = this.left + 108 * u;
+      const base = this.top - 2 * u;
+      this.ptsTag.setPosition(right, base);
+      this.pips.setOrigin(1, 1).setScale(this.tu * 2 * (1 + Math.round(this.scorePop * 2) / 4)).setPosition(right - this.ptsTag.displayWidth - 2 * u, base);
       this.pips.setTint(flash ? 0xffffff : sc > 0 ? 0x7affa0 : sc < 0 ? 0xff6a5a : 0xffffff);
     } else {
       const pips = !training && !out ? Math.max(0, Math.min(stocks, MAX_PIPS)) : 0;
@@ -251,15 +292,16 @@ export class FighterHud {
     if (hd) {
       const frac = Math.max(0, Math.min(1, resource / hd.max));
       const hot = resource >= hd.hotAt;
-      const flick = hot ? (resource >= hd.max ? 3 : 4) : 0;
-      const bright = hot && ((tick >> flick) & 1) === 0;
+      // the hot seam blinks under 3 Hz (steady with REDUCE FLASHES)
+      const flick = hot ? (resource >= hd.max ? 4 : 5) : 0;
+      const bright = hot && (settings.reduceFlashes || ((tick >> flick) & 1) === 0);
       const col = hd.colors && hd.colorKey ? hd.colors[Math.max(0, Math.min(hd.colors.length - 1, Math.round(this.colorIndex)))] : hd.color;
       this.seam.setVisible(frac > 0).setScale(((68 * this.u) / 4) * frac, (2 * this.u) / 4).setTint(hd.colors ? col : hot ? (bright ? 0xffe9a0 : col) : 0x8a4a28);
       this.seamGlow.setVisible(hot || !!hd.colors).setScale(((68 * this.u) / 4) * frac, (4 * this.u) / 4).setTint(col).setAlpha(hd.colors ? 0.4 : bright ? 0.7 : 0.35);
     }
     if (status) {
       // active statuses line up along the bottom of the portrait well (a second row above it if there are more than four)
-      const blinkOn = ((tick >> 2) & 1) === 0;
+      const blinkOn = settings.reduceFlashes || ((tick >> 4) & 1) === 0;
       const u = this.u;
       let n = 0;
       for (let i = 0; i < this.statusIcons.length; i++) {
@@ -274,6 +316,6 @@ export class FighterHud {
       }
     }
     const full = meterFrac >= 1;
-    this.meter.setVisible(meterFrac > 0).setScale(((66 * this.u) / 4) * meterFrac, (2 * this.u) / 4).setTint(full ? (((tick >> 3) & 1) === 0 ? 0xffd040 : 0xffffff) : 0x8ff6ee);
+    this.meter.setVisible(meterFrac > 0).setScale(((66 * this.u) / 4) * meterFrac, (2 * this.u) / 4).setTint(full ? (settings.reduceFlashes || ((tick >> 4) & 1) === 0 ? 0xffd040 : 0xffffff) : 0x8ff6ee);
   }
 }

@@ -1,10 +1,11 @@
 import { up } from '../../art/pixelFont';
 import { announcer } from '../../audio/announcer';
+import { music } from '../../audio/music';
 import { sfx } from '../../audio/sfx';
 import type { Fighter } from '../../engine/fighter';
-import { challengeCleared } from '../../game/challenges';
+import { recordChallengeResult } from '../../game/challenges';
 import { endDemo } from '../../game/demo';
-import { recordChallenge, recordMatch } from '../../game/records';
+import { recordMatch, recordMatchStats } from '../../game/records';
 import { buildResult } from '../../game/results';
 import { session } from '../../game/session';
 import { menuInput } from '../../input/menuInput';
@@ -14,12 +15,74 @@ import type { MatchScene } from '../MatchScene';
 /** Ticks between the end of the match (GAME!) and the Results screen. */
 export const END_DELAY = 150;
 
+/** Game-winning KO: real milliseconds the picture holds on the finishing hit before the KO blast. */
+export const FINALE_MS = 600;
+
 /**
  * Match flow around the rules MatchRunner applies: KO blasts, SUDDEN DEATH, the end banner (GAME! / TIME! / P1 WINS), leaving
  * a demo or a replay, and handing the result (and lifetime records) to the Results scene.
  */
 export class MatchFlow {
+  /** The held-back match-ending KO (its sound, sparks and blast), played when the finale freeze lets go. */
+  private finaleKo: (() => void) | null = null;
+
   constructor(private readonly s: MatchScene) {}
+
+  /** Does this KO (already scored) end the match? (Stock / stamina / sudden death: the last rival, or rival team, is out.) */
+  endsMatch(f: Fighter): boolean {
+    const s = this.s;
+    const m = s.match;
+    if (m.over || m.training || !m.scores[f.id]?.eliminated) return false;
+    const alive = m.scores.map((sc, i) => (sc.eliminated ? -1 : i)).filter((i) => i >= 0);
+    if (alive.length <= 1) return m.scores.length > 1;
+    const t0 = s.fighters[alive[0]].team;
+    return t0 >= 0 && alive.every((i) => s.fighters[i].team === t0);
+  }
+
+  /**
+   * The match-ending KO: the picture freezes on the finishing hit (`hx, hy`) for FINALE_MS while the camera punches in and
+   * the colour drains, then `ko` plays the KO itself (the blast) and GAME! follows. Returns false when this KO is not
+   * the last one, or the match is being stepped / benchmarked (then it plays at once).
+   */
+  finale(f: Fighter, hx: number, hy: number, ko: () => void): boolean {
+    const s = this.s;
+    const st = s.st;
+    if (s.bench || s.mode || st.stepMode || st.finaleMs >= 0 || !this.endsMatch(f)) return false;
+    st.finaleMs = FINALE_MS;
+    st.finaleX = hx;
+    st.finaleY = hy;
+    this.finaleKo = ko;
+    if (!s.slots[f.id]?.boss) music.setDuck(0.25); // (the boss's own power-down sting plays over its finale)
+    sfx.play('boom', 0.6, 0);
+    return true;
+  }
+
+  /**
+   * Per frame (not paused, not stepping): true while the picture holds (a parry's hit-pause or the finale freeze) and the sim
+   * must not advance. Also eases the finale's punch-in / desaturation (MatchState.finaleK) in and back out.
+   */
+  holdSim(frameMs: number): boolean {
+    const st = this.s.st;
+    frameMs = Math.min(frameMs, 50); // a hitch never swallows the freeze in a single frame
+    if (st.finaleMs >= 0) {
+      st.finaleK = Math.min(1, st.finaleK + frameMs / 110);
+      st.finaleMs -= frameMs;
+      if (st.finaleMs >= 0) return true;
+      st.finaleMs = -1;
+      st.hitPauseMs = 0;
+      music.setDuck(1);
+      const ko = this.finaleKo;
+      this.finaleKo = null;
+      ko?.();
+      return false;
+    }
+    if (st.finaleK > 0) st.finaleK = Math.max(0, st.finaleK - frameMs / 320);
+    if (st.hitPauseMs > 0) {
+      st.hitPauseMs -= frameMs;
+      return true;
+    }
+    return false;
+  }
 
   /** KO visual: a blast from the screen edge (or a burst where they stand, for a stamina KO on screen). The KO itself is already scored. */
   koFx(f: Fighter): void {
@@ -102,7 +165,7 @@ export class MatchFlow {
     session.lastResult = buildResult(s.slots, m.scores, w.damageDealt, s.runner.elimAt, m.cfg, m.winner, w.tick, s.fighters.map((f) => f.team), m.winnerTeam, w.bestCombo);
     // lifetime records for the humans who played (versus and arcade)
     const chal = s.setup.chal;
-    if (chal && challengeCleared(session.lastResult)) recordChallenge(chal.id, s.slots[0].character);
+    if (chal) recordChallengeResult(chal, s.slots[0].character, session.lastResult);
     if (!s.isTargets && !s.isLaunch && (session.mode === 'versus' || session.mode === 'arcade')) {
       const res = session.lastResult;
       for (const p of res.players) {
@@ -110,6 +173,7 @@ export class MatchFlow {
         const won = res.winnerTeam >= 0 ? p.team === res.winnerTeam : p.index === res.winner;
         recordMatch(p.character, won, p.kos, p.falls);
       }
+      recordMatchStats(res, session.stage);
     }
   }
 
@@ -118,7 +182,7 @@ export class MatchFlow {
     const s = this.s;
     const m = s.match;
     const banner = s.hud.banner;
-    if (!m.over || banner.visible) return;
+    if (!m.over || banner.visible || s.st.finaleMs >= 0) return;
     if (s.mode) {
       s.mode.overBanner(banner);
       return;

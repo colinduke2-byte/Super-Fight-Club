@@ -15,6 +15,7 @@ import { ControlsScene } from './scenes/ControlsScene';
 import { HowToPlayScene } from './scenes/HowToPlayScene';
 import { ChallengesScene } from './scenes/ChallengesScene';
 import { CreditsScene } from './scenes/CreditsScene';
+import { VersusSplashScene } from './scenes/VersusSplashScene';
 import { session } from './game/session';
 import { loadSettings } from './settings';
 import { initDisplay, renderScale } from './display';
@@ -93,7 +94,7 @@ const game = new Phaser.Game({
   input: { keyboard: false, gamepad: false, mouse: true, touch: true },
   disableContextMenu: true,
   audio: { noAudio: true }, // all sound is our own Web Audio graph (src/audio): no idle second AudioContext
-  scene: [BootScene, TitleScene, ModeSelectScene, VersusSetupScene, CharacterSelectScene, StageSelectScene, MatchScene, ResultsScene, LadderMapScene, StoryScene, SettingsScene, ControlsScene, RecordsScene, HowToPlayScene, ChallengesScene, CreditsScene],
+  scene: [BootScene, TitleScene, ModeSelectScene, VersusSetupScene, CharacterSelectScene, StageSelectScene, MatchScene, ResultsScene, LadderMapScene, StoryScene, SettingsScene, ControlsScene, RecordsScene, HowToPlayScene, ChallengesScene, CreditsScene, VersusSplashScene],
 });
 
 initDisplay(game);

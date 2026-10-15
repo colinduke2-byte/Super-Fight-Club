@@ -1,8 +1,8 @@
 import Phaser from 'phaser';
 import { ALT_LOOKS, assignPalettes } from '../art/palettes';
-import { up } from '../art/pixelFont';
-import { ensurePalette } from '../art/proceduralFighter';
+import { PIXEL_FONT, up } from '../art/pixelFont';
 import { ambience } from '../audio/ambience';
+import { announcer } from '../audio/announcer';
 import { music } from '../audio/music';
 import { sfx } from '../audio/sfx';
 import type { MultiTargetCamera } from '../engine/camera';
@@ -22,7 +22,7 @@ import { settings } from '../settings';
 import { AdaptiveQuality } from '../ui/adaptiveQuality';
 import { BackgroundView } from '../ui/BackgroundView';
 import { CinematicArt } from '../ui/CinematicArt';
-import { BossCinematic } from '../ui/BossCinematic';
+import { BossCinematic, OVERSEER_PHASE2_SKIN, overseerPhase2Ready, requestOverseerPhase2 } from '../ui/BossCinematic';
 import { heldItem } from '../engine/items';
 import { DebugOverlay } from '../ui/DebugOverlay';
 import { Effects } from '../ui/Effects';
@@ -51,7 +51,7 @@ import { canvasDpr, hudUnit, MatchHud } from './match/hudLayout';
 import { LaunchMode } from './match/launchMode';
 import type { MatchModeHooks } from './match/mode';
 import { PauseMenu } from './match/pauseMenu';
-import { resolveMatchSetup, type MatchSetup } from './match/setup';
+import { prepareSkins, resolveMatchSetup, type MatchSetup } from './match/setup';
 import { createMatchState, type MatchState } from './match/state';
 import { TargetsMode } from './match/targetsMode';
 import { TrainingTools } from './match/training';
@@ -90,6 +90,12 @@ export class MatchScene extends Phaser.Scene {
   /** Launch Contest / Target Smash presentation (null in other modes). */
   mode: MatchModeHooks | null = null;
   bench: Bench | null = null;
+  /** False while the fighters' sheets are still being built (LOADING): nothing else of the match exists yet. */
+  built = false;
+  /** Bumped per create / shutdown, so a sheet build that lands after the scene moved on is ignored. */
+  private runId = 0;
+  /** Per fighter: the Overseer's phase-2 sheet is 0 not wanted, 1 wanted (waiting for the build), 2 shown. */
+  private phase2: number[] = [];
 
   // --- views
   views: FighterView[] = [];
@@ -215,6 +221,8 @@ export class MatchScene extends Phaser.Scene {
 
   create(): void {
     // Phaser reuses this Scene instance on restart / rematch: everything per match is rebuilt here
+    this.built = false;
+    const run = ++this.runId;
     this.ts.reset();
     inputManager.init();
     const setup = (this.setup = resolveMatchSetup());
@@ -255,9 +263,38 @@ export class MatchScene extends Phaser.Scene {
     // palettes: chosen ones kept, duplicates of the same fighter bumped to a free colour (built on demand)
     const palettes = assignPalettes(this.slots);
     this.slots.forEach((s, i) => (s.palette = palettes[i])); // results / rematches show the same colours
-    this.skins = this.fighters.map((f, i) => ensurePalette(this, f.data, palettes[i]));
+    // sheets not built yet (a fresh palette, the boss) come off the main thread behind a LOADING card instead of a stall
+    const wants = this.fighters.map((f, i) => ({ data: f.data, palette: palettes[i] }));
+    this.events.once('shutdown', () => this.runId++);
+    let loading: Phaser.GameObjects.BitmapText | null = null;
+    const ready = prepareSkins(
+      this,
+      wants,
+      (skins) => {
+        loading?.destroy();
+        this.build(skins, palettes);
+      },
+      () => run === this.runId,
+    );
+    if (!ready) {
+      loading = this.add.bitmapText(w / 2, h / 2, PIXEL_FONT, 'LOADING').setOrigin(0.5).setScale(hudUnit(h) * 2).setTint(0xb8b0e8);
+      this.uiLayer.add(loading);
+    }
+  }
+
+  /** The rest of the match, once every fighter's sheet is registered (`skins`: texture id per fighter). */
+  private build(skins: string[], palettes: number[]): void {
+    const setup = this.setup;
+    const rep = setup.replay;
+    const stage = setup.stage;
+    const w = this.scale.width;
+    const h = this.scale.height;
+    this.skins = skins;
     this.views = this.fighters.map((f, i) => new FighterView(this, this.worldLayer, f, undefined, this.skins[i]));
-    this.views.forEach((v) => (v.platforms = this.world.platforms));
+    this.views.forEach((v) => {
+      v.platforms = this.world.platforms;
+      v.spawnSnap = true; // standing on the floor, not hovering over it in the fall pose, until they first land
+    });
     this.effects = new Effects(this, this.worldLayer);
     this.effects.cap = this.adaptive.cap; // a reduction earlier in the session carries over to rematches
     this.entityViews = new EntityViews(this, this.worldLayer, this.world);
@@ -273,7 +310,7 @@ export class MatchScene extends Phaser.Scene {
     ambience.start(stage.background.theme);
     // back from the Controls overlay: the stage music and a clean frame clock
     const onResume = (): void => {
-      keyboardHub.onKeyDown = (code) => this.onKey(code); // the Controls overlay took the keyboard over
+      keyboardHub.onKeyDown = (code, e) => this.onKey(code, e); // the Controls overlay took the keyboard over
       music.play(track);
       menuInput.reset();
       this.st.lastNow = performance.now();
@@ -317,7 +354,7 @@ export class MatchScene extends Phaser.Scene {
     this.bench = Bench.fromUrl(this);
     this.scale.on('resize', this.onResize, this);
 
-    keyboardHub.onKeyDown = (code) => this.onKey(code);
+    keyboardHub.onKeyDown = (code, e) => this.onKey(code, e);
     inputManager.onPadConnect = (d) => this.hud.showToast(`Controller connected: ${d.label}`);
     inputManager.onPadDisconnect = (d) => this.hud.showToast(`Controller disconnected: ${d.label}`);
 
@@ -336,10 +373,19 @@ export class MatchScene extends Phaser.Scene {
       },
       rumble: (f, s, wk, ms) => this.ctl.rumble(f, s, wk, ms),
       koFx: (f) => this.flow.koFx(f),
+      hitPause: (ms) => {
+        if (!this.bench && !st.stepMode) st.hitPauseMs = Math.max(st.hitPauseMs, ms);
+      },
+      screenFlash: (color, a) => this.hud.flash(color, a),
+      popup: (text, x, y, color) => this.hud.popup(text, x, y, color),
+      finale: (f, hx, hy, ko) => this.flow.finale(f, hx, hy, ko),
+      bossPhase2: (f) => this.enterPhase2(f.id),
     });
     // views hear about world events after the runner has applied the rules (a KO is scored before its blast is drawn)
     this.runner.subscribe((type, f, x, y, mag, extra, tag) => {
       this.trainer.onEvent(type, f, x, y, mag, extra);
+      // the boss's last stock: its power-down sting (before the KO is drawn, so the finale freeze plays over it)
+      if (type === 'ko' && this.slots[f.id]?.boss && this.flow.endsMatch(f)) music.sting('overseerDown');
       if (type === 'moveStart' && f?.move?.id === 'taunt') this.bubblesSay.say(f.id, performance.now());
       this.eventFx.handle(type, f, x, y, mag, extra, tag);
     });
@@ -354,11 +400,16 @@ export class MatchScene extends Phaser.Scene {
       inputManager.onPadConnect = null;
       inputManager.onPadDisconnect = null;
     });
+    // the Overseer's enraged sheet is built in the background from the start, ready for phase 2
+    this.phase2 = this.fighters.map(() => 0);
+    if (this.slots.some((sl) => sl.boss)) requestOverseerPhase2(this).catch((err: unknown) => console.warn('[boss] phase-2 sheet failed', err));
+    this.built = true;
   }
 
   // ---------------------------------------------------------------------------------------------
   override update(): void {
     ambience.update();
+    if (!this.built) return; // LOADING: the fighters' sheets are still on their way
     const st = this.st;
     const now = performance.now();
     const frameMs = now - st.lastNow;
@@ -385,7 +436,7 @@ export class MatchScene extends Phaser.Scene {
         st.stepsLastFrame = 1;
       }
       inputManager.endTick();
-    } else {
+    } else if (!this.flow.holdSim(frameMs)) {
       const s0 = performance.now();
       st.stepsLastFrame = this.ts.advance(st.slowMo ? frameMs * 0.25 : frameMs * st.timeScale, () => this.tick());
       this.simMs += (performance.now() - s0 - this.simMs) * 0.05;
@@ -411,11 +462,11 @@ export class MatchScene extends Phaser.Scene {
       return;
     }
     // humans are sampled every tick (START pauses even during the countdown)...
-    const pausePressed = rp ? false : this.ctl.sampleHumans();
+    const pauser = rp ? -1 : this.ctl.sampleHumans();
     this.runner.smashFlick = rp ? rp.smashFlick : settings.smashMode === 'flick';
     if (this.flow.demoExit()) return;
-    if (pausePressed && st.endTimer < 0) {
-      this.pauseUi.setPaused(true, 'user');
+    if (pauser >= 0 && st.endTimer < 0 && st.finaleMs < 0) {
+      this.pauseUi.setPaused(true, 'user', pauser);
       inputManager.endTick();
       return;
     }
@@ -454,11 +505,13 @@ export class MatchScene extends Phaser.Scene {
     this.hazardView?.update(this.world.tick);
     this.targetView?.update(performance.now() / 1000);
     this.launchView?.update(performance.now() / 1000);
+    this.bossSkins();
     this.views.forEach((v, i) => {
       v.heldKind = heldItem(this.world, i);
       v.update(alpha, this.world.tick);
     });
     if (this.countdownSeq.active) this.countdownSeq.entrances();
+    else this.countdownSeq.tagsIn(frameMs);
     this.entityViews.update(alpha, this.world.tick);
     this.trainer.update();
     ambientFx(this);
@@ -487,16 +540,46 @@ export class MatchScene extends Phaser.Scene {
     this.flow.overBanner();
     this.trainer.updateReadout();
     this.perf.update(frameMs, () => `${this.scale.width}x${this.scale.height} @${canvasDpr(this).toFixed(1)}x  z${zoom.toFixed(2)}  ${st.stepsLastFrame}/f  sim ${this.simMs.toFixed(2)}ms  frame-js ${this.updMs.toFixed(2)}ms  1%low ${this.perf.lowFps.toFixed(0)}`);
+    this.hud.updateFx(frameMs, view);
     this.hud.updateToast();
   }
 
+  /** The boss enters its second phase (once): the phase-2 music and call, and its enraged sheet once that is built. */
+  private enterPhase2(i: number): void {
+    if (!this.slots[i]?.boss || this.phase2[i] !== 0) return;
+    this.phase2[i] = 1;
+    music.setBossPhase(2);
+    announcer.phaseTwo();
+  }
+
+  /** The Overseer in phase 2 (its `bossPhase2` event, or enraged) changes to its enraged sheet as soon as that is built. */
+  private bossSkins(): void {
+    const p2 = this.phase2;
+    for (let i = 0; i < p2.length; i++) {
+      if (p2[i] === 2) continue;
+      const f = this.fighters[i];
+      if (p2[i] === 0 && (f.res.enrage ?? 0) > 0) this.enterPhase2(i);
+      if (p2[i] === 1 && overseerPhase2Ready(this)) {
+        this.views[i].setSkin(OVERSEER_PHASE2_SKIN);
+        p2[i] = 2;
+        // the change itself: a hot flash over the body
+        this.effects.flash(f.x, f.y - f.h / 2, 3, 0xff6a3a);
+        this.effects.burst(f.x, f.y - f.h / 2, 24, 140, 0xff4a2a, 0.5, 3);
+      }
+    }
+  }
+
   // ---------------------------------------------------------------------------------------------
-  private onKey(code: string): void {
+  private onKey(code: string, e?: KeyboardEvent): void {
+    if (!this.built) return;
     if (this.replay && !this.st.paused && (code === 'Escape' || code === 'Enter' || code === 'Space')) {
       this.flow.toResults();
       return;
     }
     if (this.st.paused) return;
+    // the dev hotkeys (1 debug, T tap-jump, F fullscreen, ` perf, H key list) belong to Training: in a match those keys may be
+    // a player's controls, so there they need Ctrl or Alt held
+    if (!this.isTraining && !(e?.ctrlKey || e?.altKey)) return;
     this.trainer.onKey(code);
   }
 

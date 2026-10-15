@@ -98,6 +98,14 @@ export class MatchCamera {
       cx += (st.ultFocusX - cx) * st.ultT * 0.6;
       cy += (st.ultFocusY - cy) * st.ultT * 0.6;
     }
+    // the game-winning KO: punch in on the finishing hit while the picture holds
+    if (st.finaleK > 0) {
+      const k = st.finaleK * st.finaleK * (3 - 2 * st.finaleK);
+      zoom *= 1 + 0.4 * k;
+      cx += (st.finaleX - cx) * 0.7 * k;
+      cy += (st.finaleY - cy) * 0.7 * k;
+    }
+    this.grade(st.finaleK);
     const dim = Math.max(0.5 * st.cinT, 0.4 * st.ultT);
     this.dimOverlay.setAlpha(dim).setVisible(dim > 0);
     if (dim > 0) {
@@ -125,6 +133,35 @@ export class MatchCamera {
     const vh = s.scale.height / zp;
     this.view.setTo(cx + sx - vw / 2, cy + sy - vh / 2, vw, vh);
     return { cx, cy, zoom };
+  }
+
+  /** Colour drained from the backdrop and the world (0..1) by a camera colour matrix, added while it is needed. */
+  private desat: Phaser.FX.ColorMatrix[] = [];
+  private desatK = 0;
+
+  private grade(k: number): void {
+    const s = this.s;
+    if (k <= 0.001) {
+      if (this.desat.length) {
+        for (const cam of [s.cameras.main, s.worldCam]) cam.postFX?.clear();
+        this.desat = [];
+        this.desatK = 0;
+      }
+      return;
+    }
+    if (!this.desat.length) {
+      for (const cam of [s.cameras.main, s.worldCam]) {
+        const fx = cam.postFX?.addColorMatrix();
+        if (fx) this.desat.push(fx);
+      }
+    }
+    if (Math.abs(k - this.desatK) < 0.01) return;
+    this.desatK = k;
+    for (const fx of this.desat) {
+      fx.reset();
+      fx.saturate(-0.8 * k);
+      fx.brightness(1 - 0.12 * k, true);
+    }
   }
 
   /** Stereo pan (-1..1) for a world x. */

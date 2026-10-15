@@ -43,7 +43,8 @@ export class HowToPlayScene extends MenuScene {
     }
     this.sprite = this.add.sprite(0, 0, fighterTextureKey(CHARACTER_LIST[0].id), 0).setOrigin(0.5, 1);
     this.ui.add(this.sprite);
-    this.hint = text(this, this.ui, 'LEFT/RIGHT: PAGE   K / ESC: BACK', COLORS.dim).setOrigin(0.5);
+    this.hint = text(this, this.ui, '', COLORS.dim).setOrigin(0.5);
+    this.bindFooter(this.hint, [['leftright', 'PAGE'], ['back', 'BACK']]);
     this.showPage();
   }
 

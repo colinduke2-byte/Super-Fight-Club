@@ -6,7 +6,13 @@
 export interface MatchState {
   // --- pause
   paused: boolean;
-  pauseReason: '' | 'user' | 'disconnect';
+  pauseReason: '' | 'user' | 'disconnect' | 'focus';
+  /** Slot that paused (-1: the window / a disconnect / nobody in particular: anyone may resume). */
+  pausedBy: number;
+  /** Pause menu: the RESTART / QUIT row waiting for a YES / NO ('' = none). */
+  confirm: '' | 'restart' | 'quit';
+  /** Pause > MOVE LIST: whose moves are shown. */
+  moveListIdx: number;
   /** Slot label of the controller that dropped out ("P2"). */
   disconnectedName: string;
   /** Whether the banner was showing when the pause hid it. */
@@ -22,6 +28,18 @@ export interface MatchState {
   /** Per fighter: 1 = entrance start effects played, 2 = arrival effects played. */
   entranceFx: number[];
   lastEntranceT: number;
+  /** Name tags fading back in after GO (0..1; 1 = settled). */
+  tagFade: number;
+  /** Presentation hit-pause (parry, game-winning KO): real milliseconds the sim stays frozen. */
+  hitPauseMs: number;
+  /**
+   * Game-winning KO: ms left in the freeze (-1 = none), how far the punch-in / desaturation is (0..1) and where it
+   * focuses (the finishing hit, world space).
+   */
+  finaleMs: number;
+  finaleK: number;
+  finaleX: number;
+  finaleY: number;
 
   // --- banner / toast / HUD
   bannerBase: number;
@@ -72,6 +90,9 @@ export function createMatchState(fighters: number): MatchState {
   return {
     paused: false,
     pauseReason: '',
+    pausedBy: -1,
+    confirm: '',
+    moveListIdx: 0,
     disconnectedName: '',
     bannerWasOn: false,
     endTimer: -1,
@@ -79,6 +100,12 @@ export function createMatchState(fighters: number): MatchState {
     countdown: 0,
     entranceFx: [],
     lastEntranceT: -1,
+    tagFade: 1,
+    hitPauseMs: 0,
+    finaleMs: -1,
+    finaleK: 0,
+    finaleX: 0,
+    finaleY: 0,
     bannerBase: 1,
     bannerPop: 0,
     toastUntil: 0,

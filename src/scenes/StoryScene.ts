@@ -1,5 +1,5 @@
 import Phaser from 'phaser';
-import { animFrameIndex, ensurePalette, fighterAnimKey, fighterTextureKey, uiTexK } from '../art/proceduralFighter';
+import { animFrameIndex, ensureFightersReady, ensurePalette, fighterAnimKey, fighterTextureKey, uiTexK } from '../art/proceduralFighter';
 import { paletteCount } from '../art/palettes';
 import { session } from '../game/session';
 import { PIXEL_FONT, up } from '../art/pixelFont';
@@ -8,7 +8,7 @@ import { characterById } from '../characters';
 import { music } from '../audio/music';
 import type { StoryCard } from '../game/story';
 import type { MenuEvent } from '../input/menuInput';
-import { COLORS, MenuScene, drawPanel, text, textPx, type MenuBackdrop } from '../ui/menuKit';
+import { COLORS, MenuScene, drawPanel, playerColors, text, textPx, type MenuBackdrop } from '../ui/menuKit';
 
 const CPS = 38; // typewriter characters per second
 
@@ -51,7 +51,8 @@ export class StoryScene extends MenuScene {
     this.ui.add([this.title, this.vs]);
     this.caption = this.add.bitmapText(0, 0, PIXEL_FONT, '').setOrigin(0.5, 0).setTint(COLORS.text).setCenterAlign().setLineSpacing(4);
     this.ui.add(this.caption);
-    this.hint = text(this, this.ui, 'J / ENTER: CONTINUE   K / ESC: SKIP ALL', COLORS.dim).setOrigin(0.5);
+    this.hint = text(this, this.ui, '', COLORS.hint).setOrigin(0.5);
+    this.bindFooter(this.hint, [['confirm', 'CONTINUE'], ['back', 'SKIP ALL']]);
     this.showCard();
   }
 
@@ -59,6 +60,25 @@ export class StoryScene extends MenuScene {
     if (!id) return null;
     const data = characterById(id);
     if (!data) return null;
+    // a fighter whose sheet is still building in the background (the boss): never fall back to a main-thread stand-in
+    // sheet (that would register the old look); show it as soon as its real sheet lands
+    if (!data.sprite.sheetUrl && !this.textures.exists(fighterTextureKey(data.id))) {
+      const card = this.index;
+      void ensureFightersReady(this, [data]).then(() => {
+        if (!this.sys.isActive() || this.index !== card) return;
+        const s = this.spriteFor(id, flip, palette);
+        if (!s) return;
+        if (flip) {
+          this.right?.destroy();
+          this.right = s;
+        } else {
+          this.left?.destroy();
+          this.left = s;
+        }
+        this.relayoutCard();
+      });
+      return null;
+    }
     const skin = palette > 0 ? ensurePalette(this, data, palette) : id;
     const s = this.add.sprite(0, 0, fighterTextureKey(skin), animFrameIndex(data, 'idle', 0)).setOrigin(0.5, 1).setFlipX(flip);
     s.setData('k', uiTexK(data));
@@ -111,7 +131,9 @@ export class StoryScene extends MenuScene {
     const base = y + 80 * s;
     if (c.art === 'boss') {
       this.left?.setScale(s * 0.8 * ((this.left?.getData('k') as number | undefined) ?? 0.4)).setPosition(x + 34 * s, base + 4 * s);
-      this.right?.setScale(s * 1.3 * ((this.right?.getData('k') as number | undefined) ?? 0.4)).setPosition(x + 96 * s, base + 4 * s).setFlipX(true);
+      // the boss towers over the player, but stays inside the card (its halo included)
+      const rk = s * 1.3 * ((this.right?.getData('k') as number | undefined) ?? 0.4);
+      this.right?.setScale(Math.min(rk, ((base + 4 * s - y - 3 * s) / Math.max(1, this.right.height)) * 1.08)).setPosition(x + 96 * s, base + 4 * s).setFlipX(true);
       this.left?.setFlipX(false);
     } else if (c.art === 'duel') {
       this.left?.setScale(s * 1.05 * ((this.left?.getData('k') as number | undefined) ?? 0.4)).setPosition(x + 38 * s, base);
@@ -137,7 +159,8 @@ export class StoryScene extends MenuScene {
     const c = this.cards[this.index];
     if (!c) return;
     const { x, y, s } = this.box;
-    drawStoryArt(this.art, c.art, x, y, s, time, 0x4aa3ff, 0xff6a5a);
+    const pc = playerColors();
+    drawStoryArt(this.art, c.art, x, y, s, time, pc[0], pc[1]);
     const f = this.frame;
     f.clear();
     const pb = this.plateBox;

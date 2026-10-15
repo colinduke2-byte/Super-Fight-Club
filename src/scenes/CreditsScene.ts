@@ -55,7 +55,8 @@ export class CreditsScene extends MenuScene {
       this.ui.add(s);
       return s;
     });
-    this.hint = text(this, this.ui, 'J / ENTER / K / ESC: BACK', COLORS.dim).setOrigin(0.5);
+    this.hint = text(this, this.ui, '', COLORS.dim).setOrigin(0.5);
+    this.bindFooter(this.hint, [['back', 'BACK']]);
   }
 
   protected override layoutUi(w: number, _h: number, u: number): void {

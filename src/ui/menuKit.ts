@@ -5,25 +5,74 @@ import { sfx } from '../audio/sfx';
 import { inputManager } from '../input/inputManager';
 import type { InputDevice } from '../input/device';
 import { menuInput, type MenuAction, type MenuEvent } from '../input/menuInput';
-import { footerHint, type MenuVerb } from '../input/prompts';
+import { footerHint, promptSerial, type MenuVerb } from '../input/prompts';
+import { settings } from '../settings';
 import { BackgroundView } from './BackgroundView';
 
-/** Device pixels per UI art pixel (integer >= 2); scales text and panels with the window. */
+/** Device pixels per UI art pixel (integer >= 2); scales text and panels with the window and the TEXT SIZE setting. */
 export function hudUnit(h: number): number {
-  return Math.max(2, Math.round(h / 360));
+  return Math.max(2, Math.round((h / 360) * (settings.uiScale || 1)));
+}
+
+/** Player / port colours: the classic set, and an Okabe-Ito set (sky blue, orange, bluish green, reddish purple) that stays distinct for colour-blind players. */
+export const PLAYER_PALETTES = {
+  classic: [0x4aa3ff, 0xff6a5a, 0x5fe08a, 0xffd04a],
+  colorblind: [0x56b4e9, 0xe69f00, 0x1fbf8f, 0xd884b6],
+} as const;
+
+/** The live port colours (the PLAYER COLOURS setting): the one source every tag, plate, bubble and menu chip reads. */
+export function playerColors(): readonly number[] {
+  return settings.playerPalette === 'colorblind' ? PLAYER_PALETTES.colorblind : PLAYER_PALETTES.classic;
 }
 
 export const COLORS = {
   title: 0xffd46a,
   text: 0xe8e4ff,
   dim: 0x8f8ab8,
+  /** Footer / controls hints: brighter than `dim` so they read over any backdrop. */
+  hint: 0xc8c4ec,
   hot: 0xffe14a,
   good: 0x7affa0,
   bad: 0xff6a5a,
   warn: 0xffb02e,
   accent: 0x7fe8ff,
-  p: [0x4aa3ff, 0xff6a5a, 0x5fe08a, 0xffd04a],
+  /** Port colours P1..P4 (follows the PLAYER COLOURS setting). */
+  get p(): number[] {
+    return playerColors() as number[];
+  },
 };
+
+/** Port shape names, P1..P4, for the PORT SHAPES setting. */
+export const PORT_SHAPES = ['circle', 'square', 'triangle', 'diamond'] as const;
+
+/** The port (0..3) a port colour belongs to in either palette (-1: not a port colour). */
+export function portOfColor(c: number): number {
+  const i = (PLAYER_PALETTES.classic as readonly number[]).indexOf(c);
+  return i >= 0 ? i : (PLAYER_PALETTES.colorblind as readonly number[]).indexOf(c);
+}
+
+/**
+ * The port's shape (circle / square / triangle / diamond for P1..P4) centred on (x, y) with radius r, in `color` with a
+ * dark outline `o` px wide, so ports read apart without relying on colour.
+ */
+export function drawPortShape(g: Phaser.GameObjects.Graphics, port: number, x: number, y: number, r: number, color: number, alpha = 1, o = Math.max(1, r * 0.3)): void {
+  const shape = ((port % 4) + 4) % 4;
+  const draw = (rr: number, col: number): void => {
+    g.fillStyle(col, alpha);
+    if (shape === 0) g.fillCircle(x, y, rr);
+    else if (shape === 1) g.fillRect(x - rr * 0.86, y - rr * 0.86, rr * 1.72, rr * 1.72);
+    else if (shape === 2) g.fillTriangle(x, y - rr * 1.05, x + rr * 1.05, y + rr * 0.8, x - rr * 1.05, y + rr * 0.8);
+    else g.fillPoints([new Phaser.Math.Vector2(x, y - rr * 1.1), new Phaser.Math.Vector2(x + rr * 1.1, y), new Phaser.Math.Vector2(x, y + rr * 1.1), new Phaser.Math.Vector2(x - rr * 1.1, y)], true);
+  };
+  draw(r + o, 0x0a0818);
+  draw(r, color);
+}
+
+/** Blink helper: on / off at `hz` full cycles per second, never faster than 3 Hz (and steady with REDUCE FLASHES). */
+export function blink(time: number, hz = 2): boolean {
+  if (settings.reduceFlashes) return true;
+  return ((time * Math.min(3, hz) * 2) | 0) % 2 === 0;
+}
 
 export function text(scene: Phaser.Scene, layer: Phaser.GameObjects.Layer, str: string, tint = COLORS.text): Phaser.GameObjects.BitmapText {
   const t = scene.add.bitmapText(0, 0, PIXEL_FONT, up(str)).setTint(tint);
@@ -285,7 +334,7 @@ export class MenuList {
     drawPanel(g, x, y, w, h, u);
     // cursor bar (glides between rows)
     const sy = this.top + (this.barPos < 0 ? this.index : this.barPos) * rh - (rh - textH) / 2;
-    const a = 0.16 + 0.06 * Math.sin(time * 6);
+    const a = settings.reduceMotion ? 0.18 : 0.16 + 0.06 * Math.sin(time * 6);
     g.fillStyle(COLORS.hot, a).fillRect(x + u, sy, w - u * 2, rh);
     g.fillStyle(COLORS.hot, 0.9).fillRect(x + u, sy, u * 2, rh);
   }
@@ -294,14 +343,14 @@ export class MenuList {
     const dt = this.lastTime < 0 ? 1 : Math.max(0, Math.min(0.1, time - this.lastTime));
     this.lastTime = time;
     // the cursor bar eases to the selected row; a wrap-around (or the first frame) jumps straight there
-    if (this.barPos < 0 || Math.abs(this.index - this.barPos) > 2.5) this.barPos = this.index;
+    if (this.barPos < 0 || Math.abs(this.index - this.barPos) > 2.5 || settings.reduceMotion) this.barPos = this.index;
     else this.barPos += (this.index - this.barPos) * Math.min(1, dt * 22);
     let worst = 1;
     this.items.forEach((it, i) => {
       const sel = i === this.index;
       const on = this.enabled(i);
       const label = typeof it.label === 'function' ? it.label() : it.label;
-      const pulse = sel && ((time * 4) | 0) % 2 === 0;
+      const pulse = sel && !settings.reduceMotion && blink(time, 2);
       this.labels[i].setText(up(`${sel ? '> ' : '  '}${label}`));
       this.labels[i].setTint(!on ? 0x5a5680 : sel ? (pulse ? COLORS.hot : COLORS.title) : COLORS.text);
       const v = it.value ? up(`${sel && it.onLeft ? '< ' : ''}${it.value()}${sel && it.onRight ? ' >' : ''}`) : '';
@@ -316,7 +365,7 @@ export class MenuList {
     for (let i = 0; i < this.items.length; i++) {
       this.labels[i].setScale(this.u * k);
       // a changed value pops (briefly larger, centred on its row) so a left / right press visibly lands
-      const pop = 1 + 0.3 * Math.max(0, 1 - (time - (this.popAt[i] ?? -9)) / 0.2);
+      const pop = settings.reduceMotion ? 1 : 1 + 0.3 * Math.max(0, 1 - (time - (this.popAt[i] ?? -9)) / 0.2);
       const y = this.top + i * this.rowH * this.u;
       this.values[i].setScale(this.u * k * pop).setY(y - (7 * this.u * k * (pop - 1)) / 2);
     }
@@ -336,7 +385,17 @@ export interface MenuBackdrop {
   planet?: { x: number; y: number; k?: number } | null;
   /** Colour multiplied over the backdrop: a gentle cast per screen (0xffffff = none). */
   tint?: number;
+  /** A dark arena: the sky dimmed, a lit floor and spotlights sweeping down onto it (character select). */
+  arena?: boolean;
 }
+
+/** Looks a screen gets unless it says otherwise (screens owned elsewhere still get their own dressing). */
+const DEFAULT_LOOKS: Record<string, MenuBackdrop> = {
+  CharacterSelect: { arena: true },
+};
+
+/** Last cursor row per scene (scenes with `rememberCursor`), kept for the session. */
+const CURSORS = new Map<string, number>();
 
 /**
  * Base class for menu scenes: a parallax backdrop (own zoom-1 camera), a UI layer, integer UI scaling and
@@ -357,6 +416,15 @@ export abstract class MenuScene extends Phaser.Scene {
   protected tapConfirms = false;
   private chip: { g: Phaser.GameObjects.Graphics; t: Phaser.GameObjects.BitmapText; x: number; y: number; w: number; h: number; hover: boolean } | null = null;
   private wheelAt = 0;
+  /** Reopening the screen puts the cursor back on the row it was on (first list only). */
+  protected rememberCursor = false;
+  /** Dark band behind the footer so the controls hint reads over any backdrop. */
+  private footPlate: Phaser.GameObjects.Graphics | null = null;
+  /** Footer texts rebuilt from the live bindings whenever the last-used device changes. */
+  private boundFooters: { t: Phaser.GameObjects.BitmapText; entries: readonly (readonly [MenuVerb, string])[]; extra?: () => string }[] = [];
+  private footSerial = -1;
+  /** Arena dressing (spotlights + floor), drawn over the backdrop when the look asks for it. */
+  private arenaG: Phaser.GameObjects.Graphics | null = null;
 
   protected abstract build(): void;
   protected abstract onEvent(e: MenuEvent): void;
@@ -374,7 +442,8 @@ export abstract class MenuScene extends Phaser.Scene {
   create(): void {
     inputManager.init();
     sfx.arm();
-    music.play('menu');
+    // each menu's own loop (the results jingle plays over its loop and hands back to it)
+    music.play(({ CharacterSelect: 'select', Results: 'results', Credits: 'credits' } as Record<string, string>)[this.scene.key] ?? 'menu');
     this.bgLayer = this.add.layer();
     this.ui = this.add.layer();
     this.lists.length = 0;
@@ -390,7 +459,19 @@ export abstract class MenuScene extends Phaser.Scene {
     this.planet = (this.bgLayer.list.find((o) => o instanceof Phaser.GameObjects.Image && o.texture.key === 'bg-planet') as Phaser.GameObjects.Image | undefined) ?? null;
     this.shade = this.add.graphics();
     this.bgLayer.add(this.shade);
+    this.arenaG = this.add.graphics();
+    this.bgLayer.add(this.arenaG);
+    this.footPlate = this.add.graphics();
+    this.ui.add(this.footPlate);
+    this.boundFooters = [];
+    this.footSerial = promptSerial();
     this.build();
+    if (this.rememberCursor && this.lists[0]) {
+      const key = this.scene.key;
+      const list = this.lists[0];
+      list.index = Math.min(CURSORS.get(key) ?? list.index, Math.max(0, list.items.length - 1));
+      this.events.once('shutdown', () => CURSORS.set(key, list.index));
+    }
     this.buildPointer();
     this.scale.on('resize', this.onResize, this);
     this.events.once('shutdown', () => this.scale.off('resize', this.onResize, this));
@@ -405,6 +486,13 @@ export abstract class MenuScene extends Phaser.Scene {
     const time = (performance.now() - this.time0) / 1000;
     this.bg.update(time * 6, Math.sin(time * 0.2) * 10, 3, time);
     this.placePlanet(time);
+    if (this.look.arena) this.drawArena(time);
+    // the controls hints follow the device in use (a pad's buttons once a pad is touched, the keys after a key press)
+    if (this.boundFooters.length && promptSerial() !== this.footSerial) {
+      this.footSerial = promptSerial();
+      this.refreshFooters();
+      this.relayout(this.scale.width, this.scale.height);
+    }
     for (const e of menuInput.poll()) {
       if (this.leaving) continue;
       // tiny UI blips; scenes that consume the event (rebinding etc.) still get it
@@ -459,6 +547,49 @@ export abstract class MenuScene extends Phaser.Scene {
     });
   }
 
+  /**
+   * A footer text generated from the live bindings (see prompts.footerHint), kept current when the device changes;
+   * `extra` appends scene text (e.g. a controller count).
+   */
+  protected bindFooter(t: Phaser.GameObjects.BitmapText, entries: readonly (readonly [MenuVerb, string])[], extra?: () => string): Phaser.GameObjects.BitmapText {
+    this.boundFooters.push({ t, entries, extra });
+    this.refreshFooters();
+    return t;
+  }
+
+  private refreshFooters(): void {
+    for (const f of this.boundFooters) {
+      const x = f.extra?.() ?? '';
+      f.t.setText(up(`${footer(f.entries)}${x ? `   ${x}` : ''}`));
+    }
+  }
+
+  /** Spotlights sweeping down onto a lit arena floor (MenuBackdrop.arena). */
+  private drawArena(time: number): void {
+    const g = this.arenaG;
+    if (!g) return;
+    const w = this.scale.width;
+    const h = this.scale.height;
+    const u = this.u;
+    g.clear();
+    // the sky sinks into the dark; the floor is a lit stage with rim lights
+    g.fillStyle(0x05040c, 0.55).fillRect(0, 0, w, h);
+    const fy = h * 0.8;
+    g.fillStyle(0x0d0a1e, 0.92).fillRect(0, fy, w, h - fy);
+    g.fillStyle(0x6a5ad0, 0.35).fillRect(0, fy, w, u);
+    for (let x = (time * 20 * (settings.reduceMotion ? 0 : 1)) % (24 * u) - 24 * u; x < w; x += 24 * u) g.fillStyle(0xffd46a, 0.25).fillRect(x, fy + 3 * u, 8 * u, u);
+    const beams = 4;
+    for (let i = 0; i < beams; i++) {
+      const sx = w * ((i + 0.5) / beams);
+      const sway = settings.reduceMotion ? 0 : Math.sin(time * 0.6 + i * 1.7) * w * 0.08;
+      const tx = sx + sway;
+      const col = [0x7fe8ff, 0xffd46a, 0xff6a8a, 0x9a8aff][i % 4];
+      g.fillStyle(col, 0.06).fillTriangle(sx - 3 * u, 0, sx + 3 * u, 0, tx + w * 0.09, fy);
+      g.fillStyle(col, 0.06).fillTriangle(sx - 3 * u, 0, tx - w * 0.09, fy, tx + w * 0.09, fy);
+      g.fillStyle(col, 0.16).fillEllipse(tx, fy + 2 * u, w * 0.2, 9 * u);
+    }
+  }
+
   /** MenuLists the scene created (they register themselves), so a tap on a row is not also a tap on the screen. */
   readonly lists: MenuList[] = [];
 
@@ -494,7 +625,8 @@ export abstract class MenuScene extends Phaser.Scene {
   private relayout(w: number, h: number): void {
     this.u = hudUnit(h);
     this.bg.resize(w, h);
-    this.look = this.backdrop(w, h);
+    this.look = { ...(DEFAULT_LOOKS[this.scene.key] ?? {}), ...this.backdrop(w, h) };
+    if (!this.look.arena) this.arenaG?.clear();
     this.drawShade(w, h);
     this.layoutUi(w, h, this.u);
     this.placeChip();
@@ -509,7 +641,15 @@ export abstract class MenuScene extends Phaser.Scene {
     const h = this.scale.height;
     const u = this.u;
     hint.setOrigin(0.5).setScale(Math.min(u, (w * 0.97) / Math.max(1, textPx(hint)))).setPosition(w / 2, h - 10 * u);
+    // brighter than the old dim footers, on a soft dark band, so they read over any backdrop
+    if (hint.tintTopLeft === COLORS.dim) hint.setTint(COLORS.hint);
     let top = hint.y - hint.displayHeight / 2;
+    const g = this.footPlate?.clear();
+    if (g && hint.visible && hint.text) {
+      const y0 = top - 3 * u;
+      g.fillStyle(0x05040e, 0.5).fillRect(0, y0, w, h - y0);
+      g.fillStyle(0x05040e, 0.25).fillRect(0, y0 - 2 * u, w, 2 * u);
+    }
     if (desc) {
       desc.setOrigin(0.5).setScale(Math.min(u * descK, (w * 0.94) / Math.max(1, textPx(desc))));
       desc.setPosition(w / 2, top - 6 * u - (7 * desc.scaleY) / 2);

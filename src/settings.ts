@@ -1,6 +1,8 @@
 export type SmashMode = 'flick' | 'button';
 export type ParticleQuality = 'low' | 'medium' | 'high';
 export type RenderQuality = 'auto' | 'sharp' | 'fast';
+/** Player colours: the classic blue / red / green / yellow, or an Okabe-Ito set that stays distinct with colour-blindness. */
+export type PlayerPalette = 'classic' | 'colorblind';
 
 export interface Settings {
   /** Radial stick deadzone, 0..0.9. */
@@ -31,6 +33,14 @@ export interface Settings {
   masterVolume: number;
   sfxVolume: number;
   musicVolume: number;
+  /** Player colour set (one shared source: menuKit's COLORS.p). */
+  playerPalette: PlayerPalette;
+  /** A shape per port (circle / square / triangle / diamond) on name tags, off-screen bubbles and HUD plates. */
+  portShapes: boolean;
+  /** Text / UI size multiplier for menus and the match HUD (fed into hudUnit). */
+  uiScale: number;
+  /** Calmer menus: no gliding cursor, value pops, intro slides, confetti or swaying lights. */
+  reduceMotion: boolean;
 }
 
 export const DEFAULT_SETTINGS: Settings = {
@@ -50,6 +60,10 @@ export const DEFAULT_SETTINGS: Settings = {
   masterVolume: 0.7,
   sfxVolume: 1,
   musicVolume: 0.6,
+  playerPalette: 'classic',
+  portShapes: true,
+  uiScale: 1,
+  reduceMotion: false,
 };
 
 /** Storage key (unchanged since v1, so old saves are found and migrated in place). */
@@ -71,6 +85,7 @@ const ENUMS: { [K in keyof Settings]?: readonly Settings[K][] } = {
   smashMode: ['flick', 'button'],
   particleQuality: ['low', 'medium', 'high'],
   renderQuality: ['auto', 'sharp', 'fast'],
+  playerPalette: ['classic', 'colorblind'],
 };
 
 const RANGES: { [K in keyof Settings]?: readonly [number, number] } = {
@@ -79,6 +94,7 @@ const RANGES: { [K in keyof Settings]?: readonly [number, number] } = {
   masterVolume: [0, 1],
   sfxVolume: [0, 1],
   musicVolume: [0, 1],
+  uiScale: [0.75, 1.5],
 };
 
 /** Every field checked against DEFAULT_SETTINGS: wrong types and unknown enum values fall back to the default, numbers are clamped. */
@@ -149,6 +165,14 @@ export function saveSettings(): void {
   } catch {
     /* ignore */
   }
+}
+
+/** Put `keys` (default: every setting) back to their defaults and save. */
+export function resetSettings(keys: readonly (keyof Settings)[] = Object.keys(DEFAULT_SETTINGS) as (keyof Settings)[]): void {
+  const o = settings as unknown as Raw;
+  const d = DEFAULT_SETTINGS as unknown as Raw;
+  for (const k of keys) o[k] = d[k];
+  saveSettings();
 }
 
 // ---- Input (src/input owns this block): per-device-kind tap-jump. ----

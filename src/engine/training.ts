@@ -239,3 +239,235 @@ export class TrainingRunner {
     return lines;
   }
 }
+
+// =============================================================================================
+// Training menu options: dummy behaviour, DI / tech, % lock, speed, readouts. Pure state + per-tick logic, so the
+// menu, the scene and the tests share one implementation. The options object lives at module level: it survives a
+// scene restart (picking another dummy fighter or stage restarts the match).
+// =============================================================================================
+
+export const DUMMY_BEHAVIOURS = ['stand', 'crouch', 'shield', 'jump', 'cpu', 'record', 'playback'] as const;
+export type DummyBehaviour = (typeof DUMMY_BEHAVIOURS)[number];
+export const DI_OPTIONS = ['none', 'in', 'out', 'up', 'down', 'random'] as const;
+export type DiOption = (typeof DI_OPTIONS)[number];
+export const TECH_OPTIONS = ['none', 'in place', 'roll', 'random'] as const;
+export type TechOption = (typeof TECH_OPTIONS)[number];
+/** Game speed steps: 1x, 1/2, 1/4, frame step (advance with the step key). */
+export const SPEEDS = ['1x', '1/2', '1/4', 'frame step'] as const;
+export type SpeedOption = (typeof SPEEDS)[number];
+
+export interface TrainingOptions {
+  behaviour: DummyBehaviour;
+  /** CPU skill when the behaviour is 'cpu' (1-9). */
+  cpuLevel: number;
+  di: DiOption;
+  tech: TechOption;
+  /** Dummy percent held at `percent` whenever the dummy is free to act. */
+  lockPercent: boolean;
+  percent: number;
+  speed: SpeedOption;
+  hitboxes: boolean;
+  inputDisplay: boolean;
+  comboCounter: boolean;
+}
+
+export function defaultTrainingOptions(): TrainingOptions {
+  return { behaviour: 'stand', cpuLevel: 3, di: 'none', tech: 'none', lockPercent: false, percent: 0, speed: '1x', hitboxes: false, inputDisplay: true, comboCounter: true };
+}
+
+/** The live options (kept across restarts of the match scene). */
+export const trainingOptions: TrainingOptions = defaultTrainingOptions();
+
+/** Steps a value through a list (wrapping). */
+export function cycle<T>(list: readonly T[], cur: T, dir: number): T {
+  const i = Math.max(0, list.indexOf(cur));
+  return list[(((i + dir) % list.length) + list.length) % list.length];
+}
+
+/** Ticks of dummy input the recorder holds (10 s at 60 Hz). */
+export const RECORD_MAX = 600;
+
+/** Records a fighter's inputs (stick + held buttons) and plays them back in a loop with fresh press / release edges. */
+export class InputRecording {
+  private sx = new Float32Array(RECORD_MAX);
+  private sy = new Float32Array(RECORD_MAX);
+  private held = new Uint8Array(RECORD_MAX);
+  length = 0;
+  private cursor = 0;
+  private prev = 0;
+
+  clear(): void {
+    this.length = 0;
+    this.cursor = 0;
+    this.prev = 0;
+  }
+
+  /** Appends one tick; returns false once full. */
+  record(inp: FighterInput): boolean {
+    if (this.length >= RECORD_MAX) return false;
+    this.sx[this.length] = inp.stickX;
+    this.sy[this.length] = inp.stickY;
+    this.held[this.length] = inp.held & 0x7f; // never Pause
+    this.length++;
+    return this.length < RECORD_MAX;
+  }
+
+  rewind(): void {
+    this.cursor = 0;
+    this.prev = 0;
+  }
+
+  /** Writes the next recorded tick into `out` (loops). Returns false when there is nothing recorded. */
+  play(out: FighterInput): boolean {
+    if (!this.length) return false;
+    if (this.cursor >= this.length) {
+      this.cursor = 0;
+    }
+    const i = this.cursor++;
+    out.stickX = this.sx[i];
+    out.stickY = this.sy[i];
+    const held = this.held[i];
+    out.held = held;
+    out.pressed = held & ~this.prev;
+    out.released = ~held & this.prev & 0xff;
+    this.prev = held;
+    return true;
+  }
+
+  get seconds(): number {
+    return this.length / 60;
+  }
+}
+
+/** Fighter states a fighter can act out of (used for the frame-advantage readout). */
+const ACTIONABLE = new Set<Fighter['state']>(['idle', 'run', 'crouch', 'dash', 'air', 'shield', 'ledge']);
+
+export function isActionable(f: Fighter): boolean {
+  return f.hitlag === 0 && ACTIONABLE.has(f.state) && !f.helpless;
+}
+
+/**
+ * The dummy's reactions layered over its behaviour input: directional influence while it is launched and a tech press
+ * just before it slams into the floor. `rnd` decides the random options (seeded by the caller for repeatability).
+ */
+export function applyDummyReactions(d: Fighter, attacker: Fighter, opts: TrainingOptions, world: World, out: FighterInput, rnd: () => number, memo: { randDi: DiOption; randTech: TechOption; wasHit: boolean }): void {
+  const hit = d.state === 'hitstun' || (d.hitlag > 0 && d.state !== 'attack');
+  if (hit && !memo.wasHit) {
+    // a fresh hit rolls the random choices once (a whole launch keeps one DI and one tech plan)
+    memo.randDi = DI_OPTIONS[1 + Math.floor(rnd() * 4)];
+    memo.randTech = TECH_OPTIONS[Math.floor(rnd() * 3)];
+  }
+  memo.wasHit = hit;
+  if (!hit) return;
+  const di = opts.di === 'random' ? memo.randDi : opts.di;
+  const away = d.x >= attacker.x ? 1 : -1;
+  out.stickX = di === 'in' ? -away : di === 'out' ? away : 0;
+  out.stickY = di === 'up' ? -1 : di === 'down' ? 1 : 0;
+  const tech = opts.tech === 'random' ? memo.randTech : opts.tech;
+  if (tech === 'none' || d.state !== 'hitstun' || d.grounded || d.vy <= 0) return;
+  // the floor under the dummy: press Shield a few ticks before the impact (inside the tech window)
+  let floor = Infinity;
+  for (const p of world.platforms) {
+    if (d.x < p.x || d.x > p.right || p.top < d.y - 1) continue;
+    floor = Math.min(floor, p.top);
+  }
+  const ticks = (floor - d.y) / Math.max(0.5, d.vy);
+  if (ticks <= 6) {
+    out.held |= 0x08; // Button.Shield
+    out.pressed |= 0x08;
+    if (tech === 'roll') out.stickX = rnd() < 0.5 ? -1 : 1;
+    else out.stickX = 0;
+  }
+}
+
+/** Combo counter and frame-advantage readout for hits / blocked hits the player lands on the dummy. */
+export class ComboTracker {
+  hits = 0;
+  damage = 0;
+  best = 0;
+  /** Frame advantage of the last hit or blocked hit (+ = player acts first); null while measuring / none yet. */
+  advantage: number | null = null;
+  /** 'hit' or 'block' for the last advantage. */
+  advKind: 'hit' | 'block' = 'hit';
+  private measuring = false;
+  private pFrames = -1;
+  private dFrames = -1;
+  private t = 0;
+
+  constructor(
+    private readonly player: Fighter,
+    private readonly dummy: Fighter,
+  ) {}
+
+  onEvent(type: WorldEventType, f: Fighter, extra: number): void {
+    if (f !== this.dummy || (type !== 'hit' && type !== 'shieldHit')) return;
+    if (type === 'hit' && this.dummy.lastHitBy !== this.player.id) return;
+    if (type === 'hit') {
+      const combo = Math.max(1, this.dummy.comboHits);
+      if (combo <= 1) {
+        this.hits = 1;
+        this.damage = extra;
+      } else {
+        this.hits = combo;
+        this.damage += extra;
+      }
+      this.best = Math.max(this.best, this.hits);
+    }
+    this.advKind = type === 'hit' ? 'hit' : 'block';
+    this.measuring = true;
+    this.pFrames = this.dFrames = -1;
+    this.t = 0;
+  }
+
+  /** Once per sim tick (after the world step or right before the next one). */
+  tick(): void {
+    if (!this.measuring) return;
+    this.t++;
+    if (this.pFrames < 0 && isActionable(this.player)) this.pFrames = this.t;
+    if (this.dFrames < 0 && (isActionable(this.dummy) || this.dummy.state === 'downed')) this.dFrames = this.t;
+    if (this.pFrames >= 0 && this.dFrames >= 0) {
+      this.advantage = this.dFrames - this.pFrames;
+      this.measuring = false;
+    } else if (this.t > 240) this.measuring = false;
+  }
+
+  reset(): void {
+    this.hits = this.damage = 0;
+    this.advantage = null;
+    this.measuring = false;
+  }
+
+  lines(): string[] {
+    const out = [`COMBO ${this.hits} HIT${this.hits === 1 ? '' : 'S'}  ${this.damage.toFixed(1)}%  BEST ${this.best}`];
+    if (this.advantage !== null) out.push(`FRAME ADV ON ${this.advKind.toUpperCase()}: ${this.advantage > 0 ? '+' : ''}${this.advantage}`);
+    else if (this.measuring) out.push('FRAME ADV: ...');
+    return out;
+  }
+}
+
+/** Saved positions of both fighters (save / restore state). */
+export interface SavedFighter {
+  x: number;
+  y: number;
+  facing: 1 | -1;
+  damage: number;
+  grounded: boolean;
+}
+
+export function saveFighter(f: Fighter): SavedFighter {
+  return { x: f.x, y: f.y, facing: f.facing, damage: f.damage, grounded: f.grounded };
+}
+
+export function restoreFighter(f: Fighter, s: SavedFighter, world: World): void {
+  const plat = s.grounded ? world.platforms.find((p) => s.x >= p.x && s.x <= p.right && Math.abs(p.top - s.y) < 2) : undefined;
+  f.facing = s.facing;
+  if (plat) f.standOn(plat, s.x);
+  else f.spawn(s.x, s.y, s.facing);
+  f.facing = s.facing;
+  f.damage = s.damage;
+  f.invuln = 0;
+  f.hitlag = 0;
+  f.hover = false;
+  f.helpless = false;
+  f.snapped = true;
+}

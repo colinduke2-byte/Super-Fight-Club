@@ -12,7 +12,43 @@ import { STAGES } from '../stages';
 import type { MenuEvent } from '../input/menuInput';
 import { ensurePalette, fighterAnimKey, fighterTextureKey, uiTexK } from '../art/proceduralFighter';
 import { playResultPose } from '../ui/FighterView';
-import { COLORS, MenuList, MenuScene, PANEL, drawPanel, text, textPx, type MenuBackdrop, type MenuItem } from '../ui/menuKit';
+import { COLORS, MenuList, MenuScene, PANEL, drawPanel, drawPortShape, text, textPx, type MenuBackdrop, type MenuItem } from '../ui/menuKit';
+import { settings } from '../settings';
+import type { MatchResult, PlayerResult } from '../game/session';
+
+/** One award line on the results screen. */
+export interface Award {
+  title: string;
+  index: number;
+  detail: string;
+}
+
+/**
+ * Awards from the match's results: one per category, given only to an outright leader (a tie gives nothing).
+ * Optional stats (ledge grabs, the biggest launch, KOs by ultimate) are used when the result carries them.
+ */
+export function matchAwards(r: MatchResult, nameOf: (p: PlayerResult) => string): Award[] {
+  const ps = r.players;
+  if (ps.length < 2) return [];
+  const out: Award[] = [];
+  const top = (title: string, v: (p: PlayerResult) => number | undefined, min: number, detail: (n: number) => string, lowest = false): void => {
+    const vals = ps.map((p) => ({ p, n: v(p) })).filter((x): x is { p: PlayerResult; n: number } => typeof x.n === 'number' && Number.isFinite(x.n));
+    if (vals.length < 2) return;
+    vals.sort((a, b) => (lowest ? a.n - b.n : b.n - a.n));
+    if (vals[0].n === vals[1].n || (!lowest && vals[0].n < min)) return;
+    out.push({ title, index: vals[0].p.index, detail: `${nameOf(vals[0].p)}  ${detail(vals[0].n)}` });
+  };
+  type Extra = PlayerResult & { ultKos?: number; ledgeGrabs?: number; biggestLaunch?: number };
+  top('ULTIMATE KO', (p) => (p as Extra).ultKos, 1, (n) => `${n} KO${n === 1 ? '' : 'S'} BY ULTIMATE`);
+  top('BIGGEST LAUNCH', (p) => (p as Extra).biggestLaunch, 1, (n) => `${Math.round(n)} M`);
+  top('LEDGE LORD', (p) => (p as Extra).ledgeGrabs, 3, (n) => `${n} LEDGE GRABS`);
+  top('KO KING', (p) => p.kos, 2, (n) => `${n} KOS`);
+  top('HEAVY HITTER', (p) => Math.round(p.damageDealt), 60, (n) => `${n}% DEALT`);
+  top('COMBO ARTIST', (p) => p.bestCombo ?? 0, 4, (n) => `${n}-HIT COMBO`);
+  top('UNTOUCHABLE', (p) => p.falls, 0, (n) => (n === 0 ? 'NEVER FELL' : `ONLY ${n} FALL${n === 1 ? '' : 'S'}`), true);
+  top('FREQUENT FLYER', (p) => p.falls, 3, (n) => `${n} FALLS`);
+  return out.slice(0, 3);
+}
 
 /** After a match: winner banner, per-player stats, and what to do next. */
 export class ResultsScene extends MenuScene {
@@ -46,6 +82,11 @@ export class ResultsScene extends MenuScene {
   private winRow = -1;
   private rowBand = { x: 0, w: 0, h: 0, ys: [] as number[] };
   private floor = { x: 0, y: 0, s: 1 };
+  /** Runners-up on the lower steps of the podium (2nd, 3rd, 4th). */
+  private runners: { sprite: Phaser.GameObjects.Sprite; k: number; place: number; color: number; port: number; tag: Phaser.GameObjects.BitmapText; x: number; y: number }[] = [];
+  private awardTexts: Phaser.GameObjects.BitmapText[] = [];
+  private awardHead: Phaser.GameObjects.BitmapText | null = null;
+  private awardPorts: number[] = [];
 
   constructor() {
     super('Results');
@@ -96,6 +137,23 @@ export class ResultsScene extends MenuScene {
     this.lastTick = -1;
     const wp = r && winner >= 0 ? r.players.find((p) => p.index === winner) : undefined;
     const wc = wp ? characterById(wp.character) : undefined;
+    // the podium: runners-up (2nd to 4th) on the lower steps behind the winner (versus-style results only)
+    this.runners = [];
+    if (r && wp && wc && !tr && !lr) {
+      const rest = [...r.players].filter((p) => p !== wp).sort((a, b) => a.placement - b.placement).slice(0, 3);
+      rest.forEach((p, i) => {
+        const c = characterById(p.character);
+        if (!c) return;
+        const skin = ensurePalette(this, c, p.palette ?? 0);
+        const sprite = this.add.sprite(0, 0, fighterTextureKey(skin), 0).setOrigin(0.5, 1).setTint(0xb4acd4);
+        sprite.play(fighterAnimKey(skin, 'idle'));
+        this.ui.add(sprite);
+        const port = p.team >= 0 ? p.team : p.index % 4;
+        const color = COLORS.p[port];
+        const tag = text(this, this.ui, `${p.placement}`, color).setOrigin(0.5);
+        this.runners.push({ sprite, k: uiTexK(c), place: i, color, port, tag, x: 0, y: 0 });
+      });
+    }
     if (wp && wc) {
       this.champColor = parseInt(wc.sprite.placeholder.accent.slice(1), 16);
       this.champK = uiTexK(wc);
@@ -137,6 +195,21 @@ export class ResultsScene extends MenuScene {
         this.rows.push(text(this, this.ui, line, p.index === winner ? COLORS.hot : COLORS.p[p.team >= 0 ? p.team : p.index % 4]));
       }
     }
+    this.awardTexts = [];
+    this.awardPorts = [];
+    this.awardHead = null;
+    if (r && !tr && !lr && !arcade) {
+      const awards = matchAwards(r, nameOf);
+      if (awards.length) {
+        this.awardHead = text(this, this.ui, 'AWARDS', COLORS.title);
+        for (const a of awards) {
+          const p = r.players.find((q) => q.index === a.index)!;
+          const port = p.team >= 0 ? p.team : p.index % 4;
+          this.awardTexts.push(text(this, this.ui, `${a.title.padEnd(15)}${a.detail}`, COLORS.p[port]));
+          this.awardPorts.push(port);
+        }
+      }
+    }
     const items: MenuItem[] = [];
     if (arcade) {
       const l = session.ladder!;
@@ -157,7 +230,8 @@ export class ResultsScene extends MenuScene {
       items.push({ label: 'CHARACTER SELECT', onConfirm: () => this.go('CharacterSelect') }, { label: 'MAIN MENU', onConfirm: () => this.go('ModeSelect') });
     }
     this.list = new MenuList(this, this.ui, items);
-    this.hint = text(this, this.ui, 'UP/DOWN: MOVE   J / ENTER: SELECT   K / ESC: EXIT', COLORS.dim).setOrigin(0.5);
+    this.hint = text(this, this.ui, '', COLORS.dim).setOrigin(0.5);
+    this.bindFooter(this.hint, [['updown', 'MOVE'], ['confirm', 'SELECT'], ['back', 'EXIT']]);
     // a human loss in the arcade gets the sad version; everything else celebrates
     const humanLost = (arcade && winner !== 0) || (!!tr && !tr.cleared) || (!!lr && lr.distance <= 0) || (!!chal && !chalClear);
     this.celebrate = !humanLost && (winner >= 0 || (!!tr && tr.cleared) || (!!lr && lr.distance > 0) || chalClear);
@@ -195,21 +269,57 @@ export class ResultsScene extends MenuScene {
     this.plate.clear();
     drawPanel(this.plate, tx - pad, top, tw * ts + pad * 2, bottom - top, u, 0.92);
     this.plate.fillStyle(PANEL.border, 1).fillRect(tx, h * 0.27 + 11.5 * (ts / 1.2), tw * ts, Math.max(1, u / 2));
-    this.list.layout(side + (w - side) / 2, h * 0.56, u, 120);
-    this.placeFooter(this.hint);
+    const footTop = this.placeFooter(this.hint);
+    // awards under the table, then the menu
+    let listTop = h * 0.56;
+    if (this.awardHead) {
+      const ak = Math.min(u, ts);
+      let ay = bottom + 9 * u;
+      const ax = tx;
+      this.awardHead.setScale(ak).setPosition(ax, ay);
+      ay += 7 * ak + 4 * u;
+      const aw = Math.max(textPx(this.awardHead), ...this.awardTexts.map((t) => textPx(t))) * ak + 10 * u;
+      const ah = 7 * ak + 4 * u + this.awardTexts.length * (7 * ak + 4 * u);
+      drawPanel(this.plate, ax - 4 * u, bottom + 6 * u, Math.min(aw + 6 * u, tw * ts + pad * 2), ah + 4 * u, u, 0.85);
+      this.awardTexts.forEach((t, i) => {
+        t.setScale(Math.min(ak, (tw * ts - 8 * u) / Math.max(1, textPx(t)))).setPosition(ax + 8 * u, ay);
+        drawPortShape(this.plate, this.awardPorts[i], ax + 3 * u, ay + (7 * t.scaleY) / 2, 1.5 * u, COLORS.p[this.awardPorts[i]], 1, Math.max(1, u / 2));
+        ay += 7 * ak + 4 * u;
+      });
+      listTop = Math.max(listTop, ay + 10 * u);
+    }
+    this.list.layout(side + (w - side) / 2, listTop, u, 120, Math.max(listTop + 30 * u, footTop - 6 * u));
     if (this.champ) {
       // sized so even a wide fighter (wings, staffs) stays on screen beside the table
-      const s = Math.max(0.6, Math.min(u * 2.6, (h * 0.44) / 64, (w * 0.2) / 56));
-      this.floor = { x: w * 0.23, y: h * 0.76, s };
+      const nr = this.runners.length;
+      // the podium's width in units of s: the winner's step, plus a lower step either side (and a third for 4th)
+      const span = nr === 0 ? 56 : nr === 1 ? 100 : nr === 2 ? 136 : 168;
+      const s = Math.max(0.6, Math.min(u * 2.6, (h * 0.44) / 64, (w * 0.38) / span, nr === 0 ? (w * 0.2) / 56 : Infinity));
+      const shift = nr === 0 ? 0 : nr === 1 ? 20 : nr === 2 ? 0 : -16;
+      this.floor = { x: w * 0.22 + shift * s, y: h * 0.74, s };
       this.champ.setScale(s * this.champK).setPosition(this.floor.x, this.floor.y);
-      this.champName?.setScale(Math.min(u * 2, (w * 0.36) / Math.max(1, textPx(this.champName)))).setPosition(this.floor.x, this.floor.y + s * 10 + 9 * u);
-      if (this.champName && this.champLine) this.champLine.setScale(Math.min(u, (w * 0.38) / Math.max(1, textPx(this.champLine)))).setPosition(this.floor.x, this.champName.y + this.champName.displayHeight / 2 + 6 * u);
-      // a plate under the name and quote so they read over any stage's ground
+      // 2nd on the left step, 3rd on the right, 4th one step further right and lower
+      const spots = [[-42, 7], [42, 7], [76, 12]];
+      this.runners.forEach((rn, i) => {
+        const [dx, dy] = spots[i];
+        rn.x = this.floor.x + dx * s;
+        rn.y = this.floor.y + dy * s;
+        rn.sprite.setScale(s * (i === 2 ? 0.62 : 0.72) * rn.k).setPosition(rn.x, rn.y);
+        rn.tag.setScale(Math.max(u, Math.round(s * 1.1))).setPosition(rn.x + 2 * s, rn.y + (16 - dy) * s * 0.5 + 1.5 * s);
+      });
+      this.champName?.setScale(Math.min(u * 2, (w * 0.36) / Math.max(1, textPx(this.champName)))).setPosition(this.floor.x, this.floor.y + s * (this.runners.length ? 16 : 10) + 9 * u);
+      // short windows (phones held sideways) drop the victory quote: there is no room under the podium
+      this.champLine?.setVisible(h >= 500 || !this.runners.length);
+      if (this.champName && this.champLine && this.champLine.visible) this.champLine.setScale(Math.min(u, (w * 0.38) / Math.max(1, textPx(this.champLine)))).setPosition(this.floor.x, this.champName.y + this.champName.displayHeight / 2 + 6 * u);
+      // a plate under the name and quote so they read over any stage's ground (kept on screen beside the table)
       if (this.champName) {
-        const last = this.champLine ?? this.champName;
+        const last = this.champLine?.visible ? this.champLine : this.champName;
         const pw = Math.max(this.champName.displayWidth, last.displayWidth) + 12 * u;
-        const top = Math.max(this.champName.y - this.champName.displayHeight / 2 - 4 * u, this.floor.y + this.floor.s * 10 + u);
-        drawPanel(this.plate, this.floor.x - pw / 2, top, pw, last.y + last.displayHeight / 2 + 4 * u - top, u, 0.8);
+        const nx = Math.max(pw / 2 + 4 * u, Math.min(this.floor.x, side - pw / 2 - 4 * u));
+        this.champName.setX(nx);
+        this.champLine?.setX(nx);
+        const top = Math.max(this.champName.y - this.champName.displayHeight / 2 - 4 * u, this.floor.y + this.floor.s * (this.runners.length ? 16 : 10) + u);
+        drawPanel(this.plate, nx - pw / 2, top, pw, last.y + last.displayHeight / 2 + 4 * u - top, u, 0.8);
       }
     }
   }
@@ -221,6 +331,7 @@ export class ResultsScene extends MenuScene {
 
   /** Ease-out 0..1 over `dur` seconds from `t0`. */
   private ease(time: number, t0: number, dur: number): number {
+    if (settings.reduceMotion) return 1;
     const k = Math.max(0, Math.min(1, (time - t0) / dur));
     return 1 - Math.pow(1 - k, 3);
   }
@@ -251,8 +362,8 @@ export class ResultsScene extends MenuScene {
     }
     if (!this.celebrate) return;
     // a white flash as the banner lands
-    if (time > 0.3 && time < 0.65) fg.fillStyle(0xffffff, 0.35 * (1 - (time - 0.3) / 0.35)).fillRect(0, 0, w, h);
-    if (!this.fired && time > 0.32) {
+    if (!settings.reduceFlashes && time > 0.3 && time < 0.65) fg.fillStyle(0xffffff, 0.35 * (1 - (time - 0.3) / 0.35)).fillRect(0, 0, w, h);
+    if (!this.fired && time > 0.32 && !settings.reduceMotion) {
       this.fired = true;
       const cols = [this.champColor, 0xffe14a, 0xffffff, 0x7affa0, 0xff7ab0, 0x7fe8ff];
       for (let n = 0; n < 220; n++) {
@@ -312,19 +423,29 @@ export class ResultsScene extends MenuScene {
     this.entrance(time, dt);
     if (!this.champ) return;
     const { x, y, s } = this.floor;
-    const pulse = 0.5 + 0.5 * Math.sin(time * 3);
+    const pulse = settings.reduceMotion ? 0.5 : 0.5 + 0.5 * Math.sin(time * 3);
+    // the lower steps: a dark block per runner-up with a stripe in their colour and their place on the front
+    for (const rn of this.runners) {
+      const hw = (rn.place === 2 ? 15 : 18) * s;
+      const ph = y + 16 * s - rn.y;
+      g.fillStyle(0x141028, 1).fillRect(rn.x - hw, rn.y, hw * 2, ph);
+      g.fillStyle(0x2e2650, 1).fillRect(rn.x - hw, rn.y, hw * 2, 1.5 * s);
+      g.fillStyle(rn.color, 0.8).fillRect(rn.x - hw, rn.y + 3 * s, hw * 2, 0.8 * s);
+      if (settings.portShapes) drawPortShape(g, rn.port, rn.x - hw + 4 * s, rn.y + ph * 0.6, 1.6 * s, rn.color, 1, Math.max(1, s * 0.4));
+    }
     // spotlight cone and a glowing pedestal in the champion's colour
     f.fillStyle(this.champColor, 0.1 + 0.04 * pulse);
     f.fillTriangle(x - 6 * s, 0, x + 6 * s, 0, x + 34 * s, y);
     f.fillTriangle(x - 6 * s, 0, x - 34 * s, y, x + 34 * s, y);
     f.fillStyle(this.champColor, 0.35 + 0.15 * pulse).fillEllipse(x, y, 70 * s, 12 * s);
+    g.fillStyle(0x1a1430, 1).fillRect(x - 24 * s, y, 48 * s, 16 * s);
     g.fillStyle(0x1a1430, 1).fillRect(x - 34 * s, y, 68 * s, 10 * s);
     g.fillStyle(0x3a3060, 1).fillRect(x - 34 * s, y, 68 * s, 2 * s);
     g.fillStyle(this.champColor, 1).fillRect(x - 34 * s, y + 5 * s, 68 * s, 1 * s);
-    this.champ.setY(y + Math.sin(time * 2) * 0.8);
+    this.champ.setY(y + (settings.reduceMotion ? 0 : Math.sin(time * 2) * 0.8));
     // confetti: a steady drizzle over the champion
     const step = Math.min(0.05, dt);
-    if (this.confetti.filter((c) => !c.burst).length < 90 && Math.random() < 0.6) {
+    if (!settings.reduceMotion && this.confetti.filter((c) => !c.burst).length < 90 && Math.random() < 0.6) {
       const cols = [this.champColor, 0xffe14a, 0xffffff, 0x7affa0, 0xff7ab0];
       this.confetti.push({ x: x + (Math.random() - 0.5) * 120 * s, y: -10, vx: (Math.random() - 0.5) * 40, vy: 60 + Math.random() * 80, c: cols[Math.floor(Math.random() * cols.length)], r: Math.random() * 6, vr: (Math.random() - 0.5) * 8 });
     }

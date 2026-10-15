@@ -6,6 +6,7 @@ import type { World } from '../../engine/world';
 import { DummyController, NullController, type Controller } from '../../game/controllers';
 import type { MatchRunner } from '../../game/runner';
 import type { PlayerSlot } from '../../game/session';
+import type { InputDevice } from '../../input/device';
 import type { GamepadDevice } from '../../input/gamepad';
 import { inputManager } from '../../input/inputManager';
 import { PlayerInput } from '../../input/playerInput';
@@ -36,21 +37,54 @@ export class MatchControllers {
   ) {
     this.humans = slots.map((s) => (s.type === 'human' && s.device ? new PlayerInput(s.device) : null));
     this.controllers = slots.map((s, i) =>
-      opts.replay || s.type !== 'cpu' ? new NullController() : s.boss ? new BossController(() => runner.match.scores[i].stocks, 1) : opts.isTraining && i === 1 ? this.dummy : opts.isLaunch && i === 1 ? new DummyController() : new CpuController(s.cpuLevel, i + 1),
+      opts.replay || s.type !== 'cpu' ? new NullController() : s.boss ? new BossController(() => runner.match.scores[i].stocks, 1) : opts.isTraining && i === 1 ? this.dummy : opts.isLaunch && i === 1 ? new DummyController() : new CpuController(s.cpuLevel, i + 1, s.cpuSkill),
     );
     this.inputs = slots.map(() => makeInput());
   }
 
-  /** Samples every human's device into its input. Returns true if one of them pressed pause. */
-  sampleHumans(): boolean {
-    let pausePressed = false;
+  /** Samples every human's device into its input. Returns the slot of the first one that pressed pause (-1: none). */
+  sampleHumans(): number {
+    let pauser = -1;
     for (let i = 0; i < this.slots.length; i++) {
       const h = this.humans[i];
       if (!h) continue;
       h.sample(this.inputs[i]);
-      if (this.inputs[i].pressed & Button.Pause) pausePressed = true;
+      if (pauser < 0 && this.inputs[i].pressed & Button.Pause) pauser = i;
     }
-    return pausePressed;
+    return pauser;
+  }
+
+  /** Slot still missing its gamepad after the last checkConnections (-1: none). */
+  missingSlot = -1;
+
+  /** A free keyboard (one no other human slot plays on), or null. */
+  freeKeyboard(): InputDevice | null {
+    const used = new Set(this.slots.map((o) => o.device?.id));
+    return inputManager.keyboards.find((k) => !used.has(k.id)) ?? null;
+  }
+
+  /** Disconnect: the player carries on on a free keyboard. Returns false if there is none. */
+  continueWithKeyboard(i: number): boolean {
+    const kb = this.freeKeyboard();
+    const h = this.humans[i];
+    if (!kb || !h) return false;
+    this.slots[i].device = kb;
+    h.device = kb;
+    h.reset();
+    return true;
+  }
+
+  /** Disconnect: a CPU takes the slot over for the rest of the match. */
+  replaceWithCpu(i: number): void {
+    const s = this.slots[i];
+    if (!s) return;
+    s.type = 'cpu';
+    s.device = null;
+    this.humans[i] = null;
+    this.controllers[i] = new CpuController(s.cpuLevel, i + 1, s.cpuSkill);
+    const inp = this.inputs[i];
+    inp.held = inp.pressed = inp.released = 0;
+    inp.stickX = inp.stickY = 0;
   }
 
   /** Runs the non-human controllers (CPU AI, dummy...) for the tick about to be simulated. */
@@ -68,6 +102,7 @@ export class MatchControllers {
    */
   checkConnections(toast: (msg: string) => void): string {
     let missing = '';
+    this.missingSlot = -1;
     for (let i = 0; i < this.slots.length; i++) {
       const s = this.slots[i];
       if (s.type !== 'human' || !s.device || s.device.kind !== 'gamepad' || s.device.connected) continue;
@@ -81,6 +116,7 @@ export class MatchControllers {
         toast(`P${i + 1} controller reconnected`);
       } else {
         missing = `P${i + 1}`;
+        this.missingSlot = i;
       }
     }
     return missing;

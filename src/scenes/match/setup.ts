@@ -1,10 +1,12 @@
+import type Phaser from 'phaser';
+import { ensurePalette, ensurePalettesReady, palettesReady, type PaletteWant } from '../../art/proceduralFighter';
 import { CHARACTERS } from '../../characters';
 import type { MatchConfig } from '../../engine/match';
 import type { StageData } from '../../engine/types';
 import { challengeById, challengeRules, type Challenge } from '../../game/challenges';
 import { ReplayRecorder, type Replay } from '../../game/replay';
 import type { RunnerSetup } from '../../game/runner';
-import { DEFAULT_RULES, session, type MatchRules, type PlayerSlot } from '../../game/session';
+import { DEFAULT_RULES, runnerExtras, session, type MatchRules, type PlayerSlot } from '../../game/session';
 import { MergedDevice } from '../../input/device';
 import { inputManager } from '../../input/inputManager';
 import { settings } from '../../settings';
@@ -59,6 +61,8 @@ export function resolveMatchSetup(): MatchSetup {
     launch: isLaunch,
     targets: wantsTargets,
     smashFlick: rep ? rep.smashFlick : settings.smashMode === 'flick',
+    // teams, team attack, handicaps, item switches, sudden death, stock time limit
+    ...(isTraining || isLaunch || wantsTargets ? {} : runnerExtras(rules, slots.length)),
   };
   const recorder =
     !rep && !isTraining && session.mode === 'versus' && !session.demo ? new ReplayRecorder(session.stage, rules, slots.map((sl) => ({ character: sl.character, palette: sl.palette, type: sl.type })), settings.smashMode === 'flick') : null;
@@ -100,4 +104,26 @@ export function ensureSession(): void {
   q.get('pal')?.split(',').forEach((v, i) => {
     if (session.players[i]) session.players[i].palette = Math.max(0, Number(v) || 0);
   });
+}
+
+/**
+ * The fighters' sheets in their palettes, built off the main thread when they are not ready yet (a palette nobody picked
+ * before, the boss). Calls `done` with each fighter's skin id: at once (returns true) when everything is already there,
+ * otherwise once the art workers deliver (returns false: the caller shows a LOADING card meanwhile). `alive` is asked before
+ * `done` runs late, so a scene that was left meanwhile is not built.
+ */
+export function prepareSkins(scene: Phaser.Scene, wants: PaletteWant[], done: (skins: string[]) => void, alive: () => boolean): boolean {
+  if (palettesReady(scene, wants)) {
+    done(wants.map((w) => ensurePalette(scene, w.data, w.palette)));
+    return true;
+  }
+  ensurePalettesReady(scene, wants)
+    .catch((err: unknown) => {
+      console.warn('[match] background sheet build failed; building on the main thread', err);
+      return wants.map((w) => ensurePalette(scene, w.data, w.palette));
+    })
+    .then((skins) => {
+      if (alive()) done(skins);
+    });
+  return false;
 }

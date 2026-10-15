@@ -5,6 +5,14 @@ import type { World } from './world';
 
 const rA = [0, 0, 0, 0];
 const rB = [0, 0, 0, 0];
+/** The reach of a radial hit (blast, detonation) as a square around its centre: a shield only blocks it if the bubble meets it. */
+const rC = [0, 0, 0, 0];
+function radial(x: number, y: number, r: number): number[] {
+  rC[0] = x - r;
+  rC[1] = y - r;
+  rC[2] = rC[3] = r * 2;
+  return rC;
+}
 
 function overlap(a: number[], b: number[]): boolean {
   return a[0] < b[0] + b[2] && a[0] + a[2] > b[0] && a[1] < b[1] + b[3] && a[1] + a[3] > b[1];
@@ -266,7 +274,7 @@ export function resolveBlasts(world: World): void {
       const nx = Math.max(rB[0], Math.min(p.x, rB[0] + rB[2]));
       const ny = Math.max(rB[1], Math.min(p.y, rB[1] + rB[3]));
       if (Math.hypot(nx - p.x, ny - p.y) > r) continue;
-      deliverHit(world, { atk: owner, ownerId: p.owner, def: f, hb: { ...hb, dir: 'away' }, damage: hb.damage * p.dmgMult, facing: p.dir, originX: p.x, kbMult: 1, freezeOwner: false });
+      deliverHit(world, { atk: owner, ownerId: p.owner, def: f, hb: { ...hb, dir: 'away' }, damage: hb.damage * p.dmgMult, facing: p.dir, originX: p.x, kbMult: 1, freezeOwner: false, rect: radial(p.x, p.y, r) });
     }
     world.emit('blast', owner ?? world.fighters[0], p.x, p.y, r, p.owner);
   }
@@ -322,6 +330,7 @@ function projectilesHitFighters(world: World): void {
         originX: p.x,
         kbMult: 1,
         freezeOwner: false,
+        rect: rA, // only a shield that covers where the shot is blocks it
       });
       world.emit('projectileHit', f, p.x, p.y, 1, def.hit.damage);
       if (!def.pierce) {
@@ -400,7 +409,7 @@ export function detonateDeployable(world: World, d: Deployable, radius: number):
     const nx = Math.max(rB[0], Math.min(d.x, rB[0] + rB[2]));
     const ny = Math.max(rB[1], Math.min(cy, rB[1] + rB[3]));
     if (Math.hypot(nx - d.x, ny - cy) > radius) continue;
-    deliverHit(world, { atk: owner, ownerId: d.owner, def: f, hb: trig.hit, damage: trig.hit.damage * d.damageMul, facing: d.facing, originX: d.x, kbMult: 1, freezeOwner: false });
+    deliverHit(world, { atk: owner, ownerId: d.owner, def: f, hb: trig.hit, damage: trig.hit.damage * d.damageMul, facing: d.facing, originX: d.x, kbMult: 1, freezeOwner: false, rect: radial(d.x, cy, radius) });
     n++;
   }
   world.emit('deployableTrigger', owner ?? world.fighters[0], d.x, cy, radius, trig.hit.damage);
@@ -421,7 +430,7 @@ function triggerDeployables(world: World): void {
       if (!overlap(rA, rB)) continue;
       const owner = world.fighters[d.owner] ?? null;
       world.emit('deployableTrigger', f, d.x, d.y - def.h / 2, 0, trig.hit.damage);
-      deliverHit(world, { atk: owner, ownerId: d.owner, def: f, hb: trig.hit, damage: trig.hit.damage * d.damageMul, facing: d.facing, originX: d.x, kbMult: 1, freezeOwner: false });
+      deliverHit(world, { atk: owner, ownerId: d.owner, def: f, hb: trig.hit, damage: trig.hit.damage * d.damageMul, facing: d.facing, originX: d.x, kbMult: 1, freezeOwner: false, rect: rA });
       if (!trig.persistent) d.deactivate();
       break;
     }

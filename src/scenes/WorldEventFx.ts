@@ -1,5 +1,7 @@
 import Phaser from 'phaser';
-import { hitLayer, soundFor } from '../audio/soundMap';
+import { announcer } from '../audio/announcer';
+import { hazardSounds, hitLayer, soundsFor } from '../audio/soundMap';
+import { heldState } from '../engine/items';
 import { sfx } from '../audio/sfx';
 import type { Fighter } from '../engine/fighter';
 import type { World, WorldEventType } from '../engine/world';
@@ -22,15 +24,58 @@ export interface WorldEventHost {
   rumble(f: Fighter, strong: number, weak: number, ms: number): void;
   /** KO visual (the blast from the screen edge). Presentation only: MatchRunner has already scored the KO. */
   koFx(f: Fighter, lastHitBy: number): void;
+  /** Freeze the whole picture (the sim waits) for `ms` real milliseconds: a parry's hit-pause. */
+  hitPause?(ms: number): void;
+  /** A full-screen tint that fades out fast (`alpha` is damped by the host under REDUCE FLASHES). */
+  screenFlash?(color: number, alpha: number): void;
+  /** A big word popping out of a world point ("PARRY!"). */
+  popup?(text: string, x: number, y: number, color: number): void;
+  /**
+   * A KO that ends the match: the host may take it over (freeze, punch-in on `hitX, hitY`, desaturate) and play the KO
+   * itself later through `playKo`. Returns true if it did.
+   */
+  finale?(f: Fighter, hitX: number, hitY: number, replay: () => void): boolean;
+  /** The boss has entered its second phase (an `fx` event tagged `bossPhase2`). */
+  bossPhase2?(f: Fighter): void;
 }
 
 /** Turns simulation events into particles, camera kicks, sounds and rumble. Presentation only. */
 export class WorldEventFx {
+  /** Where each fighter was last struck (world space; NaN = never): the game-winning KO punches in there. */
+  private readonly hitX: number[] = [];
+  private readonly hitY: number[] = [];
+  /** Set while a KO the host held back (the game-winning one) is being played. */
+  private replaying = false;
+
   constructor(private readonly host: WorldEventHost) {}
+
+  /** Where fighter `id` was last hit, or null. */
+  lastHit(id: number): { x: number; y: number } | null {
+    const x = this.hitX[id];
+    return x === undefined || Number.isNaN(x) ? null : { x, y: this.hitY[id] };
+  }
 
   handle(type: WorldEventType, f: Fighter, x: number, y: number, mag: number, extra: number, tag?: string): void {
     const e = this.host.effects;
-    const cue = soundFor(type, mag, extra);
+    if (type === 'hit') {
+      this.hitX[f.id] = x;
+      this.hitY[f.id] = y;
+    }
+    if (type === 'ko' && !this.replaying && this.host.finale) {
+      // the match-ending KO: the host freezes on the finishing hit first, then plays this KO (sound, sparks, blast)
+      const at = this.lastHit(f.id) ?? { x: Phaser.Math.Clamp(f.koX, this.host.world.blast.left, this.host.world.blast.right), y: f.koY };
+      const replay = (): void => {
+        this.replaying = true;
+        try {
+          this.handle(type, f, x, y, mag, extra, tag);
+        } finally {
+          this.replaying = false;
+        }
+      };
+      if (this.host.finale(f, at.x, at.y, replay)) return;
+    }
+    if (type === 'fx' && tag === 'bossPhase2') this.host.bossPhase2?.(f);
+    const cues = soundsFor(type, mag, extra, tag);
     const pan = this.host.pan(x);
     // sound flavour: swings use the mover's style, hits use the attacker's
     let style = f.data.fx?.sound ?? 'plain';
@@ -39,10 +84,15 @@ export class WorldEventFx {
       const kind = f.move?.kind;
       const loud = kind === 'smash' ? 0.7 : kind === 'ultimate' ? 0.8 : kind === 'aerial' || kind === 'dashAttack' ? 0.45 : kind === 'tilt' ? 0.35 : kind === 'jab' ? 0.22 : 0.4;
       sfx.play('swing', loud, pan, style);
-    } else if (cue) sfx.play(cue.name, cue.intensity, pan, style);
+    } else {
+      // projectiles from a held ray gun get their own shot
+      const ray = type === 'projectile' && heldState(this.host.world, f.id).kind === 'raygun';
+      for (const c of cues) sfx.play(ray && c.name === 'shoot' ? 'rayShot' : c.name, c.intensity, pan, style);
+    }
     if (type === 'hit') {
       const layer = hitLayer(f.lastHitFx, mag, extra);
       if (layer) sfx.play(layer.name, layer.intensity, pan);
+      if (heldState(this.host.world, f.lastHitBy).kind === 'sword') sfx.play('swordHit', 0.8, pan);
     }
     switch (type) {
       case 'fx':
@@ -172,14 +222,13 @@ export class WorldEventFx {
         break;
       }
       case 'hazardFire': {
+        { const hz = this.host.world.stage.hazards?.[mag | 0]; for (const c of hazardSounds(hz?.kind, hz?.style)) sfx.play(c.name, c.intensity, this.host.pan(x)); }
         if (this.host.world.stage.hazards?.[mag | 0]?.kind === 'bolt') {
           // lightning: a white-blue strike with a crackle and a hard flash
           e.burst(x, y - 8, 36, 190, 0xbfe6ff, 0.5, 3);
           e.ring(x, y - 4, 52, 0xffffff, 0.35);
           e.flash(x, y - 30, 4, 0xe8f6ff);
           this.host.shake(9);
-          sfx.play('zap', 1, 0);
-          sfx.play('boom', 0.7, 0);
           break;
         }
         if (this.host.world.stage.hazards?.[mag | 0]?.kind === 'avalanche') {
@@ -187,8 +236,6 @@ export class WorldEventFx {
           e.burst(x, y - 30, 30, 140, 0xf4f8ff, 0.8, 4);
           e.dust(x, y, 12, 0);
           this.host.shake(10);
-          sfx.play('boom', 1, 0);
-          sfx.play('land', 1, 0);
           break;
         }
         if (this.host.world.stage.hazards?.[mag | 0]?.kind === 'stalactite') {
@@ -198,8 +245,6 @@ export class WorldEventFx {
           e.dust(x, y, 8, 0);
           e.flash(x, y - 8, 2, 0xf0e2ff);
           this.host.shake(7);
-          sfx.play('break', 1, 0);
-          sfx.play('boom', 0.5, 0);
           break;
         }
         if (this.host.world.stage.hazards?.[mag | 0]?.style === 'water') {
@@ -207,18 +252,16 @@ export class WorldEventFx {
           e.burst(x, y - 20, 34, 170, 0xbff0ff, 0.6, 4);
           e.ring(x, y - 4, 44, 0x8adcf0, 0.4);
           this.host.shake(6);
-          sfx.play('splash', 1, 0);
-          sfx.play('boom', 0.45, 0);
           break;
         }
         e.burst(x, y - 20, 30, 160, 0xffa040, 0.6, 4);
         e.ring(x, y - 4, 40, 0xffd46a, 0.4);
         e.flash(x, y - 40, 3, 0xffe9a8);
         this.host.shake(6);
-        sfx.play('boom', 0.8, 0);
         break;
       }
       case 'cinematicStart':
+        announcer.ultimate(f.data.name.replace('The ', ''));
         e.ring(x, y, 60, 0xffffff, 0.5);
         e.flash(x, y, 4, 0xffffff);
         this.host.shake(6);
@@ -274,11 +317,20 @@ export class WorldEventFx {
         break;
       }
       case 'parry':
+        // a perfect shield: the whole picture stops for a beat, the screen flashes cold and PARRY! pops out of the bubble
         e.ring(x, y, mag + 10, 0xffffff, 0.3);
-        e.flash(x, y, 1.6, 0xbff4ff);
-        e.burst(x, y, 12, 90, 0x8fe6ff, 0.3, 2);
-        this.host.shake(2);
+        e.ring(x, y, mag + 30, 0x8fe6ff, 0.45);
+        e.flash(x, y, 2.4, 0xbff4ff);
+        e.burst(x, y, 18, 130, 0x8fe6ff, 0.35, 2);
+        e.burst(x, y, 8, 80, 0xffffff, 0.25, 2);
+        this.host.views()[f.id]?.shieldRipple(1.6);
+        this.host.shake(3);
         this.host.rumble(f, 0.3, 0.6, 70);
+        this.host.hitPause?.(117); // 7 frames
+        this.host.screenFlash?.(0x8fe6ff, 0.32);
+        this.host.popup?.('PARRY!', x, y - f.h * 0.6, 0x9ff0ff);
+        announcer.parry();
+        sfx.play('clang', 0.7, this.host.pan(x));
         break;
       case 'burst':
         e.ring(x, y, mag, 0xffe14a, 0.4);
@@ -302,6 +354,7 @@ export class WorldEventFx {
       case 'shieldHit':
         e.flash(x, y, 0.8, 0x8fe6ff);
         e.burst(x, y, 8, 60, 0x66d9ff, 0.25, 2);
+        this.host.views()[f.id]?.shieldRipple(Math.min(1.5, 0.6 + extra * 0.05));
         break;
       case 'shieldBreak':
         e.burst(x, y, 30, 160, 0x66d9ff, 0.6, 4);

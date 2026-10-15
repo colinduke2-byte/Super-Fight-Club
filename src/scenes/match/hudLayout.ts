@@ -1,16 +1,20 @@
 import Phaser from 'phaser';
 import { PIXEL_FONT, up } from '../../art/pixelFont';
 import { sfx } from '../../audio/sfx';
+import { settings } from '../../settings';
 import { session } from '../../game/session';
 import { FighterHud } from '../../ui/FighterHud';
 import { BossBar } from '../../ui/BossBar';
-import { textPx } from '../../ui/menuKit';
+import { hudUnit as uiUnit, textPx } from '../../ui/menuKit';
 import type { MatchScene } from '../MatchScene';
 import { helpLines, wrapHelp } from './training';
 
-/** Device pixels per HUD art pixel (integer, >= 2). */
+/** Seconds a popup ("PARRY!") stays up. */
+const POP_LIFE = 0.75;
+
+/** Device pixels per HUD art pixel (integer, >= 2): the menus' unit, so the TEXT SIZE setting scales the HUD too. */
 export function hudUnit(h: number): number {
-  return Math.max(2, Math.round(h / 360));
+  return uiUnit(h);
 }
 
 /** Device pixels per CSS pixel of the canvas. */
@@ -32,6 +36,13 @@ export class MatchHud {
   clock!: Phaser.GameObjects.BitmapText;
   /** Dark plate behind the help and training readouts so they read over any backdrop. */
   textPlate!: Phaser.GameObjects.Graphics;
+  /** Dark band behind the big centre banner (READY? / 3 2 1 / GO! / GAME!) so it reads over fighters and their tags. */
+  bannerPlate!: Phaser.GameObjects.Graphics;
+  /** Full-screen tint for a parry (fades out fast). */
+  flashRect!: Phaser.GameObjects.Rectangle;
+  private flashA = 0;
+  /** Words popping out of world points ("PARRY!"): pooled texts with their age (s) and world anchor. */
+  private readonly pops: { t: Phaser.GameObjects.BitmapText; age: number; x: number; y: number }[] = [];
 
   constructor(private readonly s: MatchScene) {}
 
@@ -50,15 +61,17 @@ export class MatchHud {
     const cfg = s.match.cfg;
     if (cfg.mode === 'stamina') this.huds.forEach((h) => (h.hpMax = cfg.staminaHp ?? 150));
     this.helpText = s.add.bitmapText(0, 0, PIXEL_FONT, up(helpLines(s.isTraining).join('\n'))).setOrigin(0, 1).setTint(0xb8b0e8);
-    // modes with a clock at the top start with the reminder hidden (H shows it)
-    s.st.helpOn = !(s.isLaunch || s.isTargets || cfg.mode === 'time' || session.demo);
+    // the key list is a Training tool: matches keep the screen clean (the pause menu lists the controls; Ctrl+H shows it)
+    s.st.helpOn = s.isTraining;
     this.helpText.setVisible(s.st.helpOn);
     this.trainText = s.add.bitmapText(0, 0, PIXEL_FONT, '').setOrigin(0, 0).setTint(0xffe9a8).setLeftAlign();
     layer.add(this.trainText);
     this.toast = s.add.bitmapText(0, 0, PIXEL_FONT, '').setOrigin(0.5, 0).setAlpha(0).setCenterAlign();
     this.banner = s.add.bitmapText(0, 0, PIXEL_FONT, '').setOrigin(0.5).setTint(0xffe14a).setVisible(false).setCenterAlign();
     this.clock = s.add.bitmapText(0, 0, PIXEL_FONT, '').setOrigin(0.5, 0).setCenterAlign().setVisible(false);
-    layer.add([this.helpText, this.toast, this.banner, this.clock]);
+    this.bannerPlate = s.add.graphics();
+    this.flashRect = s.add.rectangle(0, 0, 10, 10, 0xffffff, 1).setOrigin(0, 0).setAlpha(0).setVisible(false);
+    layer.add([this.flashRect, this.helpText, this.toast, this.bannerPlate, this.banner, this.clock]);
     this.textPlate = s.add.graphics();
     layer.add(this.textPlate);
     layer.sendToBack(this.textPlate);
@@ -120,12 +133,72 @@ export class MatchHud {
     this.updateClock();
   }
 
-  /** The banner's pop animation, shrunk to fit narrow windows (long challenge titles, TEAM BLUE WINS). */
+  /** The banner's pop animation, shrunk to fit narrow windows (long challenge titles, TEAM BLUE WINS), on its dark band. */
   fitBanner(frameMs: number): void {
     const st = this.s.st;
     if (st.bannerPop > 0) st.bannerPop = Math.max(0, st.bannerPop - frameMs / 16.7);
     const fit = Math.min(st.bannerBase, (this.s.scale.width * 0.92) / Math.max(1, textPx(this.banner)));
     this.banner.setScale(fit * (1 + 0.06 * st.bannerPop));
+    const g = this.bannerPlate.clear();
+    const b = this.banner;
+    if (!b.visible || !b.text) return;
+    const w = this.s.scale.width;
+    const u = hudUnit(this.s.scale.height);
+    const bw = Math.min(w, b.displayWidth + 28 * u);
+    const bh = b.displayHeight + 10 * u;
+    const x = b.x - bw / 2;
+    const y = b.y - bh / 2;
+    // a soft-edged band: a wide faint layer, the plate itself, and hairlines in the banner's colour
+    g.fillStyle(0x07061a, 0.3).fillRect(x - 10 * u, y - 2 * u, bw + 20 * u, bh + 4 * u);
+    g.fillStyle(0x07061a, 0.6).fillRect(x, y, bw, bh);
+    const line = Math.max(1, Math.round(u * 0.5));
+    g.fillStyle(b.tintTopLeft, 0.55).fillRect(x, y, bw, line).fillRect(x, y + bh - line, bw, line);
+  }
+
+  /** A full-screen tint that fades out over ~0.2 s (much softer under REDUCE FLASHES). */
+  flash(color: number, alpha: number): void {
+    this.flashA = Math.max(this.flashA, alpha * (settings.reduceFlashes ? 0.25 : 1));
+    this.flashRect.setFillStyle(color, 1);
+  }
+
+  /** A big word popping out of world point (x, y) and drifting up ("PARRY!"). */
+  popup(text: string, x: number, y: number, color: number): void {
+    let p = this.pops.find((q) => q.age >= POP_LIFE);
+    if (!p) {
+      const t = this.s.add.bitmapText(0, 0, PIXEL_FONT, '').setOrigin(0.5, 1).setCenterAlign();
+      this.s.uiLayer.add(t);
+      p = { t, age: POP_LIFE, x: 0, y: 0 };
+      this.pops.push(p);
+    }
+    p.t.setText(up(text)).setTint(color).setVisible(true);
+    p.age = 0;
+    p.x = x;
+    p.y = y;
+  }
+
+  /** Per frame: the screen tint fading and the popups (placed from the world camera's view this frame). */
+  updateFx(frameMs: number, view: Phaser.Geom.Rectangle): void {
+    const s = this.s;
+    const dt = Math.min(50, frameMs) / 1000;
+    if (this.flashA > 0) {
+      this.flashA = Math.max(0, this.flashA - dt * 2.2);
+      this.flashRect.setSize(s.scale.width, s.scale.height).setAlpha(this.flashA).setVisible(this.flashA > 0.004);
+    }
+    const u = hudUnit(s.scale.height);
+    for (const p of this.pops) {
+      if (p.age >= POP_LIFE) continue;
+      p.age += dt;
+      if (p.age >= POP_LIFE) {
+        p.t.setVisible(false);
+        continue;
+      }
+      const k = p.age / POP_LIFE;
+      // overshoots, settles, rises a little and fades over the last third
+      const pop = k < 0.12 ? 0.4 + (k / 0.12) * 0.9 : k < 0.25 ? 1.3 - ((k - 0.12) / 0.13) * 0.3 : 1;
+      const sx = ((p.x - view.x) / Math.max(1, view.width)) * s.scale.width;
+      const sy = ((p.y - view.y) / Math.max(1, view.height)) * s.scale.height - k * 10 * u;
+      p.t.setScale(u * 3 * pop).setPosition(Phaser.Math.Clamp(sx, 40 * u, s.scale.width - 40 * u), Math.max(24 * u, sy)).setAlpha(k < 0.66 ? 1 : 1 - (k - 0.66) / 0.34);
+    }
   }
 
   updateToast(): void {

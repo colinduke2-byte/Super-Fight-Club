@@ -3,7 +3,7 @@ import { PIXEL_FONT } from '../art/pixelFont';
 import { animFrameIndex, fighterAnimKey, fighterTextureKey } from '../art/proceduralFighter';
 import { flipsOnDoubleJump } from '../art/poses';
 import type { CharacterData } from '../engine/types';
-import type { Fighter } from '../engine/fighter';
+import { SHIELD_MAX, type Fighter } from '../engine/fighter';
 import type { Platform } from '../engine/platform';
 import { fighterTrailColor } from '../fx/runner';
 import { applyMechSkin } from './mechSkin';
@@ -32,6 +32,28 @@ function aegisColor(tick: number): number {
 
 /** Transition rows that play out into the idle instead of being cut off by it (the idle waits for them to finish). */
 const SETTLE = new Set(['land', 'getup', 'ledgeClimb', 'tech']);
+
+/** Blend `a` toward `b` by `t` (0..1), per channel. */
+function mixColor(a: number, b: number, t: number): number {
+  const k = Math.max(0, Math.min(1, t));
+  const r = ((a >> 16) & 255) + ((((b >> 16) & 255) - ((a >> 16) & 255)) * k);
+  const g = ((a >> 8) & 255) + ((((b >> 8) & 255) - ((a >> 8) & 255)) * k);
+  const bl = (a & 255) + (((b & 255) - (a & 255)) * k);
+  return (Math.round(r) << 16) | (Math.round(g) << 8) | Math.round(bl);
+}
+
+/** Unit hexagon corners (pointy top), for the shield's shimmer. */
+const HEX = Array.from({ length: 6 }, (_, i) => ({ x: Math.cos(Math.PI / 6 + (i * Math.PI) / 3), y: Math.sin(Math.PI / 6 + (i * Math.PI) / 3) }));
+const HEX_PTS = HEX.map(() => ({ x: 0, y: 0 }));
+
+/** Ice-block cracks: per crack a start on the block (0..1 across, 0..1 up) and four steps (dx, dy as fractions of the block). */
+const CRACKS: readonly (readonly number[])[] = [
+  [0.0, 0.7, 0.16, -0.06, 0.12, 0.1, 0.14, -0.05, 0.1, 0.08],
+  [1.0, 0.35, -0.15, 0.07, -0.12, -0.09, -0.16, 0.05, -0.1, -0.1],
+  [0.45, 1.0, 0.05, -0.15, -0.08, -0.14, 0.07, -0.16, -0.03, -0.14],
+  [0.3, 0.0, 0.06, 0.15, 0.09, 0.12, -0.05, 0.14, 0.08, 0.12],
+  [0.8, 0.95, -0.06, -0.13, 0.05, -0.12, -0.08, -0.14, 0.04, -0.1],
+];
 
 interface AttackView {
   sx: number;
@@ -91,8 +113,24 @@ export class FighterView {
   private readonly layer: Phaser.GameObjects.Layer;
   private readonly scene: Phaser.Scene;
 
-  /** Texture / animation id (the fighter's id, or its palette variant). */
-  private readonly skin: string;
+  /** Texture / animation id (the fighter's id, or its palette variant; the boss swaps to its phase-2 sheet). */
+  private skin: string;
+  /** Shield shimmer, shield-hit ripples, dizzy stars and the ice block, drawn over the body. */
+  private readonly fx: Phaser.GameObjects.Graphics;
+  private fxDrawn = false;
+  /** Shield-hit ripples: age in sim ticks and strength. */
+  private readonly ripples: { age: number; k: number }[] = [];
+  /** The longest freeze seen since the fighter was last free (the cracks grow as it runs out). */
+  private freezeMax = 0;
+  /**
+   * READY countdown: no invincibility blink (the spawn invincibility only counts from GO). Set by the countdown, cleared at GO.
+   */
+  introHold = false;
+  /**
+   * The fighters spawn a few pixels over the floor and drop onto it at GO: until they first stand (or move), the view draws
+   * them standing on the floor in their idle instead of hovering in the fall pose.
+   */
+  spawnSnap = false;
   /** Stage rim light on the body's lit edge (drawn behind it; follows the body by itself). */
   private rim: RimLight | null = null;
 
@@ -129,6 +167,8 @@ export class FighterView {
     layer.add(this.bubble);
     this.comboText = scene.add.bitmapText(0, 0, PIXEL_FONT, '').setOrigin(0.5, 1).setScale(0.5).setTint(0xffe14a).setVisible(false);
     layer.add(this.comboText);
+    this.fx = scene.add.graphics();
+    layer.add(this.fx);
     if (fighter.data.counter) {
       this.counter = scene.add.bitmapText(0, 0, PIXEL_FONT, '').setOrigin(0.5, 1).setScale(0.55).setTint(0xffd46a);
       layer.add(this.counter);
@@ -169,7 +209,8 @@ export class FighterView {
     // came back from a KO: light the way down until they land (or the invincibility runs out)
     if (this.wasKo && f.state !== 'ko') this.haloT = 1;
     this.wasKo = f.state === 'ko';
-    if (this.haloT > 0 && (f.grounded || f.invuln <= 0 || f.state === 'ko')) this.haloT = Math.max(0, this.haloT - 0.08 * dt);
+    // (fades fast once they land, and on its own over a second or so even while they hang in the air)
+    if (this.haloT > 0) this.haloT = Math.max(0, this.haloT - (f.grounded || f.invuln <= 0 || f.state === 'ko' ? 0.2 : 0.012) * dt);
     const ha = this.haloT;
     this.halo.setVisible(ha > 0);
     this.beam.setVisible(ha > 0);
@@ -182,8 +223,14 @@ export class FighterView {
     if (f.state === 'ko') {
       this.bubble.setVisible(false);
       this.glow.setVisible(false);
+      if (this.fxDrawn) this.fx.clear();
+      this.fxDrawn = false;
+      this.ripples.length = 0;
       return;
     }
+    // spawn: drawn standing on the floor just below until the fighter first lands or does anything
+    const snapTo = this.spawnSnap ? this.spawnFloor(f) : null;
+    if (snapTo !== null) this.y = snapTo;
 
     const posed = f.state === 'attack' || f.state === 'holding';
     if (posed) {
@@ -198,7 +245,7 @@ export class FighterView {
         this.lastName = '';
       }
     } else {
-      const name = this.timedRow(f);
+      const name = snapTo !== null ? 'idle' : this.timedRow(f);
       let anim = this.animKeys.get(name);
       if (anim === undefined) {
         anim = fighterAnimKey(this.skin, name);
@@ -249,7 +296,7 @@ export class FighterView {
     // squash & stretch
     let sx = 1;
     let sy = 1;
-    switch (f.state) {
+    if (snapTo === null) switch (f.state) {
       case 'jumpsquat':
       case 'landing':
         sx = 1.12;
@@ -277,7 +324,7 @@ export class FighterView {
     // invincibility blink (dodges stay translucent), smash-charge glow
     const dodging = f.state === 'spotdodge' || f.state === 'roll' || f.state === 'airdodge';
     const aegis = f.aegisFrames > 0 && f.invuln > 0;
-    s.setAlpha(dodging ? 0.4 : f.invuln > 0 && !aegis && (tick >> 2) % 2 === 0 ? 0.45 : 1);
+    s.setAlpha(dodging ? 0.4 : f.invuln > 0 && !aegis && !this.introHold && (tick >> 2) % 2 === 0 ? 0.45 : 1);
     // multiply tints only for cold effects (they should darken); bright effects glow additively over the body
     const st = f.status;
     let glowCol = -1;
@@ -340,10 +387,175 @@ export class FighterView {
     const bubble = this.bubble;
     const shielding = f.state === 'shield' || f.state === 'shieldstun';
     bubble.setVisible(shielding);
-    if (shielding) {
-      const d = (f.shieldRadius * 2) / 64;
-      bubble.setPosition(this.x, this.y - f.h / 2).setScale(d).setAlpha(f.state === 'shieldstun' ? 1 : 0.8);
+    // shield ripples age by sim ticks (and die with the shield)
+    for (let i = this.ripples.length - 1; i >= 0; i--) {
+      this.ripples[i].age += dt;
+      if (this.ripples[i].age >= 16 || !shielding) this.ripples.splice(i, 1);
     }
+    const g2 = this.fx;
+    if (this.fxDrawn) g2.clear();
+    this.fxDrawn = false;
+    if (shielding) {
+      // the bubble takes the player's colour and heats toward red as it shrinks
+      const hp = Math.max(0, Math.min(1, f.shieldHP / SHIELD_MAX));
+      const hot = Math.pow(1 - hp, 1.4);
+      const col = mixColor(mixColor(this.color, 0xffffff, 0.15), 0xff3a2a, hot);
+      const d = (f.shieldRadius * 2) / 64;
+      const flare = this.ripples.length ? Math.max(...this.ripples.map((r) => (1 - r.age / 16) * r.k)) : 0;
+      bubble.setPosition(this.x, this.y - f.h / 2).setScale(d).setTint(col).setAlpha(Math.min(1, (f.state === 'shieldstun' ? 1 : 0.85) + 0.2 * flare));
+      this.drawShield(f, tick, col, hot);
+    }
+    const st2 = f.status;
+    if (st2.freeze > 0 || f.state === 'frozen') {
+      if (st2.freeze > this.freezeMax) this.freezeMax = st2.freeze;
+      this.drawIce(f, tick, this.freezeMax > 0 ? 1 - st2.freeze / this.freezeMax : 0);
+    } else this.freezeMax = 0;
+    if (f.state === 'stunned' || f.state === 'shieldbreak') this.drawDizzy(f, tick);
+  }
+
+  /** The floor to stand the fighter on while `spawnSnap` holds (null = stop snapping: it landed, jumped or moved). */
+  private spawnFloor(f: Fighter): number | null {
+    if (f.state !== 'air' && f.state !== 'landing' && f.state !== 'idle') {
+      this.spawnSnap = false;
+      return null;
+    }
+    if (f.state === 'idle' && f.grounded) {
+      this.spawnSnap = false;
+      return null;
+    }
+    if (f.grounded && f.groundPlat) return f.groundPlat.top;
+    let top = Infinity;
+    for (const p of this.platforms) if (f.x >= p.x && f.x <= p.right && p.top >= f.y - 1 && p.top - f.y <= 10 && p.top < top) top = p.top;
+    if (top === Infinity || f.vy < 0) {
+      this.spawnSnap = false;
+      return null;
+    }
+    return top;
+  }
+
+  /** A hit on the shield: a ripple runs across the bubble (`k` = strength, about 0.5..1.6). */
+  shieldRipple(k = 1): void {
+    if (this.ripples.length >= 4) this.ripples.shift();
+    this.ripples.push({ age: 0, k });
+  }
+
+  /** Shield shimmer: a hex lattice with a bright band sweeping up through it, a rim in the shield colour and the ripples. */
+  private drawShield(f: Fighter, tick: number, col: number, hot: number): void {
+    const g = this.fx;
+    this.fxDrawn = true;
+    const cx = this.x;
+    const cy = this.y - f.h / 2;
+    const R = f.shieldRadius;
+    const hr = Math.max(3.2, R / 4.2);
+    const w = hr * Math.sqrt(3);
+    const n = Math.ceil(R / hr) + 1;
+    // low shields flicker a little faster
+    const sweep = tick * (0.11 + 0.08 * hot);
+    for (let r = -n; r <= n; r++) {
+      for (let q = -n; q <= n; q++) {
+        const px = w * (q + r / 2);
+        const py = hr * 1.5 * r;
+        const dist = Math.hypot(px, py);
+        if (dist > R - hr * 0.55) continue;
+        const band = Math.sin(sweep - py * 0.11 + q * 0.35);
+        const a = 0.07 + 0.38 * Math.max(0, band) ** 4 + 0.1 * (dist / R);
+        if (a < 0.08) continue;
+        for (let i = 0; i < 6; i++) {
+          HEX_PTS[i].x = cx + px + HEX[i].x * hr * 0.92;
+          HEX_PTS[i].y = cy + py + HEX[i].y * hr * 0.92;
+        }
+        g.lineStyle(1, mixColor(col, 0xffffff, 0.4), a);
+        g.strokePoints(HEX_PTS, true, true);
+      }
+    }
+    // the rim: a band in the shield colour with a pale inner line
+    g.lineStyle(2, col, 0.7);
+    g.strokeCircle(cx, cy, R - 1);
+    g.lineStyle(1, mixColor(col, 0xffffff, 0.6), 0.6);
+    g.strokeCircle(cx, cy, R - 2.5);
+    for (const rp of this.ripples) {
+      const t = rp.age / 16;
+      const e = 1 - (1 - t) ** 2;
+      g.lineStyle(1 + 1.5 * rp.k * (1 - t), 0xffffff, 0.85 * (1 - t));
+      g.strokeCircle(cx, cy, R * (0.25 + 0.75 * e));
+      g.lineStyle(1, col, 0.5 * (1 - t));
+      g.strokeCircle(cx, cy, Math.max(1, R * (0.1 + 0.6 * e)));
+    }
+  }
+
+  /** Frozen: a translucent ice block around the body, its cracks spreading as the freeze runs out (`p` 0..1). */
+  private drawIce(f: Fighter, tick: number, p: number): void {
+    const g = this.fx;
+    this.fxDrawn = true;
+    const sm = f.sizeMul;
+    const bw = f.hw * 2 * sm * 1.7 + 6;
+    const bh = f.h * sm * 1.12 + 4;
+    const x0 = this.x - bw / 2;
+    const y0 = this.y + 1 - bh;
+    const shake = p > 0.75 && (tick & 2) === 0 ? 0.6 : 0;
+    g.fillStyle(0x9fe9ff, 0.26).fillRect(x0 + shake, y0, bw, bh);
+    g.fillStyle(0xe8fbff, 0.32).fillRect(x0 + shake, y0, bw, 3);
+    g.fillStyle(0x5ab8e8, 0.22).fillRect(x0 + shake + bw - 3, y0 + 3, 3, bh - 3);
+    // glints: two diagonal streaks
+    g.lineStyle(1.5, 0xffffff, 0.45);
+    g.lineBetween(x0 + bw * 0.18 + shake, y0 + bh * 0.25, x0 + bw * 0.38 + shake, y0 + bh * 0.08);
+    g.lineBetween(x0 + bw * 0.16 + shake, y0 + bh * 0.42, x0 + bw * 0.5 + shake, y0 + bh * 0.12);
+    g.lineStyle(1, 0xe8fbff, 0.85).strokeRect(x0 + shake, y0, bw, bh);
+    // cracks: each grows from its edge, step by step, as the freeze wears off
+    const steps = Math.min(4, p * 5.5);
+    if (steps <= 0) return;
+    g.lineStyle(1, 0xffffff, 0.9);
+    for (const c of CRACKS) {
+      let cx = x0 + c[0] * bw + shake;
+      let cy = y0 + (1 - c[1]) * bh;
+      for (let k = 0; k < 4 && k < steps; k++) {
+        const part = Math.min(1, steps - k);
+        const nx = cx + c[2 + k * 2] * bw * part;
+        const ny = cy - c[3 + k * 2] * bh * part;
+        g.lineBetween(cx, cy, nx, ny);
+        cx = nx;
+        cy = ny;
+      }
+    }
+  }
+
+  /** Dizzy (stunned, shield broken): stars circling over the head, the ones behind it dimmer and smaller. */
+  private drawDizzy(f: Fighter, tick: number): void {
+    const g = this.fx;
+    this.fxDrawn = true;
+    const sm = f.sizeMul;
+    const cx = this.x;
+    const cy = this.y - f.h * sm + 1;
+    const rx = 9 + 3 * sm;
+    for (let i = 0; i < 3; i++) {
+      const a = tick * 0.16 + (i * Math.PI * 2) / 3;
+      const depth = Math.sin(a); // > 0: in front
+      const px = cx + Math.cos(a) * rx;
+      const py = cy + depth * 3;
+      const r = (depth > 0 ? 3.2 : 2.2) * (0.9 + 0.1 * Math.sin(tick * 0.5 + i));
+      const al = depth > 0 ? 1 : 0.5;
+      const col = i === 1 ? 0xfff6a0 : 0xffe14a;
+      g.fillStyle(col, al);
+      g.fillTriangle(px - r, py, px + r, py, px, py - r * 1.6);
+      g.fillTriangle(px - r, py, px + r, py, px, py + r * 1.6);
+      g.fillTriangle(px, py - r, px, py + r, px - r * 1.6, py);
+      g.fillTriangle(px, py - r, px, py + r, px + r * 1.6, py);
+      g.fillStyle(0xffffff, al).fillRect(px - 0.75, py - 0.75, 1.5, 1.5);
+    }
+  }
+
+  /** Show a different sheet with the same frame layout (the Overseer's enraged phase-2 look). */
+  setSkin(skin: string): void {
+    if (skin === this.skin) return;
+    this.skin = skin;
+    this.animKeys.clear();
+    this.lastAnim = '';
+    this.poseAnim = '';
+    this.poseFrame = -1;
+    const key = fighterTextureKey(skin);
+    this.sprite.anims.stop();
+    this.sprite.setTexture(key, 0);
+    for (const g of this.smear) g.setTexture(key, 0);
   }
 
   /**
@@ -541,6 +753,7 @@ export class FighterView {
     this.shadow.destroy();
     for (const g of this.smear) g.destroy();
     this.bubble.destroy();
+    this.fx.destroy();
     this.counter?.destroy();
     this.comboText.destroy();
     this.orb?.destroy();

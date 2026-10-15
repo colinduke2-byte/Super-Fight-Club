@@ -20,8 +20,26 @@ export class Countdown {
     const st = this.s.st;
     this.s.hud.banner.setText(head).setVisible(true);
     st.countdown = COUNTDOWN;
+    announcer.ready();
     st.entranceFx = [];
     st.introTicks = 0;
+    // standing on the floor in their idle, no invincibility blink (it counts from GO), and no name tags over the intro
+    for (const v of this.s.views) {
+      v.introHold = true;
+      v.spawnSnap = true;
+    }
+    st.tagFade = 0;
+    this.s.fighters.forEach((_, i) => this.s.tags.entrance(i, 0, 0, 0));
+  }
+
+  /** After GO, per render frame: the name tags fade back in. */
+  tagsIn(frameMs: number): void {
+    const s = this.s;
+    const st = s.st;
+    if (st.tagFade >= 1 || this.active) return;
+    st.tagFade = Math.min(1, st.tagFade + frameMs / 450);
+    if (st.tagFade >= 1) s.tags.endEntrances();
+    else s.fighters.forEach((_, i) => s.tags.entrance(i, 0, 0, st.tagFade));
   }
 
   /** The countdown holds the sim this tick (it is not skipped by a bench run). */
@@ -47,14 +65,11 @@ export class Countdown {
     const banner = s.hud.banner;
     const c = --st.countdown;
     if (c === 0) {
-      s.tags.endEntrances();
+      for (const v of s.views) v.introHold = false;
+      s.fighters.forEach((_, i) => s.tags.entrance(i, 0, 0, 0)); // they fade back in over the fight's first moments
+      st.tagFade = 0;
       banner.setText('GO!').setVisible(true).setTint(0x7affa0);
       announcer.say('Go!', { pitch: 0.7, rate: 1.2 });
-      // the controls reminder steps aside once the fight is under way (H brings it back)
-      s.time.delayedCall(5000, () => {
-        if (s.isTraining || !s.st.helpOn) return;
-        s.hud.setHelp(false);
-      });
       st.introTicks = 45;
       st.bannerPop = 12;
       sfx.play('go', 0.9, 0);
@@ -114,7 +129,6 @@ export class Countdown {
             e.burst(f.x, top, 10, 70, 0xff5ab0, 0.3, 2);
             v.afterimage(f.x - f.facing * 14, f.y, 0xff5ab0, 8);
             st.entranceFx[i] = done | 3;
-            s.tags.entrance(i, 0, 0, 1);
             return;
           }
           break;
@@ -171,7 +185,6 @@ export class Countdown {
       if (start) st.entranceFx[i] = (st.entranceFx[i] ?? 0) | 1;
       if (arrive) st.entranceFx[i] = (st.entranceFx[i] ?? 0) | 2;
       v.entrance(dx, dy, a, sy);
-      s.tags.entrance(i, dx, dy, a);
     });
   }
 }
