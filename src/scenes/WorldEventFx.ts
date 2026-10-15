@@ -369,7 +369,7 @@ export class WorldEventFx {
         break;
       case 'itemPickup':
         e.ring(x, y, 22, 0xffe14a, 0.4);
-        e.burst(x, y, 14, 90, [0x5fe08a, 0xffd04a, 0xff6a5a, 0x3ad0e8, 0xf0e0ff][mag | 0] ?? 0xffffff, 0.5, 3);
+        e.burst(x, y, 14, 90, [0x5fe08a, 0xffd04a, 0xff6a5a, 0x3ad0e8, 0xf0e0ff, 0x5ae8ff, 0x5af0c0, 0xffd8a0, 0xffc84a][mag | 0] ?? 0xffffff, 0.5, 3);
         sfx.play('pickup', 0.8, 0);
         this.host.rumble(f, 0.2, 0.4, 80);
         break;

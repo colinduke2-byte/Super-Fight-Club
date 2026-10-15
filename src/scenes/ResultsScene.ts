@@ -11,6 +11,7 @@ import { session } from '../game/session';
 import { STAGES } from '../stages';
 import type { MenuEvent } from '../input/menuInput';
 import { ensurePalette, fighterAnimKey, fighterTextureKey, uiTexK } from '../art/proceduralFighter';
+import { playResultPose } from '../ui/FighterView';
 import { COLORS, MenuList, MenuScene, PANEL, drawPanel, text, textPx, type MenuBackdrop, type MenuItem } from '../ui/menuKit';
 
 /** After a match: winner banner, per-player stats, and what to do next. */
@@ -100,18 +101,14 @@ export class ResultsScene extends MenuScene {
       this.champK = uiTexK(wc);
       const skin = ensurePalette(this, wc, wp.palette ?? 0);
       this.champ = this.add.sprite(0, 0, fighterTextureKey(skin), 0).setOrigin(0.5, 1);
-      // victory: strike the taunt pose (each fighter's own), then settle into the idle; repeated every few seconds
+      // victory: the fighter's own victory action, then its held end pose (loops); replayed every few seconds
       const idle = fighterAnimKey(skin, 'idle');
-      const tauntAnim = wc.moves.taunt?.anim;
-      const pose = tauntAnim ? fighterAnimKey(skin, tauntAnim) : '';
       const strike = (): void => {
-        if (!this.champ || !pose || !this.anims.exists(pose)) return;
-        this.champ.play({ key: pose, frameRate: 7, repeat: 0 });
-        this.champ.once(Phaser.Animations.Events.ANIMATION_COMPLETE, () => this.time.delayedCall(900, () => this.champ?.play(idle)));
+        if (this.champ) playResultPose(this.champ, wc, skin, true);
       };
       this.champ.play(idle);
       this.time.delayedCall(500, strike);
-      this.time.addEvent({ delay: 4200, loop: true, callback: strike });
+      this.time.addEvent({ delay: 6000, loop: true, callback: strike });
       this.ui.add(this.champ);
       this.champName = text(this, this.ui, wc.name.replace('The ', '').toUpperCase(), this.champColor).setOrigin(0.5);
       if (wc.persona?.victory) this.champLine = text(this, this.ui, up(`"${wc.persona.victory}"`), COLORS.dim).setOrigin(0.5);

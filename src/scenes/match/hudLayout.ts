@@ -3,6 +3,7 @@ import { PIXEL_FONT, up } from '../../art/pixelFont';
 import { sfx } from '../../audio/sfx';
 import { session } from '../../game/session';
 import { FighterHud } from '../../ui/FighterHud';
+import { BossBar } from '../../ui/BossBar';
 import { textPx } from '../../ui/menuKit';
 import type { MatchScene } from '../MatchScene';
 import { helpLines, wrapHelp } from './training';
@@ -41,6 +42,10 @@ export class MatchHud {
     s.fighters.forEach((f, i) => {
       // team battles: the plate keeps the fighter's own name (as on its tag) and takes the team colour
       this.huds.push(new FighterHud(s, layer, f.data, s.labels[i], f.team >= 0 ? f.team : i, s.skins[i]));
+    });
+    // the arcade boss gets a full-width bar across the top instead of a plate
+    s.fighters.forEach((f, i) => {
+      if (s.slots[i]?.boss) this.huds[i].useBossBar(new BossBar(s, layer, f.data, s.slots[i].stocks ?? 2));
     });
     const cfg = s.match.cfg;
     if (cfg.mode === 'stamina') this.huds.forEach((h) => (h.hpMax = cfg.staminaHp ?? 150));

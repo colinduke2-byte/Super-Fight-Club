@@ -22,6 +22,7 @@ import { settings } from '../settings';
 import { AdaptiveQuality } from '../ui/adaptiveQuality';
 import { BackgroundView } from '../ui/BackgroundView';
 import { CinematicArt } from '../ui/CinematicArt';
+import { BossCinematic } from '../ui/BossCinematic';
 import { DebugOverlay } from '../ui/DebugOverlay';
 import { Effects } from '../ui/Effects';
 import { EntityViews } from '../ui/EntityViews';
@@ -104,6 +105,7 @@ export class MatchScene extends Phaser.Scene {
   bubblesSay!: TauntBubbles;
   cutIn!: UltCutIn;
   cinArt!: CinematicArt;
+  bossCin!: BossCinematic;
   entityViews!: EntityViews;
   targetView: TargetView | null = null;
   launchView: LaunchView | null = null;
@@ -262,6 +264,7 @@ export class MatchScene extends Phaser.Scene {
     this.entityViews.setCrystals(this.fighters.map((f, i) => (palettes[i] > 0 ? (ALT_LOOKS[f.data.id]?.[palettes[i] - 1]?.armor ?? null) : null)));
     this.slashes = new SlashArcs(this, this.worldLayer);
     this.cinArt = new CinematicArt(this, this.worldLayer);
+    this.bossCin = new BossCinematic(this, this.worldLayer);
     this.trainer = new TrainingTools(this);
     sfx.arm();
     const track = this.slots.some((s) => s.boss) ? 'boss' : (stage.music ?? 'classic');
@@ -446,6 +449,7 @@ export class MatchScene extends Phaser.Scene {
     this.stageView.update(alpha);
     this.slashes.update(this.world);
     this.cinArt.update(this.world, this.world.tick);
+    this.bossCin.update(this.world, this.world.tick);
     this.hazardView?.update(this.world.tick);
     this.targetView?.update(performance.now() / 1000);
     this.launchView?.update(performance.now() / 1000);
