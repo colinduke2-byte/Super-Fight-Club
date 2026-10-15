@@ -2,15 +2,31 @@ import type { CharacterBehavior } from '../engine/behavior';
 import { parseMoves, validateReferences, type CharacterJson } from '../engine/moves';
 import type { CharacterData } from '../engine/types';
 import { applyMovePoses } from '../engine/movePoses';
+import { validateFx, type CharacterFx } from '../engine/fxTypes';
 import { standardAnimations } from './common';
 import movesJson from './overseer.moves.json';
+import fxJson from './overseer.fx.json';
+
+const fx = fxJson as unknown as CharacterFx;
+validateFx('overseer', fx);
 
 const json = movesJson as unknown as CharacterJson;
+
+/** Phase-2 damage multiplier (set while `res.enrage` is on). */
+export const ENRAGE_DAMAGE = 1.35;
 
 const behavior: CharacterBehavior = {
   onTick(f) {
     // phase 2 (set by the boss script): hits harder
-    f.damageMult = f.res.enrage > 0 ? 1.35 : 1;
+    f.damageMult = f.res.enrage > 0 ? ENRAGE_DAMAGE : 1;
+  },
+  // the boss script asks for the phase-2 roar through the taunt input (Ultimate with an empty meter): while a roar is
+  // pending the taunt becomes the roar
+  remapMove(f, id) {
+    return id === 'taunt' && f.res.roar > 0 ? 'roar' : id;
+  },
+  onMoveStart(f, move) {
+    if (move.id === 'roar') f.res.roar = 0;
   },
 };
 
@@ -18,11 +34,13 @@ const moves = parseMoves(json as never, 'overseer');
 validateReferences(moves, json.projectiles, json.deployables, 'overseer');
 
 /**
- * The Overseer: the arena AI's warden body and the Arcade Ladder's final boss. Not in the roster. Huge, extremely heavy,
- * armored; its attacks are driven by the scripted pattern controller in `ai/boss.ts` (telegraphs, then punishes).
+ * The Overseer: the arena AI's warden body and the Arcade Ladder's final boss. Not in the roster. Huge (about 1.6x a
+ * fighter), extremely heavy, armored; its attacks are driven by the scripted pattern controller in `ai/boss.ts`
+ * (telegraphs, then punishes). Phase 2 (`res.enrage`) hits harder and has its own sheet: see `overseerPhase2`.
  */
 export const overseer: CharacterData = {
   id: 'overseer',
+  fx,
   name: 'The Overseer',
   tagline: 'The arena AI. It has been waiting for you.',
   persona: {
@@ -50,18 +68,18 @@ export const overseer: CharacterData = {
   },
   body: { width: 36, height: 54, footHalfWidth: 14 },
   sprite: {
-    frameSize: 288,
+    frameSize: 320,
     pixelScale: 0.25,
-    portrait: [40, 20, 170],
+    portrait: [84, 96, 128],
     animations: standardAnimations(['castF', 'castU', 'castD', 'raid']),
     placeholder: {
       art: 'hi',
       skin: '#ff6a7a',
-      armor: '#4a4668',
-      armorDark: '#24203c',
-      accent: '#ff4a6a',
-      outline: '#0a0810',
-      build: { shoulderW: 32, torsoH: 21, legH: 15, headSize: 12, armLen: 16, helmet: 'monolith' },
+      armor: '#79769e',
+      armorDark: '#2e2a48',
+      accent: '#4ae4ff',
+      outline: '#08060e',
+      build: { shoulderW: 34, torsoH: 22, legH: 16, headSize: 13, armLen: 17, helmet: 'monolith' },
       weapon: 'piston',
       extras: ['cloak', 'bracer'],
     },
@@ -69,9 +87,24 @@ export const overseer: CharacterData = {
   moves,
   projectiles: json.projectiles,
   deployables: json.deployables,
-  resources: { enrage: 0 },
+  resources: { enrage: 0, roar: 0 },
   ultimate: { cost: 100, gainDealt: 0, gainTaken: 0 },
   behavior,
 };
 
-applyMovePoses(overseer); // no poses here: this just drops the animation rows nothing uses
+applyMovePoses(overseer);
+
+/** Texture / animation id of the enraged sheet (phase 2). */
+export const OVERSEER_PHASE2_SKIN = 'overseer~rage';
+
+/**
+ * The phase-2 look as its own character data (same moves and frame layout, its own sheet id): the accent turns red-hot
+ * and the drawer's `outfit 1` lights the vents and seams, cracks the chest plate, widens the eye-slit and spins the
+ * halo twice as fast. Build it like an outfit (`buildSheetPixels(sheetSpec(overseerPhase2))` + `registerPixels`) and
+ * show it by giving the boss's FighterView the skin `OVERSEER_PHASE2_SKIN` (see ui/BossCinematic.ts).
+ */
+export const overseerPhase2: CharacterData = {
+  ...overseer,
+  id: OVERSEER_PHASE2_SKIN,
+  sprite: { ...overseer.sprite, placeholder: { ...overseer.sprite.placeholder, accent: '#ff4a2a', outfit: 1 } },
+};

@@ -3,6 +3,7 @@ import { fighterTextureKey, animFrameIndex, portraitCrop, portraitK } from '../a
 import { PIXEL_FONT, up } from '../art/pixelFont';
 import type { CharacterData } from '../engine/types';
 import { addCanvasTexture } from '../art/canvasTexture';
+import type { BossBar } from './BossBar';
 
 const MAX_PIPS = 5;
 const PLAYER_COLORS = [0x4aa3ff, 0xff6a5a, 0x5fe08a, 0xffd04a];
@@ -129,12 +130,20 @@ export class FighterHud {
     }
   }
 
+  /** Boss fights: the boss's readout is a BossBar across the top instead of this plate (which stays hidden). */
+  private bossBar: BossBar | null = null;
+  useBossBar(bar: BossBar): void {
+    this.bossBar = bar;
+    for (const o of [this.panel, this.accent, this.portrait, this.name, this.percent, this.hpTag, this.sub, this.pips, this.meter, this.seam, this.seamGlow, ...this.marks, ...this.statusIcons]) o.setVisible(false);
+  }
+
   /**
    * `u` = device pixels per HUD art pixel (integer, or a half step when the window is too narrow for the plates at full size);
    * (cx, bottom) = plate bottom-centre. The small 1x texts and the status badges keep a whole-pixel scale either way.
    */
   layout(cx: number, bottom: number, u: number): void {
     this.u = u;
+    if (this.bossBar) return this.bossBar.layout(u);
     const tu = (this.tu = Math.max(1, Math.floor(u)));
     const ty = (u - tu) * 4; // a smaller text scale stays centred on its row
     const left = cx - 56 * u;
@@ -168,6 +177,7 @@ export class FighterHud {
   hpMax = 0;
 
   update(damage: number, stocks: number, training: boolean, out: boolean, meterFrac = 0, tick = 0, resource = 0, status?: { burn: number; slow: number; freeze: number; stun: number; soak?: number; chill?: number }): void {
+    if (this.bossBar) return this.bossBar.update(damage, stocks, tick, out, this.hpMax);
     const now = performance.now();
     const k = this.lastNow < 0 ? 1 : Math.min(4, (now - this.lastNow) / FRAME_MS); // elapsed 60 Hz frames
     this.lastNow = now;

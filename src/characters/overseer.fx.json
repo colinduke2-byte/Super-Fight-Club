@@ -1,0 +1,571 @@
+{
+ "sound": "mech",
+ "slash": "volt",
+ "trail": {
+  "from": "res:enrage",
+  "colors": [
+   "#7ae8ff",
+   "#ff6a3a"
+  ]
+ },
+ "recipes": {
+  "taunt": [
+   {
+    "op": "ring",
+    "yh": 0.85,
+    "radius": 30,
+    "color": {
+     "from": "res:enrage",
+     "colors": [
+      "#4ae4ff",
+      "#ff4a2a"
+     ]
+    },
+    "life": 0.45
+   },
+   {
+    "op": "ring",
+    "yh": 0.85,
+    "radius": 52,
+    "color": {
+     "from": "res:enrage",
+     "colors": [
+      "#2a7aff",
+      "#ff2a10"
+     ]
+    },
+    "life": 0.7
+   },
+   {
+    "op": "flash",
+    "x": 10,
+    "yh": 0.82,
+    "power": 1.4,
+    "color": {
+     "from": "res:enrage",
+     "colors": [
+      "#c8f8ff",
+      "#ffb070"
+     ]
+    }
+   },
+   {
+    "op": "converge",
+    "radius": [
+     40,
+     70
+    ],
+    "pull": 2.2,
+    "swirl": 1.2,
+    "life": 0.5,
+    "color": {
+     "from": "res:enrage",
+     "colors": [
+      "#4ae4ff",
+      "#ff4a2a"
+     ]
+    },
+    "size": 2,
+    "additive": true
+   }
+  ],
+  "roarCharge": [
+   {
+    "op": "converge",
+    "radius": [
+     60,
+     110
+    ],
+    "pull": 3,
+    "swirl": 1.6,
+    "life": 0.4,
+    "color": "#ff6a3a",
+    "size": 3,
+    "additive": true
+   },
+   {
+    "op": "flash",
+    "yh": 0.55,
+    "power": 1.2,
+    "color": "#ff4a2a"
+   },
+   {
+    "op": "shake",
+    "amount": 2
+   }
+  ],
+  "roar": [
+   {
+    "op": "flash",
+    "yh": 0.6,
+    "power": 3.2,
+    "color": "#ffffff"
+   },
+   {
+    "op": "flash",
+    "yh": 0.6,
+    "power": 2.4,
+    "color": "#ff4a2a"
+   },
+   {
+    "op": "ring",
+    "yh": 0.6,
+    "radius": 60,
+    "color": "#ffb070",
+    "life": 0.4
+   },
+   {
+    "op": "ring",
+    "yh": 0.6,
+    "radius": 110,
+    "color": "#ff4a2a",
+    "life": 0.7
+   },
+   {
+    "op": "ring",
+    "yh": 0.6,
+    "radius": 170,
+    "color": "#ff2a10",
+    "life": 1
+   },
+   {
+    "op": "burst",
+    "yh": 0.6,
+    "count": 28,
+    "speed": 160,
+    "color": "#ff6a3a",
+    "life": 0.8,
+    "size": 3
+   },
+   {
+    "op": "dust",
+    "count": 14,
+    "dir": 0
+   },
+   {
+    "op": "shake",
+    "amount": 9
+   },
+   {
+    "op": "punch",
+    "amount": 0.08
+   }
+  ],
+  "bossPhase2": [
+   {
+    "op": "flash",
+    "yh": 0.6,
+    "power": 2,
+    "color": "#ff4a2a"
+   },
+   {
+    "op": "ring",
+    "yh": 0.6,
+    "radius": 90,
+    "color": "#ff2a10",
+    "life": 0.8
+   }
+  ],
+  "slam": [
+   {
+    "op": "flash",
+    "x": 34,
+    "y": -6,
+    "power": 1.8,
+    "color": {
+     "from": "res:enrage",
+     "colors": [
+      "#c8f8ff",
+      "#ffb070"
+     ]
+    }
+   },
+   {
+    "op": "ring",
+    "x": 34,
+    "y": -4,
+    "radius": 46,
+    "color": {
+     "from": "res:enrage",
+     "colors": [
+      "#4ae4ff",
+      "#ff4a2a"
+     ]
+    },
+    "life": 0.45
+   },
+   {
+    "op": "burst",
+    "x": 34,
+    "y": -6,
+    "count": 16,
+    "speed": 110,
+    "color": "#c8c4e0",
+    "life": 0.6,
+    "size": 3
+   },
+   {
+    "op": "dust",
+    "count": 12,
+    "dir": 1
+   },
+   {
+    "op": "shake",
+    "amount": 7
+   },
+   {
+    "op": "punch",
+    "amount": 0.05
+   }
+  ],
+  "stomp": [
+   {
+    "op": "flash",
+    "y": -4,
+    "power": 1.6,
+    "color": {
+     "from": "res:enrage",
+     "colors": [
+      "#c8f8ff",
+      "#ffb070"
+     ]
+    }
+   },
+   {
+    "op": "ring",
+    "y": -2,
+    "radius": 64,
+    "color": {
+     "from": "res:enrage",
+     "colors": [
+      "#4ae4ff",
+      "#ff4a2a"
+     ]
+    },
+    "life": 0.5
+   },
+   {
+    "op": "dust",
+    "count": 16,
+    "dir": 0
+   },
+   {
+    "op": "burst",
+    "y": -6,
+    "count": 14,
+    "speed": 90,
+    "color": "#c8c4e0",
+    "life": 0.5,
+    "size": 3
+   },
+   {
+    "op": "shake",
+    "amount": 6
+   }
+  ],
+  "cast": [
+   {
+    "op": "flash",
+    "x": 34,
+    "yh": 0.62,
+    "power": 1.6,
+    "color": {
+     "from": "res:enrage",
+     "colors": [
+      "#c8f8ff",
+      "#ffb070"
+     ]
+    }
+   },
+   {
+    "op": "ring",
+    "x": 34,
+    "yh": 0.62,
+    "radius": 22,
+    "color": {
+     "from": "res:enrage",
+     "colors": [
+      "#4ae4ff",
+      "#ff4a2a"
+     ]
+    },
+    "life": 0.3
+   }
+  ],
+  "beam": [
+   {
+    "op": "flash",
+    "x": 20,
+    "yh": 0.58,
+    "power": 2.4,
+    "color": {
+     "from": "res:enrage",
+     "colors": [
+      "#c8f8ff",
+      "#ffb070"
+     ]
+    }
+   },
+   {
+    "op": "ring",
+    "x": 20,
+    "yh": 0.58,
+    "radius": 30,
+    "color": {
+     "from": "res:enrage",
+     "colors": [
+      "#4ae4ff",
+      "#ff4a2a"
+     ]
+    },
+    "life": 0.35
+   },
+   {
+    "op": "shake",
+    "amount": 4
+   }
+  ],
+  "place": [
+   {
+    "op": "ring",
+    "y": -4,
+    "radius": 40,
+    "color": {
+     "from": "res:enrage",
+     "colors": [
+      "#4ae4ff",
+      "#ff4a2a"
+     ]
+    },
+    "life": 0.4
+   },
+   {
+    "op": "dust",
+    "count": 8,
+    "dir": 0
+   },
+   {
+    "op": "flash",
+    "yh": 0.5,
+    "power": 1,
+    "color": {
+     "from": "res:enrage",
+     "colors": [
+      "#c8f8ff",
+      "#ffb070"
+     ]
+    }
+   }
+  ],
+  "overload": [
+   {
+    "op": "flash",
+    "yh": 0.62,
+    "power": 3,
+    "color": {
+     "from": "res:enrage",
+     "colors": [
+      "#c8f8ff",
+      "#ffb070"
+     ]
+    }
+   },
+   {
+    "op": "ring",
+    "yh": 0.62,
+    "radius": 50,
+    "color": {
+     "from": "res:enrage",
+     "colors": [
+      "#4ae4ff",
+      "#ff4a2a"
+     ]
+    },
+    "life": 0.6
+   },
+   {
+    "op": "ring",
+    "yh": 0.62,
+    "radius": 100,
+    "color": {
+     "from": "res:enrage",
+     "colors": [
+      "#2a7aff",
+      "#ff2a10"
+     ]
+    },
+    "life": 0.9
+   },
+   {
+    "op": "converge",
+    "radius": [
+     90,
+     150
+    ],
+    "pull": 3.4,
+    "swirl": 2,
+    "life": 0.6,
+    "color": {
+     "from": "res:enrage",
+     "colors": [
+      "#4ae4ff",
+      "#ff4a2a"
+     ]
+    },
+    "size": 3,
+    "additive": true
+   },
+   {
+    "op": "shake",
+    "amount": 5
+   }
+  ]
+ },
+ "rules": [
+  {
+   "when": {
+    "res": {
+     "key": "enrage",
+     "min": 1
+    }
+   },
+   "every": 5,
+   "ops": [
+    {
+     "op": "emit",
+     "x": {
+      "from": "sin",
+      "freq": 0.37,
+      "mul": 22
+     },
+     "yh": 0.62,
+     "jx": 6,
+     "jy": 10,
+     "vy": -34,
+     "jvx": 14,
+     "life": 0.55,
+     "color": "#ff6a3a",
+     "size": 2,
+     "additive": true
+    }
+   ]
+  },
+  {
+   "when": {
+    "res": {
+     "key": "enrage",
+     "min": 1
+    }
+   },
+   "every": 11,
+   "ops": [
+    {
+     "op": "emit",
+     "x": -14,
+     "yh": 0.72,
+     "jx": 4,
+     "jy": 6,
+     "vx": -18,
+     "vy": -24,
+     "jvx": 8,
+     "life": 0.8,
+     "color": "#8a7a90",
+     "size": 3
+    }
+   ]
+  },
+  {
+   "when": {
+    "moves": [
+     "neutralB",
+     "sideB",
+     "downB",
+     "ultimate",
+     "taunt",
+     "roar"
+    ],
+    "phase": "startup"
+   },
+   "every": 3,
+   "ops": [
+    {
+     "op": "converge",
+     "radius": [
+      34,
+      58
+     ],
+     "pull": 2.4,
+     "swirl": 1.4,
+     "life": 0.35,
+     "color": {
+      "from": "res:enrage",
+      "colors": [
+       "#4ae4ff",
+       "#ff4a2a"
+      ]
+     },
+     "size": 2,
+     "additive": true
+    }
+   ]
+  },
+  {
+   "when": {
+    "moves": [
+     "ultimate"
+    ]
+   },
+   "every": 6,
+   "ops": [
+    {
+     "op": "emit",
+     "x": {
+      "from": "sin",
+      "freq": 0.21,
+      "mul": 40
+     },
+     "y": -2,
+     "jx": 20,
+     "vy": -90,
+     "jvx": 10,
+     "life": 0.7,
+     "color": {
+      "from": "res:enrage",
+      "colors": [
+       "#2a7aff",
+       "#ff2a10"
+      ]
+     },
+     "size": 2,
+     "additive": true
+    }
+   ]
+  },
+  {
+   "when": {
+    "charging": true
+   },
+   "every": 3,
+   "ops": [
+    {
+     "op": "emit",
+     "x": 24,
+     "yh": 0.62,
+     "jx": 4,
+     "jy": 4,
+     "vy": -24,
+     "life": 0.3,
+     "color": {
+      "from": "res:enrage",
+      "colors": [
+       "#4ae4ff",
+       "#ff4a2a"
+      ]
+     },
+     "size": 2,
+     "additive": true
+    }
+   ]
+  }
+ ]
+}

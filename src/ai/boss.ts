@@ -19,7 +19,7 @@ const BOSS_RECOVERY: CharacterAi = {
   spacing: 60,
 };
 
-type PatternId = 'claws' | 'slam' | 'quake' | 'volley' | 'beam' | 'drones' | 'sky' | 'leap' | 'combo' | 'cataclysm';
+type PatternId = 'claws' | 'slam' | 'quake' | 'volley' | 'beam' | 'drones' | 'sky' | 'leap' | 'combo' | 'fury' | 'barrage' | 'cataclysm';
 
 interface Step {
   /** Button + stick for a press, or null for a pure wait. */
@@ -46,6 +46,9 @@ const SCRIPTS: Record<PatternId, Step[]> = {
   sky: [press(Button.Smash, 0, -1, 20)],
   leap: [press(Button.Special, 1, -1, 50)],
   combo: [press(Button.Smash, 1, 0, 12), press(Button.Smash, 0, 1, 34)],
+  // phase 2 only: a three-hit string (swipe into the overhead slam into Skyfist) and a volley that covers a beam
+  fury: [press(Button.Attack, 0, 0, 6), press(Button.Smash, 1, 0, 10), press(Button.Smash, 0, -1, 30)],
+  barrage: [press(Button.Special, 0, 0, 10), press(Button.Special, 1, 0, 36)],
   cataclysm: [press(Button.Ultimate, 0, 0, 60)],
 };
 
@@ -53,10 +56,15 @@ const SCRIPTS: Record<PatternId, Step[]> = {
  * The Arcade Ladder boss brain: not a reactive CPU but a scripted pattern machine. It idles and repositions, picks a pattern
  * from weights by distance / height (never the same one twice in a row), performs it, then leaves a punish window. Phase 2
  * (one stock left) shortens the pauses, adds a combo and the screen-wide Cataclysm, and sets `res.enrage`.
+ *
+ * The phase change is an event: on the first tick of phase 2 the boss emits an `fx` world event tagged `bossPhase2`
+ * (`extra` = 2), calls `onPhase`, and roars (the `roar` move: invulnerable, a shockwave that shoves rivals back) before it
+ * fights again, now with shorter punish windows, two extra strings and the Cataclysm. `bossPhase` / `phase2Tick` let the
+ * view and the music read it without listening for the event.
  */
 export class BossController implements Controller {
   private readonly rnd: () => number;
-  private state: 'intro' | 'idle' | 'face' | 'act' = 'intro';
+  private state: 'intro' | 'idle' | 'face' | 'act' | 'roar' = 'intro';
   private waitLeft = 100;
   private pattern: PatternId | null = null;
   private stepIdx = 0;
@@ -71,6 +79,20 @@ export class BossController implements Controller {
   private ultCooldown = 600;
   private toggle = false;
   private approach = 0;
+  /** Phase the script has acted on (the transition runs once, when this moves from 1 to 2). */
+  private phaseSeen: 1 | 2 = 1;
+  /** World tick phase 2 began, or -1 (for flashes / music fades keyed off the transition). */
+  phase2Tick = -1;
+  /** Ticks spent waiting to roar (gives up if the boss cannot get grounded). */
+  private roarWait = 0;
+  /** Taunted over a downed rival already (once per KO). */
+  private taunted = false;
+  /** Called once when the fight enters phase 2 (visuals / music hook). */
+  onPhase: ((phase: 2, self: Fighter) => void) | null = null;
+  /** Current phase: 1 while the boss has more than one stock left, then 2. */
+  get bossPhase(): 1 | 2 {
+    return this.phase;
+  }
   /** For tests / HUD: the pattern currently running. */
   get current(): PatternId | null {
     return this.pattern;
@@ -128,6 +150,7 @@ export class BossController implements Controller {
     o.held = 0;
     self.res.enrage = this.phase === 2 ? 1 : 0;
     if (this.ultCooldown > 0) this.ultCooldown--;
+    if (this.phase === 2 && this.phaseSeen === 1) this.enterPhase2(self, world);
 
     switch (self.state) {
       case 'grabbed':
@@ -169,7 +192,15 @@ export class BossController implements Controller {
     this.episode = null;
 
     const tgt = this.target(self, world);
-    if (!tgt) return o;
+    if (!tgt) {
+      // a rival just went down: stand over the spot and taunt (once per KO)
+      if (!this.taunted && self.grounded && self.state === 'idle' && this.state !== 'roar' && self.meter < 100) {
+        this.taunted = true;
+        o.held = Button.Ultimate;
+      }
+      return o;
+    }
+    this.taunted = false;
     const dx = tgt.x - self.x;
     const dir = dx >= 0 ? 1 : -1;
     const dist = Math.abs(dx);
@@ -182,6 +213,22 @@ export class BossController implements Controller {
     }
 
     switch (this.state) {
+      case 'roar': {
+        // phase 2 opener: the roar is asked for through the taunt input (Ultimate with an empty meter), which the
+        // Overseer's behaviour turns into the roar while `res.roar` is pending
+        if (self.res.roar <= 0 || ++this.roarWait > 240) {
+          self.res.roar = 0;
+          this.state = 'idle';
+          this.waitLeft = 8;
+          return o;
+        }
+        if (self.grounded && self.facing !== dir) o.sx = dir;
+        else if (self.grounded) {
+          self.meter = 0;
+          if ((world.tick & 3) < 2) o.held = Button.Ultimate;
+        }
+        return o;
+      }
       case 'intro':
         if (self.grounded && self.facing !== dir) o.sx = dir;
         if (--this.waitLeft <= 0) this.state = 'idle', (this.waitLeft = 20);
@@ -243,7 +290,7 @@ export class BossController implements Controller {
           o.sy = st.dy;
           return o;
         }
-        if (this.gapLeft < 0) this.gapLeft = st.gap;
+        if (this.gapLeft < 0) this.gapLeft = phase === 2 ? Math.round(st.gap * 0.65) : st.gap;
         if (--this.gapLeft > 0) return o;
         this.stepIdx++;
         if (this.stepIdx >= steps.length) {
@@ -260,6 +307,19 @@ export class BossController implements Controller {
       default:
         return o;
     }
+  }
+
+  /** Phase 1 -> 2: flag it, announce it (world event + callback) and queue the roar. */
+  private enterPhase2(self: Fighter, world: World): void {
+    this.phaseSeen = 2;
+    this.phase2Tick = world.tick;
+    self.res.roar = 1;
+    this.roarWait = 0;
+    this.state = 'roar';
+    this.pattern = null;
+    this.ultCooldown = Math.max(240, Math.min(this.ultCooldown, 420));
+    world.emit('fx', self, self.x, self.y - self.h * 0.6, self.facing, 2, 'bossPhase2');
+    this.onPhase?.(2, self);
   }
 
   private clampEdge(self: Fighter, o: { sx: number }): void {
@@ -294,6 +354,8 @@ export class BossController implements Controller {
     if (drones < 2 && dist > 80) w.push(['drones', 3]);
     if (phase === 2) {
       if (fwd) w.push(['combo', 4]);
+      if (fwd && dist < 90) w.push(['fury', 5]);
+      if (sameRow && fwd && dist >= 90) w.push(['barrage', 4]);
       if (this.ultCooldown <= 0) w.push(['cataclysm', 14]);
     }
     let total = 0;

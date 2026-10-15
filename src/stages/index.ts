@@ -12,6 +12,7 @@ import { frostfangStage } from './frostfang';
 import { stormrunnerStage } from './stormrunner';
 import { targetsStage } from './targets';
 import { launchStage } from './launch';
+import { apexStage } from './apex';
 
 /** Every stage by id, including the dev sandbox used by training. */
 export const STAGES: Record<string, StageData> = {
@@ -28,6 +29,7 @@ export const STAGES: Record<string, StageData> = {
   [targetsStage.id]: targetsStage,
   [launchStage.id]: launchStage,
   [sandboxStage.id]: sandboxStage,
+  [apexStage.id]: apexStage,
 };
 /** Stages offered in Stage Select (the sandbox is training-only). */
 export const STAGE_LIST: StageData[] = [classicStage, ringStage, reactorStage, stormStage, templeStage, wreckStage, hollowStage, frostfangStage, stormrunnerStage, skyholdStage];

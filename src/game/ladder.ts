@@ -80,7 +80,7 @@ export function buildLadder(player: string, rand: () => number = Math.random): L
       ],
       playerStocks: 3,
     },
-    { index: 8, title: 'THE OVERSEER', stage: 'reactor', kind: 'boss', opponents: [{ character: 'overseer', level: 3, stocks: 2, boss: true }], playerStocks: 3 },
+    { index: 8, title: 'THE OVERSEER', stage: 'apex', kind: 'boss', opponents: [{ character: 'overseer', level: 3, stocks: 2, boss: true }], playerStocks: 3 },
   ];
   // every rival wears a random look this run, so the ladder shows off the outfits
   for (const f of fights) for (const o of f.opponents) if (!o.boss) o.palette = Math.floor(rand() * paletteCount(o.character));
