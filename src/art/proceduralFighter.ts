@@ -662,17 +662,17 @@ export function releasePalettes(scene: Phaser.Scene, keep: Iterable<string>): vo
   const kept = new Set(keep);
   const dropped: string[] = [];
   for (const key of scene.textures.getTextureKeys()) {
-    if (!key.startsWith('fighter:') || !key.includes('~')) continue;
+    // outfits only ('brick~2'): not the boss's phase-2 sheet ('overseer~rage', owned by its match) or a mech suit
+    if (!key.startsWith('fighter:') || !/~\d+$/.test(key)) continue;
     const skin = key.slice('fighter:'.length);
-    if (kept.has(skin)) continue;
-    dropped.push(`${skin}:`);
-    scene.textures.remove(key);
+    if (!kept.has(skin)) dropped.push(skin);
   }
-  if (dropped.length) {
-    // one pass over the animation keys (no anims.toJSON(), which serialises every frame of every animation)
-    const all = (scene.anims as unknown as { anims: Phaser.Structs.Map<string, Phaser.Animations.Animation> }).anims.keys();
-    for (const k of all) if (dropped.some((d) => k.startsWith(d))) scene.anims.remove(k);
-  }
+  // animations first, then textures (see releaseSheet)
+  removeAnims(
+    scene.anims,
+    dropped.map((d) => `${d}:`),
+  );
+  for (const skin of dropped) scene.textures.remove(fighterTextureKey(skin));
   readyOutfits.clear();
   // builds still in flight belong to the old generation: drop their results and let them be requested again
   outfitGeneration++;
@@ -711,21 +711,49 @@ export function ensurePalette(scene: Phaser.Scene, data: CharacterData, palette:
   return alt.id;
 }
 
-/** Turn a packed sheet into the fighter's texture: one trimmed frame per cell, drawn exactly like the padded grid cell. */
-export function registerPixels(scene: Phaser.Scene, data: CharacterData, px: PackedSheet): void {
+/** A packed sheet drawn onto a canvas (the upload source: the same 2D-canvas path every sheet has always taken to the GPU). */
+function sheetCanvas(px: PackedSheet): HTMLCanvasElement {
   const sheet = document.createElement('canvas');
   sheet.width = px.width;
   sheet.height = px.height;
   sheet.getContext('2d')!.putImageData(new ImageData(px.data as Uint8ClampedArray<ArrayBuffer>, px.width, px.height), 0, 0);
+  return sheet;
+}
+
+/**
+ * Turn a packed sheet into the fighter's texture: one trimmed frame per cell, drawn exactly like the padded grid cell.
+ * Only the GPU keeps the pixels: the canvas they were uploaded from is released straight away (a big sheet is tens of MB)
+ * and, should the WebGL context be lost, the sheet is rebuilt from its spec (from the persistent cache, normally) and
+ * uploaded again the same way.
+ */
+export function registerPixels(scene: Phaser.Scene, data: CharacterData, px: PackedSheet): void {
   const key = fighterTextureKey(data.id);
   if (scene.textures.exists(key)) scene.textures.remove(key);
-  const tex = addCanvasTexture(scene, key, sheet)!;
+  const spec = sheetSpec(data);
+  const tex = addCanvasTexture(scene, key, sheetCanvas(px), async () => sheetCanvas(await buildSheetPixels(spec)))!;
   const F = px.frames;
   for (let cell = 0; cell * 6 < F.length; cell++) {
     const o = cell * 6;
     tex.add(cell, 0, F[o], F[o + 1], F[o + 2], F[o + 3])!.setTrim(px.cellW, px.cellH, F[o + 4], F[o + 5], F[o + 2], F[o + 3]);
   }
   registerAnimations(scene, data);
+}
+
+/**
+ * Free one generated sheet (an outfit, the mech suit, the boss's phase-2 sheet) and its animations. The animations go first,
+ * while the texture still exists: a sprite still playing one is parked on a valid frame instead of one whose texture is gone.
+ */
+export function releaseSheet(scene: { textures: Phaser.Textures.TextureManager; anims: Phaser.Animations.AnimationManager }, id: string): void {
+  removeAnims(scene.anims, [`${id}:`]);
+  const key = fighterTextureKey(id);
+  if (scene.textures.exists(key)) scene.textures.remove(key);
+}
+
+/** Remove every animation whose key starts with one of `prefixes` (one pass over the keys, no anims.toJSON()). */
+function removeAnims(anims: Phaser.Animations.AnimationManager, prefixes: readonly string[]): void {
+  if (!prefixes.length) return;
+  const all = (anims as unknown as { anims: Phaser.Structs.Map<string, Phaser.Animations.Animation> }).anims.keys();
+  for (const k of all) if (prefixes.some((d) => k.startsWith(d))) anims.remove(k);
 }
 
 export function fighterAnimKey(id: string, anim: string): string {

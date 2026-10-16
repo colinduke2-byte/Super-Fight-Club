@@ -3,7 +3,7 @@ import type { Fighter } from '../engine/fighter';
 import type { World } from '../engine/world';
 import { settings } from '../settings';
 import { overseer, overseerPhase2, OVERSEER_PHASE2_SKIN } from '../characters/overseer';
-import { fighterTextureKey, registerPixels } from '../art/proceduralFighter';
+import { fighterTextureKey, registerPixels, releaseSheet } from '../art/proceduralFighter';
 import { buildSheetPixels } from '../art/sheetPool';
 import { sheetSpec } from '../art/sheetPixels';
 
@@ -221,10 +221,29 @@ export class BossCinematic {
   }
 }
 
-/** Start building the enraged (phase-2) sheet off the main thread; call at the start of a boss match. */
+/** The match run that asked for the phase-2 sheet, per scene (a scene object is reused from match to match). */
+const phase2Runs = new WeakMap<Phaser.Scene, object>();
+
+/**
+ * Start building the enraged (phase-2) sheet off the main thread; call at the start of a boss match. The sheet belongs to
+ * that match: it is freed when the scene shuts down (a later boss match gets it back from the persistent sheet cache), and
+ * a build that lands after the match ended is dropped.
+ */
 export function requestOverseerPhase2(scene: Phaser.Scene): Promise<void> {
+  let run = phase2Runs.get(scene);
+  if (!run) {
+    const token = {};
+    run = token;
+    phase2Runs.set(scene, token);
+    scene.events.once(Phaser.Scenes.Events.SHUTDOWN, () => {
+      if (phase2Runs.get(scene) === token) phase2Runs.delete(scene);
+      releaseSheet(scene, OVERSEER_PHASE2_SKIN);
+    });
+  }
   if (scene.textures.exists(fighterTextureKey(OVERSEER_PHASE2_SKIN))) return Promise.resolve();
+  const asked = run;
   return buildSheetPixels(sheetSpec(overseerPhase2)).then((px) => {
+    if (phase2Runs.get(scene) !== asked) return;
     if (!scene.textures.exists(fighterTextureKey(OVERSEER_PHASE2_SKIN))) registerPixels(scene, overseerPhase2, px);
   });
 }

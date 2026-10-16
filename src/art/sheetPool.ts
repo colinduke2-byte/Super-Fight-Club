@@ -12,7 +12,7 @@
  */
 import { packedHeroSheet, sheetCost, type PackedSheet, type SheetSpec } from './sheetPixels';
 import { platformArtPixels, stageMassPixels, type ArtPixels } from './stageMass';
-import { ART_CACHE_SALT, cacheClear, cachePrune, hashText, sheetCacheKey } from './sheetCache';
+import { ART_CACHE_SALT, cacheClear, cachePrune, hashText } from './sheetCache';
 // a static import: the worker source is embedded in the bundle (the single-file build has no separate chunks)
 import SheetWorker from './sheetWorker?worker&inline';
 
@@ -55,10 +55,37 @@ interface Queued {
 
 /** A job that has not come back this long after it was handed to a worker is built inline instead. */
 const JOB_TIMEOUT_MS = 30000;
-/** Workers idle for this long are terminated (and recreated on demand). */
-const IDLE_MS = 20000;
+/**
+ * Workers idle for this long are terminated (and recreated on demand): each holds its own heap (the bundle, the rendering
+ * scratch of the last sheet it built), which only goes back to the system when the worker ends. Starting one again costs
+ * a few tens of ms, so they are not kept around between bursts of work.
+ */
+const IDLE_MS = 4000;
 
-const size = (): number => Math.max(1, Math.min(6, ((typeof navigator !== 'undefined' && navigator.hardwareConcurrency) || 4) - 1));
+/**
+ * Pool size: one worker per spare core, at most 6, and fewer where memory is tight. Every busy worker holds a whole sheet
+ * being built (tens of MB for the big fighters) in its own heap, so six at once during boot measured ~+230 MB of peak
+ * renderer memory over two: enough to get a phone's tab killed. Phones (coarse pointer) and small-memory devices
+ * (navigator.deviceMemory, in GB, where the browser reports it) get fewer workers; they build the same sheets, just fewer
+ * at a time.
+ */
+export function poolSize(nav: { hardwareConcurrency?: number; deviceMemory?: number } | undefined = typeof navigator !== 'undefined' ? navigator : undefined, coarse = coarsePointer()): number {
+  const cores = nav?.hardwareConcurrency || 4;
+  const mem = nav?.deviceMemory;
+  const memCap = mem === undefined ? 6 : mem <= 2 ? 1 : mem <= 4 ? 2 : 6;
+  return Math.max(1, Math.min(6, cores - 1, memCap, coarse ? 3 : 6));
+}
+
+function coarsePointer(): boolean {
+  try {
+    return typeof matchMedia === 'function' && matchMedia('(pointer: coarse)').matches;
+  } catch {
+    return false;
+  }
+}
+
+let poolCap = 0;
+const size = (): number => (poolCap ||= poolSize());
 
 const slots: Slot[] = [];
 let failed = typeof Worker === 'undefined';
@@ -265,10 +292,26 @@ async function run<T>(task: ArtTask, cacheKey?: string): Promise<T> {
 }
 
 /** Build one fighter sheet off the main thread (or inline if workers are unavailable), from the persistent cache when possible. */
-export async function buildSheetPixels(spec: SheetSpec): Promise<PackedSheet> {
-  const v = failed ? null : await artVersion();
-  return run<PackedSheet>({ kind: 'sheet', spec }, v ? sheetCacheKey(v, spec) : undefined);
+export function buildSheetPixels(spec: SheetSpec): Promise<PackedSheet> {
+  // one build per sheet at a time: a second request while it is in flight shares the result (the sheet is only read)
+  const id = hashText(JSON.stringify(spec));
+  let p = inFlight.get(id);
+  if (!p) {
+    p = (async () => {
+      const v = failed ? null : await artVersion();
+      return run<PackedSheet>({ kind: 'sheet', spec }, v ? `${v}/${id}` : undefined);
+    })();
+    const mine = p;
+    inFlight.set(id, mine);
+    const done = (): void => {
+      if (inFlight.get(id) === mine) inFlight.delete(id);
+    };
+    mine.then(done, done);
+  }
+  return p;
 }
+/** Sheet builds in flight, by spec hash. */
+const inFlight = new Map<string, Promise<PackedSheet>>();
 
 /** Build a stage structure's or platform's art off the main thread. */
 export function buildStageArt(task: Exclude<ArtTask, { kind: 'sheet' }>): Promise<ArtPixels> {

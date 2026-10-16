@@ -90,4 +90,25 @@ describe('art worker pool', () => {
     expect(((await pool.buildSheetPixels(spec(9))) as unknown as { size: number }).size).toBe(9);
     expect(FakeWorker.all.filter((w) => !w.terminated).length).toBe(1);
   });
+
+  it('builds a sheet once when it is asked for again while in flight', async () => {
+    FakeWorker.log.length = 0;
+    const [a, b] = await Promise.all([pool.buildSheetPixels(spec(33)), pool.buildSheetPixels(spec(33))]);
+    expect(a).toBe(b);
+    expect(FakeWorker.log.filter((l) => l.size === 33).length).toBe(1);
+    // once it has landed, a new request builds again (the caller decides what to keep)
+    await pool.buildSheetPixels(spec(33));
+    expect(FakeWorker.log.filter((l) => l.size === 33).length).toBe(2);
+  });
+
+  it('sizes the pool by cores and, on phones and small-memory devices, by memory', () => {
+    expect(pool.poolSize({ hardwareConcurrency: 4 }, false)).toBe(3);
+    expect(pool.poolSize({ hardwareConcurrency: 16 }, false)).toBe(6);
+    expect(pool.poolSize({ hardwareConcurrency: 1 }, false)).toBe(1);
+    expect(pool.poolSize({ hardwareConcurrency: 8, deviceMemory: 8 }, false)).toBe(6);
+    expect(pool.poolSize({ hardwareConcurrency: 8, deviceMemory: 4 }, false)).toBe(2);
+    expect(pool.poolSize({ hardwareConcurrency: 8, deviceMemory: 2 }, false)).toBe(1);
+    expect(pool.poolSize({ hardwareConcurrency: 8, deviceMemory: 8 }, true)).toBe(3);
+    expect(pool.poolSize(undefined, false)).toBe(3);
+  });
 });

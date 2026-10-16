@@ -1,6 +1,6 @@
 import Phaser from 'phaser';
 import { ALT_LOOKS } from '../art/palettes';
-import { fighterTextureKey, registerPixels } from '../art/proceduralFighter';
+import { fighterTextureKey, registerPixels, releaseSheet } from '../art/proceduralFighter';
 import { gizmoMechLook } from '../art/hero/gizmo';
 import { sheetSpec } from '../art/sheetPixels';
 import { buildSheetPixels } from '../art/sheetPool';
@@ -9,9 +9,28 @@ import type { CharacterData } from '../engine/types';
 /**
  * Mega Mech Mode's own sprite sheet: the same animation rows as the fighter's sheet (so every frame index lines up), drawn
  * by the hero drawer's mech variant (Gizmo in a cockpit). Built once per outfit in the sheet workers, in the background,
- * the first time a mech-capable fighter is on screen; until it is ready the view falls back to a steady tint.
+ * the first time a mech-capable fighter is on screen; until it is ready the view falls back to a steady tint. The suits
+ * belong to the scene that showed them: they are freed when it shuts down (the next match gets them back from the
+ * persistent sheet cache, long before a transformation can happen).
  */
 const building = new Set<string>();
+/** Mech sheets registered for each scene run (released, with their animations, when that scene shuts down). */
+const live = new Map<Phaser.Scene, Set<string>>();
+
+/** The current run's set of mech sheets, installing its release on shutdown the first time a scene asks. */
+function liveSet(scene: Phaser.Scene): Set<string> {
+  let ids = live.get(scene);
+  if (!ids) {
+    const mine = new Set<string>();
+    ids = mine;
+    live.set(scene, mine);
+    scene.events.once(Phaser.Scenes.Events.SHUTDOWN, () => {
+      if (live.get(scene) === mine) live.delete(scene);
+      for (const id of mine) releaseSheet(scene, id);
+    });
+  }
+  return ids;
+}
 
 /** Mech sheet id for a fighter skin ('gizmo', 'gizmo~2'...). */
 const mechId = (skin: string): string => `${skin}#mech`;
@@ -38,13 +57,20 @@ export function applyMechSkin(scene: Phaser.Scene, data: CharacterData, skin: st
   if (!hasMechArt(data)) return false;
   const id = mechId(skin);
   const key = fighterTextureKey(id);
+  const ids = liveSet(scene);
   const ready = scene.textures.exists(key);
-  if (!ready && !building.has(id)) {
+  if (ready) ids.add(id);
+  else if (!building.has(id)) {
     building.add(id);
     const md = mechData(data, skin);
     buildSheetPixels(sheetSpec(md))
       .then((px) => {
-        if (scene.sys.isActive() || scene.sys.isPaused()) registerPixels(scene, md, px);
+        // registered only for a scene run that is still showing mech fighters (it releases the sheet when it ends)
+        const now = live.get(scene);
+        if (now && (scene.sys.isActive() || scene.sys.isPaused()) && !scene.textures.exists(key)) {
+          registerPixels(scene, md, px);
+          now.add(id);
+        }
       })
       .catch((err: unknown) => console.warn(`[mech] sheet build for ${id} failed:`, err))
       .finally(() => building.delete(id));

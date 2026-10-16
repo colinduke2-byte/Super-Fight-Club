@@ -159,7 +159,9 @@ export async function cacheGet(key: string): Promise<PackedSheet | null> {
  * the sheet's buffers straight after calling it. Resolves once stored (or given up on); never rejects.
  */
 export function cachePut(key: string, sheet: PackedSheet): Promise<void> {
-  let raw: Blob;
+  // the one raw copy (a Blob: the sheet's own buffers are about to be transferred away); it is dropped as soon as it has
+  // been compressed, so only the compressed bytes wait on the database write
+  let raw: Blob | null;
   let frames: Int32Array;
   try {
     raw = new Blob([sheet.data as Uint8ClampedArray<ArrayBuffer>]);
@@ -171,7 +173,9 @@ export function cachePut(key: string, sheet: PackedSheet): Promise<void> {
   return (async () => {
     try {
       const gz = canGzip();
-      const bytes = gz ? await new Response(raw.stream().pipeThrough(new CompressionStream('gzip'))).arrayBuffer() : await raw.arrayBuffer();
+      const encoding = encode(raw!, gz);
+      raw = null;
+      const bytes = await encoding;
       const rec: SheetRecord = { key, width, height, cellW, cellH, frames, bytes, gz };
       await request('readwrite', (s) => {
         s.put(rec);
@@ -180,6 +184,11 @@ export function cachePut(key: string, sheet: PackedSheet): Promise<void> {
       /* no cache this time */
     }
   })();
+}
+
+/** A Blob's bytes, gzip-compressed when `gz` (the Blob is only referenced until this resolves). */
+async function encode(raw: Blob, gz: boolean): Promise<ArrayBuffer> {
+  return gz ? new Response(raw.stream().pipeThrough(new CompressionStream('gzip'))).arrayBuffer() : raw.arrayBuffer();
 }
 
 /** Delete every cached sheet that does not belong to art version `version` (older builds of the game). */

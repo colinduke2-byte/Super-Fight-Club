@@ -3,8 +3,23 @@
  * and every stage's structure / platform pixels must build without throwing, with sane dimensions and non-empty frames.
  * These are the exact builders the sheet workers run (sheetWorker.ts), so a crash here is a crash at boot.
  */
+import { createHash } from 'node:crypto';
+import { existsSync, readFileSync, writeFileSync } from 'node:fs';
 import { beforeAll, describe, expect, it } from 'vitest';
 import type { CharacterData } from '../src/engine/types';
+
+/**
+ * Pixel hashes of every generated sheet and stage structure, checked against tests/fixtures/artHashes.json: memory and speed
+ * work on the art pipeline must never change a drawn pixel. After an intended art change, regenerate the fixture with
+ * `UPDATE_ART_HASHES=1 npx vitest run tests/art.test.ts` (and look at the art).
+ */
+const HASH_FILE = new URL('./fixtures/artHashes.json', import.meta.url);
+const hashes: Record<string, string> = {};
+function pixelHash(name: string, w: number, h: number, data: Uint8ClampedArray, extra?: Int32Array): void {
+  const hh = createHash('sha256').update(`${w}x${h}`).update(data);
+  if (extra) hh.update(new Uint8Array(extra.buffer, extra.byteOffset, extra.byteLength));
+  hashes[name] = hh.digest('hex').slice(0, 24);
+}
 
 // Node has no ImageData: the pixel builders only need its shape
 class ImageDataShim {
@@ -59,6 +74,7 @@ function withPalette(data: CharacterData, p: number): CharacterData {
 
 function checkSheet(data: CharacterData): void {
   const px = m.sheet.packedHeroSheet(m.sheet.sheetSpec(data));
+  pixelHash(`sheet:${data.id}`, px.width, px.height, px.data, px.frames);
   const L = m.layout.sheetLayout(data);
   const fw = data.sprite.frameWidth ?? data.sprite.frameSize;
   expect(px.cellW).toBe(fw);
@@ -148,6 +164,7 @@ describe('art pipeline', () => {
             ? m.mass.stageMassPixels(theme, p.w, p.h, index + 1, m.mass.isSeated(p, st.platforms))
             : m.mass.platformArtPixels(theme, p.w, p.h, !!p.move, index + 1);
         const what = `${st.id} platform ${index} (${p.kind} ${p.w}x${p.h})`;
+        pixelHash(`stage:${st.id}:${index}`, px.width, px.height, px.data);
         expect(px.width, what).toBeGreaterThan(0);
         expect(px.height, what).toBeGreaterThan(0);
         expect(px.width, what).toBeLessThanOrEqual(4096);
@@ -161,4 +178,32 @@ describe('art pipeline', () => {
     }
     expect(n).toBeGreaterThan(0);
   }, 120_000);
+
+  it('builds the Mega Mech suits and the boss phase-2 sheet', async () => {
+    const { gizmoMechLook } = await import('../src/art/hero/gizmo');
+    const { overseerPhase2 } = await import('../src/characters/overseer');
+    checkSheet(overseerPhase2);
+    // as ui/mechSkin.ts builds them: the gizmo sheet in each outfit, drawn by the mech variant
+    const gizmo = m.chars.CHARACTER_LIST.find((c) => c.id === 'gizmo')!;
+    const alts = m.palettes.ALT_LOOKS.gizmo ?? [];
+    for (let pal = 0; pal <= alts.length; pal++) {
+      const base = gizmo.sprite.placeholder;
+      const alt = pal > 0 ? alts[pal - 1] : undefined;
+      const look = alt ? { ...base, armor: alt.armor, armorDark: alt.armorDark, accent: alt.accent, outfit: alt.outfit ?? 0 } : base;
+      const id = `${pal > 0 ? `gizmo~${pal}` : 'gizmo'}#mech`;
+      checkSheet({ ...gizmo, id, sprite: { ...gizmo.sprite, sheetUrl: undefined, placeholder: gizmoMechLook(look) } });
+    }
+  }, 300_000);
+
+  it('draws every sheet and stage structure pixel-identical to the recorded hashes', () => {
+    // runs last: the tests above hashed everything they built
+    expect(Object.keys(hashes).length).toBeGreaterThan(20);
+    if (process.env.UPDATE_ART_HASHES || !existsSync(HASH_FILE)) {
+      writeFileSync(HASH_FILE, JSON.stringify(Object.fromEntries(Object.entries(hashes).sort()), null, 1) + '\n');
+      return;
+    }
+    const want = JSON.parse(readFileSync(HASH_FILE, 'utf8')) as Record<string, string>;
+    expect(Object.keys(hashes).sort()).toEqual(Object.keys(want).sort());
+    for (const [k, v] of Object.entries(want)) expect(hashes[k], k).toBe(v);
+  });
 });
