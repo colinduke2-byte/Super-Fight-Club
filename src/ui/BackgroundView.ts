@@ -212,6 +212,117 @@ const hash = (n: number): number => {
 const BAYER = [0, 8, 2, 10, 12, 4, 14, 6, 3, 11, 1, 9, 15, 7, 13, 5];
 
 /**
+ * Discs and ellipses as textured quads instead of Graphics paths. Phaser's WebGL Graphics turns every fillCircle into a
+ * ~100-point path and every fillEllipse into a 32-point one, allocates a Point per vertex and runs earcut on it on EVERY
+ * frame it is drawn: the smoke, glows, moon, sun and flare were the costliest thing on screen (and most of the garbage).
+ * These textures hold exactly those polygons (a regular 100-gon starting at angle 0 like Phaser's arc, and the 32-gon of
+ * its fillEllipse), hard-edged like the Graphics fill, so a tinted, scaled image draws the same shape for one quad.
+ */
+const DISC_TEX = 'bg-disc-100';
+const DISC_SIZE = 1024;
+const ELL_TEX = 'bg-ellipse-32';
+const ELL_SIZE = 512;
+
+function polygonCanvas(size: number, sides: number): HTMLCanvasElement {
+  const c = document.createElement('canvas');
+  c.width = size;
+  c.height = size;
+  const g = c.getContext('2d')!;
+  const r = size / 2;
+  g.fillStyle = '#ffffff';
+  g.beginPath();
+  for (let i = 0; i < sides; i++) {
+    const a = (i / sides) * Math.PI * 2;
+    if (i === 0) g.moveTo(r + Math.cos(a) * r, r + Math.sin(a) * r);
+    else g.lineTo(r + Math.cos(a) * r, r + Math.sin(a) * r);
+  }
+  g.closePath();
+  g.fill();
+  // hard edges, like the Graphics fill (a pixel is in or out)
+  const img = g.getImageData(0, 0, size, size);
+  const d = img.data;
+  for (let i = 3; i < d.length; i += 4) {
+    const on = d[i] >= 128 ? 255 : 0;
+    d[i - 3] = d[i - 2] = d[i - 1] = 255;
+    d[i] = on;
+  }
+  g.putImageData(img, 0, 0);
+  return c;
+}
+
+function ensurePolygonTextures(scene: Phaser.Scene): void {
+  if (!scene.textures.exists(DISC_TEX)) addCanvasTexture(scene, DISC_TEX, polygonCanvas(DISC_SIZE, 100), () => polygonCanvas(DISC_SIZE, 100));
+  if (!scene.textures.exists(ELL_TEX)) addCanvasTexture(scene, ELL_TEX, polygonCanvas(ELL_SIZE, 32), () => polygonCanvas(ELL_SIZE, 32));
+}
+
+/**
+ * A pool of disc / ellipse images drawn at one spot in the layer's order (right above `anchor`), refilled each frame in draw
+ * order: begin(), circle()/ellipse() for each shape, end() hides what this frame did not use.
+ */
+class ShapePool {
+  private readonly items: Phaser.GameObjects.Image[] = [];
+  private used = 0;
+  private shown = 0;
+
+  constructor(
+    private readonly scene: Phaser.Scene,
+    private readonly layer: Phaser.GameObjects.Layer,
+    private readonly anchor: Phaser.GameObjects.GameObject,
+    private readonly blend: number,
+  ) {}
+
+  begin(): void {
+    this.used = 0;
+  }
+
+  private next(tex: string): Phaser.GameObjects.Image {
+    let im = this.items[this.used];
+    if (!im) {
+      im = this.scene.add.image(0, 0, tex).setBlendMode(this.blend);
+      // straight after the anchor (or the pool's previous image) in the layer's draw order
+      const prev = this.used === 0 ? this.anchor : this.items[this.used - 1];
+      this.layer.addAt(im, this.layer.getIndex(prev) + 1);
+      this.items.push(im);
+    } else if (im.texture.key !== tex) im.setTexture(tex);
+    this.used++;
+    return im;
+  }
+
+  /** Same as Graphics fillStyle(col, a).fillCircle(x, y, r). */
+  circle(x: number, y: number, r: number, col: number, a: number): void {
+    const k = (r * 2) / DISC_SIZE;
+    this.next(DISC_TEX).setPosition(x, y).setScale(k, k).setTint(col).setAlpha(a).setVisible(true);
+  }
+
+  /** Same as Graphics fillStyle(col, a).fillEllipse(x, y, w, h). */
+  ellipse(x: number, y: number, w: number, h: number, col: number, a: number): void {
+    this.next(ELL_TEX).setPosition(x, y).setScale(w / ELL_SIZE, h / ELL_SIZE).setTint(col).setAlpha(a).setVisible(true);
+  }
+
+  end(): void {
+    for (let i = this.used; i < this.shown; i++) this.items[i].setVisible(false);
+    this.shown = this.used;
+  }
+}
+
+/**
+ * Same quad as Graphics lineBetween(x0, y0, x1, y1) with line width `w` (Phaser's batchLine for a lone segment), as two filled
+ * triangles in the current fill style: no Path / Point objects built per line per frame.
+ */
+function line(g: Phaser.GameObjects.Graphics, x0: number, y0: number, x1: number, y1: number, w: number): void {
+  const dx = x1 - x0;
+  const dy = y1 - y0;
+  const len = Math.sqrt(dx * dx + dy * dy);
+  if (len === 0) return;
+  const h = w / 2;
+  const l0 = (h * dy) / len;
+  const l1 = (h * -dx) / len;
+  // TL, BL, BR, TR as batchQuad splits them
+  g.fillTriangle(x0 + l0, y0 + l1, x0 - l0, y0 - l1, x1 - l0, y1 - l1);
+  g.fillTriangle(x0 + l0, y0 + l1, x1 - l0, y1 - l1, x1 + l0, y1 + l1);
+}
+
+/**
  * Screen-space parallax background (own zoom-1 camera): dithered sky gradient, nebula, two star
  * layers (one twinkles), a ringed planet and two ruin skylines. Every layer is positioned from the
  * world camera's centre + zoom each frame. Art pixels are an integer number of device pixels.
@@ -236,6 +347,11 @@ export class BackgroundView {
   private readonly gFar: Phaser.GameObjects.Graphics;
   /** Additive light over the ground layers (reflections on water, glints on lava). */
   private readonly gGlint: Phaser.GameObjects.Graphics;
+  /** Discs / ellipses drawn with (right above) gBack, gFront and gFar, and just under gMid (see ShapePool). */
+  private readonly pBack: ShapePool;
+  private readonly pFront: ShapePool;
+  private readonly pFar: ShapePool;
+  private readonly pMid: ShapePool;
   private readonly grounds: Phaser.GameObjects.TileSprite[];
   private readonly overcast: Phaser.GameObjects.TileSprite;
   private groundOn = false;
@@ -279,6 +395,12 @@ export class BackgroundView {
     this.bank = scene.add.tileSprite(0, 0, 1, 128, 'bg-cloudsea').setOrigin(0, 0).setVisible(false);
     this.gMid = scene.add.graphics();
     layer.add([this.nebula, this.starsA, this.starsB, this.planet, this.gBack, this.overcast, this.clouds, this.far, this.gFar, this.near, ...this.grounds, this.skirt, this.gGlint, this.gMid, this.bank, this.gFront]);
+    ensurePolygonTextures(scene);
+    this.pBack = new ShapePool(scene, layer, this.gBack, Phaser.BlendModes.ADD);
+    this.pFront = new ShapePool(scene, layer, this.gFront, Phaser.BlendModes.ADD);
+    this.pFar = new ShapePool(scene, layer, this.gFar, Phaser.BlendModes.NORMAL);
+    // the wisps come first in gMid's drawing in every theme that has them, so they sit just under it
+    this.pMid = new ShapePool(scene, layer, this.gGlint, Phaser.BlendModes.NORMAL);
   }
 
   setTheme(id: string | undefined): void {
@@ -472,6 +594,10 @@ export class BackgroundView {
     this.gMid.clear();
     this.gFar.clear();
     this.gGlint.clear();
+    this.pBack.begin();
+    this.pFront.begin();
+    this.pFar.begin();
+    this.pMid.begin();
     this.flashNow = 0;
     const gm = this.gMid;
     const W = this.w;
@@ -523,8 +649,8 @@ export class BackgroundView {
             const ph = (time * sp + hash(i * 7 + 2)) % 1;
             const x = (((hash(i * 7) * (W + 80) - ph * 40 * ps - cx * 0.3 * zoom * depth) % (W + 80)) + (W + 80)) % (W + 80) - 20;
             const y = ph * (H + 30) - 15;
-            gf.lineStyle(Math.max(1, ps * 0.6 * depth), 0xa8d0f0, 0.3 * depth);
-            gf.lineBetween(x, y, x - 3 * ps, y + 10 * ps * depth);
+            gf.fillStyle(0xa8d0f0, 0.3 * depth);
+            line(gf, x, y, x - 3 * ps, y + 10 * ps * depth, Math.max(1, ps * 0.6 * depth));
           }
           break;
         }
@@ -541,15 +667,15 @@ export class BackgroundView {
             const bx = W * (0.15 + hash(slot * 3 + 9) * 0.7) - cx * 0.02 * zoom;
             let x = bx;
             let y = -4;
-            gb.lineStyle(Math.max(2, ps * 1.5), 0xffffff, 0.9 * fade);
+            gb.fillStyle(0xffffff, 0.9 * fade);
             for (let i = 0; i < 12; i++) {
               const nx = x + (hash(slot * 31 + i) - 0.5) * 38 * ps;
               const ny = y + H * 0.075;
-              gb.lineBetween(x, y, nx, ny);
+              line(gb, x, y, nx, ny, Math.max(2, ps * 1.5));
               if (i === 4 || i === 8) {
-                gb.lineStyle(Math.max(1, ps), 0xbfe0ff, 0.6 * fade);
-                gb.lineBetween(nx, ny, nx + (hash(slot * 17 + i) - 0.3) * 60 * ps, ny + H * 0.1);
-                gb.lineStyle(Math.max(2, ps * 1.5), 0xffffff, 0.9 * fade);
+                gb.fillStyle(0xbfe0ff, 0.6 * fade);
+                line(gb, nx, ny, nx + (hash(slot * 17 + i) - 0.3) * 60 * ps, ny + H * 0.1, Math.max(1, ps));
+                gb.fillStyle(0xffffff, 0.9 * fade);
               }
               x = nx;
               y = ny;
@@ -652,9 +778,9 @@ export class BackgroundView {
             const y = H * (0.42 + hash(i * 5 + 603) * 0.38) - cy * 0.2 * zoom;
             const w = H * (0.35 + hash(i * 5 + 604) * 0.4);
             const h = w * 0.09;
-            gm.fillStyle(0xfff0e8, 0.07).fillEllipse(x, y, w, h);
-            gm.fillStyle(0xfff6f0, 0.08).fillEllipse(x + w * 0.12, y - h * 0.25, w * 0.6, h * 0.8);
-            gm.fillStyle(0xffffff, 0.06).fillEllipse(x - w * 0.15, y + h * 0.1, w * 0.45, h * 0.6);
+            this.pMid.ellipse(x, y, w, h, 0xfff0e8, 0.07);
+            this.pMid.ellipse(x + w * 0.12, y - h * 0.25, w * 0.6, h * 0.8, 0xfff6f0, 0.08);
+            this.pMid.ellipse(x - w * 0.15, y + h * 0.1, w * 0.45, h * 0.6, 0xffffff, 0.06);
           }
           break;
         }
@@ -707,8 +833,8 @@ export class BackgroundView {
           for (const [t, r, col, a] of ghosts) {
             const x = sx + dx * t;
             const y = sy + dy * t;
-            gf.fillStyle(col, a).fillCircle(x, y, H * r);
-            gf.fillStyle(col, a * 0.6).fillCircle(x, y, H * r * 0.6);
+            this.pFront.circle(x, y, H * r, col, a);
+            this.pFront.circle(x, y, H * r * 0.6, col, a * 0.6);
           }
           // a horizontal streak through the sun
           gf.fillGradientStyle(0xffe8c8, 0xffe8c8, 0xffe8c8, 0xffe8c8, 0, 0.14, 0, 0.14);
@@ -769,7 +895,7 @@ export class BackgroundView {
                 const r = (v.w * (v.steam ? 0.3 : 0.4) + ph * (v.steam ? 15 : 10)) * s;
                 const a = Math.min(1, ph * 7) * (1 - ph) * (v.steam ? 0.34 : 0.42);
                 const col = v.steam ? (ph < 0.3 ? 0xc07a5a : 0x7a4a40) : ph < 0.25 ? 0x4a2216 : 0x24120e;
-                this.gFar.fillStyle(col, a).fillCircle(lx + drift * s, top + (v.y - rise) * s, r);
+                this.pFar.circle(lx + drift * s, top + (v.y - rise) * s, r, col, a);
               }
             }
           });
@@ -808,12 +934,12 @@ export class BackgroundView {
           const mx = W * 0.24 - cx * 0.015 * zoom;
           const my = H * 0.2 - cy * 0.01 * zoom;
           const r = H * 0.06;
-          for (let k = 5; k >= 1; k--) {
-            gb.fillStyle(0x9ad0ff, 0.035);
-            gb.fillCircle(mx, my, r * (1 + k * 0.55));
-          }
-          gb.fillStyle(0xe6f2ff, 0.95).fillCircle(mx, my, r);
-          gb.fillStyle(0x8aa0c0, 0.35).fillCircle(mx - r * 0.3, my - r * 0.15, r * 0.28).fillCircle(mx + r * 0.25, my + r * 0.3, r * 0.2).fillCircle(mx + r * 0.35, my - r * 0.35, r * 0.12);
+          const pb = this.pBack;
+          for (let k = 5; k >= 1; k--) pb.circle(mx, my, r * (1 + k * 0.55), 0x9ad0ff, 0.035);
+          pb.circle(mx, my, r, 0xe6f2ff, 0.95);
+          pb.circle(mx - r * 0.3, my - r * 0.15, r * 0.28, 0x8aa0c0, 0.35);
+          pb.circle(mx + r * 0.25, my + r * 0.3, r * 0.2, 0x8aa0c0, 0.35);
+          pb.circle(mx + r * 0.35, my - r * 0.35, r * 0.12, 0x8aa0c0, 0.35);
           break;
         }
         case 'beacon': {
@@ -835,7 +961,7 @@ export class BackgroundView {
             gb.fillTriangle(lx, ly, ex, ly - spread, ex, ly + spread * 0.6);
             gb.fillStyle(0xffffff, 0.05);
             gb.fillTriangle(lx, ly, ex, ly - spread * 0.35, ex, ly + spread * 0.2);
-            gb.fillStyle(0xfff4c8, 0.12 + 0.35 * toward ** 6).fillCircle(lx, ly, (3 + 10 * toward ** 6) * ps);
+            this.pBack.circle(lx, ly, (3 + 10 * toward ** 6) * ps, 0xfff4c8, 0.12 + 0.35 * toward ** 6);
           }
           break;
         }
@@ -843,12 +969,9 @@ export class BackgroundView {
           const sx = W * 0.7 - cx * 0.015 * zoom;
           const sy = H * 0.36 - cy * 0.01 * zoom;
           const pulse = 0.94 + 0.06 * Math.sin(time * 0.9);
-          for (let r = 7; r >= 1; r--) {
-            gb.fillStyle(r > 4 ? 0xffb070 : 0xffd890, 0.05 + (7 - r) * 0.012);
-            gb.fillCircle(sx, sy, r * H * 0.075 * pulse);
-          }
-          gb.fillStyle(0xfff2c8, 0.9).fillCircle(sx, sy, H * 0.07);
-          gb.fillStyle(0xffffff, 0.8).fillCircle(sx - H * 0.012, sy - H * 0.012, H * 0.05);
+          for (let r = 7; r >= 1; r--) this.pBack.circle(sx, sy, r * H * 0.075 * pulse, r > 4 ? 0xffb070 : 0xffd890, 0.05 + (7 - r) * 0.012);
+          this.pBack.circle(sx, sy, H * 0.07, 0xfff2c8, 0.9);
+          this.pBack.circle(sx - H * 0.012, sy - H * 0.012, H * 0.05, 0xffffff, 0.8);
           break;
         }
         case 'godrays': {
@@ -874,9 +997,9 @@ export class BackgroundView {
               const x = bx0 - dir * i * 14 * ps;
               const y = by0 + Math.abs(i - 2) * 6 * ps + Math.sin(time * 1.3 + i) * 3 * ps;
               const flap = Math.sin(time * 7 + i * 1.3) * 3 * ps;
-              gm.lineStyle(Math.max(1, ps * 0.8), 0x4a2a4e, 0.85);
-              gm.lineBetween(x - 5 * ps, y - flap, x, y);
-              gm.lineBetween(x, y, x + 5 * ps, y - flap);
+              gm.fillStyle(0x4a2a4e, 0.85);
+              line(gm, x - 5 * ps, y - flap, x, y, Math.max(1, ps * 0.8));
+              line(gm, x, y, x + 5 * ps, y - flap, Math.max(1, ps * 0.8));
             }
           }
           break;
@@ -958,10 +1081,7 @@ export class BackgroundView {
           gb.fillRect(0, top, W, H - top);
           // molten sun/core low on the horizon, drifting with the camera
           const gx = W * 0.5 - cx * 0.03 * zoom;
-          for (let r = 4; r >= 1; r--) {
-            gb.fillStyle(hi, (0.05 * pulse * this.glowAlpha) / 0.34);
-            gb.fillCircle(gx, H * 0.78, r * H * 0.12);
-          }
+          for (let r = 4; r >= 1; r--) this.pBack.circle(gx, H * 0.78, r * H * 0.12, hi, (0.05 * pulse * this.glowAlpha) / 0.34);
           break;
         }
         case 'embers': {
@@ -996,14 +1116,15 @@ export class BackgroundView {
         case 'grid': {
           const hy = H * 0.8;
           const vx = W * 0.5 - cx * 0.06 * zoom;
-          gb.lineStyle(Math.max(1, ps * 0.5), 0x4ad8ff, 0.2);
+          const lw = Math.max(1, ps * 0.5);
+          gb.fillStyle(0x4ad8ff, 0.2);
           for (let k = -14; k <= 14; k++) {
-            gb.lineBetween(vx + k * W * 0.03, hy, vx + k * W * 0.2, H);
+            line(gb, vx + k * W * 0.03, hy, vx + k * W * 0.2, H, lw);
           }
           for (let k = 0; k < 8; k++) {
             const f = ((k + ((time * 0.35 + cx * 0.0004) % 1)) / 8) ** 2;
             const y = hy + (H - hy) * f;
-            gb.lineBetween(0, y, W, y);
+            line(gb, 0, y, W, y, lw);
           }
           // a glowing horizon line, and a bright scan pulse sweeping out of it toward us every few seconds
           gb.fillGradientStyle(0x4ad8ff, 0x4ad8ff, 0x4ad8ff, 0x4ad8ff, 0, 0, 0.22, 0.22);
@@ -1038,6 +1159,10 @@ export class BackgroundView {
       const c = (a: number): number => Math.round(a + (255 - a) * f);
       this.overcast.setTint((c(0x9a) << 16) | (c(0xa8) << 8) | c(0xc0));
     }
+    this.pBack.end();
+    this.pFront.end();
+    this.pFar.end();
+    this.pMid.end();
     this.drawGlint(cx, zoom, time);
   }
 

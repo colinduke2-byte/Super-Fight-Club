@@ -35,9 +35,8 @@ export class RimLight {
     this.dy = light ? light.dir[1] / len : 0;
     this.strength = light ? Math.max(0, Math.min(1, light.strength ?? 0.5)) : 0;
     if (!light || this.strength <= 0) return;
-    for (const [, a] of RIM) {
+    for (let i = 0; i < RIM.length; i++) {
       const c = scene.add.sprite(0, 0, texture, 0).setBlendMode(Phaser.BlendModes.ADD).setTintFill(light.rim).setVisible(false);
-      c.setData('a', a);
       layer.add(c);
       this.copies.push(c);
     }
@@ -47,21 +46,23 @@ export class RimLight {
   private follow(): void {
     const s = this.body;
     const on = s.active && s.visible && s.alpha > 0.5 && !!s.frame;
-    RIM.forEach(([off], i) => {
+    for (let i = 0; i < this.copies.length; i++) {
       const c = this.copies[i];
       if (!on) {
         c.setVisible(false);
-        return;
+        continue;
       }
-      c.setTexture(s.texture.key, s.frame.name)
-        .setOrigin(s.originX, s.originY)
+      const off = RIM[i][0];
+      // the frame only changes with the pose: skip the texture-manager lookup when it is already the body's
+      if (c.frame !== s.frame) c.setTexture(s.texture.key, s.frame.name);
+      c.setOrigin(s.originX, s.originY)
         .setPosition(s.x + this.dx * off, s.y + this.dy * off)
         .setFlipX(s.flipX)
         .setScale(s.scaleX, s.scaleY)
         .setRotation(s.rotation)
-        .setAlpha((c.getData('a') as number) * this.strength * s.alpha)
+        .setAlpha(RIM[i][1] * this.strength * s.alpha)
         .setVisible(true);
-    });
+    }
   }
 
   destroy(): void {
