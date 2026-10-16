@@ -88,10 +88,11 @@ export class StageSelectScene extends MenuScene {
     }
     this.waiting = true;
     this.hint.setText('PREPARING FIGHTERS...');
+    const visit = this.visitId;
     ensurePalettesReady(this, wants)
       .catch((err: unknown) => console.warn('[stage select] outfit prebuild failed (the match builds them itself):', err))
       .finally(() => {
-        if (this.scene.isActive()) this.go('Match');
+        if (this.isVisit(visit)) this.go('Match');
       });
   }
 

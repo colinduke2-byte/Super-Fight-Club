@@ -439,7 +439,23 @@ export abstract class MenuScene extends Phaser.Scene {
   private shade!: Phaser.GameObjects.Graphics;
   protected tick(_time: number, _dt: number): void {}
 
+  /** Bumped on every create and shutdown: async work started during one visit checks `isVisit` before touching the scene. */
+  private visit = 0;
+  /** The current visit's id (see isVisit). */
+  protected get visitId(): number {
+    return this.visit;
+  }
+  /**
+   * True while the visit `id` (a `visitId` read before an await) is still running: false once the scene was left, even if it
+   * has been entered again since (a late callback must not act on the new visit, e.g. start a match from a later stage select).
+   */
+  protected isVisit(id: number): boolean {
+    return id === this.visit && this.sys.isActive();
+  }
+
   create(): void {
+    this.visit++;
+    this.events.once('shutdown', () => this.visit++);
     inputManager.init();
     sfx.arm();
     // each menu's own loop (the results jingle plays over its loop and hands back to it)
@@ -479,8 +495,23 @@ export abstract class MenuScene extends Phaser.Scene {
     menuInput.reset();
     this.time0 = performance.now();
     this.leaving = false;
+    this.inputHeld = false;
+    // an overlay that paused this screen hands input back when it resumes it
+    const onResume = (): void => {
+      this.inputHeld = false;
+    };
+    this.events.on('resume', onResume);
+    this.events.once('shutdown', () => this.events.off('resume', onResume));
     for (const cam of [main, this.uiCam]) cam.fadeIn(160, 7, 6, 15);
   }
+
+  /**
+   * Set when this screen has just queued a scene change of its own that takes effect next frame (opening an overlay over
+   * itself, closing itself as an overlay): the rest of this frame's menu events are dropped. A second event in the same
+   * frame used to run both (e.g. Settings over a paused match opening CONTROLS and closing itself at once, which left the
+   * Controls overlay "returning" to a stopped Settings scene). Cleared when the scene is resumed or started again.
+   */
+  protected inputHeld = false;
 
   override update(_t: number, _d: number): void {
     const time = (performance.now() - this.time0) / 1000;
@@ -494,7 +525,7 @@ export abstract class MenuScene extends Phaser.Scene {
       this.relayout(this.scale.width, this.scale.height);
     }
     for (const e of menuInput.poll()) {
-      if (this.leaving) continue;
+      if (this.leaving || this.inputHeld) continue;
       // tiny UI blips; scenes that consume the event (rebinding etc.) still get it
       if (e.action === 'confirm') sfx.play('menuOk', 0.7, 0);
       else if (e.action === 'back') sfx.play('menuBack', 0.7, 0);

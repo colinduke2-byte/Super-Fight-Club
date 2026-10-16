@@ -1,5 +1,6 @@
 import Phaser from 'phaser';
 import type { CharacterData } from '../engine/types';
+import { releaseUnusedOutfits } from './outfits';
 import { animFrameIndex, ensureFightersReady, ensurePalette, fighterTextureKey, paletteReady, portraitCrop, portraitK, requestPalette } from '../art/proceduralFighter';
 import { PIXEL_FONT, up } from '../art/pixelFont';
 import { characterById } from '../characters';
@@ -66,6 +67,8 @@ export class LadderMapScene extends MenuScene {
       this.scene.start('ModeSelect');
       return;
     }
+    // the rivals already beaten (or lost to) no longer need their outfit sheets: only the next one is built
+    releaseUnusedOutfits(this);
     // the boss's sheet builds in the background while the player climbs
     const boss = characterById(BOSS_ID);
     if (boss) void ensureFightersReady(this, [boss]);
@@ -125,8 +128,9 @@ export class LadderMapScene extends MenuScene {
       this.ui.bringToTop(t);
       this.waiting = { g, t };
       this.layoutWaiting();
+      const visit = this.visitId;
       await ensureFightersReady(this, [boss]);
-      if (!this.sys.isActive()) return;
+      if (!this.isVisit(visit)) return;
       g.destroy();
       t.destroy();
       this.waiting = null;

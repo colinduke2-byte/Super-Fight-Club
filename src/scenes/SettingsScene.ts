@@ -191,6 +191,7 @@ export class SettingsScene extends MenuScene {
             onConfirm: () => {
               if (this.overlay) {
                 // over a paused match: Controls opens over this screen and comes back to it
+                this.inputHeld = true;
                 this.scene.launch('Controls', { back: 'Settings', overlay: true });
                 this.scene.bringToTop('Controls');
                 this.scene.pause();
@@ -252,6 +253,7 @@ export class SettingsScene extends MenuScene {
       return;
     }
     lastTab = this.tab;
+    this.inputHeld = true;
     this.scene.resume(this.back);
     this.scene.stop();
   }

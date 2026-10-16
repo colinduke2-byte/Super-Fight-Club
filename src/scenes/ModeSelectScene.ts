@@ -10,6 +10,7 @@ import { COLORS, MenuList, MenuScene, drawPanel, pointerXY, text, textPx, type M
 import { PIXEL_FONT } from '../art/pixelFont';
 import { fighterAnimKey, fighterTextureKey, uiTexK } from '../art/proceduralFighter';
 import { CHARACTER_LIST } from '../characters';
+import { releaseUnusedOutfits } from './outfits';
 
 /** A main-menu group: a tab of related modes. */
 interface Group {
@@ -87,6 +88,8 @@ export class ModeSelectScene extends MenuScene {
   }
 
   protected build(): void {
+    // the main menu shows no outfits: free those nobody in the session wears (challenge rivals, finished ladders...)
+    releaseUnusedOutfits(this);
     this.group = lastGroup;
     this.title = this.add.bitmapText(0, 0, PIXEL_FONT, 'MAIN MENU').setOrigin(0.5).setTint(COLORS.title);
     this.ui.add(this.title);

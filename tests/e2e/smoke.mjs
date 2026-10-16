@@ -60,6 +60,8 @@ try {
     match: window.__game.scene.isActive('Match'),
     results: window.__game.scene.isActive('Results'),
     overlay: document.querySelector('[role="alert"]')?.textContent ?? null,
+    // errors caught by the per-scene guard (src/errorOverlay.ts) do not reach pageerror
+    caught: window.__errors ?? [],
   }));
   step(`after ${MATCH_MS / 1000}s: ${state.frame - f0} frames rendered, match=${state.match} results=${state.results}`);
   if (state.frame - f0 < 10) {
@@ -68,6 +70,10 @@ try {
   }
   if (!state.match && !state.results) {
     console.error('[smoke] FAIL: neither Match nor Results is active');
+    failed = true;
+  }
+  if (state.caught.length) {
+    console.error(`[smoke] FAIL: ${state.caught.length} error(s) caught in scenes:\n  ${state.caught.slice(0, 5).join('\n  ')}`);
     failed = true;
   }
   if (state.overlay) {

@@ -36,9 +36,9 @@ export class StoryScene extends MenuScene {
   }
 
   init(data: { cards: StoryCard[]; next?: string; nextData?: object }): void {
-    this.cards = data.cards;
-    this.next = data.next ?? 'LadderMap';
-    this.nextData = data.nextData;
+    this.cards = data?.cards ?? [];
+    this.next = data?.next ?? 'LadderMap';
+    this.nextData = data?.nextData;
     this.index = 0;
   }
 
@@ -64,8 +64,9 @@ export class StoryScene extends MenuScene {
     // sheet (that would register the old look); show it as soon as its real sheet lands
     if (!data.sprite.sheetUrl && !this.textures.exists(fighterTextureKey(data.id))) {
       const card = this.index;
+      const visit = this.visitId;
       void ensureFightersReady(this, [data]).then(() => {
-        if (!this.sys.isActive() || this.index !== card) return;
+        if (!this.isVisit(visit) || this.index !== card) return;
         const s = this.spriteFor(id, flip, palette);
         if (!s) return;
         if (flip) {
@@ -89,6 +90,7 @@ export class StoryScene extends MenuScene {
 
   private showCard(): void {
     const c = this.cards[this.index];
+    if (!c) return;
     this.left?.destroy();
     this.right?.destroy();
     // the player in their chosen look, the rival in the one it rolled (a mirror match never shows two identical fighters)
@@ -106,11 +108,12 @@ export class StoryScene extends MenuScene {
   }
 
   private fullText(): string {
-    return up(this.cards[this.index].lines.join('\n'));
+    return up(this.cards[this.index]?.lines.join('\n') ?? '');
   }
 
   private relayoutCard(): void {
     const c = this.cards[this.index];
+    if (!c) return;
     const { x, y, s } = this.box;
     const u = this.u;
     const w = this.scale.width;
@@ -179,9 +182,13 @@ export class StoryScene extends MenuScene {
       this.shownAt = performance.now() - (full.length / CPS) * 1000 - 50; // finish the caption
       return;
     }
+    // the last card stays the current one while the screen fades out (a resize during the fade lays it out again)
+    if (this.index + 1 >= this.cards.length) {
+      this.go(this.next, this.nextData);
+      return;
+    }
     this.index++;
-    if (this.index >= this.cards.length) this.go(this.next, this.nextData);
-    else this.showCard();
+    this.showCard();
   }
 
   protected onEvent(e: MenuEvent): void {

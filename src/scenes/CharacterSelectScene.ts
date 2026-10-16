@@ -2,6 +2,7 @@ import Phaser from 'phaser';
 import { animFrameIndex, ensurePalette, ensurePalettesReady, fighterAnimKey, fighterTextureKey, paletteReady, palettesReady, portraitCrop, portraitK, releasePalettes, requestPalette, skinKey } from '../art/proceduralFighter';
 import { ALT_LOOKS, assignPalettes, lookName, paletteCount } from '../art/palettes';
 import { PIXEL_FONT } from '../art/pixelFont';
+import { skinsInUse } from './outfits';
 import { CHARACTER_LIST } from '../characters';
 import { Lobby, skillName, skillOfLevel, type CardRow } from '../game/lobby';
 import { rememberFighter } from '../game/quick';
@@ -81,7 +82,8 @@ export class CharacterSelectScene extends MenuScene {
 
   protected build(): void {
     // leaving the lobby frees every outfit sheet that was only browsed (the picked ones stay for the match)
-    this.events.once('shutdown', () => releasePalettes(this, (session.players ?? []).filter((p) => (p.palette ?? 0) > 0).map((p) => skinKey(p.character, p.palette))));
+    // (and never one a live scene still shows: see skinsInUse)
+    this.events.once('shutdown', () => releasePalettes(this, [...(session.players ?? []).filter((p) => (p.palette ?? 0) > 0).map((p) => skinKey(p.character, p.palette)), ...skinsInUse(this.game)]));
     this.cards = [];
     this.roster = [];
     this.ownEditAt = [-99, -99, -99, -99];

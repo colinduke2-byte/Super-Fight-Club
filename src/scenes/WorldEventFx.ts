@@ -92,7 +92,8 @@ export class WorldEventFx {
     if (type === 'hit') {
       const layer = hitLayer(f.lastHitFx, mag, extra);
       if (layer) sfx.play(layer.name, layer.intensity, pan);
-      if (heldState(this.host.world, f.lastHitBy).kind === 'sword') sfx.play('swordHit', 0.8, pan);
+      // (lastHitBy is -1 for a hit nobody owns: a stage hazard, a stray item)
+      if (f.lastHitBy >= 0 && heldState(this.host.world, f.lastHitBy).kind === 'sword') sfx.play('swordHit', 0.8, pan);
     }
     switch (type) {
       case 'fx':

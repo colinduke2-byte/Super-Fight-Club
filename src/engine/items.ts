@@ -147,13 +147,19 @@ const HELD = new WeakMap<World, HeldState[]>();
 
 /** The item state of fighter `id` in `world` (created on first use; deterministic: keyed by the world). */
 export function heldState(world: World, id: number): HeldState {
+  // no owner (-1: a hazard's hit, an unowned item): an empty hand, not stored (arr[-1] used to be undefined and crash callers)
+  if (!(id >= 0)) return emptyHand();
   let arr = HELD.get(world);
   if (!arr) {
     arr = [];
     HELD.set(world, arr);
   }
-  while (arr.length <= id) arr.push({ kind: null, uses: 0, cd: 0, swing: null, swingDir: 'fwd', swingMask: 0, swingTick: -999, shotTick: -999, aegisDealt: 0, aegisLostTick: -999, popKind: null, popTick: -999 });
+  while (arr.length <= id) arr.push(emptyHand());
   return arr[id];
+}
+
+function emptyHand(): HeldState {
+  return { kind: null, uses: 0, cd: 0, swing: null, swingDir: 'fwd', swingMask: 0, swingTick: -999, shotTick: -999, aegisDealt: 0, aegisLostTick: -999, popKind: null, popTick: -999 };
 }
 
 /** What fighter `id` carries: 'bomb' | 'sword' | 'raygun', or null. For the view and the CPU. */

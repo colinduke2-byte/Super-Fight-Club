@@ -1,4 +1,5 @@
 import { startDemo } from '../game/demo';
+import { releaseUnusedOutfits } from './outfits';
 import Phaser from 'phaser';
 import { fighterAnimKey, fighterTextureKey, uiTexK } from '../art/proceduralFighter';
 import { CHARACTER_LIST } from '../characters';
@@ -54,6 +55,8 @@ export class TitleScene extends MenuScene {
   }
 
   protected build(): void {
+    // back at the title (after a demo, a quit, a finished ladder): outfit sheets nobody wears any more are freed
+    releaseUnusedOutfits(this);
     this.demoStarted = false;
     this.footerMsg = '';
     this.pressedAt = -1;

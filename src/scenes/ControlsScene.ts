@@ -334,6 +334,7 @@ export class ControlsScene extends MenuScene {
       this.go(this.back, this.backData);
       return;
     }
+    this.inputHeld = true;
     this.scene.resume(this.back);
     this.scene.stop();
   }
