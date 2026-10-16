@@ -8,6 +8,7 @@ import type { Platform } from '../engine/platform';
 import { fighterTrailColor } from '../fx/runner';
 import { applyMechSkin } from './mechSkin';
 import { RimLight } from './RimLight';
+import { fastShapes } from './SlashArcs';
 
 /** Pixels the body is drawn left of the frame centre in the procedural sprite sheet (see proceduralFighter). */
 const BODY_SHIFT = 5;
@@ -167,7 +168,7 @@ export class FighterView {
     layer.add(this.bubble);
     this.comboText = scene.add.bitmapText(0, 0, PIXEL_FONT, '').setOrigin(0.5, 1).setScale(0.5).setTint(0xffe14a).setVisible(false);
     layer.add(this.comboText);
-    this.fx = scene.add.graphics();
+    this.fx = fastShapes(scene.add.graphics());
     layer.add(this.fx);
     if (fighter.data.counter) {
       this.counter = scene.add.bitmapText(0, 0, PIXEL_FONT, '').setOrigin(0.5, 1).setScale(0.55).setTint(0xffd46a);

@@ -1,6 +1,7 @@
 import Phaser from 'phaser';
 import { avalancheX, hazardPhase, stalactiteFall } from '../engine/hazards';
 import type { HazardDef } from '../engine/types';
+import { fastShapes } from './SlashArcs';
 
 /** Scratch points of the lightning strike's jagged path, reused each redraw. */
 const BOLT_STEPS = 14;
@@ -59,8 +60,8 @@ export class HazardView {
     layer: Phaser.GameObjects.Layer,
     private readonly hazards: HazardDef[],
   ) {
-    this.g = scene.add.graphics().setDepth(5);
-    this.ga = scene.add.graphics().setDepth(5).setBlendMode(Phaser.BlendModes.ADD);
+    this.g = fastShapes(scene.add.graphics().setDepth(5));
+    this.ga = fastShapes(scene.add.graphics().setDepth(5).setBlendMode(Phaser.BlendModes.ADD));
     layer.add(this.g);
     layer.add(this.ga);
   }

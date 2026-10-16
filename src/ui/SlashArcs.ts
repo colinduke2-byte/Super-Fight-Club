@@ -13,6 +13,300 @@ const TAPER = Array.from({ length: N + 1 }, (_, i) => Math.pow(i / N, 1.1));
 const ARC: { x: number; y: number }[] = Array.from({ length: 2 * (N + 1) }, () => ({ x: 0, y: 0 }));
 const NEEDLE: { x: number; y: number }[] = Array.from({ length: 4 }, () => ({ x: 0, y: 0 }));
 
+// ---------------------------------------------------------------------------------------------------------------------------
+// Exact-geometry circles / ellipses without Phaser's per-frame path work.
+//
+// On WebGL, Graphics.fillCircle becomes a ~100-point path that is rebuilt (a new Point per vertex) and triangulated with earcut
+// on EVERY render, fillEllipse a 32-point one (plus an Ellipse and 32 Vector2s when recorded), and strokeCircle / strokeEllipse
+// rebuild their paths the same way. `fastShapes(g)` swaps those four methods on one Graphics for versions that record the SAME
+// polygons as plain triangles: the circle's vertices are Phaser's own arc samples (same float steps, same cos/sin), filled as a
+// fan (the same pixels as earcut's triangulation of that convex polygon), and strokes are the exact quads (and joins, for lines
+// wider than 2) that its batchLine builds per segment. Same look, no allocation or earcut at render time.
+// ---------------------------------------------------------------------------------------------------------------------------
+
+/** cos / sin of Phaser's ARC samples for a full circle (GraphicsWebGLRenderer: iterStep 0.01 from 0, then the end angle). */
+const CIRC_C: number[] = [];
+const CIRC_S: number[] = [];
+{
+  const PI2 = Math.PI * 2;
+  CIRC_C.push(Math.cos(0));
+  CIRC_S.push(Math.sin(0));
+  let it = 0.01;
+  while (it < 1) {
+    const ta = PI2 * it + 0;
+    CIRC_C.push(Math.cos(ta));
+    CIRC_S.push(Math.sin(ta));
+    it += 0.01;
+  }
+  CIRC_C.push(Math.cos(PI2 + 0));
+  CIRC_S.push(Math.sin(PI2 + 0));
+}
+/** cos / sin of Ellipse.getPoints(n) angles (FromPercent(i / n, 0, 2π)), per smoothness. */
+const ELL_TABLES = new Map<number, [number[], number[]]>();
+function ellTable(n: number): [number[], number[]] {
+  let t = ELL_TABLES.get(n);
+  if (!t) {
+    const c: number[] = [];
+    const sn: number[] = [];
+    for (let i = 0; i < n; i++) {
+      const a = Math.PI * 2 * (i / n) + 0;
+      c.push(Math.cos(a));
+      sn.push(Math.sin(a));
+    }
+    t = [c, sn];
+    ELL_TABLES.set(n, t);
+  }
+  return t;
+}
+/** Scratch outline for strokes (the longest is a circle's arc samples). */
+const SX = new Float64Array(CIRC_C.length + 2);
+const SY = new Float64Array(CIRC_C.length + 2);
+
+interface ShapeState {
+  /** Last fill style recorded since clear(): solid [color, alpha] or gradient (8 numbers); null = none yet. */
+  fill: number[] | null;
+  lineWidth: number;
+  lineColor: number;
+  lineAlpha: number;
+}
+
+type G = Phaser.GameObjects.Graphics;
+/** Records one filled triangle (Graphics fillTriangle) in the current fill style. */
+type Tri = (x0: number, y0: number, x1: number, y1: number, x2: number, y2: number) => void;
+/** Phaser's Graphics command id for fillTriangle (Phaser.GameObjects.Graphics Commands.FILL_TRIANGLE). */
+const FILL_TRIANGLE = 10;
+
+/** Fill a convex polygon (SX/SY, n points) as a fan from its first point, in the current fill style. */
+function fan(tri: Tri, n: number): void {
+  const x0 = SX[0];
+  const y0 = SY[0];
+  for (let i = 1; i < n - 1; i++) tri(x0, y0, SX[i], SY[i], SX[i + 1], SY[i + 1]);
+}
+
+/** Stroke the open polyline SX/SY (n points) exactly as Phaser's batchStrokePath / batchLine do, in the current fill style. */
+function strokeOpen(tri: Tri, n: number, w: number): void {
+  const h = w / 2;
+  let prev = false;
+  let pbx = 0;
+  let pby = 0;
+  let ptx = 0;
+  let pty = 0;
+  for (let i = 0; i < n - 1; i++) {
+    const ax = SX[i];
+    const ay = SY[i];
+    const bx = SX[i + 1];
+    const by = SY[i + 1];
+    const dx = bx - ax;
+    const dy = by - ay;
+    const len = Math.sqrt(dx * dx + dy * dy);
+    if (len === 0) continue;
+    const l0 = (h * (by - ay)) / len;
+    const l1 = (h * (ax - bx)) / len;
+    const brx = bx - l0;
+    const bry = by - l1;
+    const blx = ax - l0;
+    const bly = ay - l1;
+    const trx = bx + l0;
+    const try_ = by + l1;
+    const tlx = ax + l0;
+    const tly = ay + l1;
+    // batchQuad(TL, BL, BR, TR) = triangles (TL, BL, BR) and (TL, BR, TR)
+    tri(tlx, tly, blx, bly, brx, bry);
+    tri(tlx, tly, brx, bry, trx, try_);
+    if (w <= 2) continue;
+    if (i > 0 && prev) {
+      tri(tlx, tly, blx, bly, pbx, pby);
+      tri(tlx, tly, pbx, pby, ptx, pty);
+    }
+    pbx = brx;
+    pby = bry;
+    ptx = trx;
+    pty = try_;
+    prev = true;
+  }
+}
+
+function restoreFill(g: G, st: ShapeState): void {
+  const f = st.fill;
+  if (!f) return;
+  if (f.length === 2) g.fillStyle(f[0], f[1]);
+  else g.fillGradientStyle(f[0], f[1], f[2], f[3], f[4], f[5], f[6], f[7]);
+}
+
+/** Make this Graphics draw its circles and ellipses as exact pre-triangulated polygons (see above). Returns `g`. */
+export function fastShapes<T extends G>(g: T): T {
+  const st: ShapeState = { fill: null, lineWidth: 1, lineColor: 0, lineAlpha: 1 };
+  const solid = [0, 1];
+  const grad = [0, 0, 0, 0, 1, 1, 1, 1];
+  const proto = Object.getPrototypeOf(g) as G;
+  const self = g as G;
+  self.fillStyle = function (color: number, alpha = 1) {
+    solid[0] = color;
+    solid[1] = alpha;
+    st.fill = solid;
+    return proto.fillStyle.call(this, color, alpha);
+  };
+  self.fillGradientStyle = function (tl: number, tr: number, bl: number, br: number, aTL = 1, aTR?: number, aBL?: number, aBR?: number) {
+    // Phaser's defaults: the other alphas follow the top-left one
+    const a1 = aTR ?? aTL;
+    const a2 = aBL ?? aTL;
+    const a3 = aBR ?? aTL;
+    grad[0] = tl;
+    grad[1] = tr;
+    grad[2] = bl;
+    grad[3] = br;
+    grad[4] = aTL;
+    grad[5] = a1;
+    grad[6] = a2;
+    grad[7] = a3;
+    st.fill = grad;
+    return proto.fillGradientStyle.call(this, tl, tr, bl, br, aTL, a1, a2, a3);
+  };
+  self.lineStyle = function (width: number, color: number, alpha = 1) {
+    st.lineWidth = width;
+    st.lineColor = color;
+    st.lineAlpha = alpha;
+    return proto.lineStyle.call(this, width, color, alpha);
+  };
+  // A command buffer that keeps its capacity. Phaser's clear() sets `commandBuffer.length = 0`, which drops the array's
+  // backing store, so redrawing every frame regrows (and throws away) it each time. Here clear() only rewinds a write cursor,
+  // push() overwrites in place, and just before rendering the stale tail left from a longer frame is blanked with -1 (no
+  // command: the renderers' switch skips it) or, when the buffer is mostly stale, cut off for real.
+  const cb = self.commandBuffer as number[];
+  let cur = cb.length;
+  let hi = cur;
+  // (fixed parameters: Phaser pushes at most 9 values per command, and no arguments object is built per call)
+  cb.push = function (a: number, b?: number, c?: number, d?: number, e?: number, f?: number, g7?: number, h?: number, i9?: number): number {
+    const n = arguments.length;
+    cb[cur++] = a;
+    if (n > 1) cb[cur++] = b!;
+    if (n > 2) cb[cur++] = c!;
+    if (n > 3) cb[cur++] = d!;
+    if (n > 4) cb[cur++] = e!;
+    if (n > 5) cb[cur++] = f!;
+    if (n > 6) cb[cur++] = g7!;
+    if (n > 7) cb[cur++] = h!;
+    if (n > 8) cb[cur++] = i9!;
+    if (cur > hi) hi = cur;
+    return cur;
+  } as typeof cb.push;
+  // fillTriangle straight into the buffer (the same 7 values Graphics.fillTriangle pushes)
+  const tri: Tri = (x0, y0, x1, y1, x2, y2) => {
+    cb[cur++] = FILL_TRIANGLE;
+    cb[cur++] = x0;
+    cb[cur++] = y0;
+    cb[cur++] = x1;
+    cb[cur++] = y1;
+    cb[cur++] = x2;
+    cb[cur++] = y2;
+    if (cur > hi) hi = cur;
+  };
+  const sync = (): void => {
+    if (self.commandBuffer !== cb) return; // destroyed (Phaser swaps in a fresh array)
+    if (cur === 0 || cb.length > 4 * cur + 256) {
+      cb.length = cur;
+      hi = cur;
+      return;
+    }
+    for (let i = cur; i < hi; i++) cb[i] = -1;
+    hi = cur;
+  };
+  const renderWebGL = (self as unknown as { renderWebGL: (...a: unknown[]) => void }).renderWebGL;
+  const renderCanvas = (self as unknown as { renderCanvas: (...a: unknown[]) => void }).renderCanvas;
+  Object.assign(self, {
+    renderWebGL(this: G, renderer: unknown, src: unknown, camera: unknown, parentMatrix: unknown) {
+      sync();
+      renderWebGL.call(this, renderer, src, camera, parentMatrix);
+    },
+    renderCanvas(this: G, renderer: unknown, src: unknown, camera: unknown, parentMatrix: unknown) {
+      sync();
+      renderCanvas.call(this, renderer, src, camera, parentMatrix);
+    },
+  });
+  self.clear = function () {
+    st.fill = null;
+    cur = 0;
+    // what Phaser's clear() replays after emptying the buffer
+    if (this.defaultFillColor > -1) this.fillStyle(this.defaultFillColor, this.defaultFillAlpha);
+    if (this.defaultStrokeColor > -1) this.lineStyle(this.defaultStrokeWidth, this.defaultStrokeColor, this.defaultStrokeAlpha);
+    return this;
+  };
+  self.fillCircle = function (x: number, y: number, r: number) {
+    // a gradient fill is applied per triangle (its TL/TR/BL tints), so it depends on the triangulation: keep Phaser's
+    if (st.fill && st.fill.length !== 2) return proto.fillCircle.call(this, x, y, r);
+    const n = CIRC_C.length;
+    for (let i = 0; i < n; i++) {
+      SX[i] = x + CIRC_C[i] * r;
+      SY[i] = y + CIRC_S[i] * r;
+    }
+    fan(tri, n);
+    return this;
+  };
+  self.fillEllipse = function (x: number, y: number, w: number, h: number, smoothness = 32) {
+    if (st.fill && st.fill.length !== 2) return proto.fillEllipse.call(this, x, y, w, h, smoothness);
+    const [c, sn] = ellTable(smoothness);
+    const hw = w / 2;
+    const hh = h / 2;
+    for (let i = 0; i < c.length; i++) {
+      SX[i] = x + hw * c[i];
+      SY[i] = y + hh * sn[i];
+    }
+    fan(tri, c.length);
+    return this;
+  };
+  self.strokeCircle = function (x: number, y: number, r: number) {
+    const n = CIRC_C.length;
+    for (let i = 0; i < n; i++) {
+      SX[i] = x + CIRC_C[i] * r;
+      SY[i] = y + CIRC_S[i] * r;
+    }
+    proto.fillStyle.call(this, st.lineColor, st.lineAlpha);
+    strokeOpen(tri, n, st.lineWidth);
+    restoreFill(this, st);
+    return this;
+  };
+  self.strokeEllipse = function (x: number, y: number, w: number, h: number, smoothness = 32) {
+    const [c, sn] = ellTable(smoothness);
+    const hw = w / 2;
+    const hh = h / 2;
+    const n = c.length;
+    for (let i = 0; i < n; i++) {
+      SX[i] = x + hw * c[i];
+      SY[i] = y + hh * sn[i];
+    }
+    // strokePoints(points, closeShape): back to the first point, path left open
+    SX[n] = SX[0];
+    SY[n] = SY[0];
+    proto.fillStyle.call(this, st.lineColor, st.lineAlpha);
+    strokeOpen(tri, n + 1, st.lineWidth);
+    restoreFill(this, st);
+    return this;
+  };
+  self.strokePoints = function (points: Phaser.Types.Math.Vector2Like[], closeShape = false, closePath = false, endIndex = points.length) {
+    // thin lines only (no joins to replay) and outlines that fit the scratch buffers; anything else takes Phaser's path
+    if (st.lineWidth > 2 || endIndex < 1 || endIndex + 2 > SX.length) return proto.strokePoints.call(this, points, closeShape, closePath, endIndex);
+    let n = 0;
+    for (let i = 0; i < endIndex; i++) {
+      SX[n] = points[i].x as number;
+      SY[n++] = points[i].y as number;
+    }
+    if (closeShape || closePath) {
+      // closeShape adds a line back to the first point; closePath appends the first point to the path again
+      SX[n] = SX[0];
+      SY[n++] = SY[0];
+    }
+    if (closeShape && closePath) {
+      SX[n] = SX[0];
+      SY[n++] = SY[0];
+    }
+    proto.fillStyle.call(this, st.lineColor, st.lineAlpha);
+    strokeOpen(tri, n, st.lineWidth);
+    restoreFill(this, st);
+    return this;
+  };
+  return g;
+}
+
 /** Trail looks. A character picks one with `fx.slash`; otherwise its sound style decides (heavy = sparks, blade = blade, ...). */
 export type SlashStyle = 'plain' | 'fire' | 'water' | 'spark' | 'blade' | 'arcane' | 'volt' | 'gale' | 'crystal' | 'frost';
 const BY_SOUND: Record<string, SlashStyle> = { heavy: 'spark', blade: 'blade', arcane: 'arcane', mech: 'volt', wind: 'gale', fire: 'fire', water: 'water', stone: 'crystal' };
@@ -52,7 +346,7 @@ export class SlashArcs {
   private readonly deco: Deco[] = Array.from({ length: 8 }, () => ({ x: 0, y: 0, t: 0, nx: 0, ny: 0 }));
 
   constructor(scene: Phaser.Scene, layer: Phaser.GameObjects.Layer) {
-    this.g = scene.add.graphics().setDepth(50).setBlendMode(1 /* ADD */);
+    this.g = fastShapes(scene.add.graphics().setDepth(50).setBlendMode(1 /* ADD */));
     layer.add(this.g);
   }
 

@@ -1,5 +1,6 @@
 import Phaser from 'phaser';
 import { settings } from '../settings';
+import { fastShapes } from './SlashArcs';
 
 /** A spark flung out of the blast (screen space). */
 interface Spark {
@@ -48,8 +49,8 @@ export class KoBlast {
   private readonly blasts: Blast[] = [];
 
   constructor(scene: Phaser.Scene, layer: Phaser.GameObjects.Layer) {
-    this.flash = scene.add.graphics().setBlendMode(Phaser.BlendModes.ADD);
-    this.g = scene.add.graphics().setBlendMode(Phaser.BlendModes.ADD);
+    this.flash = fastShapes(scene.add.graphics().setBlendMode(Phaser.BlendModes.ADD));
+    this.g = fastShapes(scene.add.graphics().setBlendMode(Phaser.BlendModes.ADD));
     layer.add([this.flash, this.g]);
   }
 

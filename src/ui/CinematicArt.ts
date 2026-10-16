@@ -4,6 +4,7 @@ import type { Fighter } from '../engine/fighter';
 import type { MoveDef } from '../engine/moves';
 import type { World } from '../engine/world';
 import { settings } from '../settings';
+import { fastShapes } from './SlashArcs';
 
 /**
  * Bespoke staging drawn over a cinematic ultimate, keyed by the attacker's id (others just get the generic cut-in, flashes
@@ -24,8 +25,8 @@ export class CinematicArt {
   private blasts: { x: number; y: number; t0: number }[] = [];
 
   constructor(scene: Phaser.Scene, layer: Phaser.GameObjects.Layer) {
-    this.g = scene.add.graphics().setDepth(6);
-    this.glow = scene.add.graphics().setDepth(6).setBlendMode(Phaser.BlendModes.ADD);
+    this.g = fastShapes(scene.add.graphics().setDepth(6));
+    this.glow = fastShapes(scene.add.graphics().setDepth(6).setBlendMode(Phaser.BlendModes.ADD));
     layer.add([this.g, this.glow]);
   }
 

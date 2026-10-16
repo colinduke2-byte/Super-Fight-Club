@@ -6,7 +6,7 @@ import type { World } from '../engine/world';
 import type { ProjectileDef, DeployableDef } from '../engine/moves';
 import { ART_D, CRATE_SCALE, DEP_ART, ITEM_SCALE, pillarCanvas, PROJ_ART, type DepArt, type ProjArt } from '../art/entityTextures';
 import { addCanvasTexture } from '../art/canvasTexture';
-import { slashStyle, type SlashStyle } from './SlashArcs';
+import { fastShapes, slashStyle, type SlashStyle } from './SlashArcs';
 
 const SHAPE_TEX: Record<string, string> = { orb: 'proj-orb', bolt: 'proj-bolt', bullet: 'proj-bullet', fist: 'proj-fist', beam: 'proj-beam', shard: 'proj-shard', wave: 'proj-wave' };
 const DEP_TEX: Record<string, string> = { mine: 'dep-mine', turret: 'dep-turret', rune: 'dep-rune', marker: 'dep-marker', whirlpool: 'dep-whirlpool', icepatch: 'dep-icepatch' };
@@ -109,7 +109,7 @@ export class EntityViews {
   ) {
     const glowTex = scene.textures.exists('fx-glow') ? 'fx-glow' : 'item-glow';
     this.glowTex = glowTex;
-    this.trails = scene.add.graphics().setBlendMode(Phaser.BlendModes.ADD);
+    this.trails = fastShapes(scene.add.graphics().setBlendMode(Phaser.BlendModes.ADD));
     layer.add(this.trails);
     for (let i = 0; i < MAX_PROJECTILES; i++) {
       const gl = scene.add.image(0, 0, glowTex).setVisible(false).setBlendMode(Phaser.BlendModes.ADD);
@@ -146,7 +146,7 @@ export class EntityViews {
       this.items.push(s);
       this.itemSpark.push(sp);
     }
-    this.itemFx = scene.add.graphics().setBlendMode(Phaser.BlendModes.ADD);
+    this.itemFx = fastShapes(scene.add.graphics().setBlendMode(Phaser.BlendModes.ADD));
     layer.add(this.itemFx);
     for (let i = 0; i < MAX_FIGHTERS; i++) {
       const sw = scene.add.image(0, 0, 'item-sword-blade').setVisible(false).setScale(1 / ART_D).setOrigin(10 / 150, 0.5);
@@ -161,7 +161,7 @@ export class EntityViews {
       this.popGlow.push(pg);
       this.pop.push(pi);
     }
-    this.tether = scene.add.graphics().setDepth(5);
+    this.tether = fastShapes(scene.add.graphics().setDepth(5));
     layer.add(this.tether);
   }
 
