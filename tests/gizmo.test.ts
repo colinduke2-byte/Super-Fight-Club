@@ -57,7 +57,7 @@ describe('Gizmo identity', () => {
     expect(gizmo.stats.weight).toBe(88);
     expect(gizmo.stats.doubleJumps).toBe(1);
     expect(gizmo.body.height).toBeLessThan(brick.body.height);
-    expect(gizmo.body.height).toBeLessThan(24);
+    expect(gizmo.body.height).toBeLessThanOrEqual(25);
   });
 
   it('is weak without setup: normals are modest', () => {
@@ -344,7 +344,7 @@ describe('Gizmo fun pass', () => {
     for (let i = 0; i < 200; i++) {
       r.tick(inp({ held: Button.Jump }));
       if (r.a.jetting) hung++;
-      if (i > 30 && i < 100) lowest = Math.max(lowest, r.a.y);
+      if (i > 30 && i < 30 + gizmo.hover!.frames * 0.6) lowest = Math.max(lowest, r.a.y);
     }
     expect(hung).toBe(gizmo.hover!.frames);
     expect(r.a.grounded).toBe(true); // ran out and came down

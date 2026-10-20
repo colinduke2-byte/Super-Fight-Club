@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { CHARACTERS } from '../src/characters';
 import { Button, makeInput, type FighterInput } from '../src/engine/buttons';
 import { Fighter } from '../src/engine/fighter';
-import { AEGIS_FRAMES, applyItem, CELL_METER, CRATE, heldItem, heldState, ITEM_INTERVAL, RAYGUN, RAYGUN_PROJECTILE, SWORD, type ItemKind } from '../src/engine/items';
+import { AEGIS_FRAMES, applyItem, CELL_METER, CORE_METER, CRATE, heldItem, heldState, ITEM_INTERVAL, RAYGUN, RAYGUN_PROJECTILE, SWORD, type ItemKind } from '../src/engine/items';
 import { World } from '../src/engine/world';
 import { STAGES } from '../src/stages';
 
@@ -38,14 +38,15 @@ function rig(a = 'brick', b = 'vex', gap = 40) {
 }
 
 describe('item effects', () => {
-  it('Energy Cell adds 25 meter; a Core Fragment fills the ultimate', () => {
+  it('Energy Cell adds 25 meter; a Core Fragment adds a big chunk (not the whole bar)', () => {
     const t = rig();
     t.fa.meter = 0;
     applyItem(t.world, 'cell', 0);
     expect(t.fa.meter).toBe(CELL_METER);
     expect(CELL_METER).toBe(25);
     applyItem(t.world, 'core', 0);
-    expect(t.fa.meter).toBe(100);
+    expect(t.fa.meter).toBe(CELL_METER + CORE_METER);
+    expect(CORE_METER).toBeLessThan(100);
   });
 
   it('the Aegis Prism lasts three seconds and breaks the moment its holder lands a hit', () => {
@@ -108,6 +109,8 @@ describe('Beam Sword', () => {
     const t = rig('vex', 'brick', 44);
     t.place('sword', t.fa.x);
     t.run(1);
+    expect(heldItem(t.world, 0)).toBe(null); // carried items wait for a press
+    t.press(Button.Grab, 0, 0, 1);
     expect(heldItem(t.world, 0)).toBe('sword');
     expect(t.fa.heldBomb).toBe(true);
     t.press(Button.Attack, 0, 0, 1);
@@ -125,6 +128,8 @@ describe('Beam Sword', () => {
     const t = rig('brick', 'vex', 30);
     t.place('sword', t.fa.x);
     t.run(1);
+    expect(heldItem(t.world, 0)).toBe(null); // carried items wait for a press
+    t.press(Button.Grab, 0, 0, 1);
     t.press(Button.Attack, 0, 0, 40);
     expect(t.fb.damage).toBeCloseTo(SWORD.damage, 5);
   });
@@ -135,6 +140,8 @@ describe('Ray Gun', () => {
     const t = rig('brick', 'vex', 140);
     t.place('raygun', t.fa.x);
     t.run(1);
+    expect(heldItem(t.world, 0)).toBe(null); // carried items wait for a press
+    t.press(Button.Grab, 0, 0, 1);
     expect(heldItem(t.world, 0)).toBe('raygun');
     t.press(Button.Attack, 0, 0, 0);
     expect(t.world.projectiles.some((p) => p.active && p.defId === RAYGUN_PROJECTILE)).toBe(true);

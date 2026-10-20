@@ -16,8 +16,8 @@ export const stormStage: StageData = {
     { x: -46, y: -136, w: 92, h: 6, kind: 'pass', move: { axis: 'y', amplitude: 22, period: 380 } },
   ],
   hazards: [
-    { kind: 'bolt', x: -92, y: -380, w: 40, h: 380, period: 560, offset: 0, warn: 80, active: 14, damage: 11, base: 48, scaling: 1.0, angle: 84 },
-    { kind: 'bolt', x: 92, y: -380, w: 40, h: 380, period: 560, offset: 280, warn: 80, active: 14, damage: 11, base: 48, scaling: 1.0, angle: 96 },
+    { kind: 'bolt', x: -92, y: -380, w: 40, h: 380, period: 560, offset: 0, warn: 80, active: 14, damage: 11, base: 48, scaling: 0.85, angle: 84 },
+    { kind: 'bolt', x: 92, y: -380, w: 40, h: 380, period: 560, offset: 280, warn: 80, active: 14, damage: 11, base: 48, scaling: 0.85, angle: 96 },
   ],
   blast: { left: -580, right: 580, top: -480, bottom: 360 },
   spawns: [

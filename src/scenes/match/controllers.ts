@@ -40,6 +40,18 @@ export class MatchControllers {
       opts.replay || s.type !== 'cpu' ? new NullController() : s.boss ? new BossController(() => runner.match.scores[i].stocks, 1) : opts.isTraining && i === 1 ? this.dummy : opts.isLaunch && i === 1 ? new DummyController() : new CpuController(s.cpuLevel, i + 1, s.cpuSkill),
     );
     this.inputs = slots.map(() => makeInput());
+    // a replay plays the boss's recorded inputs, but its script also drives its enrage / roar / meter directly: it runs alongside
+    // (its own inputs thrown away) so the playback stays in step with the live match
+    this.shadows = opts.replay ? slots.map((s, i) => (s.boss ? new BossController(() => runner.match.scores[i].stocks, 1) : null)) : [];
+  }
+
+  /** Replay only: the boss scripts that run beside the recorded inputs (null per non-boss slot). */
+  private readonly shadows: (BossController | null)[];
+  private readonly scratch = makeInput();
+
+  /** Replay: runs the boss scripts for the tick about to be simulated (their inputs are discarded; the recording's are used). */
+  updateReplayShadows(fighters: Fighter[], world: World): void {
+    for (let i = 0; i < this.shadows.length; i++) this.shadows[i]?.update(fighters[i], world, this.scratch);
   }
 
   /** Samples every human's device into its input. Returns the slot of the first one that pressed pause (-1: none). */

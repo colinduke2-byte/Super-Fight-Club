@@ -1,9 +1,9 @@
 import { describe, expect, it } from 'vitest';
-import { CpuController } from '../src/ai/cpu';
+import { CpuController, punishWindow } from '../src/ai/cpu';
 import { aiFor, CHARACTER_AI, LEVELS, SKILLS, skillForLevel, type CpuLevel } from '../src/ai/profiles';
 import { specialTable } from '../src/ai/moveInfo';
 import { attackDecel, moveTable, NORMAL_INPUTS, travel } from '../src/ai/moveInfo';
-import { offstage } from '../src/ai/recovery';
+import { offstage, pickLedge } from '../src/ai/recovery';
 import { chooseTarget } from '../src/ai/targeting';
 import { CHARACTERS } from '../src/characters';
 import { makeInput } from '../src/engine/buttons';
@@ -112,7 +112,7 @@ describe('CPU skill scale', () => {
 describe('CPU recovery', () => {
   // off-stage spots a human could get back from (the last two are the hard ones)
   const reachable: [number, number][] = [[-230, 40], [230, 40], [-200, 120], [200, 120], [260, 80], [-260, 160]];
-  for (const char of ['brick', 'vex', 'nova', 'gizmo', 'agni']) {
+  for (const char of ['brick', 'vex', 'nova', 'gizmo', 'agni', 'halcyon', 'rime', 'riptide', 'obelisk', 'havoc']) {
     it(`${char}: Normal and Hard CPUs get back to the stage from every reachable spot`, () => {
       for (const level of [2, 3] as const) {
         for (const [x, y] of reachable) expect(recover(char, level, x, y), `${char} L${level} from ${x},${y}`).toBe(true);
@@ -159,6 +159,44 @@ describe('CPU recovery', () => {
       landed = me.grounded;
     }
     expect(landed).toBe(true);
+  });
+  it('the recovery planner runs at every level: Easy gets back from the plain spots with every fighter', () => {
+    const easy: [number, number][] = [[-230, 40], [230, 40], [-200, 120]];
+    for (const char of Object.keys(CHARACTERS).filter((c) => c !== 'overseer')) for (const [x, y] of easy) expect(recover(char, 1, x, y), `${char} from ${x},${y}`).toBe(true);
+  });
+  it('aims for a ledge a rival hangs on (a ledge trump knocks it off)', () => {
+    const { world, fighters } = arena(['brick', 'vex']);
+    const [me, rival] = fighters;
+    for (let i = 0; i < 140; i++) world.step([makeInput(), makeInput()]);
+    const l = world.ledges.find((x) => x.side === 1)!;
+    rival.grabLedge(l, world);
+    Object.assign(me, { x: l.x + 60, y: l.y + 60, grounded: false, groundPlat: null, state: 'air' });
+    expect(pickLedge(me, world, null)).toBe(l);
+  });
+  it('mashes out of grabs at a human pace, faster with skill', () => {
+    const presses = (skill: number): number => {
+      const { world, fighters } = arena(['brick', 'vex']);
+      const cpu = new CpuController(3, 1, skill);
+      const inp = makeInput();
+      Object.assign(fighters[0], { state: 'grabbed' });
+      let n = 0;
+      for (let t = 0; t < 60; t++) {
+        world.tick++;
+        cpu.update(fighters[0], world, inp);
+        if (inp.pressed) n++;
+      }
+      return n;
+    };
+    expect(presses(9)).toBeLessThanOrEqual(16);
+    expect(presses(9)).toBeGreaterThan(presses(1));
+  });
+  it('the punish window after a landing is the landing lag actually served', () => {
+    const { fighters } = arena(['brick', 'vex']);
+    const f = fighters[0];
+    Object.assign(f, { state: 'landing', stateFrame: 0, lagFrames: 20 });
+    expect(punishWindow(f)).toBe(20);
+    Object.assign(f, { lagFrames: 0 });
+    expect(punishWindow(f)).toBeLessThan(4);
   });
   it('an Easy Gizmo hovers back too', () => {
     for (const [x, y] of [[230, 40], [-260, 80]] as [number, number][]) expect(recover('gizmo', 1, x, y), `${x},${y}`).toBe(true);

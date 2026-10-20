@@ -83,9 +83,20 @@ export class LaunchContest {
   }
 }
 
-/** The player and the dummy: a rival fighter that just stands there (picked at random, never the player's own). */
-export function launchSlots(player: PlayerSlot, rand: () => number = Math.random): PlayerSlot[] {
-  const rivals = CHARACTER_LIST.map((c) => c.id).filter((id) => id !== player.character);
-  const bag = rivals[Math.floor(rand() * rivals.length)] ?? player.character;
-  return [{ ...player, index: 0 }, { index: 1, type: 'cpu', device: null, character: bag, cpuLevel: 1 }];
+/** The weight the standard dummy is picked for: the roster fighter closest to it stands in every Launch Contest. */
+export const STANDARD_DUMMY_WEIGHT = 100;
+
+/**
+ * The standard dummy: always the same middleweight (the roster fighter whose weight is closest to STANDARD_DUMMY_WEIGHT,
+ * ties by roster order), so every distance in the records was flown by the same body and they compare fairly.
+ */
+export function standardDummy(): string {
+  let best = CHARACTER_LIST[0];
+  for (const c of CHARACTER_LIST) if (Math.abs(c.stats.weight - STANDARD_DUMMY_WEIGHT) < Math.abs(best.stats.weight - STANDARD_DUMMY_WEIGHT)) best = c;
+  return best.id;
+}
+
+/** The player and the dummy: the standard dummy that just stands there (a mirror when the player picked that fighter). */
+export function launchSlots(player: PlayerSlot): PlayerSlot[] {
+  return [{ ...player, index: 0 }, { index: 1, type: 'cpu', device: null, character: standardDummy(), cpuLevel: 1 }];
 }

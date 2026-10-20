@@ -34,10 +34,13 @@ function giveBomb(world: World, f: Fighter): void {
 }
 
 describe('Shock Bomb item', () => {
-  it('is picked up on touch and carried, not used instantly', () => {
+  it('is picked up with Grab (not on touch) and carried, not used instantly', () => {
     const { world, fs, ins } = arena();
     giveBomb(world, fs[0]);
     world.step(ins);
+    expect(fs[0].heldBomb).toBe(false); // touching it is not enough
+    expect(world.items[0].active).toBe(true);
+    world.step([inp({ pressed: Button.Grab, held: Button.Grab }), ins[1]]);
     expect(fs[0].heldBomb).toBe(true);
     expect(world.items[0].active).toBe(false);
     expect(fs[0].damage).toBe(0);
@@ -46,7 +49,7 @@ describe('Shock Bomb item', () => {
   it('Attack throws it forward; it bursts on the opponent and credits the thrower', () => {
     const { world, fs, ins } = arena();
     giveBomb(world, fs[0]);
-    world.step(ins);
+    world.step([inp({ pressed: Button.Grab, held: Button.Grab }), ins[1]]);
     const events: string[] = [];
     world.listener = (t) => events.push(t);
     ins[0] = inp({ pressed: Button.Attack, held: Button.Attack });
@@ -65,7 +68,7 @@ describe('Shock Bomb item', () => {
     const { world, fs, ins } = arena();
     fs[1].x = 400; // far away
     giveBomb(world, fs[0]);
-    world.step(ins);
+    world.step([inp({ pressed: Button.Grab, held: Button.Grab }), ins[1]]);
     // straight up: comes back down on the thrower after the grace period
     ins[0] = inp({ pressed: Button.Attack, held: Button.Attack, stickY: -1 });
     world.step(ins);
@@ -82,7 +85,7 @@ describe('Shock Bomb item', () => {
       const { world, fs, ins } = arena();
       giveBomb(world, fs[0]);
       for (let i = 0; i < 120; i++) {
-        ins[0] = i === 5 ? inp({ pressed: Button.Attack, held: Button.Attack }) : inp({ stickX: i % 40 < 20 ? 1 : 0 });
+        ins[0] = i === 1 || i === 5 ? inp({ pressed: Button.Attack, held: Button.Attack }) : inp({ stickX: i % 40 < 20 ? 1 : 0 });
         world.step(ins);
       }
       return world.hash();

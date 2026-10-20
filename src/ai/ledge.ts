@@ -1,7 +1,8 @@
 import type { Fighter } from '../engine/fighter';
 import type { Ledge } from '../engine/platform';
 import type { World } from '../engine/world';
-import type { LevelParams } from './profiles';
+import type { CharacterAi, LevelParams } from './profiles';
+import { canGetBack } from './recoveryPlan';
 
 /** Get-up options from the ledge (see Fighter.ledgeLogic). 'drop' lets go and comes back with a jump (and an aerial). */
 export type LedgeOption = 'climb' | 'roll' | 'attack' | 'jump' | 'drop';
@@ -33,8 +34,22 @@ function guard(self: Fighter, world: World, l: Ledge): { d: number; busy: boolea
  * the rival: rolls past (or jumps over) one standing on the get-up spot, attacks one right at the edge, drops and comes back
  * with a jump against one waiting further in, and varies the timing so the get-up cannot be trapped on rhythm.
  */
-export function chooseLedgeOption(self: Fighter, world: World, l: Ledge, p: LevelParams, rnd: () => number): { opt: LedgeOption; wait: number } {
+export function chooseLedgeOption(self: Fighter, world: World, l: Ledge, p: LevelParams, rnd: () => number, ai?: CharacterAi): { opt: LedgeOption; wait: number } {
   const g = guard(self, world, l);
+  const pick = pickOption(self, p, rnd, g);
+  // letting go only when a simulated recovery from the hang point (falling a moment, then jump / up special) gets back
+  if (pick.opt === 'drop' && ai && !dropSafe(self, world, l, ai)) pick.opt = g.d < 36 ? 'roll' : 'climb';
+  return pick;
+}
+
+/** Can the fighter let go of ledge `l` and come back (a short fall, then its double jump and up special)? */
+export function dropSafe(self: Fighter, world: World, l: Ledge, ai: CharacterAi): boolean {
+  const y = l.y + self.h * 0.95 + 12;
+  const from = { x: l.x + l.side * (self.hw + 1), y, vx: 0, vy: 2, jumpsLeft: self.stats.doubleJumps, airDodgeUsed: false, helpless: false, grabCooldown: 20, facing: -l.side as 1 | -1 };
+  return canGetBack(self, world, l, ai.recovery.aim, from, !!(self.data.glide || self.data.hover));
+}
+
+function pickOption(self: Fighter, p: LevelParams, rnd: () => number, g: { d: number; busy: boolean; air: boolean }): { opt: LedgeOption; wait: number } {
   const mix = p.ledgeMix;
   const wait = p.smart ? 8 + Math.floor(rnd() * (14 + 40 * mix)) : 40 + Math.floor(rnd() * 60);
   if (rnd() >= mix) {

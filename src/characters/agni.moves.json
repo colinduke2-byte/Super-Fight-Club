@@ -161,7 +161,7 @@
     "damage": 14,
     "angle": 40,
     "base": 76,
-    "scaling": 1.0,
+    "scaling": 1,
     "hitlag": 1.4,
     "fx": "fire",
     "status": {
@@ -279,7 +279,8 @@
      "base": 8,
      "scaling": 0.15,
      "minHitstun": 18,
-     "fx": "punch"
+     "fx": "punch",
+     "setKb": 14
     }
    ],
    "pose": {
@@ -347,7 +348,8 @@
      "base": 8,
      "scaling": 0.15,
      "minHitstun": 20,
-     "fx": "punch"
+     "fx": "punch",
+     "setKb": 14
     }
    ],
    "pose": {
@@ -400,7 +402,7 @@
    "motion": [
     {
      "frame": 4,
-     "vx": 1.0
+     "vx": 1
     }
    ],
    "hitboxes": [
@@ -763,7 +765,7 @@
    "motion": [
     {
      "frame": 10,
-     "vx": 2.0
+     "vx": 2
     }
    ],
    "hitboxes": [
@@ -1041,7 +1043,8 @@
      "dir": "away",
      "minHitstun": 10,
      "hitlag": 0.7,
-     "fx": "punch"
+     "fx": "punch",
+     "setKb": 14
     }
    ],
    "pose": {
@@ -1524,7 +1527,7 @@
    },
    "view": {
     "stretch": 1.06,
-    "smear": 1.0,
+    "smear": 1,
     "arc": "none"
    }
   },
@@ -1684,7 +1687,8 @@
      "group": 0,
      "minHitstun": 14,
      "hitlag": 0.7,
-     "fx": "fire"
+     "fx": "fire",
+     "setKb": 14
     },
     {
      "x": 20,
@@ -1740,7 +1744,8 @@
      "group": 0,
      "minHitstun": 14,
      "hitlag": 0.7,
-     "fx": "fire"
+     "fx": "fire",
+     "setKb": 14
     },
     {
      "x": 20,
@@ -1796,7 +1801,8 @@
      "group": 0,
      "minHitstun": 14,
      "hitlag": 0.7,
-     "fx": "fire"
+     "fx": "fire",
+     "setKb": 14
     },
     {
      "x": 18,
@@ -1814,7 +1820,8 @@
      "group": 1,
      "minHitstun": 14,
      "hitlag": 0.7,
-     "fx": "fire"
+     "fx": "fire",
+     "setKb": 14
     },
     {
      "x": 20,
@@ -1855,7 +1862,7 @@
    "motion": [
     {
      "frame": 4,
-     "vx": 5.0
+     "vx": 5
     }
    ],
    "hitboxes": [
@@ -1875,7 +1882,8 @@
      "group": 0,
      "minHitstun": 14,
      "hitlag": 0.7,
-     "fx": "fire"
+     "fx": "fire",
+     "setKb": 14
     },
     {
      "x": 18,
@@ -1893,7 +1901,8 @@
      "group": 1,
      "minHitstun": 14,
      "hitlag": 0.7,
-     "fx": "fire"
+     "fx": "fire",
+     "setKb": 14
     },
     {
      "x": 18,
@@ -1911,7 +1920,8 @@
      "group": 2,
      "minHitstun": 14,
      "hitlag": 0.7,
-     "fx": "fire"
+     "fx": "fire",
+     "setKb": 14
     },
     {
      "x": 20,
@@ -1955,7 +1965,7 @@
     {
      "frame": 6,
      "vy": -6.6,
-     "vx": 0.9,
+     "vx": 1.2,
      "mode": "set"
     }
    ],
@@ -1968,7 +1978,7 @@
     {
      "frame": 10,
      "action": "ledgeSnap",
-     "range": 80
+     "range": 92
     }
    ],
    "hitboxes": [
@@ -2023,7 +2033,8 @@
    "invuln": [
     1,
     5
-   ]
+   ],
+   "airDrift": 1.5
   },
   "upB_1": {
    "name": "Rising Flare",
@@ -2038,7 +2049,7 @@
     {
      "frame": 6,
      "vy": -6.8,
-     "vx": 0.9,
+     "vx": 1.2,
      "mode": "set"
     }
    ],
@@ -2051,7 +2062,7 @@
     {
      "frame": 10,
      "action": "ledgeSnap",
-     "range": 80
+     "range": 92
     }
    ],
    "hitboxes": [
@@ -2106,7 +2117,8 @@
    "invuln": [
     1,
     5
-   ]
+   ],
+   "airDrift": 1.5
   },
   "upB_2": {
    "name": "Rising Flare",
@@ -2120,8 +2132,8 @@
    "motion": [
     {
      "frame": 6,
-     "vy": -7.0,
-     "vx": 0.9,
+     "vy": -7,
+     "vx": 1.2,
      "mode": "set"
     }
    ],
@@ -2134,7 +2146,7 @@
     {
      "frame": 10,
      "action": "ledgeSnap",
-     "range": 80
+     "range": 92
     }
    ],
    "hitboxes": [
@@ -2189,7 +2201,8 @@
     "stretch": 1.18,
     "smear": 1.5999999999999999,
     "ghosts": true
-   }
+   },
+   "airDrift": 1.5
   },
   "upB_3": {
    "name": "Rising Flare",
@@ -2204,7 +2217,7 @@
     {
      "frame": 6,
      "vy": -7.6,
-     "vx": 0.9,
+     "vx": 1.2,
      "mode": "set"
     }
    ],
@@ -2217,7 +2230,7 @@
     {
      "frame": 10,
      "action": "ledgeSnap",
-     "range": 80
+     "range": 92
     }
    ],
    "hitboxes": [
@@ -2282,7 +2295,8 @@
     "stretch": 1.2,
     "smear": 1.7,
     "ghosts": true
-   }
+   },
+   "airDrift": 1.5
   },
   "downB_0": {
    "name": "Flare Burst",
@@ -2455,7 +2469,7 @@
      "damage": 14.64,
      "angle": 60,
      "base": 54,
-     "scaling": 1.0,
+     "scaling": 1,
      "dir": "away",
      "hitlag": 1.2,
      "fx": "fire",

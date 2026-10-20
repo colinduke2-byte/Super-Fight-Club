@@ -2,7 +2,7 @@ import Phaser from 'phaser';
 import { fighterTextureKey, animFrameIndex, portraitCrop, portraitK } from '../art/proceduralFighter';
 import { PIXEL_FONT, up } from '../art/pixelFont';
 import type { CharacterData } from '../engine/types';
-import { addCanvasTexture } from '../art/canvasTexture';
+import { addCanvasTexture, context2dOrBlank } from '../art/canvasTexture';
 import type { BossBar } from './BossBar';
 import { COLORS, drawPortShape } from './menuKit';
 import { settings } from '../settings';
@@ -33,7 +33,7 @@ function ensureStatusTexture(scene: Phaser.Scene): void {
   const c = document.createElement('canvas');
   c.width = 9 * STATUS_ICONS.length;
   c.height = 9;
-  const g = c.getContext('2d')!;
+  const g = context2dOrBlank(c);
   STATUS_ICONS.forEach((ic, i) => {
     const on = (x: number, y: number): boolean => x >= 0 && y >= 0 && x < 7 && y < 7 && ic.px[y][x] !== '.';
     g.fillStyle = '#0c0b18';

@@ -1,6 +1,7 @@
 import type { CpuLevel } from './lobby';
 import { recordChallengeTier, type ChallengeRunOutcome } from './records';
-import { DEFAULT_RULES, type MatchResult, type MatchRules, type PlayerSlot } from './session';
+import { characterById } from '../characters';
+import { DEFAULT_RULES, type ChallengeRunResult, type MatchResult, type MatchRules, type PlayerSlot } from './session';
 
 export interface ChallengeFoe {
   character: string;
@@ -35,6 +36,16 @@ export interface Challenge {
 }
 
 const par = (sec: number): ChallengeGoal => ({ kind: 'time', sec });
+
+/** "Brick outweighs Obelisk, 120 to 95": who is heavier, read from the character data (so a balance change keeps the brief true). */
+export function weightLine(a: string, b: string): string {
+  const wa = characterById(a)?.stats.weight ?? 0;
+  const wb = characterById(b)?.stats.weight ?? 0;
+  const name = (id: string): string => characterById(id)?.name ?? id;
+  if (wa === wb) return `${name(a)} and ${name(b)} weigh the same`;
+  const [hi, lo, whi, wlo] = wa > wb ? [a, b, wa, wb] : [b, a, wb, wa];
+  return `${name(hi)} outweighs ${name(lo)}, ${whi} to ${wlo}`;
+}
 const FLAWLESS: ChallengeGoal = { kind: 'flawless' };
 
 export const CHALLENGES: Challenge[] = [
@@ -51,9 +62,9 @@ export const CHALLENGES: Challenge[] = [
   { id: 'winters-bell', title: "WINTER'S BELL", brief: 'As Rime, on its own mountain: Agni came to melt the snow and Brick to take the bell. Freeze them both.', stage: 'frostfang', you: 'rime', rules: { stocks: 2 }, foes: [{ character: 'agni', level: 2 }, { character: 'brick', level: 2 }], silver: par(150), gold: FLAWLESS },
   { id: 'hijack', title: 'HIJACK', brief: 'As Havoc on the Stormrunner: Gizmo and Halcyon took the ship. Blow them off the deck.', stage: 'stormrunner', you: 'havoc', rules: { stocks: 2 }, foes: [{ character: 'gizmo', level: 2 }, { character: 'halcyon', level: 3 }], silver: par(160), gold: FLAWLESS },
   { id: 'whiteout', title: 'WHITEOUT', brief: 'You and Rime against Havoc and Riptide in the snow. Watch the slopes for avalanches.', stage: 'frostfang', you: null, rules: { stocks: 2, teams: true }, ally: { character: 'rime', level: 2 }, foes: [{ character: 'havoc', level: 3 }, { character: 'riptide', level: 2 }], silver: par(170), gold: FLAWLESS },
-  { id: 'warden', title: 'THE WARDEN', brief: 'The Overseer, without the Ladder to warm up. Three stocks.', stage: 'reactor', you: null, rules: { stocks: 3 }, foes: [{ character: 'overseer', level: 3, stocks: 2, boss: true }], playerStocks: 3, silver: par(240), gold: { kind: 'stocks', n: 2 } },
+  { id: 'warden', title: 'THE WARDEN', brief: 'The Overseer on its own summit, without the Ladder to warm up. Three stocks.', stage: 'apex', you: null, rules: { stocks: 3 }, foes: [{ character: 'overseer', level: 3, stocks: 2, boss: true }], playerStocks: 3, silver: par(240), gold: { kind: 'stocks', n: 2 } },
   // every fighter gets (at least) two challenges of its own
-  { id: 'heavyweight', title: 'HEAVYWEIGHT', brief: 'As Brick in the temple: Obelisk is heavier. Whoever blinks first flies.', stage: 'temple', you: 'brick', rules: { stocks: 2 }, foes: [{ character: 'obelisk', level: 3 }], silver: par(120), gold: FLAWLESS },
+  { id: 'heavyweight', title: 'HEAVYWEIGHT', brief: `As Brick in the temple: ${weightLine('brick', 'obelisk')}. Whoever blinks first flies.`, stage: 'temple', you: 'brick', rules: { stocks: 2 }, foes: [{ character: 'obelisk', level: 3 }], silver: par(120), gold: FLAWLESS },
   { id: 'wrecking-ball', title: 'WRECKING BALL', brief: 'As Brick, items on high: three rivals and a reactor full of bombs.', stage: 'reactor', you: 'brick', rules: { stocks: 2, items: 2 }, foes: [{ character: 'vex', level: 2 }, { character: 'havoc', level: 2 }, { character: 'nova', level: 1 }], silver: par(200), gold: { kind: 'kos', n: 5 } },
   { id: 'blade-dance', title: 'BLADE DANCE', brief: 'As Vex, Stamina 100 in the ring: Halcyon hits as hard as you. Hit first.', stage: 'ring', you: 'vex', rules: { mode: 'stamina', staminaHp: 100, stocks: 1 }, foes: [{ character: 'halcyon', level: 3 }], silver: par(60), gold: { kind: 'combo', hits: 5 } },
   { id: 'glass-cannon', title: 'GLASS CANNON', brief: 'As Vex with one stock against two of Brick. No room for mistakes.', stage: 'classic', you: 'vex', rules: { stocks: 2 }, foes: [{ character: 'brick', level: 2 }], playerStocks: 1, silver: par(90), gold: { kind: 'combo', hits: 6 } },
@@ -147,3 +158,21 @@ export function recordChallengeResult(c: Challenge, character: string, r: MatchR
   const earned = challengeTier(c, r);
   return { ...recordChallengeTier(c.id, character, earned, r.durationSec), earned };
 }
+
+/** Everything the Results screen shows about a finished challenge run: the medal, each goal met or not, and what it improved. */
+export function challengeRunResult(c: Challenge, character: string, r: MatchResult): ChallengeRunResult {
+  const out = recordChallengeResult(c, character, r);
+  const cleared = challengeCleared(r);
+  return {
+    id: c.id,
+    earned: out.earned,
+    silverMet: cleared && goalMet(c.silver, r),
+    goldMet: cleared && goalMet(c.gold, r),
+    firstClear: out.firstClear,
+    newTier: out.newTier,
+    newBestTime: out.newBestTime,
+    tier: out.tier,
+    durationSec: r.durationSec,
+  };
+}
+

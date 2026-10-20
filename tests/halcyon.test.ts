@@ -33,8 +33,8 @@ describe('Halcyon: wings', () => {
     glide.run(200, inp({ held: Button.Jump }));
     expect(glide.h.glideFrames).toBeLessThanOrEqual(halcyon.glide!.max);
   });
-  it('has three air flaps', () => {
-    expect(halcyon.stats.doubleJumps).toBe(3);
+  it('has two air flaps', () => {
+    expect(halcyon.stats.doubleJumps).toBe(2);
   });
   it('gliding stops on landing and resets the budget', () => {
     const r = rig(-60);

@@ -59,7 +59,7 @@ export const obelisk: CharacterData = {
     groundAccel: 0.24,
     groundFriction: 0.32,
     airAccel: 0.15,
-    airFriction: 0.05,
+    airFriction: 0.04,
     gravity: 0.5,
     fallSpeed: 6.5,
     fastFallSpeed: 9.6,

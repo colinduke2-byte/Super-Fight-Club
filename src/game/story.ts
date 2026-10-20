@@ -1,6 +1,6 @@
 import { characterById } from '../characters';
 import type { CharacterPersona } from '../engine/types';
-import type { LadderFight, LadderState } from './ladder';
+import { DIFFICULTY_NAMES, ladderDifficulty, type LadderFight, type LadderState } from './ladder';
 
 type Persona = CharacterPersona;
 
@@ -16,6 +16,8 @@ export interface StoryCard {
   right?: string;
   /** Outfit / colour the right-hand fighter wears (arcade rivals roll one per run). */
   rightPalette?: number;
+  /** Every rival on the card, the main one (`right`) first: a brawl shows them all. */
+  rivals?: { character: string; palette?: number }[];
 }
 
 export const LINE_WIDTH = 36;
@@ -62,7 +64,7 @@ export function fightCard(state: LadderState, fight: LadderFight): StoryCard {
     return { art: 'boss', title: `${n}: ${fight.title}`, lines: wrap(personaOf('overseer').taunt), left: state.player, right: 'overseer' };
   }
   if (fight.kind === 'brawl') {
-    return { art: 'duel', title: `${n}: ${fight.title}`, lines: wrap(`${fight.opponents.map((o) => nameOf(o.character)).join(fight.opponents.length > 2 ? ', ' : ' and ').replace(/, ([^,]*)$/, ' and $1')} step into the ring together. The crowd loves a mess.`), left: state.player, right: fight.opponents[0].character, rightPalette: fight.opponents[0].palette };
+    return { art: 'duel', title: `${n}: ${fight.title}`, lines: wrap(`${fight.opponents.map((o) => nameOf(o.character)).join(fight.opponents.length > 2 ? ', ' : ' and ').replace(/, ([^,]*)$/, ' and $1')} step into the ring together. The crowd loves a mess.`), left: state.player, right: fight.opponents[0].character, rightPalette: fight.opponents[0].palette, rivals: fight.opponents.map((o) => ({ character: o.character, palette: o.palette })) };
   }
   const mirror = opp.character === state.player;
   const line = mirror ? 'A copy of you, without the doubt. It fights like you do, and it does not hesitate.' : `${nameOf(opp.character)}: "${personaOf(opp.character).taunt}"`;
@@ -82,5 +84,19 @@ export function endingCards(state: LadderState): StoryCard[] {
       lines: wrap(`Champion: ${nameOf(state.player)}\nKOs: ${state.kos}   Time: ${mins}:${secs}\nContinues used: ${state.continuesUsed}`),
       left: state.player,
     },
+    ...(state.clear ? [clearCard(state)] : []),
   ];
+}
+
+/** The run's score card: score (and NEW BEST), stars out of three (and a new one), the difficulty and a first clear. */
+export function clearCard(state: LadderState): StoryCard {
+  const c = state.clear!;
+  const stars = `${'*'.repeat(c.stars)}${'-'.repeat(Math.max(0, 3 - c.stars))}`;
+  const lines = [
+    `Score: ${c.score.toLocaleString('en-US')}${c.newBestScore ? '  NEW BEST!' : ''}`,
+    `Stars: ${stars} (${c.stars} of 3)${c.stars > c.prevStars ? '  NEW!' : ''}`,
+    `Difficulty: ${DIFFICULTY_NAMES[ladderDifficulty(state)]}`,
+    ...(c.firstClear ? ['First clear with this fighter!'] : c.newBestTime ? ['A new best time!'] : []),
+  ];
+  return { art: 'victory', title: c.newBestScore || c.firstClear ? 'NEW RECORD' : 'FINAL SCORE', lines, left: state.player };
 }

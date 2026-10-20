@@ -361,7 +361,7 @@ describe('Brick identity', () => {
     const s = brick.stats;
     expect(s.weight).toBe(120);
     expect(s.runSpeed).toBeLessThan(2.1);
-    expect(s.airSpeed).toBeLessThan(1.6);
+    expect(s.airSpeed).toBeLessThanOrEqual(1.6); // still the slowest in the air, but enough drift to recover
     expect(s.fallSpeed).toBeGreaterThanOrEqual(8);
     expect(s.gravity).toBeGreaterThanOrEqual(0.6);
     expect(s.doubleJumps).toBe(1);

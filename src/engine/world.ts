@@ -229,6 +229,7 @@ export class World {
       // a blast projectile that died this tick still has to go off (resolveBlasts, end of tick): leave its slot alone
       if (p.active || (p.def?.blast && !p.exploded && p.age > 0)) continue;
       p.spawn(ownerId, defId, def, x, y, vx, vy, dmgMult);
+      p.moveId = this.fighters[ownerId]?.move?.id ?? '';
       this.emit('projectile', this.fighters[ownerId], x, y, 0, 0);
       return p;
     }

@@ -13,7 +13,7 @@ export interface FighterRecord {
   falls: number;
 }
 
-/** Arcade Ladder clears for one fighter. `bestSec` 0 = never cleared; `hardestClear` 0 = never, else the CPU level (1-3). */
+/** Arcade Ladder clears for one fighter. `bestSec` 0 = never cleared; `hardestClear` 0 = never, else the difficulty (1 easy .. 4 very hard). */
 export interface ArcadeRecord {
   clears: number;
   bestSec: number;
@@ -43,6 +43,8 @@ export interface LifetimeStats {
   ultimateKos: number;
   /** Matches per stage id. */
   stages: Record<string, number>;
+  /** Matches per stage id that a human player won (alone or on the winning team). */
+  stageWins: Record<string, number>;
   /** your fighter -> opponent fighter -> wins / losses. */
   matchups: Record<string, Record<string, MatchupRecord>>;
 }
@@ -70,7 +72,7 @@ export interface Records {
 /** Version of the saved shape. v1: no version field; v2: same fields + version; v3 adds chalBest, arcade, stats. */
 export const RECORDS_VERSION = 3;
 
-const emptyStats = (): LifetimeStats => ({ matches: 0, playSec: 0, kos: 0, falls: 0, damage: 0, bestCombo: 0, bestComboBy: '', ultimateKos: 0, stages: {}, matchups: {} });
+const emptyStats = (): LifetimeStats => ({ matches: 0, playSec: 0, kos: 0, falls: 0, damage: 0, bestCombo: 0, bestComboBy: '', ultimateKos: 0, stages: {}, stageWins: {}, matchups: {} });
 export const emptyRecords = (): Records => ({ targets: {}, fighters: {}, launch: {}, challenges: {}, chalBest: {}, arcade: {}, stats: emptyStats() });
 const empty = emptyRecords;
 
@@ -99,6 +101,8 @@ function parseStats(v: unknown): LifetimeStats {
   s.bestComboBy = s.bestCombo && typeof v.bestComboBy === 'string' && okId(v.bestComboBy) ? v.bestComboBy : '';
   s.ultimateKos = count(v.ultimateKos);
   for (const [k, n] of Object.entries(positives(v.stages))) s.stages[k] = Math.floor(n);
+  // wins can never exceed the matches played there
+  for (const [k, n] of Object.entries(positives(v.stageWins))) if (s.stages[k]) s.stageWins[k] = Math.min(s.stages[k], Math.floor(n));
   if (isObj(v.matchups)) {
     for (const [me, row] of Object.entries(v.matchups)) {
       if (!okId(me) || !isObj(row)) continue;
@@ -154,7 +158,7 @@ export function recordsFrom(d: unknown): Records {
       if (!okId(k) || !isObj(a)) continue;
       const clears = count(a.clears);
       if (!clears) continue;
-      r.arcade[k] = { clears, bestSec: amount(a.bestSec), bestScore: count(a.bestScore), noContinue: Math.min(clears, count(a.noContinue)), hardestClear: Math.min(3, count(a.hardestClear)) };
+      r.arcade[k] = { clears, bestSec: amount(a.bestSec), bestScore: count(a.bestScore), noContinue: Math.min(clears, count(a.noContinue)), hardestClear: Math.min(MAX_DIFFICULTY, count(a.hardestClear)) };
     }
   }
   r.stats = parseStats(d.stats);
@@ -163,6 +167,9 @@ export function recordsFrom(d: unknown): Records {
 
 /** The parsed records, kept between calls; dropped when another tab writes them (storage event) or on reset. */
 let cache: Records | null = null;
+
+/** False once storage refused a read or a write: the cached copy is then the only up-to-date one. */
+let storageOk = true;
 
 function load(): Records {
   if (cache) return cache;
@@ -176,12 +183,31 @@ function load(): Records {
   return cache;
 }
 
+/**
+ * The records as they are in storage right now, for a change about to be written: another tab may have saved since this
+ * one cached its copy, so every write starts from a fresh read and applies only its own change on top (two open tabs
+ * never overwrite each other's results). Falls back to the cached copy when storage cannot be read or written.
+ */
+function loadForWrite(): Records {
+  if (!storageOk && cache) return cache;
+  let raw: string | null;
+  try {
+    raw = localStorage.getItem(KEY);
+  } catch {
+    storageOk = false;
+    return load();
+  }
+  cache = parseRecords(raw);
+  return cache;
+}
+
 function save(r: Records): void {
   cache = r;
   try {
     localStorage.setItem(KEY, JSON.stringify({ version: RECORDS_VERSION, ...r }));
+    storageOk = true;
   } catch {
-    /* ignore: the records still last for this session */
+    storageOk = false; // the records still last for this session
   }
 }
 
@@ -217,7 +243,7 @@ export function bestTargetTime(character: string): number | null {
 /** Record a cleared run; returns true when it beats the previous best. */
 export function recordTargetTime(character: string, ticks: number): boolean {
   if (!positive(ticks)) return false;
-  const r = load();
+  const r = loadForWrite();
   const prev = r.targets[character];
   if (prev !== undefined && prev <= ticks) return false;
   r.targets[character] = ticks;
@@ -233,7 +259,7 @@ export function bestLaunch(character: string): number | null {
 /** Record a launch; returns true when it beats the previous best (a zero never counts). */
 export function recordLaunch(character: string, metres: number): boolean {
   if (!positive(metres)) return false;
-  const r = load();
+  const r = loadForWrite();
   const prev = r.launch[character];
   if (prev !== undefined && prev >= metres) return false;
   r.launch[character] = metres;
@@ -248,7 +274,7 @@ export function clearedChallenges(): Record<string, string> {
 
 /** Mark a challenge cleared; returns true the first time. */
 export function recordChallenge(id: string, character: string): boolean {
-  const r = load();
+  const r = loadForWrite();
   if (r.challenges[id]) return false;
   r.challenges[id] = character;
   save(r);
@@ -276,7 +302,7 @@ export interface ChallengeRunOutcome {
  * Keeps the best medal and the fastest clear separately, and marks the challenge cleared (first fighter) as before.
  */
 export function recordChallengeTier(id: string, character: string, tier: number, sec: number): ChallengeRunOutcome {
-  const r = load();
+  const r = loadForWrite();
   const prev = r.chalBest[id];
   const t = Math.max(0, Math.min(3, Math.floor(tier || 0)));
   const out: ChallengeRunOutcome = { firstClear: false, newTier: false, newBestTime: false, tier: prev?.tier ?? 0 };
@@ -315,7 +341,7 @@ export function formatSec(sec: number): string {
 
 /** Add one finished match for a human-controlled fighter. */
 export function recordMatch(character: string, won: boolean, kos: number, falls: number): void {
-  const r = load();
+  const r = loadForWrite();
   const f = r.fighters[character] ?? { played: 0, wins: 0, kos: 0, falls: 0 };
   f.played++;
   if (won) f.wins++;
@@ -360,11 +386,15 @@ export interface StatsMatch {
 export function recordMatchStats(result: StatsMatch, stage: string, ultimateKos?: Record<number, number>): void {
   const humans = result.players.filter((p) => p.type === 'human');
   if (!humans.length) return;
-  const r = load();
+  const r = loadForWrite();
   const s = r.stats;
   s.matches++;
   s.playSec += amount(result.durationSec);
-  if (stage && okId(stage)) s.stages[stage] = (s.stages[stage] ?? 0) + 1;
+  if (stage && okId(stage)) {
+    s.stages[stage] = (s.stages[stage] ?? 0) + 1;
+    const humanWon = humans.some((p) => (result.winnerTeam >= 0 ? p.team === result.winnerTeam : p.index === result.winner));
+    if (humanWon) s.stageWins[stage] = (s.stageWins[stage] ?? 0) + 1;
+  }
   for (const p of humans) {
     s.kos += count(p.kos);
     s.falls += count(p.falls);
@@ -416,23 +446,30 @@ export interface ArcadeRun {
   /** Seconds over the won fights. */
   seconds: number;
   continuesUsed: number;
-  /** CPU level the run was played at (1 easy, 2 normal, 3 hard). */
+  /** Difficulty the run was played at (1 easy, 2 normal, 3 hard, 4 very hard). */
   difficulty: number;
 }
+
+/** Arcade difficulties run 1 (easy) to 4 (very hard). */
+export const MAX_DIFFICULTY = 4;
+/** Names of the arcade difficulties (index 0: never cleared). */
+export const DIFFICULTY_LABELS = ['-', 'EASY', 'NORMAL', 'HARD', 'VERY HARD'] as const;
+/** Score multiplier per difficulty. */
+const DIFFICULTY_SCORE = [0, 0.8, 1, 1.25, 1.5];
+const difficultyOf = (d: unknown): number => Math.max(1, Math.min(MAX_DIFFICULTY, Math.round(Number(d) || 2)));
 
 /** Score for a cleared run at or above this earns the third arcade star. */
 export const ARCADE_STAR_SCORE = 45000;
 
 /**
  * Arcade score: 10 000 for the clear, 500 per KO, 20 per second under a 20-minute par, 5 000 for a run without
- * continues and minus 2 500 per continue; the total is scaled by difficulty (x0.8 easy, x1 normal, x1.25 hard),
+ * continues and minus 2 500 per continue; the total is scaled by difficulty (x0.8 easy, x1 normal, x1.25 hard, x1.5 very hard),
  * rounded to tens and never negative.
  */
 export function arcadeScore(run: ArcadeRun): number {
   const cont = count(run.continuesUsed);
   const raw = 10000 + count(run.kos) * 500 + Math.max(0, 1200 - amount(run.seconds)) * 20 + (cont ? -2500 * cont : 5000);
-  const lvl = Math.max(1, Math.min(3, Math.round(run.difficulty || 2)));
-  const k = [0, 0.8, 1, 1.25][lvl];
+  const k = DIFFICULTY_SCORE[difficultyOf(run.difficulty)];
   return Math.max(0, Math.round((raw * k) / 10) * 10);
 }
 
@@ -453,7 +490,7 @@ export interface ArcadeClearOutcome {
 
 /** Record a cleared Arcade Ladder run for `character`; returns the run's score and what it improved. */
 export function recordArcadeClear(character: string, run: ArcadeRun): ArcadeClearOutcome {
-  const r = load();
+  const r = loadForWrite();
   const prev = r.arcade[character];
   const prevStars = arcadeStars(prev);
   const score = arcadeScore(run);
@@ -461,7 +498,7 @@ export function recordArcadeClear(character: string, run: ArcadeRun): ArcadeClea
   const a: ArcadeRecord = prev ? { ...prev } : { clears: 0, bestSec: 0, bestScore: 0, noContinue: 0, hardestClear: 0 };
   a.clears++;
   if (!count(run.continuesUsed)) a.noContinue++;
-  a.hardestClear = Math.max(a.hardestClear, Math.max(1, Math.min(3, Math.round(run.difficulty || 2))));
+  a.hardestClear = Math.max(a.hardestClear, difficultyOf(run.difficulty));
   const newBestScore = score > a.bestScore;
   if (newBestScore) a.bestScore = score;
   const newBestTime = sec > 0 && (!a.bestSec || sec < a.bestSec);
@@ -491,7 +528,7 @@ export const RECORD_SECTIONS: { id: RecordSection; label: string }[] = [
 
 /** Forget one section. */
 export function resetRecordSection(section: RecordSection): void {
-  const r = load();
+  const r = loadForWrite();
   if (section === 'challenges') {
     r.challenges = {};
     r.chalBest = {};

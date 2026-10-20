@@ -3,11 +3,12 @@ import type { CharacterData } from '../engine/types';
 import { releaseUnusedOutfits } from './outfits';
 import { animFrameIndex, ensureFightersReady, ensurePalette, fighterTextureKey, paletteReady, portraitCrop, portraitK, requestPalette } from '../art/proceduralFighter';
 import { PIXEL_FONT, up } from '../art/pixelFont';
+import { ensureStageArt } from '../art/stageArt';
 import { characterById } from '../characters';
-import { currentFight, slotsForFight, type LadderState } from '../game/ladder';
+import { ARCADE_DIFFICULTIES, DIFFICULTY_NAMES, canPickDifficulty, currentFight, fightSkill, ladderDifficulty, rememberDifficulty, setLadderDifficulty, slotsForFight, type LadderOpponent, type LadderState } from '../game/ladder';
 import { session } from '../game/session';
 import { fightCard, nameOf } from '../game/story';
-import { LEVELS } from '../ai/profiles';
+import { skillParams } from '../ai/profiles';
 import type { MenuEvent } from '../input/menuInput';
 import { settings } from '../settings';
 import { STAGES } from '../stages';
@@ -96,8 +97,7 @@ export class LadderMapScene extends MenuScene {
       if (!ready) this.pendingBase.push({ img, data: opp });
       img.setData('k', portraitK(opp));
       const num = this.add.bitmapText(0, 0, PIXEL_FONT, String(f.index + 1)).setOrigin(0.5).setTint(0xffffff);
-      const o = f.opponents[0];
-      const lvl = text(this, this.ui, f.kind === 'boss' ? 'BOSS' : f.opponents.length > 1 ? `${f.opponents.length} FOES` : LEVELS[o.level].name, f.kind === 'boss' ? 0xff6a7a : COLORS.hint).setOrigin(0.5, 0);
+      const lvl = text(this, this.ui, this.nodeLabel(f.index), f.kind === 'boss' ? 0xff6a7a : COLORS.hint).setOrigin(0.5, 0);
       this.ui.add([img, num]);
       this.nodes.push({ img, thumb, num, lvl, x: 0, y: 0, w: 0, h: 0 });
     });
@@ -107,12 +107,39 @@ export class LadderMapScene extends MenuScene {
     this.info = text(this, this.ui, '', COLORS.text).setOrigin(0.5);
     this.sub = text(this, this.ui, '', COLORS.accent).setOrigin(0.5);
     this.cont = text(this, this.ui, '', COLORS.warn).setOrigin(0.5);
+    // the difficulty is picked on the map before the first fight (then it is fixed for the run)
+    const pick = canPickDifficulty(this.ladder);
+    const cycle = (dir: number): void => {
+      const l = this.ladder;
+      const i = ARCADE_DIFFICULTIES.indexOf(ladderDifficulty(l));
+      const d = ARCADE_DIFFICULTIES[(i + dir + ARCADE_DIFFICULTIES.length) % ARCADE_DIFFICULTIES.length];
+      if (setLadderDifficulty(l, d)) {
+        rememberDifficulty(d);
+        this.nodes.forEach((nd, k) => nd.lvl.setText(this.nodeLabel(k)));
+        this.layoutUi(this.scale.width, this.scale.height, this.u);
+      }
+    };
     this.list = new MenuList(this, this.ui, [
+      ...(pick ? [{ label: 'DIFFICULTY', value: () => DIFFICULTY_NAMES[ladderDifficulty(this.ladder)], onLeft: () => cycle(-1), onRight: () => cycle(1), onConfirm: () => cycle(1), hint: 'CPU SKILL CLIMBS FIGHT BY FIGHT. HARDER SCORES MORE.' }] : []),
       { label: 'FIGHT', onConfirm: () => void this.fight() },
       { label: 'QUIT', onConfirm: () => this.go('ModeSelect') },
     ]);
+    if (pick) this.list.index = 1;
     this.hint = text(this, this.ui, '', COLORS.dim).setOrigin(0.5);
     this.bindFooter(this.hint, [['updown', 'MOVE'], ['confirm', 'SELECT'], ['back', 'QUIT']]);
+  }
+
+  /** Under a node: the rival's CPU skill name at this run's difficulty, the number of foes in a brawl, or BOSS. */
+  private nodeLabel(i: number): string {
+    const l = this.ladder;
+    const f = l.fights[i];
+    if (f.kind === 'boss') return 'BOSS';
+    if (f.opponents.length > 1) return `${f.opponents.length} FOES`;
+    return skillParams(this.skillOf(f.index, f.opponents[0], 0)).name;
+  }
+
+  private skillOf(fight: number, o: LadderOpponent, rank: number): number {
+    return o.skill ?? fightSkill(ladderDifficulty(this.ladder), fight, rank);
   }
 
   private async fight(): Promise<void> {
@@ -138,6 +165,8 @@ export class LadderMapScene extends MenuScene {
     session.mode = 'arcade';
     session.players = slotsForFight(l, session.arcadeHuman!);
     session.stage = f.stage;
+    // the stage's art builds in the background during the fight card and the VS splash (the match waits for it if needed)
+    void ensureStageArt(this, f.stage);
     // the fight card, then the two-second VS splash, then the fight
     this.go('Story', { cards: [fightCard(l, f)], next: 'VersusSplash', nextData: { next: 'Match', title: `FIGHT ${f.index + 1} OF ${l.fights.length}: ${f.title}` } });
   }
@@ -192,7 +221,7 @@ export class LadderMapScene extends MenuScene {
     this.info.setScale(Math.min(u * 2, cw / Math.max(1, textPx(this.info)))).setPosition(cx, cy);
     this.sub.setPosition(cx, cy + 14 * u);
     this.cont.setScale(Math.min(u * 1.2, cw / Math.max(1, textPx(this.cont)))).setPosition(cx, cy + 27 * u);
-    this.list.layout(cx, cy + 46 * u, u, 70);
+    this.list.layout(cx, cy + 46 * u, u, this.list.items.length > 2 ? 170 : 70, footTop - 4 * u);
     this.layoutWaiting();
     this.drawTower();
   }
@@ -288,13 +317,13 @@ export class LadderMapScene extends MenuScene {
       nd.lvl.setAlpha(done ? 0.5 : 1);
     });
     const f = currentFight(l);
-    const opps = f.opponents.map((o) => `${nameOf(o.character)}${o.boss ? '' : ` (${LEVELS[o.level].name})`}`).join(' + ');
+    const opps = f.opponents.map((o, k) => `${nameOf(o.character)}${o.boss ? '' : ` (LV ${this.skillOf(f.index, o, k)})`}`).join(' + ');
     this.info.setText(up(`${f.title}`));
     this.sub.setText(up(`VS ${opps}   ${STAGES[f.stage]?.name ?? ''}`));
     const cw = this.wide ? this.scale.width * 0.4 : this.scale.width * 0.88;
     this.sub.setScale(Math.min(this.u * 1.4, cw / Math.max(1, textPx(this.sub))));
     this.info.setScale(Math.min(this.u * 2, cw / Math.max(1, textPx(this.info))));
-    this.cont.setText(up(`FIGHT ${f.index + 1} OF ${l.fights.length}     CONTINUES LEFT: ${l.continuesLeft}`));
+    this.cont.setText(up(`FIGHT ${f.index + 1} OF ${l.fights.length}   ${DIFFICULTY_NAMES[ladderDifficulty(l)]}   CONTINUES LEFT: ${l.continuesLeft}`));
     this.cont.setScale(Math.min(this.u * 1.2, cw / Math.max(1, textPx(this.cont))));
     // the next fight's details on one plate, so they read over the lit skyline
     const pw = Math.max(this.info.displayWidth, this.sub.displayWidth, this.cont.displayWidth) + 24 * u;
@@ -309,8 +338,9 @@ export class LadderMapScene extends MenuScene {
     if (this.list.handle(e)) return;
     // back first moves to QUIT (a run is never lost to one stray press), then quits from there
     if (e.action === 'back') {
-      if (this.list.index === 1) this.go('ModeSelect');
-      else this.list.index = 1;
+      const quit = this.list.items.length - 1;
+      if (this.list.index === quit) this.go('ModeSelect');
+      else this.list.index = quit;
     }
   }
 }

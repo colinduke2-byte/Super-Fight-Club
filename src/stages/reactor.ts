@@ -14,7 +14,7 @@ export const reactorStage: StageData = {
     { x: -230, y: -40, w: 52, h: 6, kind: 'pass', move: { axis: 'y', amplitude: 40, period: 400 } },
     { x: 178, y: -40, w: 52, h: 6, kind: 'pass', move: { axis: 'y', amplitude: 40, period: 400, phase: 0.5 } },
   ],
-  hazards: [{ kind: 'geyser', x: 0, y: 0, w: 44, h: 130, period: 600, offset: 0, warn: 90, active: 36, damage: 12, base: 55, scaling: 1.0, angle: 88 }],
+  hazards: [{ kind: 'geyser', x: 0, y: 0, w: 44, h: 130, period: 600, offset: 0, warn: 90, active: 36, damage: 12, base: 55, scaling: 0.75, angle: 88 }],
   blast: { left: -520, right: 520, top: -430, bottom: 340 },
   spawns: [
     { x: -90, y: -4 },

@@ -4,6 +4,8 @@ import { ensurePalettesReady, palettesReady, type PaletteWant } from '../art/pro
 import { assignPalettes } from '../art/palettes';
 import { characterById } from '../characters';
 import { session } from '../game/session';
+import { lifetimeStats } from '../game/records';
+import type { StageData } from '../engine/types';
 import { footerHint, type MenuVerb } from '../input/prompts';
 
 const FOOTER: readonly (readonly [MenuVerb, string])[] = [
@@ -15,12 +17,27 @@ import type { MenuEvent } from '../input/menuInput';
 import { STAGE_LIST } from '../stages';
 import { COLORS, MenuList, MenuScene, drawPanel, text, textPx, type MenuBackdrop } from '../ui/menuKit';
 import { stageThumb } from '../ui/stageThumb';
+import { ensureStageArt, stageArtReady } from '../art/stageArt';
 
 /** A random stage id from the pool (absent / empty / all unknown: every stage). */
 export function randomStage(pool: readonly string[] | undefined, rand: () => number = Math.random): string {
   const list = STAGE_LIST.filter((s) => !pool?.length || pool.includes(s.id));
   const from = list.length ? list : STAGE_LIST;
   return from[Math.min(from.length - 1, Math.floor(rand() * from.length))].id;
+}
+
+const NUMBER_WORDS = ['NO', 'ONE', 'TWO', 'THREE', 'FOUR', 'FIVE', 'SIX', 'SEVEN', 'EIGHT', 'NINE', 'TEN'];
+
+/** Platform counts read from the stage data: the solid ground pieces and the thin pass-through ones. */
+export function platformCounts(stage: StageData): { solid: number; pass: number; moving: number } {
+  const solid = stage.platforms.filter((p) => p.kind !== 'pass').length;
+  return { solid, pass: stage.platforms.length - solid, moving: stage.platforms.filter((p) => p.move).length };
+}
+
+/** A blurb's "three pass-through platforms" corrected to the stage's real count (the tags beside it count from the data too). */
+export function blurbFromData(stage: StageData): string {
+  const n = platformCounts(stage).pass;
+  return (stage.blurb ?? '').toUpperCase().replace(/\b(NO|ONE|TWO|THREE|FOUR|FIVE|SIX|SEVEN|EIGHT|NINE|TEN|\d+) PASS-THROUGH PLATFORMS?\b/, `${NUMBER_WORDS[n] ?? n} PASS-THROUGH PLATFORM${n === 1 ? '' : 'S'}`);
 }
 
 /** The session lineup's fighters in their (bumped) palettes, written back to the session so the match uses the same ones. */
@@ -55,8 +72,31 @@ export class StageSelectScene extends MenuScene {
     super('StageSelect');
   }
 
+  /** Stages whose art was asked for this visit (built off the main thread; the preview waits for it). */
+  private readonly requested = new Set<string>();
+
+  /** Starts building a stage's art in the background (once per visit). */
+  private request(i: number): void {
+    const st = STAGE_LIST[(i + STAGE_LIST.length) % STAGE_LIST.length];
+    if (!st || this.requested.has(st.id) || stageArtReady(this, st)) return;
+    this.requested.add(st.id);
+    void ensureStageArt(this, st.id).catch(() => undefined);
+  }
+
+  /** Matches played per stage id (lifetime stats). */
+  private played: Record<string, number> = {};
+  private wins: Record<string, number> = {};
+
   protected build(): void {
     this.theme = '';
+    try {
+      const st = lifetimeStats();
+      this.played = { ...st.stages };
+      this.wins = { ...(st.stageWins ?? {}) };
+    } catch {
+      this.played = {};
+      this.wins = {};
+    }
     this.waiting = false;
     // the lineup's outfits (duplicates already bumped in the lobby) keep building while the stage is chosen
     const wants = outfitWants();
@@ -64,10 +104,11 @@ export class StageSelectScene extends MenuScene {
     this.title = this.add.bitmapText(0, 0, PIXEL_FONT, 'CHOOSE A STAGE').setOrigin(0.5).setTint(COLORS.title);
     this.ui.add(this.title);
     this.list = new MenuList(this, this.ui, [
-      ...STAGE_LIST.map((s) => ({ label: s.name, onConfirm: () => this.pick(s.id) })),
-      { label: 'RANDOM', onConfirm: () => this.pick(randomStage(session.rules.stagePool)) },
+      ...STAGE_LIST.map((s) => ({ label: s.name, onConfirm: () => this.pick(s.id, false) })),
+      { label: 'RANDOM', onConfirm: () => this.pick(randomStage(session.rules.stagePool), true) },
     ]);
-    this.thumb = this.add.image(0, 0, stageThumb(this, STAGE_LIST[0])).setOrigin(0, 0);
+    this.requested.clear();
+    this.thumb = this.add.image(0, 0, '__WHITE').setOrigin(0, 0).setVisible(false);
     this.preview = this.add.graphics();
     this.ui.add([this.thumb, this.preview]);
     this.blurb = text(this, this.ui, '', COLORS.text).setOrigin(0, 0).setLineSpacing(3);
@@ -78,9 +119,10 @@ export class StageSelectScene extends MenuScene {
   /** Set while the picked fighters' outfit sheets finish building (the match would otherwise build them on the main thread). */
   private waiting = false;
 
-  private pick(id: string): void {
+  private pick(id: string, random: boolean): void {
     if (this.waiting) return;
     session.stage = id;
+    session.stageRandom = random;
     const wants = outfitWants();
     if (palettesReady(this, wants)) {
       this.go('Match');
@@ -135,7 +177,9 @@ export class StageSelectScene extends MenuScene {
       this.theme = stage.background.theme;
       this.bg.setTheme(this.theme);
     }
-    if (stage) {
+    // the focused stage's art (and its neighbours') builds in the background; the preview shows once it is there
+    if (stage) for (const d of [0, 1, -1]) this.request(this.list.index + d);
+    if (stage && stageArtReady(this, stage)) {
       this.thumb.setTexture(stageThumb(this, stage)).setVisible(true);
       const k = Math.min(a.w / this.thumb.width, a.h / this.thumb.height);
       this.thumb.setScale(k).setPosition(a.x + (a.w - this.thumb.width * k) / 2, a.y + (a.h - this.thumb.height * k) / 2);
@@ -145,17 +189,21 @@ export class StageSelectScene extends MenuScene {
     }
     g.lineStyle(3, COLORS.title, 1).strokeRect(a.x - 2, a.y - 2, a.w + 4, a.h + 4);
     const pool = session.rules.stagePool?.length ? STAGE_LIST.filter((st) => session.rules.stagePool!.includes(st.id)).length : 0;
-    const blurb = stage ? (stage.blurb ?? '').toUpperCase() : pool ? `A RANDOM STAGE FROM YOUR POOL OF ${pool}.` : 'A RANDOM STAGE FROM THE LIST.';
+    const blurb = stage ? blurbFromData(stage) : pool ? `A RANDOM STAGE FROM YOUR POOL OF ${pool}.` : 'A RANDOM STAGE FROM THE LIST.';
     if (stage) {
       const bw0 = stage.blast.right - stage.blast.left;
       const size = bw0 > 1500 ? 'LARGE' : bw0 > 1150 ? 'MEDIUM' : 'SMALL';
-      const moving = stage.platforms.filter((p) => p.move).length;
-      const tags = [`SIZE: ${size}`, `PLATFORMS: ${stage.platforms.length}`];
-      if (moving) tags.push(`MOVING: ${moving}`);
+      const pc = platformCounts(stage);
+      const tags = [`SIZE: ${size}`, `GROUND: ${pc.solid}`, `PASS-THROUGH: ${pc.pass}`];
+      if (pc.moving) tags.push(`MOVING: ${pc.moving}`);
       if (stage.hazards?.length) {
         const h = stage.hazards[0];
         tags.push(`HAZARD: ${h.kind === 'bolt' ? 'LIGHTNING' : h.kind === 'stalactite' ? 'STALACTITES' : h.kind === 'avalanche' ? 'AVALANCHES' : h.style === 'water' ? 'WATER SPOUTS' : 'GEYSER'}`);
       }
+      // your history here
+      const played = this.played[stage.id] ?? 0;
+      tags.push(played ? `PLAYED: ${played} TIME${played === 1 ? '' : 'S'}` : 'NOT PLAYED YET');
+      if (played) tags.push(`WON: ${Math.round((100 * Math.min(this.wins[stage.id] ?? 0, played)) / played)}%`);
       // as many tags per line as fit the card
       const rows: string[] = [];
       for (const t of tags) {

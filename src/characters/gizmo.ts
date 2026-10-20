@@ -123,7 +123,7 @@ export const gizmo: CharacterData = {
     groundAccel: 0.3,
     groundFriction: 0.34,
     airAccel: 0.15,
-    airFriction: 0.05,
+    airFriction: 0.055,
     gravity: 0.5,
     fallSpeed: 6.6,
     fastFallSpeed: 9.8,
@@ -133,10 +133,10 @@ export const gizmo: CharacterData = {
     doubleJumps: 1,
     jumpsquatFrames: 4,
   },
-  body: { width: 16, height: 22, footHalfWidth: 6 },
+  body: { width: 16, height: 25, footHalfWidth: 6 },
   wallJump: true,
-  // jet hover: hold Jump while falling to hang in the air for 1.5 s per airtime
-  hover: { frames: 90, drift: 1.15 },
+  // jet hover: hold Jump while falling to hang in the air for 1 s per airtime
+  hover: { frames: 60, drift: 1.15 },
   sprite: {
     frameSize: 160,
     pixelScale: 0.29,

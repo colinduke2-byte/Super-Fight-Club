@@ -5,6 +5,7 @@ import { CHARACTER_LIST } from '../characters';
 import { CHALLENGES, TIER_COLORS } from '../game/challenges';
 import {
   ARCADE_STAR_SCORE,
+  DIFFICULTY_LABELS,
   RECORD_SECTIONS,
   arcadeRecords,
   arcadeStars,
@@ -140,12 +141,12 @@ export class RecordsScene extends MenuScene {
 
   private fillArcade(): void {
     const arc = arcadeRecords();
-    const head = `${'FIGHTER'.padEnd(10)}${'CLEARS'.padStart(7)}${'BEST TIME'.padStart(11)}${'HIGH SCORE'.padStart(12)}${'NO CONT'.padStart(9)}${'HARDEST'.padStart(9)}  STARS `;
+    const head = `${'FIGHTER'.padEnd(10)}${'CLEARS'.padStart(7)}${'BEST TIME'.padStart(11)}${'HIGH SCORE'.padStart(12)}${'NO CONT'.padStart(9)}${'HARDEST'.padStart(10)}  STARS `;
     const lines = CHARACTER_LIST.map((c) => {
       const a = arc[c.id];
       this.stars.push(arcadeStars(a));
-      if (!a) return `${c.name.slice(0, 9).padEnd(10)}${'-'.padStart(7)}${'-'.padStart(11)}${'-'.padStart(12)}${'-'.padStart(9)}${'-'.padStart(9)}  ${' '.repeat(6)}`;
-      return `${c.name.slice(0, 9).padEnd(10)}${String(a.clears).padStart(7)}${(a.bestSec ? formatSec(a.bestSec) : '-').padStart(11)}${String(a.bestScore).padStart(12)}${String(a.noContinue).padStart(9)}${(['-', 'EASY', 'NORMAL', 'HARD'][a.hardestClear] ?? '-').padStart(9)}  ${' '.repeat(6)}`;
+      if (!a) return `${c.name.slice(0, 9).padEnd(10)}${'-'.padStart(7)}${'-'.padStart(11)}${'-'.padStart(12)}${'-'.padStart(9)}${'-'.padStart(10)}  ${' '.repeat(6)}`;
+      return `${c.name.slice(0, 9).padEnd(10)}${String(a.clears).padStart(7)}${(a.bestSec ? formatSec(a.bestSec) : '-').padStart(11)}${String(a.bestScore).padStart(12)}${String(a.noContinue).padStart(9)}${(DIFFICULTY_LABELS[a.hardestClear] ?? '-').padStart(10)}  ${' '.repeat(6)}`;
     });
     this.starCol = head.length - 6;
     this.table(head, lines);

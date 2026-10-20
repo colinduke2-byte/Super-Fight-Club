@@ -6,6 +6,7 @@
  * Drawn at art density (2 px per world unit). The canvas is `w*2 + 2*OVER` wide; the walking surface is row `HEAD`.
  */
 import { mulberry32 } from './rng';
+import { context2d } from './canvasTexture';
 
 type RGB = [number, number, number];
 type Ramp = RGB[];
@@ -2110,16 +2111,18 @@ function toPixels(b: Buf, W: number, H: number): ArtPixels {
   return { width: W, height: H, data };
 }
 
-/** Pixels to a canvas (texture source). */
-export function artCanvas(px: ArtPixels): HTMLCanvasElement {
+/** Pixels to a canvas (texture source); null when no canvas can be drawn (canvas memory exhausted). */
+export function artCanvas(px: ArtPixels): HTMLCanvasElement | null {
   const c = document.createElement('canvas');
   c.width = px.width;
   c.height = px.height;
-  c.getContext('2d')!.putImageData(new ImageData(px.data as Uint8ClampedArray<ArrayBuffer>, px.width, px.height), 0, 0);
+  const g = context2d(c);
+  if (!g) return null;
+  g.putImageData(new ImageData(px.data as Uint8ClampedArray<ArrayBuffer>, px.width, px.height), 0, 0);
   return c;
 }
 
-export function stageMass(themeId: string | undefined, w: number, h: number, seed: number, seated = false): HTMLCanvasElement {
+export function stageMass(themeId: string | undefined, w: number, h: number, seed: number, seated = false): HTMLCanvasElement | null {
   return artCanvas(stageMassPixels(themeId, w, h, seed, seated));
 }
 

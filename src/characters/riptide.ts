@@ -55,7 +55,7 @@ export const riptide: CharacterData = {
     groundAccel: 0.26,
     groundFriction: 0.3,
     airAccel: 0.17,
-    airFriction: 0.05,
+    airFriction: 0.045,
     gravity: 0.5,
     fallSpeed: 6.6,
     fastFallSpeed: 9.8,

@@ -7,7 +7,7 @@ import { competitiveStages, type KoRecord, type MatchResult, playMatch } from '.
 /**
  * CPU-vs-CPU balance report. Skipped unless BALANCE=1:
  *
- *   BALANCE=1 npx vitest run tests/balanceReport.test.ts                  prints the report (and writes $BALANCE_OUT if set)
+ *   BALANCE=1 npx vitest run tests/balanceReport.test.ts                  prints the report to stdout (or writes $BALANCE_OUT if set)
  *   BALANCE=1 BALANCE_WRITE=1 npx vitest run tests/balanceReport.test.ts  also regenerates docs/balance-report.md
  *
  * Knobs: BALANCE_SEEDS (1v1 matches per pairing per side, default 4; the stage rotates through every competitive stage),
@@ -162,6 +162,7 @@ describe.skipIf(!process.env.BALANCE)('balance report', () => {
     if (process.env.BALANCE_OUT) writeFileSync(process.env.BALANCE_OUT, md);
     if (process.env.BALANCE_WRITE) writeFileSync('docs/balance-report.md', md);
     if (process.env.BALANCE_JSON) writeFileSync(process.env.BALANCE_JSON, JSON.stringify(json));
-    if (!process.env.BALANCE_OUT && !process.env.BALANCE_WRITE) console.log(md);
+    // console.log is swallowed by the test runner here: write straight to stdout
+    if (!process.env.BALANCE_OUT && !process.env.BALANCE_WRITE) process.stdout.write(`${md}\n`);
   }, 7_200_000);
 });

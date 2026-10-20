@@ -1,5 +1,5 @@
 import Phaser from 'phaser';
-import { addCanvasTexture } from './canvasTexture';
+import { addCanvasTexture, context2dOrBlank } from './canvasTexture';
 
 /**
  * Projectile / deployable textures, drawn in light greys so the data's `look.color` tints them.
@@ -11,7 +11,7 @@ function mk(w: number, h: number): [HTMLCanvasElement, Ctx] {
   const c = document.createElement('canvas');
   c.width = w;
   c.height = h;
-  const g = c.getContext('2d')!;
+  const g = context2dOrBlank(c);
   g.imageSmoothingEnabled = false;
   return [c, g];
 }

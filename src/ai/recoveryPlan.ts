@@ -5,90 +5,10 @@ import { World } from '../engine/world';
 import { applyHeld } from '../game/controllers';
 
 /**
- * Recovery planning from the engine's own physics. A fighter's up special is flown once in an empty sky (a private World on
- * the same stage, far from every platform) and its path cached; the CPU then checks, frame by frame, whether that path
- * started from where it is (or where a drift / a double jump / an air dodge would take it) reaches the ledge or the
- * stage, and fires it at the last frame that still does. Works whatever the launch and move tuning is.
+ * Recovery planning from the engine's own physics: candidate attempts (drift, double jump, air dodge, the up special aimed a
+ * few ways) are flown with the real engine on a private copy of the stage, and the CPU picks one that gets back. Works
+ * whatever the launch and move tuning is, and for every kind of recovery (see simulateRecovery).
  */
-
-interface Path {
-  dx: Float32Array;
-  dy: Float32Array;
-  vy: Float32Array;
-  n: number;
-}
-
-const paths = new Map<string, Path | null>();
-
-/** The up special's path (dx forward, dy down-positive) when started falling at full speed, stick up + forward. */
-export function upBPath(f: Fighter, world: World, slot: string): Path | null {
-  const key = `${f.data.id}:${slot}`;
-  if (paths.has(key)) return paths.get(key)!;
-  let path: Path | null = null;
-  try {
-    const w = new World(world.stage);
-    const g = new Fighter(0, f.data);
-    w.addFighter(g);
-    const b = w.blast;
-    // high in the sky over the left blast zone side, clear of platforms
-    const x0 = b.left + 120;
-    const y0 = b.top + 140;
-    g.spawn(x0, y0, 1);
-    Object.assign(g, { grounded: false, groundPlat: null, state: 'air', vx: 0, vy: g.stats.fallSpeed, invuln: 0, jumpsLeft: 0 });
-    const inp = makeInput();
-    const dx = new Float32Array(120);
-    const dy = new Float32Array(120);
-    const vy = new Float32Array(120);
-    let n = 0;
-    let prev = 0;
-    let started = false;
-    for (let t = 0; t < 120; t++) {
-      const held = t < 2 ? Button.Special : 0;
-      inp.stickX = 1;
-      inp.stickY = -1;
-      applyHeld(inp, held, prev);
-      prev = held;
-      w.step([inp]);
-      if (g.state === 'attack') started = true;
-      dx[n] = g.x - x0;
-      dy[n] = g.y - y0;
-      vy[n] = g.vy;
-      n++;
-      if (started && g.helpless && g.vy > 0 && g.y > y0 + 40) break;
-      if (g.state === 'ko' || g.grounded) break;
-    }
-    if (started) path = { dx, dy, vy, n };
-  } catch {
-    path = null;
-  }
-  paths.set(key, path);
-  return path;
-}
-
-/**
- * Does the up special, started at (x, y) heading toward ledge `l`, end on the ledge (the grab box of Fighter.tryLedgeGrab,
- * which only catches a fighter no longer rising fast) or on top of the ledge's platform?
- */
-export function pathReaches(f: Fighter, l: Ledge, p: Path, x: number, y: number, vx: number): boolean {
-  const dirIn = -l.side;
-  const top = l.y;
-  const plat = l.platform;
-  let py0 = y;
-  for (let i = 0; i < p.n; i++) {
-    // our current horizontal momentum fades over the first frames of the move
-    const carry = vx * Math.min(i, 12) * 0.5;
-    const px = x + dirIn * p.dx[i] + carry;
-    const py = y + p.dy[i];
-    const outside = (px - l.x) * l.side;
-    const head = py - f.h - top;
-    // rising into the underside of the stage stops the move dead: that path is blocked
-    if (px > plat.x - f.hw && px < plat.right + f.hw && py > top + 4 && py - f.h < top + plat.h) return false;
-    if (p.vy[i] >= -1 && outside > -f.hw * 0.4 && outside < f.hw + 14 && head > -8 && head < 20) return true;
-    if (py >= top && py0 < top && px > plat.x + 4 && px < plat.right - 4) return true;
-    py0 = py;
-  }
-  return false;
-}
 
 export interface Sim {
   x: number;
@@ -107,29 +27,196 @@ export function drift(f: Fighter, s: Sim, dir: number): void {
   s.y += s.vy;
 }
 
-/** Starting a double jump now (vy reset, horizontal speed set by the stick), then drifting: does the path ever reach? */
-export function jumpThenReaches(f: Fighter, l: Ledge, p: Path, s0: Sim, delay: number, frames = 60): boolean {
-  const dir = -l.side;
-  const s = { ...s0 };
-  for (let i = 0; i < delay; i++) drift(f, s, dir);
-  s.vy = -Math.sqrt(2 * f.stats.gravity * f.stats.doubleJumpHeight);
-  s.vx = dir * f.stats.airSpeed;
-  for (let t = 0; t < frames; t++) {
-    drift(f, s, dir);
-    if (t % 2 === 0 && pathReaches(f, l, p, s.x, s.y, s.vx)) return true;
-    if (s.vy > 0 && s.y > l.y + 260) break;
-  }
-  return false;
+// ---- engine-simulated recovery (every recovery type) ----------------------------------------------------------------
+/**
+ * A recovery attempt the CPU could make from where it is: wait `specialAt` frames (drifting toward the stage), spend the
+ * double jump at `jumpAt` (-1 = keep it), air dodge in at `dodgeAt` (-1 = no), then fire the up special with the stick at
+ * (`inX` toward the stage, `sy`) and keep steering. `float` holds Jump once the jumps are spent (glide / jet hover).
+ * Simulated with the real engine on a private copy of the stage, so it covers fixed, stick-aimed and teleport up specials,
+ * tethers, glides, hovers and wall jumps alike.
+ */
+export interface RecPolicy {
+  /** Optional aerial first: Attack pressed at `attackAt` with the stick at (ax, ay). */
+  attackAt?: number;
+  ax?: number;
+  ay?: number;
+  jumpAt: number;
+  specialAt: number;
+  dodgeAt: number;
+  inX: number;
+  sy: number;
+  float: boolean;
 }
 
-/** Drifting (no jump) for up to `frames`: does the path ever reach from some point along it? */
-export function driftThenReaches(f: Fighter, l: Ledge, p: Path, s0: Sim, frames = 60): boolean {
-  const dir = -l.side;
-  const s = { ...s0 };
-  for (let t = 0; t < frames; t++) {
-    drift(f, s, dir);
-    if (t % 2 === 0 && pathReaches(f, l, p, s.x, s.y, s.vx)) return true;
-    if (s.vy > 0 && s.y > l.y + 260) break;
+interface SimRig {
+  w: World;
+  dummy: Fighter;
+  ghosts: Map<string, Fighter>;
+}
+const rigs = new Map<string, SimRig>();
+const simIn = makeInput();
+/** Ledge occupant id that blocks every grab in the private world (no fighter has it). */
+const BLOCKED = 99;
+
+function rigFor(world: World, f: Fighter): { rig: SimRig; g: Fighter } {
+  let rig = rigs.get(world.stage.id);
+  if (!rig) {
+    const w = new World(world.stage);
+    const dummy = new Fighter(1, f.data);
+    rig = { w, dummy, ghosts: new Map() };
+    w.fighters.push(new Fighter(0, f.data), dummy);
+    rigs.set(world.stage.id, rig);
+  }
+  let g = rig.ghosts.get(f.data.id);
+  if (!g) {
+    g = new Fighter(0, f.data);
+    rig.ghosts.set(f.data.id, g);
+  }
+  rig.w.fighters[0] = g;
+  return { rig, g };
+}
+
+/** Where the attempt aims: the hang point of ledge `l`, or a spot on the stage just in from it when we are above it. */
+function aimX(g: Fighter, l: Ledge, landIn: number): number {
+  return g.y < l.y - 2 ? l.x - l.side * (g.hw + landIn) : l.x + l.side * (g.hw + 4);
+}
+
+/** The stick for one frame of an attempt (shared by the simulation and the CPU, so the CPU flies what it simulated). */
+export function policyStick(g: Fighter, l: Ledge, pol: RecPolicy, landIn: number, out: { x: number; y: number }): void {
+  const dirIn = -l.side;
+  if (g.state === 'attack' || g.state === 'tether') {
+    // during the up special: hold the chosen direction (a teleport / tether reads it), drifting moves steer toward the target
+    const dx = aimX(g, l, landIn) - g.x;
+    out.x = pol.inX !== 0 ? dirIn * pol.inX : Math.abs(dx) < 4 ? 0 : Math.sign(dx) * 0.5;
+    out.y = pol.sy;
+    return;
+  }
+  const dx = aimX(g, l, landIn) - g.x;
+  out.x = Math.abs(dx) < 5 ? dirIn * 0.4 : Math.sign(dx);
+  out.y = 0;
+  // never drift in under the stage's underside while below it
+  if (g.y - g.h > l.y + 2 && (g.x - l.x) * l.side < g.hw + 4) out.x = l.side;
+}
+
+const stk = { x: 0, y: 0 };
+/** Simulated fighter frames run by the planner (for measuring its cost). */
+export const simStats = { calls: 0, frames: 0 };
+
+/**
+ * Fly `pol` from the fighter's current state on a private copy of the stage. Returns the frames it takes to stand on a
+ * platform or hang on a ledge, or -1 if it falls / runs out of time. Ledges a rival hangs on can be taken by a ledge
+ * trump (a grab, not a ledge snap or a tether); ones an ally or a climber holds are blocked.
+ */
+export function simulateRecovery(f: Fighter, world: World, l: Ledge, pol: RecPolicy, maxT = 110, landIn = 10, from?: Partial<Fighter>, log?: string[]): number {
+  const { rig, g } = rigFor(world, f);
+  const w = rig.w;
+  simStats.calls++;
+  for (let i = 0; i < w.ledges.length && i < world.ledges.length; i++) {
+    const rl = world.ledges[i];
+    const o = rl.occupant;
+    const of = o >= 0 ? world.fighters[o] : null;
+    let occ = o === -1 || o === f.id ? -1 : of && of.state === 'ledge' && !world.allied(f.id, o) ? 1 : BLOCKED;
+    // a rival recovering right next to a free ledge may well take it first: plan as if it hangs there (a trump still works,
+    // a ledge snap or a tether does not)
+    if (occ === -1) {
+      for (const r of world.fighters) {
+        if (r === f || r.grounded || r.state === 'ko' || r.state === 'ledge' || world.allied(f.id, r.id)) continue;
+        if (Math.abs(r.x - rl.x) < 90 && r.y > rl.y - 20 && r.y < rl.y + 160) occ = 1;
+      }
+    }
+    w.ledges[i].occupant = occ;
+  }
+  rig.dummy.state = 'ledge';
+  // moving platforms follow the tick: the private stage replays the same motion
+  w.tick = world.tick;
+  const res = g.res;
+  g.spawn(f.x, f.y, f.facing);
+  g.buffer.clear();
+  // copy the state that decides the flight (fields set one by one: this runs many times a frame, so no temporary objects)
+  g.vx = f.vx;
+  g.vy = f.vy;
+  g.jumpsLeft = f.jumpsLeft;
+  g.airDodgeUsed = f.airDodgeUsed;
+  g.helpless = f.helpless;
+  g.fastFalling = f.fastFalling;
+  g.glideFrames = f.glideFrames;
+  g.jetFrames = f.jetFrames;
+  g.wallJumps = f.wallJumps;
+  g.grabCooldown = f.grabCooldown;
+  g.coyote = f.coyote;
+  g.wall = f.wall;
+  g.damage = f.damage;
+  g.invuln = 0;
+  for (const k in res) if (!(k in f.res)) delete res[k];
+  for (const k in f.res) res[k] = f.res[k];
+  g.res = res;
+  if (from) {
+    const gg = g as unknown as Record<string, unknown>;
+    const ff = from as unknown as Record<string, unknown>;
+    for (const k in ff) gg[k] = ff[k];
+  }
+  let prev = 0;
+  const b = w.blast;
+  for (let t = 0; t < maxT; t++) {
+    let held = 0;
+    policyStick(g, l, pol, landIn, stk);
+    let sx = stk.x;
+    let sy = stk.y;
+    if (g.state === 'air' && !g.helpless) {
+      if (t === pol.attackAt) {
+        held |= Button.Attack;
+        sx = pol.ax ?? 0;
+        sy = pol.ay ?? 0;
+      } else if (t === pol.jumpAt) held |= Button.Jump;
+      else if (t === pol.dodgeAt) {
+        held |= Button.Shield;
+        sx = -l.side * 0.7;
+        sy = -0.7;
+      } else if (t >= pol.specialAt && t < pol.specialAt + 2) {
+        // Up selects the up special on the press (as the CPU presses it); the aimed direction is held once it runs
+        held |= Button.Special;
+        sx = pol.inX !== 0 ? -l.side * pol.inX : sx;
+        sy = -1;
+      } else if (pol.float && g.jumpsLeft === 0 && g.vy >= 0) held |= Button.Jump;
+    }
+    simIn.stickX = sx;
+    simIn.stickY = sy;
+    applyHeld(simIn, held, prev);
+    prev = held;
+    w.tick++;
+    for (let i = 0; i < w.platforms.length; i++) w.platforms[i].update(w.tick);
+    g.update(simIn, w);
+    simStats.frames++;
+    log?.push(`${t} ${g.state} ${g.move?.id}@${g.moveFrame} x${g.x.toFixed(0)} y${g.y.toFixed(0)} v${g.vx.toFixed(1)},${g.vy.toFixed(1)} in${sx.toFixed(1)},${sy.toFixed(1)} h${held}`);
+    if (g.state === 'ledge' || g.state === 'ledgeClimb' || g.grounded) return t + 1;
+    if (g.state === 'ko' || g.y - g.h > b.bottom || g.y > l.y + 300 || (g.helpless && g.y > l.y + 120)) return -1;
+  }
+  return -1;
+}
+
+/** Stick directions worth trying for this fighter's up special (inX toward the stage, sy). */
+const DIRS_FIXED: [number, number][] = [[1, -1]];
+const DIRS_TETHER: [number, number][] = [[1, -1], [0, -1]];
+const DIRS_STICK: [number, number][] = [[1, -1], [0, -1], [1, 0], [1, 1]];
+export function policyDirs(aim: 'stick8' | 'tether' | 'fixed'): readonly [number, number][] {
+  return aim === 'fixed' ? DIRS_FIXED : aim === 'tether' ? DIRS_TETHER : DIRS_STICK;
+}
+
+export const NO_POLICY: RecPolicy = { jumpAt: -1, specialAt: -1, dodgeAt: -1, inX: 1, sy: -1, float: false };
+
+/**
+ * Can the fighter get back to `l` from the state described by `from` (a hypothetical spot: after a ledge drop, at the end of
+ * an edge-guard leap's aerial)? Tries the double jump followed by the up special at a few timings.
+ */
+export function canGetBack(f: Fighter, world: World, l: Ledge, aim: 'stick8' | 'tether' | 'fixed', from: Partial<Fighter>, float: boolean, aerial?: { ax: number; ay: number; total: number }): boolean {
+  const jumps = from.jumpsLeft ?? f.jumpsLeft;
+  const pre = aerial ? aerial.total + 1 : 0;
+  for (const [inX, sy] of policyDirs(aim)) {
+    for (const s of jumps > 0 ? [10, 24, 40] : [0, 8]) {
+      const pol: RecPolicy = { jumpAt: jumps > 0 ? pre + 2 : -1, specialAt: pre + s, dodgeAt: -1, inX, sy, float };
+      if (aerial) Object.assign(pol, { attackAt: 0, ax: aerial.ax, ay: aerial.ay });
+      if (simulateRecovery(f, world, l, pol, 130 + pre, 10, from) >= 0) return true;
+    }
   }
   return false;
 }

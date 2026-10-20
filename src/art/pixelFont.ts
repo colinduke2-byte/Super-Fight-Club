@@ -1,5 +1,5 @@
 import Phaser from 'phaser';
-import { addCanvasTexture } from './canvasTexture';
+import { addCanvasTexture, context2dOrBlank } from './canvasTexture';
 
 /**
  * 5x7 pixel font with a baked 1px dark outline, generated in code and registered as the bitmap font
@@ -84,7 +84,7 @@ export function buildPixelFont(scene: Phaser.Scene): void {
   const c = document.createElement('canvas');
   c.width = PER_ROW * CELL_W;
   c.height = rows * CELL_H;
-  const g = c.getContext('2d')!;
+  const g = context2dOrBlank(c);
   for (let i = 0; i < CHARS.length; i++) {
     const glyph = G[CHARS[i]];
     if (!glyph) continue;

@@ -1,13 +1,17 @@
 import { announcer } from '../audio/announcer';
-import { challengeById, challengeCleared, challengeRules } from '../game/challenges';
+import { TIER_COLORS, TIER_NAMES, challengeById, challengeCleared, challengeRules, goalText } from '../game/challenges';
 import Phaser from 'phaser';
 import { PIXEL_FONT, up } from '../art/pixelFont';
 import { music } from '../audio/music';
-import { formatTicks } from '../game/records';
-import { characterById } from '../characters';
-import { applyLadderResult, type LadderOutcome } from '../game/ladder';
+import { formatSec, formatTicks } from '../game/records';
+import { CHARACTER_LIST, characterById } from '../characters';
+import { DIFFICULTY_NAMES, continueLadder, ladderOutcomeFor, ladderDifficulty, type LadderOutcome } from '../game/ladder';
+import { rerollRandomPicks } from '../game/quick';
+import { bodyHalf, podiumShrink, podiumSpots } from '../game/results';
 import { endingCards } from '../game/story';
-import { session } from '../game/session';
+import { session, teamName } from '../game/session';
+import type { CharacterData } from '../engine/types';
+import { OVERSEER_PHASE2_SKIN, requestOverseerPhase2 } from '../ui/BossCinematic';
 import { STAGES } from '../stages';
 import type { MenuEvent } from '../input/menuInput';
 import { ensurePalette, fighterAnimKey, fighterTextureKey, uiTexK } from '../art/proceduralFighter';
@@ -38,16 +42,27 @@ export function matchAwards(r: MatchResult, nameOf: (p: PlayerResult) => string)
     if (vals[0].n === vals[1].n || (!lowest && vals[0].n < min)) return;
     out.push({ title, index: vals[0].p.index, detail: `${nameOf(vals[0].p)}  ${detail(vals[0].n)}` });
   };
-  type Extra = PlayerResult & { ultKos?: number; ledgeGrabs?: number; biggestLaunch?: number };
-  top('ULTIMATE KO', (p) => (p as Extra).ultKos, 1, (n) => `${n} KO${n === 1 ? '' : 'S'} BY ULTIMATE`);
-  top('BIGGEST LAUNCH', (p) => (p as Extra).biggestLaunch, 1, (n) => `${Math.round(n)} M`);
-  top('LEDGE LORD', (p) => (p as Extra).ledgeGrabs, 3, (n) => `${n} LEDGE GRABS`);
+  top('ULTIMATE KO', (p) => p.ultimateKos, 1, (n) => `${n} KO${n === 1 ? '' : 'S'} BY ULTIMATE`);
+  top('BIGGEST LAUNCH', (p) => p.biggestLaunch, 1, (n) => `${Math.round(n)} M`);
+  top('LEDGE LORD', (p) => p.ledgeGrabs, 3, (n) => `${n} LEDGE GRABS`);
   top('KO KING', (p) => p.kos, 2, (n) => `${n} KOS`);
   top('HEAVY HITTER', (p) => Math.round(p.damageDealt), 60, (n) => `${n}% DEALT`);
   top('COMBO ARTIST', (p) => p.bestCombo ?? 0, 4, (n) => `${n}-HIT COMBO`);
   top('UNTOUCHABLE', (p) => p.falls, 0, (n) => (n === 0 ? 'NEVER FELL' : `ONLY ${n} FALL${n === 1 ? '' : 'S'}`), true);
   top('FREQUENT FLYER', (p) => p.falls, 3, (n) => `${n} FALLS`);
   return out.slice(0, 3);
+}
+
+/** A five-pointed star: gold when lit, a dim outline otherwise. */
+function drawStar(g: Phaser.GameObjects.Graphics, x: number, y: number, r: number, on: boolean): void {
+  const pts: Phaser.Math.Vector2[] = [];
+  for (let i = 0; i < 10; i++) {
+    const a = -Math.PI / 2 + (i * Math.PI) / 5;
+    const rr = i % 2 === 0 ? r : r * 0.45;
+    pts.push(new Phaser.Math.Vector2(x + Math.cos(a) * rr, y + Math.sin(a) * rr));
+  }
+  if (on) g.fillStyle(0xffd84a, 1).fillPoints(pts, true);
+  else g.lineStyle(Math.max(1, r * 0.2), 0x5a5680, 1).strokePoints(pts, true);
 }
 
 /** After a match: winner banner, per-player stats, and what to do next. */
@@ -83,7 +98,13 @@ export class ResultsScene extends MenuScene {
   private rowBand = { x: 0, w: 0, h: 0, ys: [] as number[] };
   private floor = { x: 0, y: 0, s: 1 };
   /** Runners-up on the lower steps of the podium (2nd, 3rd, 4th). */
-  private runners: { sprite: Phaser.GameObjects.Sprite; k: number; place: number; color: number; port: number; tag: Phaser.GameObjects.BitmapText; x: number; y: number }[] = [];
+  private runners: { sprite: Phaser.GameObjects.Sprite; k: number; place: number; color: number; port: number; tag: Phaser.GameObjects.BitmapText; x: number; y: number; half: number; dx?: number; hw?: number }[] = [];
+  /** The champion's half-width in podium units (s = 1): big fighters push the lower steps outward. */
+  private champHalf = 13;
+  /** Sheet the champion's victory pose plays from (the boss swaps to its phase-2 sheet). */
+  private champSkin = '';
+  /** Per panel line: stars to draw after it (-1: none), and how many of them are lit. */
+  private awardStars: number[] = [];
   private awardTexts: Phaser.GameObjects.BitmapText[] = [];
   private awardHead: Phaser.GameObjects.BitmapText | null = null;
   private awardPorts: number[] = [];
@@ -105,12 +126,12 @@ export class ResultsScene extends MenuScene {
     const cpus = r ? r.players.filter((p) => p.type === 'cpu').length : 0;
     const nameOf = (p: { type: string; index: number }): string => (p.type === 'cpu' ? (cpus > 1 ? `CPU${p.index + 1}` : 'CPU') : `P${p.index + 1}`);
     const wp0 = r && winner >= 0 ? r.players.find((p) => p.index === winner) : undefined;
-    let label = !r ? 'MATCH OVER' : winner < 0 ? 'DRAW' : r.winnerTeam >= 0 ? `TEAM ${r.winnerTeam === 0 ? 'BLUE' : 'RED'} WINS` : `${wp0 ? nameOf(wp0) : `P${winner + 1}`} WINS`;
+    let label = !r ? 'MATCH OVER' : winner < 0 ? 'DRAW' : r.winnerTeam >= 0 ? `TEAM ${teamName(r.winnerTeam)} WINS` : `${wp0 ? nameOf(wp0) : `P${winner + 1}`} WINS`;
     // arcade: record the fight and decide what comes next
     let outcome: LadderOutcome | null = null;
     if (arcade) {
-      outcome = applyLadderResult(session.ladder!, r);
-      label = outcome === 'gameover' ? 'GAME OVER' : winner === 0 ? 'VICTORY' : 'DEFEATED';
+      outcome = ladderOutcomeFor(session.ladder!, r);
+      label = outcome === 'gameover' ? 'GAME OVER' : outcome === 'champion' ? 'LADDER CLEARED!' : winner === 0 ? 'VICTORY' : 'DEFEATED';
     }
     // Target Smash: time, best and targets instead of the versus table
     const tr = session.mode === 'targets' ? session.targetRun : null;
@@ -146,12 +167,14 @@ export class ResultsScene extends MenuScene {
         if (!c) return;
         const skin = ensurePalette(this, c, p.palette ?? 0);
         const sprite = this.add.sprite(0, 0, fighterTextureKey(skin), 0).setOrigin(0.5, 1).setTint(0xb4acd4);
-        sprite.play(fighterAnimKey(skin, 'idle'));
+        this.losePose(sprite, c, skin);
         this.ui.add(sprite);
+        if (this.endedEnraged(p)) this.enragedSkin(sprite, c, false);
         const port = p.team >= 0 ? p.team : p.index % 4;
         const color = COLORS.p[port];
         const tag = text(this, this.ui, `${p.placement}`, color).setOrigin(0.5);
-        this.runners.push({ sprite, k: uiTexK(c), place: i, color, port, tag, x: 0, y: 0 });
+        const shrink = podiumShrink(c);
+        this.runners.push({ sprite, k: uiTexK(c) * shrink, place: i, color, port, tag, x: 0, y: 0, half: bodyHalf(c) * shrink });
       });
     }
     if (wp && wc) {
@@ -161,22 +184,32 @@ export class ResultsScene extends MenuScene {
       this.champ = this.add.sprite(0, 0, fighterTextureKey(skin), 0).setOrigin(0.5, 1);
       // victory: the fighter's own victory action, then its held end pose (loops); replayed every few seconds
       const idle = fighterAnimKey(skin, 'idle');
+      this.champSkin = skin;
       const strike = (): void => {
-        if (this.champ) playResultPose(this.champ, wc, skin, true);
+        if (this.champ) playResultPose(this.champ, wc, this.champSkin, true);
       };
       this.champ.play(idle);
       this.time.delayedCall(500, strike);
       this.time.addEvent({ delay: 6000, loop: true, callback: strike });
       this.ui.add(this.champ);
+      this.champK *= podiumShrink(wc);
+      this.champHalf = bodyHalf(wc) * podiumShrink(wc);
+      if (this.endedEnraged(wp)) this.enragedSkin(this.champ, wc, true);
       this.champName = text(this, this.ui, wc.name.replace('The ', '').toUpperCase(), this.champColor).setOrigin(0.5);
       if (wc.persona?.victory) this.champLine = text(this, this.ui, up(`"${wc.persona.victory}"`), COLORS.dim).setOrigin(0.5);
     }
     if (lr) {
       const m = (v: number | null): string => (v !== null && v > 0 ? `${v.toFixed(1)} M` : '--');
+      // the comparison with the best before this run (every run flies the same standard dummy, so they compare fairly)
+      const prev = lr.prevBest ?? null;
+      const diff = prev !== null && prev > 0 && lr.distance > 0 ? lr.distance - prev : null;
+      const dummy = lr.dummy ? characterById(lr.dummy) : undefined;
       const lines: [string, number][] = [
         [`DISTANCE  ${m(lr.distance)}`, lr.record ? COLORS.good : lr.distance > 0 ? COLORS.text : COLORS.warn],
         [`BEST      ${m(lr.best)}`, COLORS.hot],
+        [`VS BEST   ${diff === null ? (lr.record ? 'FIRST RECORD' : '--') : `${diff >= 0 ? '+' : '-'}${Math.abs(diff).toFixed(1)} M`}`, diff !== null && diff > 0 ? COLORS.good : COLORS.dim],
         [`DAMAGE    ${lr.damage}%`, COLORS.text],
+        ...(dummy ? [[`DUMMY     ${dummy.name.replace('The ', '').toUpperCase()} (${dummy.stats.weight} WEIGHT)`, COLORS.dim] as [string, number]] : []),
       ];
       for (const [line, col] of lines) this.rows.push(text(this, this.ui, line, col));
     } else if (tr) {
@@ -197,8 +230,32 @@ export class ResultsScene extends MenuScene {
     }
     this.awardTexts = [];
     this.awardPorts = [];
+    this.awardStars = [];
     this.awardHead = null;
-    if (r && !tr && !lr && !arcade) {
+    const note = (line: string, color: number, stars = -1): void => {
+      this.awardTexts.push(text(this, this.ui, up(line), color));
+      this.awardPorts.push(-1);
+      this.awardStars.push(stars);
+    };
+    const clear = arcade && outcome === 'champion' ? session.ladder!.clear : undefined;
+    const run = chal && session.challengeRun?.id === chal.id ? session.challengeRun : null;
+    if (clear) {
+      // the clear card: the run's score, its stars and what it improved
+      const l = session.ladder!;
+      this.awardHead = text(this, this.ui, clear.firstClear ? 'ARCADE CLEAR  FIRST CLEAR!' : 'ARCADE CLEAR', COLORS.title);
+      note(`SCORE      ${clear.score.toLocaleString('en-US')}${clear.newBestScore ? '   NEW BEST!' : ''}`, clear.newBestScore || clear.firstClear ? COLORS.good : COLORS.text);
+      note(`STARS     ${'       '}${clear.stars > clear.prevStars ? '  NEW STAR!' : ''}`, clear.stars > clear.prevStars ? COLORS.good : COLORS.text, clear.stars);
+      note(`${DIFFICULTY_NAMES[ladderDifficulty(l)]}   KOS ${l.kos}   TIME ${formatSec(l.seconds)}${clear.newBestTime ? ' (BEST)' : ''}   CONTINUES ${l.continuesUsed}`, COLORS.hint);
+    } else if (run) {
+      // the medal this run earned, each goal met or missed, and what it improved
+      const c = chal!;
+      this.awardHead = text(this, this.ui, `MEDAL  ${run.earned ? TIER_NAMES[run.earned] : 'NONE'}`, TIER_COLORS[run.earned]);
+      note(`BRONZE  CLEAR             ${run.earned ? 'MET' : 'MISSED'}`, run.earned ? TIER_COLORS[1] : COLORS.dim);
+      note(`SILVER  ${goalText(c.silver).padEnd(18)}${run.silverMet ? 'MET' : 'MISSED'}`, run.silverMet ? TIER_COLORS[2] : COLORS.dim);
+      note(`GOLD    ${goalText(c.gold).padEnd(18)}${run.goldMet && run.silverMet ? 'MET' : run.goldMet ? 'MET (NEEDS SILVER)' : 'MISSED'}`, run.goldMet && run.silverMet ? TIER_COLORS[3] : COLORS.dim);
+      const news = [run.firstClear ? 'FIRST CLEAR!' : '', run.newTier && !run.firstClear ? `NEW BEST MEDAL: ${TIER_NAMES[run.tier]}` : '', run.newBestTime ? `NEW BEST TIME ${formatSec(run.durationSec)}` : ''].filter(Boolean);
+      if (news.length) note(news.join('   '), COLORS.good);
+    } else if (r && !tr && !lr && !arcade && !chal) {
       const awards = matchAwards(r, nameOf);
       if (awards.length) {
         this.awardHead = text(this, this.ui, 'AWARDS', COLORS.title);
@@ -211,21 +268,62 @@ export class ResultsScene extends MenuScene {
       }
     }
     const items: MenuItem[] = [];
+    const watch: MenuItem | null = session.replay && (session.replay.mode ?? 'versus') === session.mode && !tr && !lr ? { label: 'WATCH REPLAY', onConfirm: () => { session.watchReplay = true; this.go('Match'); } } : null;
     if (arcade) {
       const l = session.ladder!;
       if (outcome === 'next') items.push({ label: 'NEXT FIGHT', onConfirm: () => this.go('LadderMap') });
       else if (outcome === 'retry') items.push({ label: `CONTINUE (${l.continuesLeft} LEFT)`, onConfirm: () => this.go('LadderMap') });
       else if (outcome === 'champion') items.push({ label: 'CONTINUE', onConfirm: () => this.go('Story', { cards: endingCards(l), next: 'ModeSelect' }) });
-      items.push({ label: outcome === 'gameover' ? 'MAIN MENU' : 'QUIT LADDER', onConfirm: () => this.go('ModeSelect') });
+      if (outcome === 'gameover') {
+        // out of continues: carry on as another fighter, or on an easier setting, from the same fight (each costs score)
+        const roster = CHARACTER_LIST.map((c) => c.id);
+        let pickIdx = Math.max(0, roster.indexOf(l.player));
+        const step = (d: number): void => {
+          pickIdx = (pickIdx + d + roster.length) % roster.length;
+        };
+        step(1);
+        items.push({
+          label: 'CONTINUE AS',
+          value: () => (characterById(roster[pickIdx])?.name ?? roster[pickIdx]).replace('The ', '').toUpperCase(),
+          onLeft: () => step(-1),
+          onRight: () => step(1),
+          onConfirm: () => {
+            const id = roster[pickIdx];
+            if (!continueLadder(l, { player: id })) return;
+            if (session.arcadeHuman) session.arcadeHuman = { ...session.arcadeHuman, character: id, palette: 0, random: false, randomOutfit: false };
+            this.go('LadderMap');
+          },
+          hint: 'ANOTHER FIGHTER TAKES OVER FROM THIS FIGHT',
+        });
+        if (ladderDifficulty(l) > 1) {
+          items.push({
+            label: `RETRY ON ${DIFFICULTY_NAMES[ladderDifficulty(l) - 1]}`,
+            onConfirm: () => {
+              if (continueLadder(l, { easier: true })) this.go('LadderMap');
+            },
+          });
+        }
+        if (watch) items.push(watch);
+        items.push({ label: 'QUIT', onConfirm: () => this.go('ModeSelect') });
+      } else {
+        if (watch) items.push(watch);
+        items.push({ label: 'QUIT LADDER', onConfirm: () => this.go('ModeSelect') });
+      }
     } else if (chal) {
-      items.push({ label: 'RETRY', onConfirm: () => this.go('Match') }, { label: 'CHALLENGES', onConfirm: () => this.go('Challenges') }, { label: 'MAIN MENU', onConfirm: () => this.go('ModeSelect') });
+      items.push({ label: 'RETRY', onConfirm: () => this.go('Match') });
+      if (watch) items.push(watch);
+      items.push({ label: 'CHALLENGES', onConfirm: () => this.go('Challenges') }, { label: 'MAIN MENU', onConfirm: () => this.go('ModeSelect') });
     } else if (tr || lr) {
       items.push({ label: 'RETRY', onConfirm: () => this.go('Match') }, { label: 'CHARACTER SELECT', onConfirm: () => this.go('CharacterSelect') }, { label: 'MAIN MENU', onConfirm: () => this.go('ModeSelect') });
     } else {
-      items.push({ label: 'REMATCH', onConfirm: () => this.go('Match') });
-      if (session.mode === 'versus' && session.replay) {
-        items.push({ label: 'WATCH REPLAY', onConfirm: () => { session.watchReplay = true; this.go('Match'); } });
-      }
+      items.push({
+        label: 'REMATCH',
+        onConfirm: () => {
+          if (session.mode === 'versus') rerollRandomPicks(session.players); // RANDOM picks (fighter, outfit, stage) roll again
+          this.go('Match');
+        },
+      });
+      if (watch) items.push(watch);
       if (session.mode === 'versus') items.push({ label: 'STAGE SELECT', onConfirm: () => this.go('StageSelect') });
       items.push({ label: 'CHARACTER SELECT', onConfirm: () => this.go('CharacterSelect') }, { label: 'MAIN MENU', onConfirm: () => this.go('ModeSelect') });
     }
@@ -243,18 +341,49 @@ export class ResultsScene extends MenuScene {
     else if (!tr && !lr) {
       const champName = wc?.name.replace('The ', '');
       announcer.say(
-        !r || winner < 0 ? 'No contest.' : arcade ? (outcome === 'gameover' ? 'Game over.' : winner === 0 ? `${champName} wins!` : 'Defeated.') : r.winnerTeam >= 0 ? `Team ${r.winnerTeam === 0 ? 'blue' : 'red'} wins!` : `The winner is ${champName}!`,
+        !r || winner < 0 ? 'No contest.' : arcade ? (outcome === 'gameover' ? 'Game over.' : outcome === 'champion' ? 'Ladder cleared!' : winner === 0 ? `${champName} wins!` : 'Defeated.') : r.winnerTeam >= 0 ? `Team ${teamName(r.winnerTeam).toLowerCase()} wins!` : `The winner is ${champName}!`,
         { pitch: 0.55, rate: 0.98 },
       );
     }
+  }
+
+  /** A fighter that did not win: its lose row when the sheet has one, else a still, neutral stance (the first idle frame). */
+  private losePose(sprite: Phaser.GameObjects.Sprite, c: CharacterData, skin: string): void {
+    if (c.sprite.animations.lose) playResultPose(sprite, c, skin, false);
+    else {
+      sprite.anims.stop();
+      sprite.setFrame(this.anims.get(fighterAnimKey(skin, 'idle'))?.frames[0]?.frame.name ?? 0);
+    }
+  }
+
+  /** The boss finished the match in its second phase (its last stock or out): it is shown in its enraged look. */
+  private endedEnraged(p: PlayerResult): boolean {
+    return p.character === 'overseer' && (p.eliminated || p.stocks <= 1);
+  }
+
+  /** Swap a boss sprite to the phase-2 sheet once it is built (off the main thread; freed when this screen closes). */
+  private enragedSkin(sprite: Phaser.GameObjects.Sprite, c: CharacterData, won: boolean): void {
+    const visit = this.visitId;
+    const apply = (): void => {
+      if (!this.isVisit(visit) || !sprite.active) return;
+      sprite.setTexture(fighterTextureKey(OVERSEER_PHASE2_SKIN));
+      if (won) {
+        this.champSkin = OVERSEER_PHASE2_SKIN;
+        playResultPose(sprite, c, OVERSEER_PHASE2_SKIN, true);
+      }
+      else this.losePose(sprite, c, OVERSEER_PHASE2_SKIN);
+    };
+    requestOverseerPhase2(this).then(apply, (err: unknown) => console.warn('[results] phase-2 sheet failed', err));
   }
 
   protected override layoutUi(w: number, h: number, u: number): void {
     this.titleK = Math.min(u * 5, (w * 0.92) / Math.max(1, textPx(this.title)));
     this.title.setScale(this.titleK).setPosition(w / 2, h * 0.12);
     this.titleGlow.setScale(this.titleK).setPosition(w / 2, h * 0.12);
-    // champion on the left, the table and the menu on the right (everything centred when there is no winner)
-    const side = this.champ ? w * 0.4 : w * 0.06;
+    // champion on the left, the table and the menu on the right (everything centred when there is no winner); a portrait
+    // phone stacks them instead: the table and the menu full width, the podium along the bottom
+    const portrait = h > w * 1.1;
+    const side = this.champ && !portrait ? w * 0.4 : w * 0.06;
     const tw = Math.max(1, textPx(this.head));
     const ts = Math.min(u * 1.2, (w - side - 40 * u) / tw);
     const tx = side + (w - side - tw * ts) / 2;
@@ -271,7 +400,7 @@ export class ResultsScene extends MenuScene {
     this.plate.fillStyle(PANEL.border, 1).fillRect(tx, h * 0.27 + 11.5 * (ts / 1.2), tw * ts, Math.max(1, u / 2));
     const footTop = this.placeFooter(this.hint);
     // awards under the table, then the menu
-    let listTop = h * 0.56;
+    let listTop = portrait ? bottom + 18 * u : h * 0.56;
     if (this.awardHead) {
       const ak = Math.min(u, ts);
       let ay = bottom + 9 * u;
@@ -283,45 +412,76 @@ export class ResultsScene extends MenuScene {
       drawPanel(this.plate, ax - 4 * u, bottom + 6 * u, Math.min(aw + 6 * u, tw * ts + pad * 2), ah + 4 * u, u, 0.85);
       this.awardTexts.forEach((t, i) => {
         t.setScale(Math.min(ak, (tw * ts - 8 * u) / Math.max(1, textPx(t)))).setPosition(ax + 8 * u, ay);
-        drawPortShape(this.plate, this.awardPorts[i], ax + 3 * u, ay + (7 * t.scaleY) / 2, 1.5 * u, COLORS.p[this.awardPorts[i]], 1, Math.max(1, u / 2));
+        const port = this.awardPorts[i];
+        if (port >= 0) drawPortShape(this.plate, port, ax + 3 * u, ay + (7 * t.scaleY) / 2, 1.5 * u, COLORS.p[port], 1, Math.max(1, u / 2));
+        // the clear card's stars, in the gap left for them after "STARS"
+        const lit = this.awardStars[i] ?? -1;
+        if (lit >= 0) {
+          const cw = t.displayWidth / Math.max(1, t.text.length);
+          const r = 3.2 * t.scaleY;
+          for (let k = 0; k < 3; k++) drawStar(this.plate, t.x + cw * (11 + k * 2.4), ay + (7 * t.scaleY) / 2, r, k < lit);
+        }
         ay += 7 * ak + 4 * u;
       });
-      listTop = Math.max(listTop, ay + 10 * u);
+      listTop = Math.max(listTop, ay + 14 * u);
     }
-    this.list.layout(side + (w - side) / 2, listTop, u, 120, Math.max(listTop + 30 * u, footTop - 6 * u));
+    // the podium's ground line: the winner's name (and quote) below it must end above the footer
+    let podiumTop = footTop;
     if (this.champ) {
-      // sized so even a wide fighter (wings, staffs) stays on screen beside the table
+      // sized so even a wide fighter (wings, staffs, the boss) stays on screen beside the table
       const nr = this.runners.length;
-      // the podium's width in units of s: the winner's step, plus a lower step either side (and a third for 4th)
-      const span = nr === 0 ? 56 : nr === 1 ? 100 : nr === 2 ? 136 : 168;
-      const s = Math.max(0.6, Math.min(u * 2.6, (h * 0.44) / 64, (w * 0.38) / span, nr === 0 ? (w * 0.2) / 56 : Infinity));
-      const shift = nr === 0 ? 0 : nr === 1 ? 20 : nr === 2 ? 0 : -16;
-      this.floor = { x: w * 0.22 + shift * s, y: h * 0.74, s };
+      // 2nd on the left step, 3rd on the right, 4th one step further right and lower; big fighters push the steps outward
+      const spots = podiumSpots(this.champHalf, this.runners.map((rn, i) => rn.half * (i === 2 ? 0.62 : 0.72)));
+      // the podium's extent in units of s, either side of the winner (the winner's own step is 34 each way)
+      const left = Math.max(34, this.champHalf, ...spots.map((p) => -(p.dx - p.hw)));
+      const right = Math.max(34, this.champHalf, ...spots.map((p) => p.dx + p.hw));
+      const span = left + right + (nr === 0 ? 0 : 6);
+      const room = portrait ? w - 6 * u : side - 6 * u; // everything left of the table (portrait: the full width)
+      const s = Math.max(0.5, Math.min(u * 2.6, (h * (portrait ? 0.2 : 0.44)) / 64, (room * 0.96) / span, nr === 0 && !portrait ? (w * 0.2) / 56 : Infinity));
+      // centred in the room left of the table (never past either edge)
+      const fx = Math.max(3 * u + left * s, Math.min(room - right * s, room / 2 + ((left - right) / 2) * s));
+      // what hangs below the ground line: the steps, the name and (on taller windows) the quote, all above the footer
+      const nameK = this.champName ? Math.min(u * 2, (w * (portrait ? 0.8 : 0.36)) / Math.max(1, textPx(this.champName))) : 0;
+      const quote = !!this.champLine && (h >= 500 || !this.runners.length);
+      const quoteK = this.champLine ? Math.min(u, (w * (portrait ? 0.9 : 0.38)) / Math.max(1, textPx(this.champLine))) : 0;
+      const below = s * (nr ? 16 : 10) + 9 * u + 3.5 * nameK + 4 * u + (quote ? 6 * u + 7 * quoteK : 0);
+      const fy = Math.min(h * 0.74, footTop - 3 * u - below);
+      this.floor = { x: nr === 0 && !portrait ? w * 0.22 : fx, y: fy, s };
+      podiumTop = fy - 70 * s;
       this.champ.setScale(s * this.champK).setPosition(this.floor.x, this.floor.y);
-      // 2nd on the left step, 3rd on the right, 4th one step further right and lower
-      const spots = [[-42, 7], [42, 7], [76, 12]];
       this.runners.forEach((rn, i) => {
-        const [dx, dy] = spots[i];
+        const { dx, dy, hw } = spots[i];
+        rn.dx = dx;
+        rn.hw = hw;
         rn.x = this.floor.x + dx * s;
         rn.y = this.floor.y + dy * s;
         rn.sprite.setScale(s * (i === 2 ? 0.62 : 0.72) * rn.k).setPosition(rn.x, rn.y);
-        rn.tag.setScale(Math.max(u, Math.round(s * 1.1))).setPosition(rn.x + 2 * s, rn.y + (16 - dy) * s * 0.5 + 1.5 * s);
+        // the place number sits on the front of its own step, sized to fit inside it (never down into the winner's name)
+        const front = (16 - dy) * s;
+        const tk = Math.max(1, Math.min(Math.round(s * 1.1), Math.floor((front * 0.7) / 7)));
+        rn.tag.setScale(tk).setPosition(rn.x + 2 * s, rn.y + front * 0.55);
       });
-      this.champName?.setScale(Math.min(u * 2, (w * 0.36) / Math.max(1, textPx(this.champName)))).setPosition(this.floor.x, this.floor.y + s * (this.runners.length ? 16 : 10) + 9 * u);
+      this.champName?.setScale(nameK).setPosition(this.floor.x, this.floor.y + s * (this.runners.length ? 16 : 10) + 9 * u);
       // short windows (phones held sideways) drop the victory quote: there is no room under the podium
-      this.champLine?.setVisible(h >= 500 || !this.runners.length);
-      if (this.champName && this.champLine && this.champLine.visible) this.champLine.setScale(Math.min(u, (w * 0.38) / Math.max(1, textPx(this.champLine)))).setPosition(this.floor.x, this.champName.y + this.champName.displayHeight / 2 + 6 * u);
+      this.champLine?.setVisible(quote);
+      if (this.champName && this.champLine && this.champLine.visible) this.champLine.setScale(quoteK).setPosition(this.floor.x, this.champName.y + this.champName.displayHeight / 2 + 6 * u);
       // a plate under the name and quote so they read over any stage's ground (kept on screen beside the table)
       if (this.champName) {
         const last = this.champLine?.visible ? this.champLine : this.champName;
         const pw = Math.max(this.champName.displayWidth, last.displayWidth) + 12 * u;
-        const nx = Math.max(pw / 2 + 4 * u, Math.min(this.floor.x, side - pw / 2 - 4 * u));
+        const nx = Math.max(pw / 2 + 4 * u, Math.min(this.floor.x, (portrait ? w : side) - pw / 2 - 4 * u));
         this.champName.setX(nx);
         this.champLine?.setX(nx);
         const top = Math.max(this.champName.y - this.champName.displayHeight / 2 - 4 * u, this.floor.y + this.floor.s * (this.runners.length ? 16 : 10) + u);
         drawPanel(this.plate, nx - pw / 2, top, pw, last.y + last.displayHeight / 2 + 4 * u - top, u, 0.8);
       }
     }
+    // the menu always ends above the footer (and, stacked, above the podium): when room is short it starts higher and scrolls
+    const listBottom = (portrait ? Math.min(footTop, podiumTop) : footTop) - 6 * u;
+    listTop = Math.min(listTop, listBottom - 40 * u);
+    const lcx = portrait ? w / 2 : side + (w - side) / 2;
+    const want = this.list.items.some((i) => i.value) ? 180 : 140;
+    this.list.layout(lcx, listTop, u, Math.min(want, (2 * Math.min(lcx, w - lcx) - 8 * u) / u), listBottom);
   }
 
   protected override backdrop(): MenuBackdrop {
@@ -426,7 +586,7 @@ export class ResultsScene extends MenuScene {
     const pulse = settings.reduceMotion ? 0.5 : 0.5 + 0.5 * Math.sin(time * 3);
     // the lower steps: a dark block per runner-up with a stripe in their colour and their place on the front
     for (const rn of this.runners) {
-      const hw = (rn.place === 2 ? 15 : 18) * s;
+      const hw = (rn.hw ?? (rn.place === 2 ? 15 : 18)) * s;
       const ph = y + 16 * s - rn.y;
       g.fillStyle(0x141028, 1).fillRect(rn.x - hw, rn.y, hw * 2, ph);
       g.fillStyle(0x2e2650, 1).fillRect(rn.x - hw, rn.y, hw * 2, 1.5 * s);

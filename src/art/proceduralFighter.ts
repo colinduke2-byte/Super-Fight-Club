@@ -8,7 +8,7 @@ export { animFrameIndex, sheetDims };
 import { hasHeroArt } from './hero';
 import { packedHeroSheet, sheetSpec, type PackedSheet } from './sheetPixels';
 import { buildSheetPixels } from './sheetPool';
-import { addCanvasTexture } from './canvasTexture';
+import { addCanvasTexture, context2d, context2dOrBlank, maxTextureSize } from './canvasTexture';
 
 /**
  * Placeholder pixel-art generator (64x64 frames). Draws every animation frame with canvas rects and
@@ -712,25 +712,75 @@ export function ensurePalette(scene: Phaser.Scene, data: CharacterData, palette:
 }
 
 /** A packed sheet drawn onto a canvas (the upload source: the same 2D-canvas path every sheet has always taken to the GPU). */
-function sheetCanvas(px: PackedSheet): HTMLCanvasElement {
+function sheetCanvas(px: PackedSheet): HTMLCanvasElement | null {
   const sheet = document.createElement('canvas');
   sheet.width = px.width;
   sheet.height = px.height;
-  sheet.getContext('2d')!.putImageData(new ImageData(px.data as Uint8ClampedArray<ArrayBuffer>, px.width, px.height), 0, 0);
+  const g = context2d(sheet);
+  if (!g) return null;
+  g.putImageData(new ImageData(px.data as Uint8ClampedArray<ArrayBuffer>, px.width, px.height), 0, 0);
   return sheet;
 }
 
 /**
- * Turn a packed sheet into the fighter's texture: one trimmed frame per cell, drawn exactly like the padded grid cell.
- * Only the GPU keeps the pixels: the canvas they were uploaded from is released straight away (a big sheet is tens of MB)
- * and, should the WebGL context be lost, the sheet is rebuilt from its spec (from the persistent cache, normally) and
- * uploaded again the same way.
+ * A packed sheet bigger than the GPU's largest texture: cut into tiles that each fit, every frame wholly inside one tile,
+ * as one multi-source texture (the frames point into their tile), so nothing is scaled down. Tiles start at a frame's
+ * corner and may overlap. Null when a single frame is bigger than the limit (nothing to cut it into).
  */
+function registerTiled(scene: Phaser.Scene, key: string, px: PackedSheet, max: number): Phaser.Textures.Texture | null {
+  const F = px.frames;
+  const cells = F.length / 6;
+  for (let c = 0; c < cells; c++) if (F[c * 6 + 2] > max || F[c * 6 + 3] > max) return null;
+  const order = Array.from({ length: cells }, (_, c) => c).sort((a, b) => F[a * 6 + 1] - F[b * 6 + 1] || F[a * 6] - F[b * 6]);
+  const tiles: { x: number; y: number; w: number; h: number }[] = [];
+  const tileOf = new Int32Array(cells);
+  for (const c of order) {
+    const [x, y, w, h] = F.subarray(c * 6, c * 6 + 4);
+    let t = tiles.findIndex((T) => x >= T.x && y >= T.y && x + w <= T.x + T.w && y + h <= T.y + T.h);
+    if (t < 0) {
+      t = tiles.length;
+      tiles.push({ x, y, w: Math.min(max, px.width - x), h: Math.min(max, px.height - y) });
+    }
+    tileOf[c] = t;
+  }
+  const whole = new ImageData(px.data as Uint8ClampedArray<ArrayBuffer>, px.width, px.height);
+  const canvases: HTMLCanvasElement[] = [];
+  for (const T of tiles) {
+    const c = document.createElement('canvas');
+    c.width = T.w;
+    c.height = T.h;
+    const g = context2d(c);
+    if (!g) return null;
+    g.putImageData(whole, -T.x, -T.y, T.x, T.y, T.w, T.h);
+    canvases.push(c);
+  }
+  const tex = scene.textures.create(key, canvases as unknown as HTMLImageElement[]);
+  if (!tex) return null;
+  for (let c = 0; c < cells; c++) {
+    const o = c * 6;
+    const T = tiles[tileOf[c]];
+    tex.add(c, tileOf[c], F[o] - T.x, F[o + 1] - T.y, F[o + 2], F[o + 3])!.setTrim(px.cellW, px.cellH, F[o + 4], F[o + 5], F[o + 2], F[o + 3]);
+  }
+  return tex;
+}
+
 export function registerPixels(scene: Phaser.Scene, data: CharacterData, px: PackedSheet): void {
   const key = fighterTextureKey(data.id);
   if (scene.textures.exists(key)) scene.textures.remove(key);
+  const max = maxTextureSize(scene.textures);
+  if (px.width > max || px.height > max) {
+    // a small GPU: split the sheet rather than lose it (the frames are the same pixels, just spread over several textures)
+    console.warn(`[sheets] ${data.id}: ${px.width}x${px.height} sheet exceeds this GPU's ${max}px texture limit; splitting it`);
+    if (registerTiled(scene, key, px, max)) {
+      registerAnimations(scene, data);
+      return;
+    }
+    console.error(`[sheets] ${data.id}: could not split the sheet for this GPU; it will not draw correctly`);
+  }
   const spec = sheetSpec(data);
-  const tex = addCanvasTexture(scene, key, sheetCanvas(px), async () => sheetCanvas(await buildSheetPixels(spec)))!;
+  const canvas = sheetCanvas(px);
+  if (!canvas) throw new Error(`no canvas memory for ${data.id}'s ${px.width}x${px.height} sheet`);
+  const tex = addCanvasTexture(scene, key, canvas, async () => sheetCanvas(await buildSheetPixels(spec)))!;
   const F = px.frames;
   for (let cell = 0; cell * 6 < F.length; cell++) {
     const o = cell * 6;
@@ -775,19 +825,19 @@ export function buildPlaceholderSheet(scene: Phaser.Scene, data: CharacterData):
   const sheet = document.createElement('canvas');
   sheet.width = L.cols * fw;
   sheet.height = L.rows * size;
-  const sctx = sheet.getContext('2d')!;
+  const sctx = context2dOrBlank(sheet);
   sctx.imageSmoothingEnabled = false;
 
   const tmp = document.createElement('canvas');
   tmp.width = tmp.height = base;
-  const tctx = tmp.getContext('2d', { willReadFrequently: true })!;
+  const tctx = context2dOrBlank(tmp, { willReadFrequently: true });
   const hero = hasHeroArt(sprite.placeholder);
   // the 64px template is upscaled 2x and detailed at 128px; frames may be larger (hero art), so it is placed bottom-centre
   const legacyS = base * 2;
   const hi = document.createElement('canvas');
   hi.width = hero ? fw : legacyS;
   hi.height = hero ? size : legacyS;
-  const hctx = hi.getContext('2d', { willReadFrequently: true })!;
+  const hctx = context2dOrBlank(hi, { willReadFrequently: true });
   hctx.imageSmoothingEnabled = false;
   const offX = Math.round((fw - legacyS) / 2 + (5 * (size / 64) - 10));
   const offY = size - legacyS - (size - 4 - (legacyS - 2));

@@ -1,7 +1,7 @@
 import { startDemo } from '../game/demo';
 import { releaseUnusedOutfits } from './outfits';
 import Phaser from 'phaser';
-import { fighterAnimKey, fighterTextureKey, uiTexK } from '../art/proceduralFighter';
+import { ensureFightersReady, fighterAnimKey, fighterTextureKey, uiTexK } from '../art/proceduralFighter';
 import { CHARACTER_LIST } from '../characters';
 import { inputManager } from '../input/inputManager';
 import { keyboardHub } from '../input/keyboard';
@@ -32,7 +32,8 @@ export class TitleScene extends MenuScene {
   private sub!: Phaser.GameObjects.BitmapText;
   private prompt!: Phaser.GameObjects.BitmapText;
   private footer!: Phaser.GameObjects.BitmapText;
-  private sprites: Phaser.GameObjects.Sprite[] = [];
+  /** The lineup, by roster index (null until that fighter's sheet exists: it steps in when it arrives). */
+  private sprites: (Phaser.GameObjects.Sprite | null)[] = [];
   private names: Phaser.GameObjects.BitmapText[] = [];
   private stage!: Phaser.GameObjects.Graphics;
   private rules!: Phaser.GameObjects.Graphics;
@@ -97,22 +98,36 @@ export class TitleScene extends MenuScene {
     this.padPrev.clear();
     this.scanPads(false);
     this.footer = text(this, this.ui, '', COLORS.hint).setOrigin(0.5);
-    // two depth rows: every other fighter stands a step back (added first, so the front row draws over it)
-    const order = CHARACTER_LIST.map((_, i) => i).sort((a, b) => (b % 2) - (a % 2) || a - b);
-    const sprites: Phaser.GameObjects.Sprite[] = [];
-    for (const i of order) {
-      const c = CHARACTER_LIST[i];
-      const s = this.add.sprite(0, 0, fighterTextureKey(c.id), 0).setOrigin(0.5, 1);
-      s.play(fighterAnimKey(c.id, 'idle'));
-      this.ui.add(s);
-      sprites[i] = s;
-    }
-    this.sprites = sprites;
+    // the title does not wait for every fighter: each one steps into the lineup as its sheet arrives
+    this.sprites = CHARACTER_LIST.map(() => null);
+    this.addArrivals();
+    const missing = CHARACTER_LIST.filter((c) => !this.textures.exists(fighterTextureKey(c.id)));
+    if (missing.length) ensureFightersReady(this, missing).catch(() => undefined);
     for (const c of CHARACTER_LIST) this.names.push(text(this, this.ui, c.name, parseInt(c.sprite.placeholder.accent.slice(1), 16)).setOrigin(0.5));
     // a white flash over everything when the player presses in
     this.flash = this.add.rectangle(0, 0, 1, 1, 0xffffff, 1).setOrigin(0, 0).setAlpha(0);
     this.ui.add(this.flash);
   }
+
+  /** Creates the lineup sprites whose sheets exist now; true if any were added. Back-row fighters sit behind the front row. */
+  private addArrivals(): boolean {
+    let added = false;
+    // made in depth order: the back row (every other fighter) first, so the front row draws over it
+    const order = CHARACTER_LIST.map((_, i) => i).sort((a, b) => (b % 2) - (a % 2) || a - b);
+    order.forEach((i) => {
+      const c = CHARACTER_LIST[i];
+      if (this.sprites[i] || !this.textures.exists(fighterTextureKey(c.id)) || !this.anims.exists(fighterAnimKey(c.id, 'idle'))) return;
+      const s = this.add.sprite(0, 0, fighterTextureKey(c.id), 0).setOrigin(0.5, 1).setAlpha(0);
+      s.play(fighterAnimKey(c.id, 'idle'));
+      this.ui.add(s);
+      this.sprites[i] = s;
+      added = true;
+    });
+    return added;
+  }
+
+  /** Lineup layout: one row (alternate fighters a step back) on wide windows, two rows of fighters on tall ones. */
+  private portrait = false;
 
   private promptText(): string {
     return lastInput.kind === 'touch' ? 'TAP TO START' : 'PRESS ANY BUTTON';
@@ -145,23 +160,60 @@ export class TitleScene extends MenuScene {
   /** Everything is stacked top to bottom from measured heights, so nothing can overlap at any window size. */
   protected override layoutUi(w: number, h: number, u: number): void {
     const margin = 8 * u;
-    let y = margin + 4 * u;
+    this.portrait = h > w * 1.1;
 
-    this.logo1.setScale(u * 3);
+    // bottom stack: footer, prompt (measured from the bottom up)
+    this.footer.setText(this.footerMsg || 'X'.repeat(80));
+    this.footer.setScale(Math.min(u, (w * 0.94) / Math.max(1, textPx(this.footer))));
+    const footerY = h - margin - this.footer.displayHeight / 2;
+    this.footer.setPosition(w / 2, footerY);
+    this.prompt.setScale(Math.min(u * 2, (w * 0.9) / Math.max(1, textPx(this.prompt))));
+    const promptY = footerY - this.footer.displayHeight / 2 - 12 * u - this.prompt.displayHeight / 2;
+    this.prompt.setPosition(w / 2, promptY);
+
+    // the logo block, measured first (placed below, once the lineup's height is known)
+    this.logo1.setScale(1);
+    const logo1K = Math.min(u * 3, (w * 0.5) / Math.max(1, this.logo1.width));
+    this.logo2.setScale(1);
+    const logo2K = Math.min(u * 6, (w * 0.82) / Math.max(1, this.logo2.width));
+    this.sub.setScale(1);
+    const subK = Math.min(u * 1.5, (w * 0.9) / Math.max(1, this.sub.width));
+    const logoH = 7 * logo1K + 4 * u + 7 * logo2K + 9 * u + 7 * subK + 3 * u;
+
+    // the lineup: one row of slots (wide) or two rows (tall), each fighter on a lit spot over a nameplate
+    const n = CHARACTER_LIST.length;
+    const rows = this.portrait ? 2 : 1;
+    const perRow = Math.ceil(n / rows);
+    // the end fighters keep clear of the screen edge (arms, wings and props reach past their slot)
+    const side = margin * 1.75 + (w - margin * 3.5) / perRow / 4;
+    const slot = (w - side * 2) / perRow;
+    const widest = Math.max(1, ...this.names.map((t) => textPx(t)));
+    const nameS = Math.min(u * 1.2, (slot - 6 * u) / widest);
+    // names too small to read are left out (a row of blank coloured tabs reads as a glitch)
+    const showNames = nameS * 7 >= Math.max(5, 2.2 * u);
+    this.names.forEach((t) => t.setScale(nameS).setVisible(showNames));
+    const plateH = showNames ? 7 * nameS + 4 * u : 0;
+    const top = margin + 4 * u + logoH + 6 * u;
+    const bottom = promptY - this.prompt.displayHeight / 2 - 10 * u;
+    const rowGap = this.portrait ? 10 * u : 0;
+    const rowH = (bottom - top - rowGap * (rows - 1)) / rows;
+    const backK = this.portrait ? 1 : 0.8;
+    // (fighters stand up to ~70 art px tall with crests, wings and staffs; the one-row lineup's back row stands a step up)
+    const tall = this.portrait ? 70 : 82;
+    const spriteScale = Math.max(0.5, Math.min(u * (this.portrait ? 2.6 : 2), (rowH - plateH - 6 * u) / tall, (slot * (this.portrait ? 1.25 : 1.55)) / 44));
+    const lineupH = rows * (tall * spriteScale + plateH + 6 * u) + rowGap * (rows - 1);
+    // what is left over is shared above the logo and between the logo and the lineup, so a tall screen is not half sky
+    const slack = Math.max(0, bottom - top - lineupH);
+    let y = margin + 4 * u + slack * 0.35;
+
+    this.logo1.setScale(logo1K);
     this.logo1.setPosition(w / 2, y + this.logo1.displayHeight / 2);
     this.placeLogo1();
     y += this.logo1.displayHeight + 4 * u;
-
-    // "FIGHT CLUB" is as large as fits 82% of the width (capped), never overlapping what is above/below
-    this.logo2.setScale(1);
-    const fit = (w * 0.82) / Math.max(1, this.logo2.width);
-    const sc = Math.min(u * 6, fit);
-    for (const l of this.logo2Layers()) l.setScale(sc);
-    const cy = y + this.logo2.displayHeight / 2;
-    this.placeLogo2(cy, sc);
+    for (const l of this.logo2Layers()) l.setScale(logo2K);
+    this.placeLogo2(y + this.logo2.displayHeight / 2, logo2K);
     y += this.logo2.displayHeight + 9 * u;
-
-    this.sub.setScale(u * 1.5);
+    this.sub.setScale(subK);
     this.sub.setPosition(w / 2, y + this.sub.displayHeight / 2);
     y += this.sub.displayHeight + 3 * u;
 
@@ -174,69 +226,55 @@ export class TitleScene extends MenuScene {
     g.fillRect(margin, ry - u * 0.5, Math.max(0, rw - margin + 4 * u), u);
     g.fillRect(w - rw - 4 * u, ry - u * 0.5, Math.max(0, rw - margin + 4 * u), u);
 
-    // bottom stack: footer, prompt, nameplates (measured from the bottom up)
-    this.footer.setText(this.footerMsg || 'X'.repeat(80));
-    this.footer.setScale(Math.min(u, (w * 0.94) / Math.max(1, textPx(this.footer))));
-    const footerY = h - margin - this.footer.displayHeight / 2;
-    this.footer.setPosition(w / 2, footerY);
-    this.prompt.setScale(u * 2);
-    const promptY = footerY - this.footer.displayHeight / 2 - 12 * u - this.prompt.displayHeight / 2;
-    this.prompt.setPosition(w / 2, promptY);
-    // the lineup spans the width inside the margins, one equal slot per fighter
-    const n = this.sprites.length;
-    // a wider side margin than the text's: the end fighters' arms and props stay on screen
-    const slot = (w - margin * 3.5) / Math.max(1, n);
-    const x0 = margin * 1.75;
-    // names fit their slot (the roster keeps growing) and always keep a clear gap to the next nameplate
-    const widest = Math.max(1, ...this.names.map((t) => textPx(t)));
-    // plate padding (6u) plus at least 8u of clear space between neighbouring plates
-    const nameS = Math.min(u * 1.2, (slot - 14 * u) / widest);
-    this.names.forEach((t) => t.setScale(nameS));
-    const nameH = 7 * nameS;
-    const plateH = nameH + 4 * u;
-    const nameY = promptY - this.prompt.displayHeight / 2 - 10 * u - plateH / 2;
-    const floorY = nameY - plateH / 2 - 4 * u;
-
-    // roster in two depth rows: the front row (every other fighter) has two slots each, so neighbours in a row never
-    // overlap; the back row stands a step up and behind, smaller and in shade
-    const avail = floorY - y - 6 * u;
-    const spriteScale = Math.max(0.5, Math.min(u * 2, avail / 58, (slot * 1.7) / 44));
-    const backK = 0.8;
-    const backLift = Math.max(0, Math.min(avail - 60 * spriteScale * backK, 16 * spriteScale));
-    this.baseY = [];
     const st = this.stage;
     st.clear();
-    // the back row's riser
-    st.fillStyle(0x0a0820, 0.45).fillRect(margin, floorY - backLift, w - margin * 2, backLift);
-    st.fillStyle(0xffffff, 0.08).fillRect(margin, floorY - backLift, w - margin * 2, u * 0.5);
+    this.baseY = [];
+    // one row: the back row (every other fighter) stands a step up on a riser; two rows: the first half on the upper row
+    const floorOf = (row: number): number => bottom - (rows - 1 - row) * (tall * spriteScale + plateH + 6 * u + rowGap) - plateH - 4 * u;
+    const backLift = this.portrait ? 0 : Math.max(0, Math.min(rowH - plateH - 60 * spriteScale * backK, 16 * spriteScale));
+    if (!this.portrait) {
+      const fy = floorOf(0);
+      st.fillStyle(0x0a0820, 0.45).fillRect(margin, fy - backLift, w - margin * 2, backLift);
+      st.fillStyle(0xffffff, 0.08).fillRect(margin, fy - backLift, w - margin * 2, u * 0.5);
+    }
     for (let i = 0; i < n; i++) {
-      const x = x0 + slot * (i + 0.5);
-      const back = i % 2 === 1;
-      const fy = back ? floorY - Math.max(0, backLift) : floorY;
-      const col = parseInt(CHARACTER_LIST[i].sprite.placeholder.accent.slice(1), 16);
-      const sp = this.sprites[i].setScale(spriteScale * (back ? backK : 1) * uiTexK(CHARACTER_LIST[i])).setPosition(x, fy).setTint(back ? 0xc4bede : 0xffffff);
-      // a wide fighter (arms, props) at either end shrinks to stay on screen
-      const room = Math.min(x, w - x) - 2 * u;
-      const half = sp.displayWidth * 0.36;
-      if (half > room && room > 0) sp.setScale(sp.scaleX * (room / half));
+      const row = this.portrait ? (i < perRow ? 0 : 1) : 0;
+      const col = this.portrait ? i - row * perRow : i;
+      const inRow = this.portrait ? (row === 0 ? perRow : n - perRow) : n;
+      const x = w / 2 + (col - (inRow - 1) / 2) * slot;
+      const back = !this.portrait && i % 2 === 1;
+      const floor = floorOf(row);
+      const fy = back ? floor - backLift : floor;
+      const tint = parseInt(CHARACTER_LIST[i].sprite.placeholder.accent.slice(1), 16);
+      const sp = this.sprites[i];
+      if (sp) {
+        sp.setScale(spriteScale * (back ? backK : 1) * uiTexK(CHARACTER_LIST[i])).setPosition(x, fy).setTint(back ? 0xc4bede : 0xffffff);
+        // a wide fighter (arms, props) at either end shrinks to stay on screen
+        const room = Math.min(x, w - x) - 2 * u;
+        const half = sp.displayWidth * 0.42;
+        if (half > room && room > 0) sp.setScale(sp.scaleX * (room / half));
+      }
       this.baseY.push(fy);
+      const nameY = floor + 4 * u + plateH / 2;
       this.names[i].setPosition(x, nameY);
       // spotlight cone + floor glow + pad
-      const top = Math.max(y, fy - 64 * spriteScale);
-      st.fillStyle(col, back ? 0.045 : 0.07);
-      st.fillTriangle(x - 4 * u, top, x + 4 * u, top, x + 26 * u, fy);
-      st.fillTriangle(x - 4 * u, top, x - 26 * u, fy, x + 26 * u, fy);
-      st.fillStyle(col, back ? 0.12 : 0.18);
-      st.fillEllipse(x, fy, 40 * u, 5 * u);
-      st.fillStyle(col, back ? 0.3 : 0.5);
-      st.fillRect(x - 16 * u, fy, 32 * u, u * 0.7);
+      const ctop = Math.max(y, fy - 64 * spriteScale);
+      st.fillStyle(tint, back ? 0.045 : 0.07);
+      st.fillTriangle(x - 4 * u, ctop, x + 4 * u, ctop, x + 26 * u, fy);
+      st.fillTriangle(x - 4 * u, ctop, x - 26 * u, fy, x + 26 * u, fy);
+      st.fillStyle(tint, back ? 0.12 : 0.18);
+      st.fillEllipse(x, fy, Math.min(40 * u, slot * 0.9), 5 * u);
+      st.fillStyle(tint, back ? 0.3 : 0.5);
+      st.fillRect(x - Math.min(16 * u, slot * 0.4), fy, Math.min(32 * u, slot * 0.8), u * 0.7);
       // nameplate: a dark tab with an accent underline, sized to the name
-      const pw = textPx(this.names[i]) * nameS + 6 * u;
-      st.fillStyle(0x0a0820, 0.85).fillRect(x - pw / 2, nameY - plateH / 2, pw, plateH);
-      st.fillStyle(col, 0.9).fillRect(x - pw / 2, nameY + plateH / 2 - u, pw, u);
+      if (showNames) {
+        const pw = textPx(this.names[i]) * nameS + 6 * u;
+        st.fillStyle(0x0a0820, 0.85).fillRect(x - pw / 2, nameY - plateH / 2, pw, plateH);
+        st.fillStyle(tint, 0.9).fillRect(x - pw / 2, nameY + plateH / 2 - u, pw, u);
+      }
     }
     st.fillStyle(0xffffff, 0.12);
-    st.fillRect(margin, floorY, w - margin * 2, u * 0.5);
+    for (let r = 0; r < rows; r++) st.fillRect(margin, floorOf(r), w - margin * 2, u * 0.5);
     this.logoY = { l1: this.logo1.y, l2: this.logo2.y, sub: this.sub.y };
     this.flash.setSize(w, h);
   }
@@ -322,6 +360,8 @@ export class TitleScene extends MenuScene {
     const fl = calm ? 0 : pressed ? Math.max(0, 0.4 - (time - this.pressedAt) * 1.6) : time > 0.42 && time < 0.6 ? 0.25 * (1 - (time - 0.42) / 0.18) : 0;
     this.flash.setAlpha(fl);
     if (pressed && time - this.pressedAt > 0.32) this.go('ModeSelect');
+    // fighters whose sheets arrive late step into the lineup
+    if (this.sprites.some((sp) => !sp) && this.addArrivals()) this.layoutUi(this.scale.width, this.scale.height, this.u);
     // every few seconds one of the lineup strikes their taunt pose, then settles back into the idle
     if (time > this.nextPose) {
       this.nextPose = time + 2.2 + Math.random() * 1.6;
@@ -329,7 +369,7 @@ export class TitleScene extends MenuScene {
       const c = CHARACTER_LIST[i];
       const pose = c.moves.taunt?.anim ? fighterAnimKey(c.id, c.moves.taunt.anim) : '';
       const s = this.sprites[i];
-      if (pose && this.anims.exists(pose) && s.anims.currentAnim?.key === fighterAnimKey(c.id, 'idle')) {
+      if (s && pose && this.anims.exists(pose) && s.anims.currentAnim?.key === fighterAnimKey(c.id, 'idle')) {
         s.play({ key: pose, frameRate: 8, repeat: 0 });
         s.once(Phaser.Animations.Events.ANIMATION_COMPLETE, () => s.play(fighterAnimKey(c.id, 'idle')));
       }
@@ -340,13 +380,16 @@ export class TitleScene extends MenuScene {
     const pads = inputManager.padList.length;
     // generated from the live bindings, so a rebind shows here too
     const keys = `KEYBOARD: ${moveLabel('kb1')} + ${menuPrompt('confirm', inputManager.keyboards[0]).split(' / ')[0]}  OR  ${moveLabel('kb2')} + ENTER`;
-    const msg = lastInput.kind === 'touch' ? `TOUCH CONTROLS ON  |  ${pads} CONTROLLER${pads === 1 ? '' : 'S'} CONNECTED` : `${pads} CONTROLLER${pads === 1 ? '' : 'S'} CONNECTED  |  ${keys}`;
+    // no "0 CONTROLLERS CONNECTED": the count only shows once there is one
+    const padMsg = pads ? `${pads} CONTROLLER${pads === 1 ? '' : 'S'} READY` : '';
+    const msg = lastInput.kind === 'touch' ? ['TOUCH CONTROLS ON', padMsg].filter(Boolean).join('  |  ') : [padMsg || 'KEYBOARD READY', keys].join('  |  ');
     if (msg !== this.footerMsg) {
       this.footerMsg = msg;
       this.footer.setText(msg);
     }
     // the lineup rises onto the stage one after another, left to right
     this.sprites.forEach((s, i) => {
+      if (!s) return;
       const r = this.ease(time, 0.55 + i * 0.06, 0.35);
       s.setY((this.baseY[i] ?? s.y) + (settings.reduceMotion ? 0 : Math.sin(time * 2 + i) * 0.6) + (1 - r) * 18 * u).setAlpha(r);
       this.names[i].setAlpha(r);

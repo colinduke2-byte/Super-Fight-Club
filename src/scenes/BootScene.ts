@@ -3,13 +3,11 @@ import Phaser from 'phaser';
 import { buildPlaceholderSheet, ensureFightersReady, ensurePalettesReady, fighterTextureKey, palettesReady, registerAnimations, registerPixels } from '../art/proceduralFighter';
 import { assignPalettes } from '../art/palettes';
 import { ensureSession } from './match/setup';
-import { addCanvasTexture } from '../art/canvasTexture';
+import { addCanvasTexture, context2d } from '../art/canvasTexture';
 import { sheetLayout } from '../art/sheetLayout';
 import type { CharacterData } from '../engine/types';
 import { hasHeroArt } from '../art/hero';
 import { sheetSpec } from '../art/sheetPixels';
-import { prebuildStageArt } from '../art/stageArt';
-import { STAGES } from '../stages';
 import { buildSheetPixels } from '../art/sheetPool';
 import { buildStageTextures } from '../art/stageTextures';
 import { buildEntityTextures } from '../art/entityTextures';
@@ -39,9 +37,8 @@ export class BootScene extends Phaser.Scene {
   }
 
   create(): void {
-    buildStageTextures(this);
-    buildEntityTextures(this);
-    buildHudTextures(this);
+    // the progress label needs the font now; the other generated textures are built below, once the fighter sheets are
+    // on the workers, so the two overlap instead of the sheets waiting for them
     buildPixelFont(this);
     // the boss is only fought at the end of the arcade ladder (or a challenge): its sheet is built in the background once
     // the title screen is up (see finish), not on the boot critical path
@@ -75,14 +72,29 @@ export class BootScene extends Phaser.Scene {
       }
       draw(++done);
     });
-    void Promise.all(jobs).then(() => {
+    // one macrotask per group, so the sheet pool's dispatch (also a macrotask) gets the workers going first and each
+    // finished sheet can be registered between groups
+    const textures = [buildStageTextures, buildEntityTextures, buildHudTextures].reduce<Promise<void>>(
+      (prev, build) =>
+        prev.then(
+          () =>
+            new Promise<void>((done) =>
+              setTimeout(() => {
+                try {
+                  build(this);
+                } catch (err) {
+                  console.error(`[boot] ${build.name} failed:`, err);
+                }
+                done();
+              }, 0),
+            ),
+        ),
+      Promise.resolve(),
+    );
+    // (stage art is not built here: each stage is built on the workers when it is focused in Stage Select, see
+    // ensureStageArt, or on the spot when a match starts on it)
+    void Promise.all([...jobs, textures]).then(() => {
       console.info(`[boot] ${all.length} fighter sheets built in ${Math.round(performance.now() - t0)} ms`);
-      // stage art keeps building on the workers while the player is in the menus
-      try {
-        prebuildStageArt(this, Object.values(STAGES));
-      } catch (err) {
-        console.error('[boot] stage art prebuild failed (stages build on demand):', err);
-      }
       label.destroy();
       bar.destroy();
       void this.finish();
@@ -98,7 +110,8 @@ export class BootScene extends Phaser.Scene {
       const canvas = document.createElement('canvas');
       canvas.width = L.cols * fw;
       canvas.height = L.rows * size;
-      const g = canvas.getContext('2d')!;
+      const g = context2d(canvas);
+      if (!g) return; // no canvas memory left: nothing more can be done for this fighter (already logged)
       const look = c.sprite.placeholder;
       for (let cell = 0; cell < L.total; cell++) {
         const x = (cell % L.cols) * fw;

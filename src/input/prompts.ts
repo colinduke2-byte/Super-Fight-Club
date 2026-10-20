@@ -178,10 +178,64 @@ function padLabelFor(a: ButtonAction, t: Target): string {
 
 /** A footer line: `[['confirm', 'SELECT'], ['back', 'BACK']]` -> 'J / ENTER: SELECT   K / ESC: BACK' (for the given or last device). */
 export function footerHint(entries: readonly (readonly [MenuVerb, string])[], device?: InputDevice | null): string {
-  return entries.map(([v, label]) => `${menuPrompt(v, device)}: ${label}`).join('   ').toUpperCase();
+  // a touch player taps rows and tabs directly: "UP/DOWN: MOVE" is noise on a phone, and there is no alt button
+  const touch = target(device).kind === 'touch';
+  return entries
+    .filter(([v]) => !(touch && (v === 'updown' || v === 'move' || v === 'alt')))
+    .map(([v, label]) => `${menuPrompt(v, device)}: ${label}`)
+    .join('   ')
+    .toUpperCase();
 }
 
 /** Changes whenever the last-used device does: compare it each frame to know when to rebuild prompt text. */
 export function promptSerial(): number {
   return lastInput.serial;
 }
+
+/**
+ * Break `str` into lines of at most `maxChars` characters at spaces (a word longer than a line is cut). For footers and
+ * descriptions that would otherwise shrink to an unreadable size on a narrow screen.
+ */
+export function wrapText(str: string, maxChars: number): string {
+  const out: string[] = [];
+  for (const para of str.split('\n')) {
+    let line = '';
+    for (const word of para.split(' ')) {
+      if (!line) line = word;
+      else if (line.length + 1 + word.length <= maxChars) line += ` ${word}`;
+      else {
+        out.push(line);
+        line = word;
+      }
+      while (line.length > maxChars) {
+        out.push(line.slice(0, maxChars));
+        line = line.slice(maxChars);
+      }
+    }
+    out.push(line);
+  }
+  return out.join('\n');
+}
+
+/**
+ * A footer of `A: X   B: Y   C: Z` entries split into two balanced lines at an entry boundary ('' when it has only one
+ * entry).
+ */
+export function splitFooter(str: string): string {
+  const parts = str.split(/ {3,}/);
+  if (parts.length < 2) return '';
+  const total = str.length;
+  let best = 1;
+  let bestD = Infinity;
+  let acc = 0;
+  for (let i = 1; i < parts.length; i++) {
+    acc += parts[i - 1].length + 3;
+    const d = Math.abs(total / 2 - acc);
+    if (d < bestD) {
+      bestD = d;
+      best = i;
+    }
+  }
+  return `${parts.slice(0, best).join('   ')}\n${parts.slice(best).join('   ')}`;
+}
+

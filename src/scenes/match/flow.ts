@@ -3,11 +3,11 @@ import { announcer } from '../../audio/announcer';
 import { music } from '../../audio/music';
 import { sfx } from '../../audio/sfx';
 import type { Fighter } from '../../engine/fighter';
-import { recordChallengeResult } from '../../game/challenges';
+import { challengeRunResult } from '../../game/challenges';
 import { endDemo } from '../../game/demo';
 import { recordMatch, recordMatchStats } from '../../game/records';
 import { buildResult } from '../../game/results';
-import { session } from '../../game/session';
+import { session, teamName } from '../../game/session';
 import { menuInput } from '../../input/menuInput';
 import { COLORS } from '../../ui/menuKit';
 import type { MatchScene } from '../MatchScene';
@@ -162,10 +162,10 @@ export class MatchFlow {
     const w = s.world;
     s.mode?.saveResult();
     if (s.recorder) session.replay = s.recorder.finish();
-    session.lastResult = buildResult(s.slots, m.scores, w.damageDealt, s.runner.elimAt, m.cfg, m.winner, w.tick, s.fighters.map((f) => f.team), m.winnerTeam, w.bestCombo);
+    session.lastResult = buildResult(s.slots, m.scores, w.damageDealt, s.runner.elimAt, m.cfg, m.winner, w.tick, s.fighters.map((f) => f.team), m.winnerTeam, w.bestCombo, s.tally);
     // lifetime records for the humans who played (versus and arcade)
     const chal = s.setup.chal;
-    if (chal) recordChallengeResult(chal, s.slots[0].character, session.lastResult);
+    session.challengeRun = chal ? challengeRunResult(chal, s.slots[0].character, session.lastResult) : null;
     if (!s.isTargets && !s.isLaunch && (session.mode === 'versus' || session.mode === 'arcade')) {
       const res = session.lastResult;
       for (const p of res.players) {
@@ -173,7 +173,7 @@ export class MatchFlow {
         const won = res.winnerTeam >= 0 ? p.team === res.winnerTeam : p.index === res.winner;
         recordMatch(p.character, won, p.kos, p.falls);
       }
-      recordMatchStats(res, session.stage);
+      recordMatchStats(res, session.stage); // (each player's ultimate KOs ride on the result)
     }
   }
 
@@ -189,7 +189,7 @@ export class MatchFlow {
     }
     const w = m.winner;
     const head = m.cfg.mode === 'time' && !m.suddenDeath ? 'TIME!' : 'GAME!';
-    const tail = w < 0 ? 'DRAW' : m.winnerTeam >= 0 ? `TEAM ${m.winnerTeam === 0 ? 'BLUE' : 'RED'} WINS` : session.mode === 'arcade' ? (w === 0 ? 'VICTORY' : 'DEFEATED') : `${s.labels[w] ?? `P${w + 1}`} WINS`;
+    const tail = w < 0 ? 'DRAW' : m.winnerTeam >= 0 ? `TEAM ${teamName(m.winnerTeam)} WINS` : session.mode === 'arcade' ? (w === 0 ? 'VICTORY' : 'DEFEATED') : `${s.labels[w] ?? `P${w + 1}`} WINS`;
     banner.setText(up(`${head}\n${tail}`)).setVisible(true).setTint(0xffe14a);
     announcer.say(head === 'TIME!' ? 'Time!' : 'Game!', { pitch: 0.55, rate: 0.95 });
   }

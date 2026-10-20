@@ -8,7 +8,7 @@ import { moveTotal, type MoveDef, type StatusApply } from './moves';
 import type { Ledge, Platform } from './platform';
 import type { CharacterData, CharacterStats } from './types';
 import { derivedMove, GENERIC_MOVES } from './genericMoves';
-import { throwBomb } from './items';
+import { pickUpItem, throwBomb } from './items';
 import type { World } from './world';
 
 export type FighterState =
@@ -81,6 +81,8 @@ export const COMBO_STUN_STEP = 0.04;
 export const COMBO_STUN_MIN = 0.6;
 /** Ultimate with an empty meter taunts only after this many frames out of an attack / hitstun / grab (no accidental taunts). */
 export const TAUNT_LOCKOUT = 30;
+/** States that end a cancel string (see CANCEL_REPEAT_MAX). */
+const CHAIN_RESET: ReadonlySet<FighterState> = new Set<FighterState>(['idle', 'run', 'crouch', 'dash', 'shield', 'hitstun', 'grabbed', 'ledge', 'ko']);
 const TAUNT_BUSY: ReadonlySet<FighterState> = new Set<FighterState>(['attack', 'hitstun', 'grabbed', 'holding', 'shieldstun', 'stunned', 'frozen', 'tech', 'downed']);
 /** Run speed above which a grab out of a run becomes a dash grab / pivot grab. */
 const DASH_GRAB_MIN_SPEED = 1.6;
@@ -88,6 +90,11 @@ const DASH_GRAB_MIN_SPEED = 1.6;
 export const KILL_CREDIT_FRAMES = 300;
 /** Frames of actionable state after which a combo (as counted for the combo counter / burst) is considered over. */
 export const COMBO_GAP = 24;
+/**
+ * Cancel strings: a cancel route may enter the same move at most this many times before the fighter is back in neutral
+ * (on the ground and free, hit, or on a ledge), so no route of cancels loops forever (see tests/loops.test.ts).
+ */
+export const CANCEL_REPEAT_MAX = 2;
 /** Soak (water status): frames stack up to SOAK_MAX; every SOAK_LEVEL frames is one level (1-3). */
 export const SOAK_MAX = 360;
 export const SOAK_LEVEL = 120;
@@ -139,6 +146,12 @@ export const BURST_RADIUS = 70;
 export const SLOW_GETUP_DAMAGE = 100;
 /** Knockback multiplier when hit while crouching on the ground. */
 export const CROUCH_CANCEL = 0.8;
+/** Crouch cancel only softens light hits: knockback (before the cancel) up to this much. Bigger hits launch in full. */
+export const CROUCH_CANCEL_MAX_KB = 60;
+/** Shield drop: frames after letting go of shield (or before a lagged out-of-shield option) before the fighter can act. */
+export const SHIELD_DROP_FRAMES = 6;
+/** Ledge regrabs: from this grab on (without touching the ground in between) the ledge no longer refreshes jumps / air dodge. */
+export const LEDGE_REFRESH_GRABS = 2;
 /** Gravity multiplier while launched (floaty launches: upward hits can actually reach the top blast zone). */
 export const HITSTUN_RISE_GRAVITY = 0.25;
 export const HITSTUN_FALL_GRAVITY = 0.9;
@@ -172,6 +185,7 @@ const ROLL_SPEED = 3.4;
 const SHIELDBREAK_FRAMES = 200;
 /** Shieldstun per point of damage from an aerial (grounded moves: 0.5 per point + 3). */
 const AERIAL_SHIELDSTUN_PER_DAMAGE = 0.33;
+const GROUND_SHIELDSTUN_PER_DAMAGE = 0.6;
 const FLICK_FRAMES = 4;
 const FLICK_HI = 0.8;
 const FLICK_LO = 0.5;
@@ -196,6 +210,8 @@ export interface HitParams {
   /** Hitlag frames applied to the victim (and by the combat system to the attacker). */
   hitlag?: number;
   minHitstun?: number;
+  /** Set (fixed) knockback: used instead of the percent formula, whatever the victim's percent and weight (jab / multi-hit links). */
+  setKb?: number;
   /** Extra knockback multiplier (e.g. smash charge). */
   kbMult?: number;
   attackerId?: number;
@@ -289,6 +305,10 @@ export class Fighter implements Body {
   private comboIdle = COMBO_GAP;
   /** Consecutive hits taken while already in hitstun (true combo length, drives hitstun decay). */
   private trueComboHits = 0;
+  /** Hits in the current true combo (each landed while the victim was still in hitstun from the one before), 0 = none. */
+  get trueCombo(): number {
+    return this.trueComboHits;
+  }
   /** Frames left before an empty-meter Ultimate press may taunt (see TAUNT_LOCKOUT). */
   private tauntLock = 0;
   private sdiCount = 0;
@@ -299,6 +319,11 @@ export class Fighter implements Body {
   hurtKind: 'hurtL' | 'hurt' | 'hurtU' | 'hurtD' = 'hurt';
   /** Visual effect tag of the last clean hit taken (drives the hit-stop flash colour). */
   lastHitFx = '';
+  /**
+   * Move id the last clean hit taken is credited to: the attacker's move for melee hits and throws, the firing move for
+   * projectiles ('' for traps, items, hazards). Set just before the 'hit' event.
+   */
+  lastHitMove = '';
   /** Directional influence is applied once, on the first hitstun tick. */
   private diDone = false;
   private bReversed = false;
@@ -399,9 +424,13 @@ export class Fighter implements Body {
   // Defence
   shieldHP = SHIELD_MAX;
   shieldStun = 0;
+  /** In the 'landing' state because the shield is being lowered (see SHIELD_DROP_FRAMES), not because of a landing. */
+  shieldDropping = false;
   private rollDir: 1 | -1 = 1;
 
   // Grabs
+  /** The move that made the current grab (a command grab's slam / bite is credited to it). */
+  grabMove = '';
   grabTarget = -1;
   grabbedBy = -1;
   holdTimer = 0;
@@ -411,7 +440,10 @@ export class Fighter implements Body {
   ledge: Ledge | null = null;
   ledgeFrames = 0;
   grabCooldown = 0;
+  /** Ledge grabs since the fighter last stood on the ground (or was hit): drives the regrab limit (LEDGE_REFRESH_GRABS). */
   ledgeGrabs = 0;
+  /** Every ledge grab this match (never reset, not even by a respawn): for results screens and stats. */
+  ledgeGrabsTotal = 0;
   /** Wings: true while gliding this tick (view picks the glide pose); frames spent gliding this airtime. */
   gliding = false;
   glideFrames = 0;
@@ -537,7 +569,7 @@ export class Fighter implements Body {
       case 'jumpsquat':
         return 'crouch';
       case 'landing':
-        return pick('land', 'crouch');
+        return this.shieldDropping ? 'shield' : pick('land', 'crouch');
       case 'tech':
         // a tech roll spins the tucked sprite (FighterView); a tech in place pops up to the feet
         return Math.abs(this.vx) > 1 ? pick('roll', 'crouch') : pick('tech', pick('roll', 'crouch'));
@@ -881,17 +913,19 @@ export class Fighter implements Body {
       world.damageDealt[hit.attackerId] = (world.damageDealt[hit.attackerId] ?? 0) + dealt;
       world.bestCombo[hit.attackerId] = Math.max(world.bestCombo[hit.attackerId] ?? 0, this.comboHits);
     }
-    // crouch cancel: taking a hit while crouching on the ground absorbs part of the knockback
-    const crouchCancel = this.state === 'crouch' && this.grounded ? CROUCH_CANCEL : 1;
-    const kb =
-      crouchCancel *
-      computeKnockback({
-        base: hit.base,
-        scaling: hit.scaling,
-        damagePercent: this.damage,
-        moveWeight: hit.moveWeight,
-        targetWeight: this.stats.weight,
-      }) * (hit.kbMult ?? 1) * (1 + SOAK_KB_PER_LEVEL * this.soakLevel);
+    const rawKb =
+      hit.setKb !== undefined
+        ? hit.setKb
+        : computeKnockback({
+            base: hit.base,
+            scaling: hit.scaling,
+            damagePercent: this.damage,
+            moveWeight: hit.moveWeight,
+            targetWeight: this.stats.weight,
+          }) * (hit.kbMult ?? 1) * (1 + SOAK_KB_PER_LEVEL * this.soakLevel);
+    // crouch cancel: taking a light hit while crouching on the ground absorbs part of the knockback (not a real launcher)
+    const crouchCancel = this.state === 'crouch' && this.grounded && rawKb <= CROUCH_CANCEL_MAX_KB ? CROUCH_CANCEL : 1;
+    const kb = crouchCancel * rawKb;
 
     let angle = hit.angle;
     if (angle === 361) angle = this.grounded && kb < 32 ? 0 : 44; // "Sakurai angle"
@@ -981,7 +1015,7 @@ export class Fighter implements Body {
    */
   shieldHit(damage: number, breaks: boolean, shieldMult: number, pushDir: number, world: World, aerial = false): void {
     this.shieldHP -= breaks ? SHIELD_MAX : damage * shieldMult;
-    this.shieldStun = aerial ? Math.min(12, Math.floor(damage * AERIAL_SHIELDSTUN_PER_DAMAGE) + 1) : Math.min(24, Math.floor(damage * 0.5) + 3);
+    this.shieldStun = aerial ? Math.min(12, Math.floor(damage * AERIAL_SHIELDSTUN_PER_DAMAGE) + 1) : Math.min(26, Math.floor(damage * GROUND_SHIELDSTUN_PER_DAMAGE) + 4);
     this.vx = pushDir * Math.min(4, 1 + damage * 0.12);
     if (this.shieldHP <= 0) {
       this.shieldHP = 0;
@@ -1060,6 +1094,7 @@ export class Fighter implements Body {
       this.dashTimer = 0;
       this.skidding = false;
     }
+    if (this.cancelChain.length > 0 && CHAIN_RESET.has(this.state)) this.cancelChain.length = 0;
 
     switch (this.state) {
       case 'idle':
@@ -1274,6 +1309,7 @@ export class Fighter implements Body {
       this.parryFrames = PARRY_FRAMES;
       return true;
     }
+    if (this.tryPickUp(world)) return true;
     if (this.buffer.consume(Button.Grab)) return this.startGrab(inp, world);
     if (this.tryStartSpecial(inp, world)) return true;
     const dash = this.data.dash;
@@ -1285,6 +1321,15 @@ export class Fighter implements Body {
       return true;
     }
     return this.tryStartAttack(inp, world, true);
+  }
+
+  /** Attack or Grab next to a carried item (empty-handed) picks it up instead of attacking (see items.ts pickUpItem). */
+  private tryPickUp(world: World): boolean {
+    if (this.heldBomb || (!this.buffer.has(Button.Attack) && !this.buffer.has(Button.Grab))) return false;
+    if (!pickUpItem(world, this.id)) return false;
+    this.buffer.consume(Button.Attack);
+    this.buffer.consume(Button.Grab);
+    return true;
   }
 
   /**
@@ -1554,11 +1599,21 @@ export class Fighter implements Body {
     return true;
   }
 
+  /** Moves entered through cancel routes since the fighter was last in neutral (CANCEL_REPEAT_MAX). */
+  private readonly cancelChain: string[] = [];
+
+  private cancelCount(id: string): number {
+    let n = 0;
+    for (const x of this.cancelChain) if (x === id) n++;
+    return n;
+  }
+
   /** Hit-confirm cancel routes (see MoveCancel). Returns true when a cancel started a new move / jump. */
   private tryCancel(m: MoveDef, inp: FighterInput, world: World): boolean {
     const cs = m.cancels!;
     for (let i = 0; i < cs.length; i++) {
       const c = cs[i];
+      if (this.cancelCount(c.into) >= CANCEL_REPEAT_MAX) continue;
       if (this.moveFrame < c.from || (c.to !== undefined && this.moveFrame > c.to)) continue;
       if (c.onHit !== false && !this.moveHit) continue;
       if (c.air !== undefined && c.air !== !this.grounded) continue;
@@ -1576,7 +1631,10 @@ export class Fighter implements Body {
       if (!ok) continue;
       if (c.into === '@jump') {
         this.buffer.consume(mask);
-        if (this.jumpCancel(inp, world)) return true;
+        if (this.jumpCancel(inp, world)) {
+          this.cancelChain.push('@jump');
+          return true;
+        }
         continue;
       }
       if (c.dir === 'forward' && Math.abs(inp.stickX) > 0.5) this.facing = inp.stickX > 0 ? 1 : -1;
@@ -1588,7 +1646,10 @@ export class Fighter implements Body {
         if (chosen === null) continue;
         into = chosen;
       }
-      if (this.startMove(into, inp, world)) return true;
+      if (this.startMove(into, inp, world)) {
+        this.cancelChain.push(c.into);
+        return true;
+      }
     }
     return false;
   }
@@ -1730,8 +1791,9 @@ export class Fighter implements Body {
       } else this.vy += s.gravity * (m.gravityScale ?? 1);
       const cap = this.fastFalling && m.kind === 'aerial' ? s.fastFallSpeed : s.fallSpeed;
       if (this.vy > cap) this.vy = cap;
-      const target = inp.stickX * s.airSpeed * 0.8;
-      this.vx = Math.abs(inp.stickX) < 0.05 ? approach(this.vx, 0, s.airFriction) : approach(this.vx, target, s.airAccel * 0.7);
+      const drift = m.airDrift ?? 1;
+      const target = inp.stickX * s.airSpeed * 0.8 * drift;
+      this.vx = Math.abs(inp.stickX) < 0.05 ? approach(this.vx, 0, s.airFriction) : approach(this.vx, target, s.airAccel * 0.7 * Math.max(1, drift));
     }
   }
 
@@ -1797,18 +1859,28 @@ export class Fighter implements Body {
         return;
       }
       if ((inp.held & Button.Shield) === 0) {
-        this.shieldCooldown = SHIELD_DROP_LAG;
-        this.setState('idle');
+        this.dropShield();
         return;
       }
-      // out-of-shield options: up smash / smashes by stick, any special, jump-cancelled grab
-      if (this.buffer.has(Button.Smash) || (this.buffer.has(Button.Attack) && inp.stickY < -0.5)) {
-        const smashBtn = this.buffer.has(Button.Smash);
-        this.buffer.consume(smashBtn ? Button.Smash : Button.Attack);
-        const id = inp.stickY < -0.5 ? 'usmash' : inp.stickY > 0.5 ? 'dsmash' : 'fsmash';
-        if (this.startMove(id, inp, world)) return;
+      // out-of-shield options: up smash and up special come out at once (genre: through a jump), as do a grab, a jump and
+      // the dodges; forward / down smash and the other specials first drop the shield (SHIELD_DROP_FRAMES), the press
+      // waiting in the input buffer
+      const up = inp.stickY < -0.5;
+      if (this.buffer.has(Button.Smash) || (this.buffer.has(Button.Attack) && up)) {
+        if (!up) {
+          this.dropShield(true);
+          return;
+        }
+        this.buffer.consume(this.buffer.has(Button.Smash) ? Button.Smash : Button.Attack);
+        if (this.startMove('usmash', inp, world)) return;
       }
-      if (this.buffer.has(Button.Special) && this.tryStartSpecial(inp, world)) return;
+      if (this.buffer.has(Button.Special) || this.buffer.has(Button.Ultimate)) {
+        if (!up || this.buffer.has(Button.Ultimate)) {
+          this.dropShield(true);
+          return;
+        }
+        if (this.tryStartSpecial(inp, world)) return;
+      }
       if (this.buffer.consume(Button.Grab) || this.buffer.consume(Button.Attack)) {
         this.startMove('grab', inp, world);
         return;
@@ -1836,6 +1908,16 @@ export class Fighter implements Body {
       this.setState((inp.held & Button.Shield) !== 0 ? 'shield' : 'idle');
     }
     this.integrate(world);
+  }
+
+  /** Let go of the shield: a few frames of shield-drop lag (buffered presses come out as soon as it ends). */
+  private dropShield(forAction = false): void {
+    // dropping the shield for an out-of-shield option: the shield cannot come back up before that buffered option fires,
+    // even with Shield still held
+    this.shieldCooldown = forAction ? SHIELD_DROP_FRAMES + 3 : SHIELD_DROP_LAG;
+    this.lagFrames = SHIELD_DROP_FRAMES;
+    this.setState('landing');
+    this.shieldDropping = true;
   }
 
   /**
@@ -2000,6 +2082,7 @@ export class Fighter implements Body {
       this.fastFalling = false;
       world.emit('jump', this, this.x, this.y - this.h / 2, 0, 1);
     }
+    if (!this.helpless && !justLeftGround && this.tryPickUp(world)) return;
     if (!this.helpless && !justLeftGround && this.tryStartSpecial(inp, world)) return;
     if (!this.helpless && !justLeftGround && this.tryStartAttack(inp, world, false)) return;
 
@@ -2298,19 +2381,25 @@ export class Fighter implements Body {
     this.groundPlat = null;
     this.ledge = l;
     this.climbAttack = false;
-    this.airDodgeUsed = false;
-    this.wallJumps = 0;
-    this.clingFrames = 0;
     l.occupant = this.id;
-    this.glideFrames = 0;
-    this.jetFrames = 0;
     this.ledgeGrabs++;
+    this.ledgeGrabsTotal++;
+    // regrab limit: the first grabs of an airtime refresh the jumps, the air dodge and the glide / hover budgets; later
+    // regrabs (without touching the ground or being hit) hang on with whatever is left, so ledge stalling runs dry
+    const refresh = this.ledgeGrabs <= LEDGE_REFRESH_GRABS;
+    if (refresh) {
+      this.airDodgeUsed = false;
+      this.wallJumps = 0;
+      this.clingFrames = 0;
+      this.glideFrames = 0;
+      this.jetFrames = 0;
+    }
     this.ledgeFrames = 0;
     this.x = l.x + l.side * (this.hw + 1);
     this.y = l.y + this.h * 0.95;
     this.vx = this.vy = 0;
     this.facing = (-l.side) as 1 | -1;
-    this.jumpsLeft = this.stats.doubleJumps;
+    if (refresh) this.jumpsLeft = this.stats.doubleJumps;
     this.fastFalling = false;
     // grabbing the ledge grants no invincibility: a hanging fighter can be hit (any invincibility already running,
     // from a respawn or an Aegis Core, simply carries on)
@@ -2456,6 +2545,7 @@ export class Fighter implements Body {
   setState(next: FighterState): void {
     this.state = next;
     this.stateFrame = 0;
+    this.shieldDropping = false;
   }
 
   /** KO on the spot (stamina mode: out of hit points). */

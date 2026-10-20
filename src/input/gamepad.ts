@@ -14,6 +14,15 @@ type PadListener = (index: number, id: string) => void;
 export class GamepadHub {
   private readonly known = new Map<number, string>();
   private attached = false;
+  /**
+   * Buttons pressed since the pad's last tick, per pad index (bit n = standard button n). The pads are polled between
+   * frames as well (`latchPoll`), so a press shorter than one frame at a low frame rate is still seen once, the same way
+   * the keyboard latches key taps. Cleared by InputManager.endTick.
+   */
+  private readonly latches = new Map<number, number>();
+  private pollTimer: ReturnType<typeof setInterval> | null = null;
+  /** Poll period between frames (ms). */
+  static readonly POLL_MS = 6;
   onConnect: PadListener | null = null;
   onDisconnect: PadListener | null = null;
 
@@ -23,10 +32,13 @@ export class GamepadHub {
     target.addEventListener('gamepadconnected', (e) => {
       this.known.set(e.gamepad.index, e.gamepad.id);
       this.onConnect?.(e.gamepad.index, e.gamepad.id);
+      this.syncPolling();
     });
     target.addEventListener('gamepaddisconnected', (e) => {
       this.known.delete(e.gamepad.index);
+      this.latches.delete(e.gamepad.index);
       this.onDisconnect?.(e.gamepad.index, e.gamepad.id);
+      this.syncPolling();
     });
     // pads already connected before the page loaded show up in getGamepads() without an event
     this.scan();
@@ -50,9 +62,45 @@ export class GamepadHub {
       if (!seen.has(idx)) {
         const id = this.known.get(idx)!;
         this.known.delete(idx);
+        this.latches.delete(idx);
         this.onDisconnect?.(idx, id);
       }
     }
+    this.syncPolling();
+  }
+
+  /** Poll between frames only while a pad is connected. */
+  private syncPolling(): void {
+    if (typeof setInterval === 'undefined') return;
+    if (this.known.size > 0 && !this.pollTimer) this.pollTimer = setInterval(this.latchPoll, GamepadHub.POLL_MS);
+    else if (this.known.size === 0 && this.pollTimer) {
+      clearInterval(this.pollTimer);
+      this.pollTimer = null;
+    }
+  }
+
+  /** Read every known pad and remember the buttons that are down (see `latches`). */
+  readonly latchPoll = (): void => {
+    if (typeof navigator === 'undefined' || !navigator.getGamepads) return;
+    const pads = navigator.getGamepads();
+    for (const idx of this.known.keys()) {
+      const p = pads[idx];
+      if (p && p.connected) this.latch(idx, buttonMask(p.buttons));
+    }
+  };
+
+  /** Add pressed buttons (a mask) to a pad's latch. */
+  latch(index: number, mask: number): void {
+    if (mask) this.latches.set(index, (this.latches.get(index) ?? 0) | mask);
+  }
+
+  /** Buttons latched for a pad since its last clear. */
+  latched(index: number): number {
+    return this.latches.get(index) ?? 0;
+  }
+
+  clearLatches(): void {
+    this.latches.clear();
   }
 
   get indices(): number[] {
@@ -63,9 +111,46 @@ export class GamepadHub {
   }
 }
 
+const stickTmp = { x: 0, y: 0 };
+
 export const gamepadHub = new GamepadHub();
 
-const stickTmp = { x: 0, y: 0 };
+/** Down buttons as a mask (bit n = standard-mapping button n, the first 32): pressed, or an analog trigger past 0.6. */
+export function buttonMask(buttons: readonly { pressed: boolean; value: number }[]): number {
+  let m = 0;
+  for (let i = 0; i < buttons.length && i < 32; i++) {
+    const b = buttons[i];
+    if (b && (b.pressed || b.value > 0.6)) m |= 1 << i;
+  }
+  return m >>> 0;
+}
+
+/** Pure part of GamepadDevice.sample: stick (after the deadzone) + down-button mask -> RawInput, through a binding map. */
+export function padSample(out: RawInput, ax: number, ay: number, mask: number, map: Record<string, number[]>, deadzone: number): void {
+  applyRadialDeadzone(ax, ay, deadzone, stickTmp);
+  let x = stickTmp.x;
+  let y = stickTmp.y;
+  const on = (n: number) => ((mask >>> n) & 1) === 1;
+  // d-pad (standard mapping 12..15) acts as a digital stick
+  if (on(14)) x = -1;
+  else if (on(15)) x = 1;
+  if (on(12)) y = -1;
+  else if (on(13)) y = 1;
+  out.stickX = x;
+  out.stickY = y;
+  let held = 0;
+  for (let i = 0; i < BUTTON_ACTIONS.length; i++) {
+    const act = BUTTON_ACTIONS[i];
+    const list = map[act];
+    for (let j = 0; j < list.length; j++) {
+      if (on(list[j])) {
+        held |= ACTION_BUTTON[act];
+        break;
+      }
+    }
+  }
+  out.held = held;
+}
 
 export class GamepadDevice implements InputDevice {
   readonly kind = 'gamepad' as const;
@@ -117,34 +202,10 @@ export class GamepadDevice implements InputDevice {
     out.held = 0;
     const p = navigator.getGamepads()[this.index];
     if (!p || !p.connected) return;
-
-    const b = p.buttons;
-    const a = p.axes;
-    applyRadialDeadzone(a[0] ?? 0, a[1] ?? 0, settings.deadzone, stickTmp);
-    let x = stickTmp.x;
-    let y = stickTmp.y;
-    // d-pad (standard mapping 12..15) acts as a digital stick
-    if (b[14]?.pressed) x = -1;
-    else if (b[15]?.pressed) x = 1;
-    if (b[12]?.pressed) y = -1;
-    else if (b[13]?.pressed) y = 1;
-    out.stickX = x;
-    out.stickY = y;
-
-    const map = bindings.pads[this.profile];
-    let held = 0;
-    for (let i = 0; i < BUTTON_ACTIONS.length; i++) {
-      const act = BUTTON_ACTIONS[i];
-      const list = map[act];
-      for (let j = 0; j < list.length; j++) {
-        const btn = b[list[j]];
-        if (btn && (btn.pressed || btn.value > 0.6)) {
-          held |= ACTION_BUTTON[act];
-          break;
-        }
-      }
-    }
-    out.held = held;
+    // what is down now, plus anything pressed and released since the last tick (polled between frames)
+    const now = buttonMask(p.buttons);
+    gamepadHub.latch(this.index, now);
+    padSample(out, p.axes[0] ?? 0, p.axes[1] ?? 0, now | gamepadHub.latched(this.index), bindings.pads[this.profile] as Record<string, number[]>, settings.deadzone);
   }
 }
 

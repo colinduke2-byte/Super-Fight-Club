@@ -39,8 +39,28 @@ export interface Settings {
   portShapes: boolean;
   /** Text / UI size multiplier for menus and the match HUD (fed into hudUnit). */
   uiScale: number;
-  /** Calmer menus: no gliding cursor, value pops, intro slides, confetti or swaying lights. */
+  /** Calmer menus: no gliding cursor, value pops, intro slides, confetti or swaying lights. Defaults to the OS setting. */
   reduceMotion: boolean;
+  /** On-screen touch controls: size multiplier of the buttons and stick (0.75..1.5). */
+  touchSize: number;
+  /** On-screen touch controls: opacity of the idle buttons (0.2..1). */
+  touchOpacity: number;
+  /** On-screen touch controls: the stick on the right and the buttons on the left. */
+  touchLeftHanded: boolean;
+  /** On-screen touch controls: where the stick's resting spot and the button cluster were dragged to, as offsets in units of the screen's short side. */
+  touchStickX: number;
+  touchStickY: number;
+  touchBtnX: number;
+  touchBtnY: number;
+}
+
+/** The OS asks for less motion (prefers-reduced-motion): the default for REDUCE MOTION. */
+export function osPrefersReducedMotion(): boolean {
+  try {
+    return typeof matchMedia !== 'undefined' && matchMedia('(prefers-reduced-motion: reduce)').matches;
+  } catch {
+    return false;
+  }
 }
 
 export const DEFAULT_SETTINGS: Settings = {
@@ -63,7 +83,14 @@ export const DEFAULT_SETTINGS: Settings = {
   playerPalette: 'classic',
   portShapes: true,
   uiScale: 1,
-  reduceMotion: false,
+  reduceMotion: osPrefersReducedMotion(),
+  touchSize: 1,
+  touchOpacity: 0.6,
+  touchLeftHanded: false,
+  touchStickX: 0,
+  touchStickY: 0,
+  touchBtnX: 0,
+  touchBtnY: 0,
 };
 
 /** Storage key (unchanged since v1, so old saves are found and migrated in place). */
@@ -95,6 +122,12 @@ const RANGES: { [K in keyof Settings]?: readonly [number, number] } = {
   sfxVolume: [0, 1],
   musicVolume: [0, 1],
   uiScale: [0.75, 1.5],
+  touchSize: [0.75, 1.5],
+  touchOpacity: [0.2, 1],
+  touchStickX: [-0.6, 0.6],
+  touchStickY: [-0.6, 0.6],
+  touchBtnX: [-0.6, 0.6],
+  touchBtnY: [-0.6, 0.6],
 };
 
 /** Every field checked against DEFAULT_SETTINGS: wrong types and unknown enum values fall back to the default, numbers are clamped. */

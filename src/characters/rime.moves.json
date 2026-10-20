@@ -102,7 +102,8 @@
      "scaling": 0.1,
      "minHitstun": 14,
      "hitlag": 0.7,
-     "fx": "slash"
+     "fx": "slash",
+     "setKb": 14
     }
    ]
   },
@@ -155,7 +156,8 @@
      "scaling": 0.1,
      "minHitstun": 14,
      "hitlag": 0.7,
-     "fx": "slash"
+     "fx": "slash",
+     "setKb": 14
     }
    ]
   },
@@ -169,7 +171,7 @@
    "motion": [
     {
      "frame": 3,
-     "vx": 1.0
+     "vx": 1
     }
    ],
    "pose": {
@@ -255,7 +257,7 @@
      "damage": 6.78,
      "angle": 48,
      "base": 22,
-     "scaling": 0.5,
+     "scaling": 0.485,
      "status": {
       "type": "chill",
       "frames": 300,
@@ -310,7 +312,7 @@
      "damage": 7.06,
      "angle": 92,
      "base": 26,
-     "scaling": 0.55,
+     "scaling": 0.533,
      "status": {
       "type": "chill",
       "frames": 300,
@@ -364,7 +366,7 @@
      "damage": 5.92,
      "angle": 78,
      "base": 24,
-     "scaling": 0.4,
+     "scaling": 0.388,
      "status": {
       "type": "chill",
       "frames": 300,
@@ -422,7 +424,7 @@
      "damage": 8.47,
      "angle": 70,
      "base": 30,
-     "scaling": 0.5,
+     "scaling": 0.485,
      "status": {
       "type": "chill",
       "frames": 300,
@@ -448,7 +450,7 @@
    "motion": [
     {
      "frame": 10,
-     "vx": 2.0
+     "vx": 2
     }
    ],
    "pose": {
@@ -487,7 +489,8 @@
      ],
      "group": 0,
      "minHitstun": 12,
-     "fx": "slash"
+     "fx": "slash",
+     "setKb": 14
     },
     {
      "x": 30,
@@ -497,7 +500,7 @@
      "damage": 14.83,
      "angle": 38,
      "base": 28,
-     "scaling": 0.95,
+     "scaling": 0.921,
      "window": [
       4,
       6
@@ -552,7 +555,7 @@
      "damage": 16.93,
      "angle": 88,
      "base": 34,
-     "scaling": 0.9,
+     "scaling": 0.873,
      "status": {
       "type": "chill",
       "frames": 300,
@@ -594,7 +597,7 @@
      "damage": 13.4,
      "angle": 361,
      "base": 34,
-     "scaling": 0.86,
+     "scaling": 0.834,
      "status": {
       "type": "chill",
       "frames": 300,
@@ -610,7 +613,7 @@
      "damage": 13.4,
      "angle": 361,
      "base": 34,
-     "scaling": 0.86,
+     "scaling": 0.834,
      "status": {
       "type": "chill",
       "frames": 300,
@@ -672,7 +675,7 @@
      "damage": 9.03,
      "angle": 50,
      "base": 24,
-     "scaling": 0.55,
+     "scaling": 0.533,
      "window": [
       1,
       4
@@ -693,7 +696,7 @@
      "damage": 5.36,
      "angle": 55,
      "base": 20,
-     "scaling": 0.4,
+     "scaling": 0.388,
      "window": [
       5,
       12
@@ -768,7 +771,7 @@
      "damage": 7.34,
      "angle": 50,
      "base": 20,
-     "scaling": 0.46,
+     "scaling": 0.446,
      "status": {
       "type": "chill",
       "frames": 300,
@@ -814,7 +817,7 @@
      "damage": 12.01,
      "angle": 140,
      "base": 34,
-     "scaling": 0.86,
+     "scaling": 0.834,
      "hitlag": 1.15,
      "fx": "kick"
     }
@@ -864,7 +867,8 @@
      "rehit": 3,
      "minHitstun": 8,
      "hitlag": 0.6,
-     "fx": "slash"
+     "fx": "slash",
+     "setKb": 12
     },
     {
      "x": 2,
@@ -874,7 +878,7 @@
      "damage": 4.95,
      "angle": 85,
      "base": 34,
-     "scaling": 0.6,
+     "scaling": 0.582,
      "window": [
       8,
       10
@@ -928,7 +932,7 @@
      "damage": 9.88,
      "angle": 80,
      "base": 28,
-     "scaling": 0.45,
+     "scaling": 0.436,
      "window": [
       1,
       4
@@ -945,7 +949,7 @@
      "damage": 7.06,
      "angle": 60,
      "base": 26,
-     "scaling": 0.45,
+     "scaling": 0.436,
      "window": [
       5,
       14
@@ -994,7 +998,7 @@
      "damage": 7.77,
      "angle": 40,
      "base": 46,
-     "scaling": 0.6,
+     "scaling": 0.582,
      "throw": true
     }
    ]
@@ -1016,7 +1020,7 @@
      "damage": 9.88,
      "angle": 135,
      "base": 48,
-     "scaling": 0.68,
+     "scaling": 0.66,
      "throw": true
     }
    ]
@@ -1038,7 +1042,7 @@
      "damage": 5.64,
      "angle": 88,
      "base": 40,
-     "scaling": 0.34,
+     "scaling": 0.33,
      "throw": true
     }
    ]
@@ -1060,7 +1064,7 @@
      "damage": 6.36,
      "angle": 75,
      "base": 36,
-     "scaling": 0.3,
+     "scaling": 0.291,
      "throw": true,
      "status": {
       "type": "chill",
@@ -1080,7 +1084,7 @@
    "charge": {
     "frame": 4,
     "max": 30,
-    "damageMult": 1.0
+    "damageMult": 1
    },
    "events": [
     {
@@ -1101,7 +1105,7 @@
      "x": 16,
      "y": -18,
      "vx": 8.2,
-     "vy": -1.0,
+     "vy": -1,
      "aim": true
     },
     {
@@ -1112,7 +1116,7 @@
      "x": 16,
      "y": -14,
      "vx": 8.2,
-     "vy": 1.0,
+     "vy": 1,
      "aim": true
     },
     {
@@ -1210,7 +1214,7 @@
      "damage": 8.47,
      "angle": 40,
      "base": 32,
-     "scaling": 0.55,
+     "scaling": 0.533,
      "status": {
       "type": "chill",
       "frames": 300,
@@ -1329,7 +1333,7 @@
      "damage": 8.47,
      "angle": 80,
      "base": 40,
-     "scaling": 0.62,
+     "scaling": 0.601,
      "window": [
       1,
       4
@@ -1476,7 +1480,7 @@
      "damage": 14.11,
      "angle": 40,
      "base": 52,
-     "scaling": 0.8,
+     "scaling": 0.776,
      "status": {
       "type": "chill",
       "frames": 300,
@@ -1512,51 +1516,51 @@
     "hits": [
      {
       "frame": 12,
-      "damage": 2.0
+      "damage": 2
      },
      {
       "frame": 18,
-      "damage": 2.0
+      "damage": 2
      },
      {
       "frame": 24,
-      "damage": 2.0
+      "damage": 2
      },
      {
       "frame": 30,
-      "damage": 2.0
+      "damage": 2
      },
      {
       "frame": 36,
-      "damage": 2.0
+      "damage": 2
      },
      {
       "frame": 42,
-      "damage": 2.0
+      "damage": 2
      },
      {
       "frame": 48,
-      "damage": 2.0
+      "damage": 2
      },
      {
       "frame": 54,
-      "damage": 2.0
+      "damage": 2
      },
      {
       "frame": 60,
-      "damage": 2.0
+      "damage": 2
      },
      {
       "frame": 66,
-      "damage": 2.0
+      "damage": 2
      },
      {
       "frame": 72,
-      "damage": 2.0
+      "damage": 2
      },
      {
       "frame": 78,
-      "damage": 2.0
+      "damage": 2
      },
      {
       "frame": 100,

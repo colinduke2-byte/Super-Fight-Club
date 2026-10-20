@@ -26,6 +26,10 @@ export interface LaunchRun {
   damage: number;
   best: number | null;
   record: boolean;
+  /** The best before this run (null: none), for the comparison on the results. */
+  prevBest?: number | null;
+  /** The dummy it was flown on (the standard one). */
+  dummy?: string;
 }
 
 export interface PlayerSlot {
@@ -99,6 +103,12 @@ export interface PlayerResult {
   placement: number;
   /** Team index (team battles), else -1. */
   team: number;
+  /** KOs scored with an ultimate (counted from the match's events; absent in old results). */
+  ultimateKos?: number;
+  /** Ledge grabs over the match. */
+  ledgeGrabs?: number;
+  /** Longest launch this fighter dealt, in metres. */
+  biggestLaunch?: number;
 }
 
 export interface MatchResult {
@@ -106,6 +116,27 @@ export interface MatchResult {
   /** Winning team in team battles, else -1. */
   winnerTeam: number;
   players: PlayerResult[];
+  durationSec: number;
+}
+
+/** Team colour names, by team index (0 blue, 1 red, 2 green, 3 yellow). */
+export const TEAM_NAMES = ['BLUE', 'RED', 'GREEN', 'YELLOW'] as const;
+export function teamName(t: number): string {
+  return TEAM_NAMES[t] ?? `${t + 1}`;
+}
+
+/** What a finished challenge run earned (for the Results screen): the medal, which goals it met, what it improved. */
+export interface ChallengeRunResult {
+  id: string;
+  /** Medal this run earned: 0 failed, 1 bronze, 2 silver, 3 gold. */
+  earned: number;
+  silverMet: boolean;
+  goldMet: boolean;
+  firstClear: boolean;
+  newTier: boolean;
+  newBestTime: boolean;
+  /** Best medal held now. */
+  tier: number;
   durationSec: number;
 }
 
@@ -131,6 +162,10 @@ export interface Session {
   launchRun: LaunchRun | null;
   /** The running challenge's id (Challenges mode). */
   challenge: string | null;
+  /** The last finished challenge run's medal and goals (null until one finishes). */
+  challengeRun?: ChallengeRunResult | null;
+  /** The stage was rolled from RANDOM (a rematch rolls it again). */
+  stageRandom?: boolean;
   /** Attract-mode demo match (started by an idle title screen). */
   demo?: boolean;
   /** The last versus lineup picked in the lobby (Quick Match too): character select comes back to it. */

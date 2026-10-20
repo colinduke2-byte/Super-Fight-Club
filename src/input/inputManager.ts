@@ -64,6 +64,7 @@ export class InputManager {
 
   endTick(): void {
     keyboardHub.clearLatches();
+    gamepadHub.clearLatches();
     this.touch.clearLatches();
   }
 }

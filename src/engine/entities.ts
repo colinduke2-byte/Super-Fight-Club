@@ -29,6 +29,8 @@ export class Projectile {
   readonly hitOnce = new Uint8Array(MAX_FIGHTERS);
   /** A blast projectile (grenade, missile) has already gone off. */
   exploded = false;
+  /** The owner's move that fired it ('' if none): hits are credited to it (combo trials, stats). */
+  moveId = '';
 
   constructor(index: number) {
     this.index = index;
@@ -55,6 +57,7 @@ export class Projectile {
     this.rehit.fill(0);
     this.hitOnce.fill(0);
     this.exploded = false;
+    this.moveId = '';
   }
 
   deactivate(): void {

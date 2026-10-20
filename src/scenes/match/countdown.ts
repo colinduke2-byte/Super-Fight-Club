@@ -2,6 +2,10 @@ import { announcer } from '../../audio/announcer';
 import { sfx } from '../../audio/sfx';
 import { settings } from '../../settings';
 import type { MatchScene } from '../MatchScene';
+import { hudUnit } from './hudLayout';
+
+/** The countdown banner's size, in HUD units per art pixel (the HUD's other banners use 4: GAME!, SUDDEN DEATH). */
+const COUNT_SCALE = 3;
 
 /** Countdown: READY? for a beat, then 3, 2, 1 at COUNT_STEP ticks each. */
 export const COUNT_STEP = 36;
@@ -32,10 +36,64 @@ export class Countdown {
     this.s.fighters.forEach((_, i) => this.s.tags.entrance(i, 0, 0, 0));
   }
 
-  /** After GO, per render frame: the name tags fade back in. */
+  /** The banner was moved off its usual spot for the countdown (put back once GO! has gone). */
+  private moved = false;
+
+  /**
+   * READY / 3 2 1 / GO! sit in the clear band above (or below) the fighters instead of the HUD's usual spot, smaller, so a
+   * raised spawn (Temple, Frostfang) is never hidden behind the plate. Called every frame while it shows.
+   */
+  private placeBanner(): void {
+    const s = this.s;
+    const b = s.hud.banner;
+    const h = s.scale.height;
+    const u = hudUnit(h);
+    s.st.bannerBase = u * COUNT_SCALE;
+    const cam = s.worldCam;
+    const v = cam.worldView;
+    const z = cam.zoom || 1;
+    let top = Infinity;
+    let bottom = -Infinity;
+    for (const f of s.fighters) {
+      if (f.state === 'ko') continue;
+      top = Math.min(top, (f.y - f.h - 14 - v.y) * z); // the name tag rides a little above the head
+      bottom = Math.max(bottom, (f.y - v.y) * z);
+    }
+    const half = (7 * u * COUNT_SCALE) / 2 + 7 * u; // the text plus its dark band
+    const minY = 10 * u + half; // under the clock
+    const maxY = h - (40 * (s.st.hudU || u) + 12 * u) - half; // above the fighter plates
+    const usual = h * 0.3;
+    let y = usual;
+    if (top !== Infinity && usual + half > top && usual - half < bottom) {
+      // the usual spot overlaps someone: the roomier of the bands above and below the fighters
+      const above = top - 4 * u - half;
+      const below = bottom + 4 * u + half;
+      if (above >= minY) y = Math.min(usual, above);
+      else if (below <= maxY) y = below;
+      else y = minY;
+    }
+    b.setY(Math.round(Math.max(minY, Math.min(maxY, y))));
+    this.moved = true;
+  }
+
+  /** Puts the banner back where the HUD keeps it (and its usual size) for the match's later banners. */
+  private restoreBanner(): void {
+    if (!this.moved) return;
+    this.moved = false;
+    const s = this.s;
+    const u = hudUnit(s.scale.height);
+    s.st.bannerBase = u * 4;
+    s.hud.banner.setY(s.scale.height * 0.3);
+  }
+
+  /** After GO, per render frame: the name tags fade back in (and the banner goes home once GO! is gone). */
   tagsIn(frameMs: number): void {
     const s = this.s;
     const st = s.st;
+    if (this.moved) {
+      if (st.introTicks > 0 && s.hud.banner.visible) this.placeBanner();
+      else this.restoreBanner();
+    }
     if (st.tagFade >= 1 || this.active) return;
     st.tagFade = Math.min(1, st.tagFade + frameMs / 450);
     if (st.tagFade >= 1) s.tags.endEntrances();
@@ -89,6 +147,7 @@ export class Countdown {
   entrances(): void {
     const s = this.s;
     const st = s.st;
+    this.placeBanner();
     const t = COUNTDOWN - st.countdown;
     // continuous trails emit once per countdown tick, not per render frame (the same at 60 and 144 Hz)
     const fresh = t !== st.lastEntranceT;

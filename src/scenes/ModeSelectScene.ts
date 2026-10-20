@@ -3,10 +3,11 @@ import { inputManager } from '../input/inputManager';
 import type { MenuEvent } from '../input/menuInput';
 import { session } from '../game/session';
 import { quickMatch } from '../game/quick';
-import { markTutorialOffered, shouldOfferTutorial, startTutorial } from '../game/tutorial';
+import { markTutorialOffered, shouldOfferTutorial, startTutorial, tutorialDone } from '../game/tutorial';
+import { CHALLENGES } from '../game/challenges';
 import { MergedDevice } from '../input/device';
 import { sfx } from '../audio/sfx';
-import { COLORS, MenuList, MenuScene, drawPanel, pointerXY, text, textPx, type MenuBackdrop, type MenuItem } from '../ui/menuKit';
+import { COLORS, MenuList, MenuScene, drawPanel, pointerXY, tapMin, text, textPx, wrapText, type MenuBackdrop, type MenuItem } from '../ui/menuKit';
 import { PIXEL_FONT } from '../art/pixelFont';
 import { fighterAnimKey, fighterTextureKey, uiTexK } from '../art/proceduralFighter';
 import { CHARACTER_LIST } from '../characters';
@@ -16,7 +17,7 @@ import { releaseUnusedOutfits } from './outfits';
 interface Group {
   id: string;
   label: string;
-  items: { label: string; desc: string; go: (scene: ModeSelectScene, e?: MenuEvent) => void }[];
+  items: { label: string; desc: string; go: (scene: ModeSelectScene, e?: MenuEvent) => void; show?: () => boolean }[];
 }
 
 const GROUPS: Group[] = [
@@ -26,6 +27,9 @@ const GROUPS: Group[] = [
     items: [
       { label: 'VERSUS', desc: 'SET UP A MATCH FOR 2-4 FIGHTERS: FRIENDS, CPUS, RULES AND STAGE.', go: (s) => s.goTo('VersusSetup') },
       { label: 'QUICK MATCH', desc: 'STRAIGHT INTO A FIGHT: YOUR LAST FIGHTER VS ONE CPU ON A RANDOM STAGE.', go: (s, e) => s.quick(e) },
+      // new players find the lessons on the first tab (until they finish them; they stay in the VAULT after that)
+      { label: 'TUTORIAL', desc: 'NEW HERE? EIGHT SHORT HANDS-ON LESSONS: MOVING, ATTACKING, SHIELDING, RECOVERING.', go: (s, e) => startTutorial(s, 'ModeSelect', undefined, e?.device), show: () => !tutorialDone() },
+      { label: 'HOW TO PLAY', desc: 'THE CONTROLS FOR YOUR KEYBOARD, PAD OR TOUCH, AND EVERY TECHNIQUE, PAGE BY PAGE.', go: (s) => s.goTo('HowToPlay') },
     ],
   },
   {
@@ -33,7 +37,7 @@ const GROUPS: Group[] = [
     label: 'SOLO',
     items: [
       { label: 'ARCADE', desc: 'CLIMB EIGHT FIGHTS THAT GET HARDER, THEN FACE THE OVERSEER.', go: (s) => s.start('arcade') },
-      { label: 'CHALLENGES', desc: 'FOURTEEN SET-PIECE FIGHTS, EACH WITH A TWIST. CLEAR THEM ALL.', go: (s) => s.goTo('Challenges') },
+      { label: 'CHALLENGES', desc: `${CHALLENGES.length} SET-PIECE FIGHTS, EACH WITH A TWIST. CLEAR THEM ALL.`, go: (s) => s.goTo('Challenges') },
       { label: 'TARGET SMASH', desc: 'BREAK TEN TARGETS AS FAST AS YOU CAN. BEAT YOUR BEST TIME.', go: (s) => s.start('targets') },
       { label: 'LAUNCH CONTEST', desc: 'TEN SECONDS TO BUILD DAMAGE ON A DUMMY, THEN SEND IT FLYING. HOW FAR?', go: (s) => s.start('launch') },
       { label: 'TRAINING', desc: 'PRACTISE FREELY: A DUMMY, HITBOXES, FRAME DATA AND NO CLOCK.', go: (s) => s.start('training') },
@@ -45,7 +49,7 @@ const GROUPS: Group[] = [
     items: [
       { label: 'RECORDS', desc: 'YOUR WINS, KOS, BEST TIMES AND DISTANCES, FIGHTER BY FIGHTER.', go: (s) => s.goTo('Records') },
       { label: 'HOW TO PLAY', desc: 'THE CONTROLS, MOVES AND TECHNIQUES, PAGE BY PAGE.', go: (s) => s.goTo('HowToPlay') },
-      { label: 'TUTORIAL', desc: 'EIGHT SHORT HANDS-ON LESSONS: MOVING, ATTACKING, SHIELDING, RECOVERING.', go: (s) => startTutorial(s, 'ModeSelect') },
+      { label: 'TUTORIAL', desc: 'EIGHT SHORT HANDS-ON LESSONS: MOVING, ATTACKING, SHIELDING, RECOVERING.', go: (s, e) => startTutorial(s, 'ModeSelect', undefined, e?.device) },
       { label: 'CREDITS', desc: 'WHO IS WHO, WHERE THEY FIGHT AND HOW THE GAME WAS MADE.', go: (s) => s.goTo('Credits') },
     ],
   },
@@ -58,6 +62,8 @@ const GROUPS: Group[] = [
     ],
   },
 ];
+
+const OFFER_BODY = 'A FIVE-MINUTE HANDS-ON TUTORIAL TEACHES THE BASICS.';
 
 /** The group and row the menu was left on (kept for the session). */
 let lastGroup = 0;
@@ -136,7 +142,7 @@ export class ModeSelectScene extends MenuScene {
   }
 
   private items(): MenuItem[] {
-    return GROUPS[this.group].items.map((it) => ({ label: it.label, hint: it.desc, onConfirm: () => it.go(this, this.lastEvent) }));
+    return GROUPS[this.group].items.filter((it) => !it.show || it.show()).map((it) => ({ label: it.label, hint: it.desc, onConfirm: () => it.go(this, this.lastEvent) }));
   }
 
   private lastEvent: MenuEvent | undefined;
@@ -155,10 +161,18 @@ export class ModeSelectScene extends MenuScene {
     const g = this.add.graphics();
     this.ui.add(g);
     const head = text(this, this.ui, 'NEW TO SUPER FIGHT CLUB?', COLORS.title).setOrigin(0.5);
-    const body = text(this, this.ui, 'A FIVE-MINUTE HANDS-ON TUTORIAL TEACHES THE BASICS.', COLORS.text).setOrigin(0.5);
+    const body = text(this, this.ui, OFFER_BODY, COLORS.text).setOrigin(0.5);
     const list = new MenuList(this, this.ui, [
-      { label: 'PLAY THE TUTORIAL', onConfirm: () => { this.closeOffer(); startTutorial(this, 'ModeSelect'); } },
-      { label: 'NOT NOW', onConfirm: () => { markTutorialOffered(); this.closeOffer(); } },
+      { label: 'PLAY THE TUTORIAL', onConfirm: () => { this.closeOffer(); startTutorial(this, 'ModeSelect', undefined, this.lastEvent?.device); } },
+      {
+        label: 'NOT NOW',
+        onConfirm: () => {
+          markTutorialOffered();
+          this.closeOffer();
+          // the tutorial and How To Play stay on the first tab, in view
+          if (this.group !== 0) this.setGroup(0);
+        },
+      },
     ]);
     this.list.interactive = false;
     this.offer = { list, head, body, g };
@@ -215,7 +229,7 @@ export class ModeSelectScene extends MenuScene {
     this.desc.setText(this.list.hint);
     const footTop = this.placeFooter(this.hint, this.desc, 1.5);
     const listTop = ty + 7 * k + 5 * u + 12 * u;
-    this.list.layout(w / 2, listTop, u, 130, Math.min(footTop - 12 * u, listTop + 5 * 18 * u));
+    this.list.layout(w / 2, listTop, u, 130, footTop - 12 * u);
     // flanking fighters only when there is room beside the menu
     const room = w > h * 1.25;
     this.floorY = Math.min(h * 0.7, h * 0.78 - 20 * u);
@@ -244,13 +258,21 @@ export class ModeSelectScene extends MenuScene {
     const o = this.offer;
     if (!o) return;
     o.head.setScale(Math.min(u * 2, (w * 0.86) / Math.max(1, textPx(o.head))));
+    // the description wraps on a narrow screen rather than shrinking out of reading size
+    o.body.setText(OFFER_BODY).setCenterAlign();
+    if ((w * 0.86) / Math.max(1, textPx(o.body)) < u * 0.8) o.body.setText(wrapText(OFFER_BODY, Math.max(16, Math.floor((w * 0.86) / (6 * u)))));
     o.body.setScale(Math.min(u, (w * 0.86) / Math.max(1, textPx(o.body))));
     const pw = Math.min(w * 0.94, Math.max(o.head.displayWidth, o.body.displayWidth, 150 * u) + 24 * u);
-    const ph = o.head.displayHeight + o.body.displayHeight + 2 * 18 * u + 34 * u;
-    const top = h / 2 - ph / 2;
-    o.head.setPosition(w / 2, top + 10 * u + o.head.displayHeight / 2);
-    o.body.setPosition(w / 2, o.head.y + o.head.displayHeight / 2 + 6 * u + o.body.displayHeight / 2);
-    o.list.layout(w / 2, o.body.y + o.body.displayHeight / 2 + 10 * u, u, 120);
+    // laid out once to measure (the rows are a finger tall on touch screens), then centred
+    const place = (top: number): number => {
+      o.head.setPosition(w / 2, top + 10 * u + o.head.displayHeight / 2);
+      o.body.setPosition(w / 2, o.head.y + o.head.displayHeight / 2 + 6 * u + o.body.displayHeight / 2);
+      o.list.layout(w / 2, o.body.y + o.body.displayHeight / 2 + 12 * u + Math.max(0, tapMin(this) - 18 * u) / 2, u, 170, h);
+      return o.list.bottom + 8 * u - top;
+    };
+    const ph = place(0);
+    const top = Math.max(4 * u, (h - ph) / 2);
+    place(top);
     o.g.clear().fillStyle(0x000000, 0.6).fillRect(0, 0, w, h);
     drawPanel(o.g, w / 2 - pw / 2, top, pw, ph, u, 0.97);
   }
@@ -304,6 +326,7 @@ export class ModeSelectScene extends MenuScene {
 
   protected onEvent(e: MenuEvent): void {
     if (this.offer) {
+      this.lastEvent = e;
       if (e.action === 'back') {
         markTutorialOffered();
         this.closeOffer();

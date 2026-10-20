@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { agni } from '../src/characters/agni';
 import { brick } from '../src/characters/brick';
 import { Button, makeInput, type FighterInput } from '../src/engine/buttons';
-import { COMBO_GAP, COMBO_STUN_MIN, PARRY_FRAMES, PARRY_HITLAG, SDI_DIST, SHIELD_DROP_LAG, STALE_PER_USE, Fighter } from '../src/engine/fighter';
+import { COMBO_GAP, COMBO_STUN_MIN, PARRY_FRAMES, PARRY_HITLAG, SDI_DIST, SHIELD_DROP_FRAMES, SHIELD_DROP_LAG, STALE_PER_USE, Fighter } from '../src/engine/fighter';
 import { computeKnockback, hitstunFrames } from '../src/engine/knockback';
 import type { StageData } from '../src/engine/types';
 import { World } from '../src/engine/world';
@@ -76,11 +76,56 @@ describe('Out of shield', () => {
     r.run(10, inp(), hold(Button.Shield));
     r.tick(inp(), press(Button.Attack, { held: Button.Shield | Button.Attack, stickY: -1 }));
     expect(r.b.move?.id).toBe('usmash');
+    // up special comes straight out of shield
+    const u = rig();
+    u.run(10, inp(), hold(Button.Shield));
+    u.tick(inp(), press(Button.Special, { held: Button.Shield | Button.Special, stickY: -1 }));
+    expect(u.b.state).toBe('attack');
+    expect(u.b.move?.id.startsWith('upB')).toBe(true);
+    // any other special drops the shield first, then comes out from the buffer
     const q = rig();
     q.run(10, inp(), hold(Button.Shield));
     q.tick(inp(), press(Button.Special, { held: Button.Shield | Button.Special }));
+    expect(q.b.state).toBe('landing');
+    expect(q.b.anim).toBe('shield');
+    q.run(SHIELD_DROP_FRAMES, inp(), hold(Button.Special));
     expect(q.b.state).toBe('attack');
     expect(q.b.move?.kind).toBe('special');
+  });
+
+  it('forward / down smash out of shield wait for the shield drop; grab and jump do not', () => {
+    for (const [btn, o, instant] of [
+      [Button.Smash, {}, false],
+      [Button.Smash, { stickY: 1 }, false],
+      [Button.Grab, {}, true],
+      [Button.Jump, {}, true],
+    ] as const) {
+      const r = rig();
+      r.run(10, inp(), hold(Button.Shield));
+      r.tick(inp(), press(btn, { held: Button.Shield | btn, ...o }));
+      if (instant) {
+        expect(r.b.state === 'attack' || r.b.state === 'jumpsquat' || r.b.state === 'holding').toBe(true);
+        continue;
+      }
+      expect(r.b.state).toBe('landing');
+      // Shield still held: the buffered smash still comes out once the shield is down
+      r.run(SHIELD_DROP_FRAMES - 1, inp(), hold(btn | Button.Shield, o));
+      expect(r.b.state).toBe('landing');
+      r.tick(inp(), hold(btn | Button.Shield, o));
+      expect(r.b.state).toBe('attack');
+      expect(r.b.move?.kind).toBe('smash');
+    }
+  });
+
+  it('letting go of shield costs the shield-drop frames before the next action', () => {
+    const r = rig();
+    r.run(10, inp(), hold(Button.Shield));
+    r.tick(inp(), inp());
+    expect(r.b.state).toBe('landing');
+    r.tick(inp(), press(Button.Attack));
+    expect(r.b.state).toBe('landing');
+    r.run(SHIELD_DROP_FRAMES);
+    expect(r.b.state).toBe('attack');
   });
 });
 

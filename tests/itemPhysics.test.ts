@@ -47,7 +47,7 @@ describe('items as physics objects', () => {
 
   it('a knocked Shock Bomb arms and flies, credited to the hitter', () => {
     const t = rig();
-    t.place('bomb', t.a.x + 22);
+    t.place('bomb', t.a.x + 30); // out of pick-up reach, inside the jab
     t.jab();
     expect(t.events).toContain('itemKnock');
     expect(t.a.heldBomb).toBe(false);

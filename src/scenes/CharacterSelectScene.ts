@@ -7,7 +7,8 @@ import { CHARACTER_LIST } from '../characters';
 import { Lobby, skillName, skillOfLevel, type CardRow } from '../game/lobby';
 import { rememberFighter } from '../game/quick';
 import { saveLastRules } from '../game/rulesets';
-import { footerHint, type MenuVerb } from '../input/prompts';
+import { footerHint, promptFor, type MenuVerb } from '../input/prompts';
+import { deviceKind } from '../game/tutorial';
 import type { InputDevice } from '../input/device';
 import { buildLadder } from '../game/ladder';
 import { launchSlots } from '../game/launch';
@@ -16,7 +17,7 @@ import { introCards } from '../game/story';
 import { session, type PlayerSlot } from '../game/session';
 import { inputManager } from '../input/inputManager';
 import type { MenuEvent } from '../input/menuInput';
-import { COLORS, MenuScene, PANEL, drawPanel, pointerDevice, pointerXY, text, textPx, type MenuBackdrop } from '../ui/menuKit';
+import { COLORS, MenuScene, PANEL, drawPanel, pointerDevice, pointerXY, tapMin, text, textPx, type MenuBackdrop } from '../ui/menuKit';
 
 /** Team colour names (team index = player colour index). */
 const TEAM_NAMES = ['BLUE', 'RED', 'GREEN', 'YELLOW'];
@@ -44,6 +45,8 @@ interface Card {
   handi: Phaser.GameObjects.BitmapText;
   /** Rows of the card while someone sets it up (CPU card, or a locked player's team / handicap). */
   rows: Phaser.GameObjects.BitmapText;
+  /** This card's own controls, under the card (each player reads their own keys, even two on one keyboard). */
+  keys: Phaser.GameObjects.BitmapText;
   /** Card geometry from the last layout: centre x, top, width and the card's own art unit. */
   cx: number;
   top: number;
@@ -53,6 +56,20 @@ interface Card {
 
 /** Card height in card units: header band, the fighter's stage, name / status / outfit, tagline, stat bars. */
 const CARD_H = 174;
+/** Room under each card for its own controls line (card units). */
+const KEYS_H = 11;
+
+/** The roster's real range of each stat bar (so the heaviest fills the WGT bar and the lightest does not read as zero). */
+function statRange(get: (c: (typeof CHARACTER_LIST)[number]) => number): [number, number] {
+  const v = CHARACTER_LIST.map(get);
+  const lo = Math.min(...v);
+  const hi = Math.max(...v);
+  // the lightest still shows a sliver: the bar starts a little below the roster's minimum
+  return [lo - (hi - lo) * 0.12, hi === lo ? lo + 1 : hi];
+}
+const WEIGHT = statRange((c) => c.stats.weight);
+const SPEED = statRange((c) => c.stats.runSpeed);
+const JUMP = statRange((c) => c.stats.jumpHeight);
 /** Height of the tagline row: short windows drop it (its text would be too small to read) and keep the fighter large. */
 const TAG_H = 16;
 
@@ -72,6 +89,9 @@ export class CharacterSelectScene extends MenuScene {
   private editG!: Phaser.GameObjects.Graphics;
   /** Per slot: when its locked owner last touched their team / handicap rows (the overlay shows for a while after). */
   private ownEditAt = [-99, -99, -99, -99];
+  /** The CONTINUE button drawn behind the lobby message once everyone is ready (a click / tap target), and its box. */
+  private goG!: Phaser.GameObjects.Graphics;
+  private goBox: { x: number; y: number; w: number; h: number } | null = null;
   /** The device that last sent an event (the footer names its controls). */
   private lastDevice: InputDevice | null = null;
   private now = 0;
@@ -116,6 +136,7 @@ export class CharacterSelectScene extends MenuScene {
         q: text(this, this.ui, '?', COLORS.title).setOrigin(0.5).setVisible(false),
         handi: text(this, this.ui, '', COLORS.accent).setOrigin(0.5, 0),
         rows: text(this, this.ui, '', COLORS.text).setOrigin(0, 0).setLineSpacing(2).setVisible(false),
+        keys: text(this, this.ui, '', COLORS.hint).setOrigin(0.5, 0),
         header: text(this, this.ui, `P${i + 1}`, col),
         device: text(this, this.ui, '', COLORS.dim),
         sprite,
@@ -172,6 +193,8 @@ export class CharacterSelectScene extends MenuScene {
     this.ui.add(this.editG);
     for (const c of this.cards) this.ui.bringToTop(c.rows);
     this.input.on(Phaser.Input.Events.POINTER_DOWN, (p: Phaser.Input.Pointer) => this.onPointer(p));
+    this.goG = this.add.graphics();
+    this.ui.add(this.goG);
     this.warn = text(this, this.ui, '', COLORS.warn).setOrigin(0.5);
     this.hint = text(this, this.ui, '', COLORS.dim).setOrigin(0.5);
   }
@@ -186,8 +209,8 @@ export class CharacterSelectScene extends MenuScene {
     // stacked bottom-up: controls hint, lobby message, roster strip; the cards take the space left under the title
     const ru = Math.max(1, Math.min(u0, Math.floor(((h * 0.86) / 225) * 2) / 2));
     this.title.setScale(Math.min(u0 * 3, (w * 0.9) / Math.max(1, textPx(this.title)))).setPosition(w / 2, Math.max(h * 0.07, 6 * u0 + (7 * u0 * 3) / 2));
-    this.hint.setScale(Math.min(ru, (w * 0.97) / Math.max(1, textPx(this.hint)))).setPosition(w / 2, h - 8 * ru);
-    const hintTop = this.hint.y - (7 * this.hint.scaleY) / 2;
+    // the shared footer (wraps onto two lines rather than shrinking to nothing on a phone)
+    const hintTop = this.placeFooter(this.hint);
     const warnK = ru * 1.2;
     this.warn.setData('k', warnK).setScale(Math.min(warnK, (w * 0.95) / Math.max(1, textPx(this.warn)))).setPosition(w / 2, hintTop - 5 * ru - (7 * warnK) / 2);
     const warnTop = this.warn.y - (7 * warnK) / 2;
@@ -218,11 +241,12 @@ export class CharacterSelectScene extends MenuScene {
     // the cards: as large as fits between the title and the roster (quarter-unit steps keep the pixel text even)
     const cardsTop = this.title.y + this.title.displayHeight / 2 + 7 * ru;
     const avail = stripTop - 7 * ru - cardsTop;
-    this.compact = avail / CARD_H < 2;
-    const cardH = this.cardH;
+    this.compact = avail / (CARD_H + KEYS_H) < 2;
+    const cardH = this.cardH + KEYS_H;
     const u = Math.max(1, Math.min(u0, Math.floor((avail / cardH) * 4) / 4));
     const n = this.cards.length;
-    const cw = Math.min((w - 8 * u) / (n + 0.2), 112 * u * 1.1);
+    // wide windows (21:9) give the cards the extra width rather than leaving it as empty sky
+    const cw = Math.min((w - 8 * u) / (n + 0.2), 112 * u * (w / h > 1.9 ? 1.65 : 1.1));
     this.cards.forEach((c, i) => {
       const cx = w / 2 + (i - (n - 1) / 2) * cw;
       const top = cardsTop + Math.max(0, (avail - cardH * u) / 3);
@@ -232,6 +256,7 @@ export class CharacterSelectScene extends MenuScene {
       c.device.setOrigin(1, 0.5).setPosition(x0 + cw * 0.94 - 6 * u, top + 10.5 * u);
       this.fitFighter(c, CHARACTER_LIST[this.lobby.slots[i].character] ?? CHARACTER_LIST[0]);
       c.q.setScale(Math.max(1, Math.floor((50 * u) / 7))).setPosition(cx, top + 58 * u);
+      c.keys.setData('u', u).setPosition(cx, top + this.cardH * u + 3 * u);
       c.handi.setScale(legible(u)).setPosition(cx, top + 23 * u);
       c.rows.setData('u', u);
       c.name.setScale(u * 1.5).setOrigin(0.5, 0).setPosition(cx, top + 95 * u);
@@ -374,11 +399,14 @@ export class CharacterSelectScene extends MenuScene {
       const room = c.cw - c.header.displayWidth - 18 * c.cu;
       c.device.setScale(legible(Math.min(c.cu * 1.2, room / Math.max(1, textPx(c.device)))));
       c.outfit.setScale(legible(Math.min(c.cu, (c.cw * 0.92) / Math.max(1, textPx(c.outfit)))));
-      c.sprite.setVisible(fighter).setAlpha(slot.kind === 'cpu' ? 0.85 : 1);
+      // an empty card shows a dark fighter silhouette waiting to be claimed
+      c.sprite.setVisible(fighter || !filled).setAlpha(!filled ? 0.55 + 0.1 * Math.sin(time * 2) : slot.kind === 'cpu' ? 0.85 : 1);
+      if (!filled) c.sprite.setTintFill(0x2a2650);
+      else if (c.sprite.tintFill) c.sprite.clearTint();
       c.q.setVisible(filled && random).setAlpha(0.6 + 0.4 * Math.abs(Math.sin(time * 2.5)));
       c.name.setText(filled ? (random ? 'RANDOM' : up(data.name)) : '');
       c.name.setScale(Math.min(c.cu * 1.5, (c.cw * 0.9) / Math.max(1, textPx(c.name))));
-      const emptyMsg = session.mode === 'versus' && l.humans() > 0 ? 'EMPTY: CPU FILLS' : 'PRESS A BUTTON';
+      const emptyMsg = session.mode === 'versus' && l.humans() > 0 ? 'EMPTY: CPU FILLS' : this.joinText();
       c.status
         .setText(slot.kind === 'empty' ? emptyMsg : slot.kind === 'cpu' ? 'CPU' : slot.locked ? 'READY!' : 'SELECTING')
         .setTint(slot.locked ? COLORS.good : slot.kind === 'empty' ? (((time * 2) | 0) % 2 === 0 ? COLORS.warn : COLORS.dim) : COLORS.text);
@@ -390,7 +418,7 @@ export class CharacterSelectScene extends MenuScene {
       if (filled && slot.stock !== 0 && l.stockRule) hparts.push(`${slot.stock > 0 ? '+' : ''}${slot.stock} STOCK`);
       c.handi.setText(hparts.length ? `HANDICAP ${hparts.join(' ')}` : '');
       c.handi.setScale(legible(Math.min(c.cu, (c.cw * 0.9) / Math.max(1, textPx(c.handi)))));
-      const stats = [this.norm(data.stats.weight, 80, 110), this.norm(data.stats.runSpeed, 1.6, 3.3), this.norm(data.stats.jumpHeight, 55, 82), (data.difficulty ?? 3) / 5];
+      const stats = [this.norm(data.stats.weight, ...WEIGHT), this.norm(data.stats.runSpeed, ...SPEED), this.norm(data.stats.jumpHeight, ...JUMP), (data.difficulty ?? 3) / 5];
       c.bars.forEach((b, k) => b.setVisible(fighter).setScale((stats[k] * c.barW) / 4, (4 * c.cu) / 4));
       c.barBg.forEach((b) => b.setVisible(fighter));
       c.barLabels.forEach((t) => t.setVisible(fighter));
@@ -434,13 +462,19 @@ export class CharacterSelectScene extends MenuScene {
     this.drawCards(time);
     this.drawRoster();
     const pads = inputManager.padList.length;
-    const msg = up(l.warning(pads) ?? (l.ready ? 'ALL SET: PRESS CONFIRM AGAIN OR START TO CONTINUE' : ''));
+    // everyone ready: the message becomes a CONTINUE button (click / tap it, or confirm again / start)
+    // (the lobby's "press a button" in the words of the device in use: a tap on touch)
+    const warning = l.warning(pads)?.replace('PRESS A BUTTON TO JOIN', deviceKind(this.lastDevice) === 'touch' ? 'TAP A FIGHTER TO JOIN' : 'PRESS A BUTTON TO JOIN') ?? null;
+    const narrow = this.scale.width < this.scale.height;
+    const msg = up(l.ready ? `CONTINUE  >${warning && !narrow ? `   (${warning})` : ''}` : (warning ?? ''));
     if (msg !== this.warn.text) {
       this.warn.setText(msg);
       const k = (this.warn.getData('k') as number | undefined) ?? this.u;
-      this.warn.setScale(Math.min(k, (this.scale.width * 0.95) / Math.max(1, textPx(this.warn))));
+      this.warn.setScale(Math.min(k, (this.scale.width * 0.9) / Math.max(1, textPx(this.warn))));
     }
     this.warn.setTint(l.ready ? (((time * 3) | 0) % 2 === 0 ? COLORS.good : COLORS.hot) : COLORS.warn);
+    this.drawGo(time);
+    this.cards.forEach((c, i) => this.cardKeys(c, i));
     const hint = this.footerText(time);
     if (hint !== this.hint.text) {
       this.hint.setText(hint);
@@ -448,20 +482,67 @@ export class CharacterSelectScene extends MenuScene {
     }
   }
 
-  /** Footer for the device that last acted: picking a fighter, or setting up a card. */
-  private footerText(time: number): string {
+  /**
+   * The footer: what is shared (setting up CPUs, leaving), for the device that last acted. Each card names its own player's
+   * controls under it (see cardKeys); while a player sets up another card, the footer is theirs.
+   */
+  private footerText(_time: number): string {
     const l = this.lobby;
     const d = this.lastDevice;
     const i = d ? l.slotOf(d.id) : -1;
     const card = d ? l.focusOf(d.id) : -1;
-    const cpus: [MenuVerb, string][] = session.mode === 'versus' ? [['alt', 'SET UP CPUS']] : [];
+    const touch = deviceKind(d) === 'touch';
+    // a touch screen has no "alt" button: CPUs are set up from a keyboard or pad
+    const cpus: [MenuVerb, string][] = session.mode === 'versus' && !touch ? [['alt', 'SET UP CPUS']] : [];
     if (d && i >= 0 && card !== i) return footerHint([['updown', 'ROW'], ['leftright', 'CHANGE'], ['confirm', 'NEXT CARD'], ['back', 'DONE']], d);
-    if (d && i >= 0 && this.ownOpen(i, time)) return footerHint([['updown', 'ROW'], ['leftright', 'CHANGE'], ['confirm', 'CONTINUE'], ['back', 'CLOSE']], d);
-    if (d && i >= 0 && l.slots[i].locked) {
-      const extra: [MenuVerb, string][] = l.rows(i).length ? [['updown', l.teams ? 'TEAM / HANDICAP' : 'HANDICAP']] : [];
-      return footerHint([['confirm', 'CONTINUE'], ...extra, ...cpus, ['back', 'UNLOCK']], d);
+    if (l.humans() === 0) return footerHint([...cpus, ['back', 'BACK']], d);
+    return cpus.length ? footerHint(cpus, d) : '';
+  }
+
+  /** "PRESS TO JOIN" on an empty card, in the words of the device in use. */
+  private joinText(): string {
+    const kind = deviceKind(this.lastDevice);
+    return kind === 'touch' ? 'TAP A FIGHTER TO JOIN' : kind === 'gamepad' ? `PRESS ${promptFor('attack')} TO JOIN` : 'PRESS TO JOIN';
+  }
+
+  /** One card's own controls line, for the device that holds it (two players on one keyboard each see their own keys). */
+  private cardKeys(c: Card, i: number): void {
+    const l = this.lobby;
+    const slot = l.slots[i];
+    const u = (c.keys.getData('u') as number) ?? this.u;
+    let msg = '';
+    if (slot.kind === 'empty' && l.humans() === 0 && deviceKind(this.lastDevice) !== 'touch') msg = 'OR CLICK A FIGHTER';
+    if (slot.kind === 'human' && slot.deviceId) {
+      const d = this.deviceById(slot.deviceId);
+      const kind = deviceKind(d);
+      const P = (a: Parameters<typeof promptFor>[0]): string => promptFor(a, d);
+      const lr = kind === 'keyboard' ? `${P('left')}/${P('right')}` : kind === 'gamepad' ? 'LEFT/RIGHT' : '';
+      const ud = kind === 'keyboard' ? `${P('up')}/${P('down')}` : kind === 'gamepad' ? 'UP/DOWN' : '';
+      const open = this.ownOpen(i);
+      if (kind === 'touch') msg = slot.locked ? 'TAP CONTINUE   BACK: CHANGE' : 'TAP A FIGHTER, TAP AGAIN TO LOCK IN';
+      else if (open) msg = `${ud}: ROW   ${lr}: CHANGE   ${P('special')}: CLOSE`;
+      else if (slot.locked) msg = `${P('attack')}: CONTINUE   ${P('special')}: CHANGE${l.rows(i).length ? `   ${ud}: ${l.teams ? 'TEAM, ' : ''}HANDICAP` : ''}`;
+      else msg = `${lr}: FIGHTER   ${ud}: OUTFIT   ${P('attack')}: LOCK IN`;
     }
-    return footerHint([['leftright', 'FIGHTER'], ['updown', 'OUTFIT'], ['confirm', 'JOIN + LOCK'], ['back', 'BACK'], ...cpus], d);
+    if (c.keys.text !== up(msg)) c.keys.setText(up(msg));
+    c.keys.setTint(slot.kind === 'human' ? (this.cardColor(i) ?? COLORS.hint) : COLORS.hint);
+    c.keys.setScale(legible(Math.min(u * 0.9, (c.cw * 0.98) / Math.max(1, textPx(c.keys)))));
+  }
+
+  /** The CONTINUE button: a lit plate behind the lobby message once everyone is ready. */
+  private drawGo(time: number): void {
+    const g = this.goG.clear();
+    this.goBox = null;
+    if (!this.lobby.ready || !this.warn.text) return;
+    const u = this.u;
+    const t = this.warn;
+    const w = t.displayWidth + 16 * u;
+    const h = t.displayHeight + 8 * u;
+    const box = { x: t.x - w / 2, y: t.y - h / 2, w, h };
+    this.goBox = box;
+    drawPanel(g, box.x, box.y, box.w, box.h, Math.max(1, u / 2), 0.95);
+    g.fillStyle(COLORS.good, 0.12 + 0.06 * Math.sin(time * 5)).fillRect(box.x, box.y, box.w, box.h);
+    g.lineStyle(Math.max(1, u / 2), COLORS.good, 0.9).strokeRect(box.x, box.y, box.w, box.h);
   }
 
   /** The locked player's own team / handicap rows are open (they touched them in the last few seconds). */
@@ -570,14 +651,40 @@ export class CharacterSelectScene extends MenuScene {
     );
   }
 
+  /** Roster tiles, cards and the CONTINUE button take taps directly (the touch OK / BACK column lets them through). */
+  protected override tapTargetAt(x: number, y: number): boolean {
+    const gb = this.goBox;
+    if (gb && x >= gb.x && x <= gb.x + gb.w && y >= gb.y && y <= gb.y + gb.h) return true;
+    if (this.cards.some((c) => x >= c.cx - c.cw / 2 && x <= c.cx + c.cw / 2 && y >= c.top && y <= c.top + this.cardH * c.cu)) return true;
+    return this.roster.some((r) => x >= r.box.x && x <= r.box.x + r.box.w && y >= r.box.y && y <= r.box.y + r.box.h);
+  }
+
   /** Mouse / tap on the roster: joins (as the pointer's device), moves the cursor there, a second tap locks in. */
   private onPointer(p: Phaser.Input.Pointer): void {
     if (p.rightButtonDown()) return;
     const q = pointerXY(this, p);
-    const tile = this.roster.findIndex((r) => q.x >= r.box.x && q.x <= r.box.x + r.box.w && q.y >= r.box.y && q.y <= r.box.y + r.box.h);
-    if (tile < 0) return;
     const l = this.lobby;
     const dev = pointerDevice(p);
+    // the CONTINUE button (a finger's margin around it)
+    const gb = this.goBox;
+    // at least a finger's height on touch screens
+    const m = gb ? Math.max(this.u * 3, (tapMin(this) - gb.h) / 2) : 0;
+    if (gb && l.ready && q.x >= gb.x - m && q.x <= gb.x + gb.w + m && q.y >= gb.y - m && q.y <= gb.y + gb.h + m) {
+      this.lastDevice = dev;
+      this.proceed();
+      return;
+    }
+    // a tap on an empty card joins there; on your own locked card it carries on
+    const card = this.cards.findIndex((c) => q.x >= c.cx - c.cw / 2 && q.x <= c.cx + c.cw / 2 && q.y >= c.top && q.y <= c.top + this.cardH * c.cu);
+    if (card >= 0) {
+      this.lastDevice = dev;
+      const mine = l.slotOf(dev.id);
+      if (mine < 0 && l.slots[card].kind === 'empty') l.join(dev.id);
+      else if (mine === card && l.slots[card].locked && (l.ready || session.mode !== 'versus')) this.proceed();
+      return;
+    }
+    const tile = this.roster.findIndex((r) => q.x >= r.box.x && q.x <= r.box.x + r.box.w && q.y >= r.box.y && q.y <= r.box.y + r.box.h);
+    if (tile < 0) return;
     this.lastDevice = dev;
     if (l.slotOf(dev.id) < 0 && l.join(dev.id) < 0) return;
     const s = l.slots[l.slotOf(dev.id)];

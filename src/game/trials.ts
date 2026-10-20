@@ -3,7 +3,9 @@ import type { WorldEventType } from '../engine/world';
 
 /**
  * Combo trials: three per fighter, played from the Training menu. A trial is a sequence of moves that must all hit the
- * dummy within one combo (the game's own combo counter: each hit lands while the dummy is still reeling from the last).
+ * dummy as one TRUE combo: every hit after the first lands while the dummy is still in hitstun from the one before (the
+ * fighter's `trueCombo` counter), so a dummy that recovers, even for a frame, drops the string. A hit is credited to the
+ * move that made it (`Fighter.lastHitMove`: a projectile to the move that fired it, a command grab's slam to the grab).
  * Move ids match exactly or as a prefix before '_' (so 'neutralB' covers Agni's charge variants neutralB_0..3).
  */
 export interface Trial {
@@ -19,56 +21,56 @@ export interface Trial {
 
 const JAB3 = (tip = 'TAP ATTACK THREE TIMES'): Trial => ({ id: 'jab', name: 'JAB STRING', steps: ['jab1', 'jab2', 'jab3'], percent: 0, tip });
 
-/** Three trials per roster fighter: a jab string, a throw follow-up and a character combo. */
+/** Three trials per roster fighter: a jab string, a throw follow-up (or a juggle where no throw true-combos) and a character combo. */
 export const TRIALS: Record<string, Trial[]> = {
   brick: [
     JAB3(),
-    { id: 'throw', name: 'TOSS AND SWAT', steps: ['uthrow', 'uair'], percent: 10, tip: 'UP THROW, JUMP, UP AERIAL' },
-    { id: 'combo', name: 'WRECKING CREW', steps: ['dtilt', 'ftilt', 'sideB'], percent: 20, tip: 'DOWN TILT, FORWARD TILT, THEN SIDE SPECIAL' },
+    { id: 'juggle', name: 'SKY HAMMER', steps: ['utilt', 'uair', 'uair'], percent: 20, tip: 'UP TILT, JUMP, UP AERIAL TWICE' },
+    { id: 'combo', name: 'WRECKING CREW', steps: ['dtilt', 'ftilt', 'utilt'], percent: 0, tip: 'DOWN TILT, FORWARD TILT, UP TILT' },
   ],
   vex: [
     { id: 'jab', name: 'FLURRY', steps: ['jab1', 'jab2', 'jab3', 'jab4'], percent: 0, tip: 'KEEP TAPPING ATTACK' },
-    { id: 'throw', name: 'TOSS AND SLICE', steps: ['uthrow', 'uair'], percent: 10, tip: 'UP THROW, JUMP, UP AERIAL' },
+    { id: 'throw', name: 'TOSS AND BLINK', steps: ['fthrow', 'neutralB'], percent: 20, tip: 'FORWARD THROW, THEN NEUTRAL SPECIAL' },
     { id: 'combo', name: 'RISING BLADE', steps: ['utilt', 'utilt', 'uair'], percent: 15, tip: 'UP TILT TWICE, JUMP AND UP AERIAL' },
   ],
   nova: [
     JAB3(),
-    { id: 'throw', name: 'THROW TO SPARK', steps: ['dthrow', 'nair'], percent: 10, tip: 'DOWN THROW, SHORT HOP NEUTRAL AERIAL' },
-    { id: 'combo', name: 'ARC LINK', steps: ['dtilt', 'utilt', 'uair'], percent: 20, tip: 'DOWN TILT, UP TILT, UP AERIAL' },
+    { id: 'throw', name: 'THROW TO SPARK', steps: ['uthrow', 'uair'], percent: 30, tip: 'UP THROW, JUMP, UP AERIAL' },
+    { id: 'combo', name: 'ARC LINK', steps: ['dtilt', 'utilt', 'uair'], percent: 40, tip: 'DOWN TILT, UP TILT, UP AERIAL' },
   ],
   gizmo: [
     JAB3(),
-    { id: 'throw', name: 'SCRAP TOSS', steps: ['uthrow', 'uair'], percent: 10, tip: 'UP THROW, JUMP, UP AERIAL' },
-    { id: 'combo', name: 'WRENCH WORK', steps: ['dtilt', 'ftilt', 'fsmash'], percent: 20, tip: 'DOWN TILT, FORWARD TILT, FORWARD SMASH' },
+    { id: 'juggle', name: 'SCRAP TOSS', steps: ['utilt', 'uair', 'uair'], percent: 20, tip: 'UP TILT, JUMP, UP AERIAL TWICE' },
+    { id: 'combo', name: 'WRENCH WORK', steps: ['dtilt', 'ftilt', 'sideB'], percent: 0, tip: 'DOWN TILT, FORWARD TILT, ROCKET FIST' },
   ],
   agni: [
     JAB3(),
-    { id: 'throw', name: 'KINDLING', steps: ['dthrow', 'fair'], percent: 10, tip: 'DOWN THROW, JUMP TOWARD, FORWARD AERIAL' },
+    { id: 'throw', name: 'KINDLING', steps: ['uthrow', 'upB'], percent: 50, tip: 'UP THROW, THEN UP SPECIAL' },
     { id: 'combo', name: 'FLARE UP', steps: ['utilt', 'uair', 'upB'], percent: 15, tip: 'UP TILT, UP AERIAL, UP SPECIAL' },
   ],
   halcyon: [
     JAB3(),
-    { id: 'throw', name: 'UPDRAFT', steps: ['uthrow', 'uair'], percent: 10, tip: 'UP THROW, JUMP, UP AERIAL' },
-    { id: 'combo', name: 'GALE CHAIN', steps: ['dtilt', 'utilt', 'uair'], percent: 20, tip: 'DOWN TILT, UP TILT, UP AERIAL' },
+    { id: 'throw', name: 'UPDRAFT', steps: ['uthrow', 'upB'], percent: 50, tip: 'UP THROW, THEN UP SPECIAL' },
+    { id: 'combo', name: 'GALE CHAIN', steps: ['dtilt', 'uair', 'uair'], percent: 20, tip: 'DOWN TILT, JUMP, UP AERIAL TWICE' },
   ],
   riptide: [
     JAB3(),
-    { id: 'throw', name: 'UNDERTOW', steps: ['dthrow', 'nair'], percent: 10, tip: 'DOWN THROW, SHORT HOP NEUTRAL AERIAL' },
-    { id: 'combo', name: 'RIP CURRENT', steps: ['dtilt', 'ftilt', 'sideB'], percent: 20, tip: 'DOWN TILT, FORWARD TILT, SIDE SPECIAL' },
+    { id: 'juggle', name: 'UNDERTOW', steps: ['utilt', 'nair', 'uair'], percent: 20, tip: 'UP TILT, JUMP, NEUTRAL AERIAL, UP AERIAL' },
+    { id: 'combo', name: 'RIP CURRENT', steps: ['utilt', 'uair', 'upB'], percent: 40, tip: 'UP TILT, UP AERIAL, UP SPECIAL' },
   ],
   obelisk: [
     JAB3(),
-    { id: 'throw', name: 'MONOLITH LIFT', steps: ['uthrow', 'uair'], percent: 10, tip: 'UP THROW, JUMP, UP AERIAL' },
-    { id: 'combo', name: 'STONEWORK', steps: ['dtilt', 'utilt', 'usmash'], percent: 20, tip: 'DOWN TILT, UP TILT, UP SMASH' },
+    { id: 'juggle', name: 'MONOLITH LIFT', steps: ['utilt', 'uair', 'fair'], percent: 20, tip: 'UP TILT, JUMP, UP AERIAL, FORWARD AERIAL' },
+    { id: 'combo', name: 'STONEWORK', steps: ['dtilt', 'utilt', 'uair'], percent: 40, tip: 'DOWN TILT, UP TILT, UP AERIAL' },
   ],
   rime: [
     JAB3(),
-    { id: 'throw', name: 'COLD SNAP', steps: ['dthrow', 'fair'], percent: 10, tip: 'DOWN THROW, JUMP TOWARD, FORWARD AERIAL' },
-    { id: 'combo', name: 'WHITEOUT', steps: ['dtilt', 'ftilt', 'neutralB'], percent: 20, tip: 'DOWN TILT, FORWARD TILT, NEUTRAL SPECIAL' },
+    { id: 'throw', name: 'COLD SNAP', steps: ['uthrow', 'uair'], percent: 50, tip: 'UP THROW, JUMP, UP AERIAL' },
+    { id: 'combo', name: 'WHITEOUT', steps: ['dtilt', 'ftilt', 'neutralB'], percent: 0, tip: 'DOWN TILT, FORWARD TILT, NEUTRAL SPECIAL' },
   ],
   havoc: [
     JAB3(),
-    { id: 'throw', name: 'BREACH', steps: ['uthrow', 'uair'], percent: 10, tip: 'UP THROW, JUMP, UP AERIAL' },
+    { id: 'throw', name: 'BREACH', steps: ['uthrow', 'upB'], percent: 15, tip: 'UP THROW, THEN UP SPECIAL' },
     { id: 'combo', name: 'DEMOLITION', steps: ['dtilt', 'utilt', 'uair'], percent: 20, tip: 'DOWN TILT, UP TILT, UP AERIAL' },
   ],
 };
@@ -107,7 +109,7 @@ export class TrialChecker {
   /** World events: hits the player lands on the dummy advance (or restart) the sequence. */
   onEvent(type: WorldEventType, f: Fighter): void {
     if (this.done || type !== 'hit' || f !== this.dummy || this.dummy.lastHitBy !== this.player.id) return;
-    this.onHit(this.player.move?.id ?? '', Math.max(1, this.dummy.comboHits));
+    this.onHit(this.dummy.lastHitMove, this.dummy.trueCombo + 1);
   }
 
   /** A hit by move `id` that is hit number `combo` of the current combo. Exposed for tests. */
@@ -135,9 +137,11 @@ export class TrialChecker {
     if (this.progress >= steps.length) this.done = true;
   }
 
-  /** A combo that ends (the dummy recovers) before the trial is done starts it over. */
+  /** A combo that ends (the dummy leaves hitstun) before the trial is done starts it over. */
   tick(): void {
-    if (!this.done && this.progress > 0 && this.dummy.comboHits === 0) {
+    const d = this.dummy;
+    const reeling = d.state === 'hitstun' || d.state === 'grabbed' || d.hitlag > 0;
+    if (!this.done && this.progress > 0 && !reeling) {
       this.progress = 0;
       this.lastId = '';
       this.drops++;

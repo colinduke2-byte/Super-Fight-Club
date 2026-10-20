@@ -1,7 +1,7 @@
 import Phaser from 'phaser';
 import { COVE_LAMP, GROUND_LAYERS, INDUSTRY_VENTS, ensureGroundTextures } from '../art/stageTextures';
 import { settings } from '../settings';
-import { addCanvasTexture } from '../art/canvasTexture';
+import { addCanvasTexture, context2d, holdTexture, polygonPixels } from '../art/canvasTexture';
 
 const SKY = ['#070520', '#0c0928', '#150e3a', '#231552', '#3a1f6a', '#5a2b78', '#8a4488'];
 export interface Backdrop {
@@ -223,36 +223,86 @@ const DISC_SIZE = 1024;
 const ELL_TEX = 'bg-ellipse-32';
 const ELL_SIZE = 512;
 
-function polygonCanvas(size: number, sides: number): HTMLCanvasElement {
+function polygonCanvas(size: number, sides: number): HTMLCanvasElement | null {
   const c = document.createElement('canvas');
   c.width = size;
   c.height = size;
-  const g = c.getContext('2d')!;
-  const r = size / 2;
-  g.fillStyle = '#ffffff';
-  g.beginPath();
-  for (let i = 0; i < sides; i++) {
-    const a = (i / sides) * Math.PI * 2;
-    if (i === 0) g.moveTo(r + Math.cos(a) * r, r + Math.sin(a) * r);
-    else g.lineTo(r + Math.cos(a) * r, r + Math.sin(a) * r);
-  }
-  g.closePath();
-  g.fill();
-  // hard edges, like the Graphics fill (a pixel is in or out)
-  const img = g.getImageData(0, 0, size, size);
-  const d = img.data;
-  for (let i = 3; i < d.length; i += 4) {
-    const on = d[i] >= 128 ? 255 : 0;
-    d[i - 3] = d[i - 2] = d[i - 1] = 255;
-    d[i] = on;
+  const g = context2d(c);
+  if (!g) return null;
+  // hard edges, like the Graphics fill (a pixel is in or out): rasterised straight into the pixels, no fill-and-readback
+  g.putImageData(new ImageData(polygonPixels(size, sides) as Uint8ClampedArray<ArrayBuffer>, size, size), 0, 0);
+  return c;
+}
+
+/** The sky: `sky` colours top to bottom, ordered-dithered between neighbours, at art-pixel resolution. */
+function gradientCanvas(sky: readonly string[], gw: number, gh: number): HTMLCanvasElement | null {
+  const c = document.createElement('canvas');
+  c.width = gw;
+  c.height = gh;
+  const g = context2d(c);
+  if (!g) return null;
+  const img = g.createImageData(gw, gh);
+  const rgb = sky.map((s) => [parseInt(s.slice(1, 3), 16), parseInt(s.slice(3, 5), 16), parseInt(s.slice(5, 7), 16)]);
+  for (let y = 0; y < gh; y++) {
+    const t = (y / (gh - 1)) * (sky.length - 1);
+    const i0 = Math.min(sky.length - 2, Math.floor(t));
+    const f = t - i0;
+    for (let x = 0; x < gw; x++) {
+      const lv = f > BAYER[(y & 3) * 4 + (x & 3)] / 16 ? i0 + 1 : i0;
+      const o = (y * gw + x) * 4;
+      img.data[o] = rgb[lv][0];
+      img.data[o + 1] = rgb[lv][1];
+      img.data[o + 2] = rgb[lv][2];
+      img.data[o + 3] = 255;
+    }
   }
   g.putImageData(img, 0, 0);
   return c;
 }
 
+/** Bottom-row averages already read, by texture key (the textures never change, and a rebuilt one has the same pixels). */
+const rowAverages = new Map<string, [number, number, number] | null>();
+
+/**
+ * The average colour (r, g, b sums over n, not rounded) of a texture's bottom row, or null when fewer than 85% of that
+ * row is (nearly) opaque. Read once per texture, one row only.
+ */
+function bottomRowAverage(scene: Phaser.Scene, key: string): [number, number, number] | null {
+  if (rowAverages.has(key)) return rowAverages.get(key)!;
+  if (!scene.textures.exists(key)) return null;
+  const src = scene.textures.get(key).getSourceImage() as HTMLCanvasElement;
+  if (typeof src.getContext !== 'function' || !src.width || !src.height) return null;
+  let row: Uint8ClampedArray;
+  try {
+    const ctx = src.getContext('2d');
+    if (!ctx) return null;
+    row = ctx.getImageData(0, src.height - 1, src.width, 1).data;
+  } catch {
+    return null;
+  }
+  let r = 0;
+  let g = 0;
+  let bl = 0;
+  let n = 0;
+  for (let i = 0; i < row.length; i += 4) {
+    if (row[i + 3] < 200) continue;
+    r += row[i];
+    g += row[i + 1];
+    bl += row[i + 2];
+    n++;
+  }
+  const avg: [number, number, number] | null = n < src.width * 0.85 ? null : [r / n, g / n, bl / n];
+  rowAverages.set(key, avg);
+  return avg;
+}
+
 function ensurePolygonTextures(scene: Phaser.Scene): void {
-  if (!scene.textures.exists(DISC_TEX)) addCanvasTexture(scene, DISC_TEX, polygonCanvas(DISC_SIZE, 100), () => polygonCanvas(DISC_SIZE, 100));
-  if (!scene.textures.exists(ELL_TEX)) addCanvasTexture(scene, ELL_TEX, polygonCanvas(ELL_SIZE, 32), () => polygonCanvas(ELL_SIZE, 32));
+  for (const [key, size, sides] of [[DISC_TEX, DISC_SIZE, 100], [ELL_TEX, ELL_SIZE, 32]] as const) {
+    if (scene.textures.exists(key)) continue;
+    const c = polygonCanvas(size, sides);
+    // no canvas memory left: the shapes draw as Phaser's missing texture rather than crash the scene
+    if (c) addCanvasTexture(scene, key, c, () => polygonCanvas(size, sides));
+  }
 }
 
 /**
@@ -290,12 +340,14 @@ class ShapePool {
 
   /** Same as Graphics fillStyle(col, a).fillCircle(x, y, r). */
   circle(x: number, y: number, r: number, col: number, a: number): void {
+    if (!this.scene.textures.exists(DISC_TEX)) return; // could not be built (no canvas memory): skip the shape
     const k = (r * 2) / DISC_SIZE;
     this.next(DISC_TEX).setPosition(x, y).setScale(k, k).setTint(col).setAlpha(a).setVisible(true);
   }
 
   /** Same as Graphics fillStyle(col, a).fillEllipse(x, y, w, h). */
   ellipse(x: number, y: number, w: number, h: number, col: number, a: number): void {
+    if (!this.scene.textures.exists(ELL_TEX)) return;
     this.next(ELL_TEX).setPosition(x, y).setScale(w / ELL_SIZE, h / ELL_SIZE).setTint(col).setAlpha(a).setVisible(true);
   }
 
@@ -303,6 +355,66 @@ class ShapePool {
     for (let i = this.used; i < this.shown; i++) this.items[i].setVisible(false);
     this.shown = this.used;
   }
+}
+
+/** Phaser.Renderer.Events.RESTORE_WEBGL */
+const RESTORE_WEBGL = 'restorewebgl';
+
+/**
+ * A TileSprite as the WebGL renderer draws it, without the memory the stock one wastes there. Phaser's TileSprite keeps a
+ * hidden canvas at its display size that only the canvas renderer draws into, and resizes it on every size change: the
+ * backdrop resizes its layers every frame (their height follows the camera zoom), reallocating full-screen canvases each
+ * frame. Here the WebGL path keeps the size bookkeeping (frame size, display origin) and leaves that canvas alone. The
+ * power-of-two copy of the tile that Phaser uploads as the repeating texture is released once uploaded and redrawn
+ * after a WebGL context loss. The draw call is exactly the stock one, so every pixel is unchanged.
+ */
+/** TileSprite's internal steps (not in Phaser's typings). */
+const TS_BASE = Phaser.GameObjects.TileSprite.prototype as unknown as { updateCanvas(this: unknown): void; updateTileTexture(this: unknown): void };
+
+class LeanTileSprite extends Phaser.GameObjects.TileSprite {
+  // `declare`d, not initialised: Phaser's constructor already calls the overrides below, and an initialiser would run
+  // after it and wipe what they set
+  declare private sizedW: number | undefined;
+  declare private sizedH: number | undefined;
+  declare private restoreHooked: boolean | undefined;
+
+  private get gl(): boolean {
+    return !!(this.renderer as Phaser.Renderer.WebGL.WebGLRenderer | null)?.gl;
+  }
+
+  updateCanvas(): void {
+    if (!this.gl) return TS_BASE.updateCanvas.call(this);
+    if (this.width !== this.sizedW || this.height !== this.sizedH) {
+      this.sizedW = this.width;
+      this.sizedH = this.height;
+      this.frame.setSize(this.width, this.height);
+      this.updateDisplayOrigin();
+    }
+    this.dirty = false;
+  }
+
+  updateTileTexture(): void {
+    TS_BASE.updateTileTexture.call(this);
+    if (!this.gl || !this.fillPattern) return;
+    // the GPU has its copy: drop the canvas (a lost context is redrawn from the tile's own texture, see onRestore)
+    this.fillCanvas.width = 0;
+    this.fillCanvas.height = 0;
+    if (!this.restoreHooked) {
+      this.restoreHooked = true;
+      const r = this.renderer as Phaser.Renderer.WebGL.WebGLRenderer;
+      r.on(RESTORE_WEBGL, this.onRestore, this);
+      this.once(Phaser.GameObjects.Events.DESTROY, () => r.off(RESTORE_WEBGL, this.onRestore, this));
+    }
+  }
+
+  private onRestore(): void {
+    this.dirty = true;
+    this.updateTileTexture();
+  }
+}
+
+function tileSprite(scene: Phaser.Scene, w: number, h: number, key: string): Phaser.GameObjects.TileSprite {
+  return scene.add.existing(new LeanTileSprite(scene, 0, 0, w, h, key));
 }
 
 /**
@@ -378,21 +490,21 @@ export class BackgroundView {
     private readonly scene: Phaser.Scene,
     private readonly layer: Phaser.GameObjects.Layer,
   ) {
-    this.nebula = scene.add.tileSprite(0, 0, 1, 1, 'bg-nebula').setOrigin(0, 0);
-    this.starsA = scene.add.tileSprite(0, 0, 1, 1, 'bg-stars-a').setOrigin(0, 0);
-    this.starsB = scene.add.tileSprite(0, 0, 1, 1, 'bg-stars-b').setOrigin(0, 0);
+    this.nebula = tileSprite(scene, 1, 1, 'bg-nebula').setOrigin(0, 0);
+    this.starsA = tileSprite(scene, 1, 1, 'bg-stars-a').setOrigin(0, 0);
+    this.starsB = tileSprite(scene, 1, 1, 'bg-stars-b').setOrigin(0, 0);
     this.planet = scene.add.image(0, 0, 'bg-planet').setOrigin(0.5, 0.5);
-    this.far = scene.add.tileSprite(0, 0, 1, 192, 'bg-ruins-far').setOrigin(0, 0);
-    this.near = scene.add.tileSprite(0, 0, 1, 192, 'bg-ruins-near').setOrigin(0, 0);
-    this.grounds = GROUND_LAYERS.map((l) => scene.add.tileSprite(0, 0, 1, l.h, 'bg-ruins-near').setOrigin(0, 0).setVisible(false));
-    this.overcast = scene.add.tileSprite(0, 0, 1, 128, 'bg-cloudsea').setOrigin(0, 0).setFlipY(true).setVisible(false);
+    this.far = tileSprite(scene, 1, 192, 'bg-ruins-far').setOrigin(0, 0);
+    this.near = tileSprite(scene, 1, 192, 'bg-ruins-near').setOrigin(0, 0);
+    this.grounds = GROUND_LAYERS.map((l) => tileSprite(scene, 1, l.h, 'bg-ruins-near').setOrigin(0, 0).setVisible(false));
+    this.overcast = tileSprite(scene, 1, 128, 'bg-cloudsea').setOrigin(0, 0).setFlipY(true).setVisible(false);
     this.gFar = scene.add.graphics();
     this.gGlint = scene.add.graphics().setBlendMode(1 /* ADD */);
     this.skirt = scene.add.rectangle(0, 0, 1, 1, 0x000000).setOrigin(0, 0).setVisible(false);
-    this.clouds = scene.add.tileSprite(0, 0, 1, 64, 'bg-clouds').setOrigin(0, 0).setVisible(false);
+    this.clouds = tileSprite(scene, 1, 64, 'bg-clouds').setOrigin(0, 0).setVisible(false);
     this.gBack = scene.add.graphics().setBlendMode(1 /* ADD */);
     this.gFront = scene.add.graphics().setBlendMode(1 /* ADD */);
-    this.bank = scene.add.tileSprite(0, 0, 1, 128, 'bg-cloudsea').setOrigin(0, 0).setVisible(false);
+    this.bank = tileSprite(scene, 1, 128, 'bg-cloudsea').setOrigin(0, 0).setVisible(false);
     this.gMid = scene.add.graphics();
     layer.add([this.nebula, this.starsA, this.starsB, this.planet, this.gBack, this.overcast, this.clouds, this.far, this.gFar, this.near, ...this.grounds, this.skirt, this.gGlint, this.gMid, this.bank, this.gFront]);
     ensurePolygonTextures(scene);
@@ -416,11 +528,17 @@ export class BackgroundView {
     this.far.setAlpha(b.nearHaze?.farAlpha ?? 1);
     this.far.setTexture(b.farTex ?? 'bg-ruins-far');
     this.near.setTexture(b.nearTex ?? 'bg-ruins-near');
-    if (b.ground) ensureGroundTextures(this.scene, b.ground);
+    if (b.ground) {
+      ensureGroundTextures(this.scene, b.ground);
+      // the ground planes are only kept while a scene shows them (they are rebuilt when a stage needs them again)
+      for (let i = 0; i < GROUND_LAYERS.length; i++) if (this.scene.textures.exists(`${b.ground}-${i}`)) holdTexture(this.scene, `${b.ground}-${i}`);
+    }
     this.groundOn = !!b.ground;
     this.grounds.forEach((t, i) => {
-      t.setVisible(this.groundOn);
-      if (b.ground) t.setTexture(`${b.ground}-${i}`);
+      // (a ground plane that could not be built is left out rather than drawn as Phaser's missing-texture box)
+      const ok = !!b.ground && this.scene.textures.exists(`${b.ground}-${i}`);
+      t.setVisible(this.groundOn && ok);
+      if (ok) t.setTexture(`${b.ground}-${i}`);
     });
     this.overcastOn = !!b.overcast;
     this.overcast.setVisible(this.overcastOn);
@@ -447,24 +565,10 @@ export class BackgroundView {
 
   /** The average colour of a skyline texture's bottom row (times its tint), or null when that row is mostly sky. */
   private bottomColour(key: string, tint: number): number | null {
-    const src = this.scene.textures.get(key).getSourceImage() as HTMLCanvasElement;
-    const ctx = typeof src.getContext === 'function' ? src.getContext('2d') : null;
-    if (!ctx) return null;
-    const row = ctx.getImageData(0, src.height - 1, src.width, 1).data;
-    let r = 0;
-    let g = 0;
-    let bl = 0;
-    let n = 0;
-    for (let i = 0; i < row.length; i += 4) {
-      if (row[i + 3] < 200) continue;
-      r += row[i];
-      g += row[i + 1];
-      bl += row[i + 2];
-      n++;
-    }
-    if (n < src.width * 0.85) return null;
-    const t = (s: number, v: number): number => Math.round(((v / n) * ((tint >> s) & 255)) / 255);
-    return (t(16, r) << 16) | (t(8, g) << 8) | t(0, bl);
+    const avg = bottomRowAverage(this.scene, key);
+    if (!avg) return null;
+    const t = (s: number, v: number): number => Math.round((v * ((tint >> s) & 255)) / 255);
+    return (t(16, avg[0]) << 16) | (t(8, avg[1]) << 8) | t(0, avg[2]);
   }
 
   resize(w: number, h: number): void {
@@ -472,39 +576,24 @@ export class BackgroundView {
     this.h = h;
     this.ps = Math.max(1, Math.round(h / 540));
     const ps = this.ps;
-    // dithered gradient at art-pixel resolution, rebuilt on resize
+    // dithered gradient at art-pixel resolution, rebuilt on resize. One texture per sky and size, shared by every scene
+    // showing it and removed once none does (each scene used to keep its own full-screen copy for the whole session)
     const gw = Math.ceil(w / ps);
     const gh = Math.ceil(h / ps);
-    const c = document.createElement('canvas');
-    c.width = gw;
-    c.height = gh;
-    const g = c.getContext('2d')!;
-    const img = g.createImageData(gw, gh);
     const SKYC = this.sky;
-    const rgb = SKYC.map((s) => [parseInt(s.slice(1, 3), 16), parseInt(s.slice(3, 5), 16), parseInt(s.slice(5, 7), 16)]);
-    for (let y = 0; y < gh; y++) {
-      const t = (y / (gh - 1)) * (SKYC.length - 1);
-      const i0 = Math.min(SKYC.length - 2, Math.floor(t));
-      const f = t - i0;
-      for (let x = 0; x < gw; x++) {
-        const lv = f > BAYER[(y & 3) * 4 + (x & 3)] / 16 ? i0 + 1 : i0;
-        const o = (y * gw + x) * 4;
-        img.data[o] = rgb[lv][0];
-        img.data[o + 1] = rgb[lv][1];
-        img.data[o + 2] = rgb[lv][2];
-        img.data[o + 3] = 255;
-      }
-    }
-    g.putImageData(img, 0, 0);
-    // one gradient texture per scene: a scene running over another (Controls over a paused match) must not replace the one it draws
-    const key = `bg-grad-dyn:${this.scene.sys.settings.key}`;
+    const key = `bg-grad:${SKYC.join('')}:${gw}x${gh}`;
     this.grad?.destroy();
     this.grad = null;
-    if (this.scene.textures.exists(key)) this.scene.textures.remove(key);
-    addCanvasTexture(this.scene, key, c);
-    this.grad = this.scene.add.image(0, 0, key).setOrigin(0, 0).setScale(ps);
-    this.layer.add(this.grad);
-    this.layer.sendToBack(this.grad);
+    if (!this.scene.textures.exists(key)) {
+      const c = gradientCanvas(SKYC, gw, gh);
+      if (c) addCanvasTexture(this.scene, key, c, () => gradientCanvas(SKYC, gw, gh));
+    }
+    if (this.scene.textures.exists(key)) {
+      holdTexture(this.scene, key);
+      this.grad = this.scene.add.image(0, 0, key).setOrigin(0, 0).setScale(ps);
+      this.layer.add(this.grad);
+      this.layer.sendToBack(this.grad);
+    }
 
     for (const t of [this.nebula, this.starsA, this.starsB]) t.setSize(w, h);
     this.far.setSize(w, 192 * ps);

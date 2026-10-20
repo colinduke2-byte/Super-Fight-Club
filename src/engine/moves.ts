@@ -44,6 +44,11 @@ export interface HitboxDef {
   hitlag?: number;
   /** Minimum hitstun (frames) so weak multi-hit/jab moves still link. */
   minHitstun?: number;
+  /**
+   * Set (fixed) knockback: the launch strength ignores the victim's percent and weight (base / scaling only feed shields and
+   * tools), so jab strings and multi-hit links connect the same at 0% and at 150%.
+   */
+  setKb?: number;
   grab?: boolean;
   throw?: boolean;
   unblockable?: boolean;
@@ -181,6 +186,8 @@ export interface MoveDef {
   motion?: { frame: number; vx?: number; vy?: number; mode?: 'set' | 'add' }[];
   /** Gravity multiplier while the move runs (airborne). Default 1. */
   gravityScale?: number;
+  /** Air drift multiplier while the move runs airborne (recovery specials that travel sideways). Default 1. */
+  airDrift?: number;
   /** Invulnerable on these frames. */
   invuln?: [number, number];
   /** If the fighter lands during the active window, bounce up with this speed instead of taking landing lag. */

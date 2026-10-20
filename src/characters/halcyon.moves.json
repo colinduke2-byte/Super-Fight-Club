@@ -18,7 +18,8 @@
      "base": 8,
      "scaling": 0.15,
      "fx": "pierce",
-     "minHitstun": 18
+     "minHitstun": 18,
+     "setKb": 14
     },
     {
      "x": 20,
@@ -30,7 +31,8 @@
      "base": 6,
      "scaling": 0.1,
      "fx": "pierce",
-     "minHitstun": 18
+     "minHitstun": 18,
+     "setKb": 14
     }
    ],
    "next": {
@@ -57,11 +59,6 @@
      "into": "neutralB",
      "from": 5,
      "dir": "neutral"
-    },
-    {
-     "button": "jump",
-     "into": "@jump",
-     "from": 5
     }
    ],
    "motion": [
@@ -168,7 +165,8 @@
      "base": 8,
      "scaling": 0.15,
      "fx": "pierce",
-     "minHitstun": 20
+     "minHitstun": 20,
+     "setKb": 14
     },
     {
      "x": 20,
@@ -180,7 +178,8 @@
      "base": 6,
      "scaling": 0.1,
      "fx": "pierce",
-     "minHitstun": 20
+     "minHitstun": 20,
+     "setKb": 14
     }
    ],
    "next": {
@@ -841,11 +840,6 @@
    ],
    "cancels": [
     {
-     "button": "jump",
-     "into": "@jump",
-     "from": 5
-    },
-    {
      "button": "attack",
      "into": "utilt",
      "from": 7,
@@ -1338,7 +1332,8 @@
      "dir": "away",
      "minHitstun": 10,
      "hitlag": 0.7,
-     "fx": "gust"
+     "fx": "gust",
+     "setKb": 14
     }
    ],
    "landingLag": 9,
@@ -2825,7 +2820,7 @@
      "id": "javelin_2",
      "x": 24,
      "y": -20,
-     "vx": 7.0,
+     "vx": 7,
      "vy": 0,
      "aim": true
     },
@@ -3096,7 +3091,7 @@
     {
      "frame": 7,
      "vy": -6.9,
-     "vx": 1.0,
+     "vx": 1,
      "mode": "set"
     }
    ],
@@ -3238,8 +3233,8 @@
    "motion": [
     {
      "frame": 12,
-     "vx": 3.0,
-     "vy": 9.0,
+     "vx": 3,
+     "vy": 9,
      "mode": "set"
     }
    ],
@@ -3662,7 +3657,7 @@
     "angle": 40,
     "base": 22,
     "scaling": 0.44,
-    "hitlag": 1.0,
+    "hitlag": 1,
     "fx": "pierce"
    },
    "look": {

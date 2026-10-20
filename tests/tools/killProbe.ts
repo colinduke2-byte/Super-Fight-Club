@@ -40,6 +40,8 @@ export interface ProbeOptions {
   step?: number;
   /** Debug: per-frame victim log of a launchOnce call is pushed here. */
   trace?: string[];
+  /** Also search the best possible recovery (scripted jump / special timings) for the `best` figure (default true). */
+  best?: boolean;
 }
 
 export interface LaunchOutcome {
@@ -57,6 +59,13 @@ export interface ProbeResult {
   recover: number;
   /** Lowest percent that KOs under the strict rule; NEVER if none. */
   strict: number;
+  /**
+   * Lowest percent that KOs even with the best recovery found (every scripted jump / up-special / side-special timing in
+   * RECOVERY_POLICIES, plus the CPU): what a victim who recovers well sees. NEVER if none; equals `strict` when skipped.
+   */
+  best: number;
+  /** Blast zone crossed at `best`. */
+  bestDir: KoDir | null;
   /** Blast zone crossed at `recover` ('bottom' after a side launch = launched too far to recover, fell). */
   dir: KoDir | null;
   /** Blast zone crossed at `strict` (where the launch itself carries the victim). */
@@ -125,7 +134,7 @@ function planHit(atkId: string, moveId: string): HitPlan | null {
   return { hb: best.hb, ranged: best.ranged, throw: !!best.hb.throw || mv.kind === 'throw', preDamage, via: `${best.via} ${best.hb.damage}d ${best.hb.angle}deg b${best.hb.base} s${best.hb.scaling}` };
 }
 
-function mainPlatform(stage: string): { left: number; right: number; top: number } {
+export function mainPlatform(stage: string): { left: number; right: number; top: number } {
   const plats = STAGES[stage].platforms.filter((p) => p.kind === 'solid');
   const p = plats.reduce((a, b) => (b.w > a.w ? b : a));
   return { left: p.x, right: p.x + p.w, top: p.y };
@@ -142,7 +151,7 @@ function koDir(world: World, v: Fighter): KoDir {
  * One launch: `victimId` at `pct` hit by `moveId`. The victim is always sent toward +x (the right ledge when
  * position = 'ledge'), whichever way the move launches: the attacker turns its back for backward-angled hits.
  */
-export function launchOnce(atkId: string, moveId: string, victimId: string, pct: number, opts: ProbeOptions = {}, gap = 30): LaunchOutcome {
+export function launchOnce(atkId: string, moveId: string, victimId: string, pct: number, opts: ProbeOptions = {}, gap = 30, policy: RecoveryPolicy | null = null): LaunchOutcome {
   const stage = opts.stage ?? 'classic';
   const plat = mainPlatform(stage);
   const x0 = opts.position === 'ledge' ? plat.right - 16 : (plat.left + plat.right) / 2;
@@ -152,14 +161,27 @@ export function launchOnce(atkId: string, moveId: string, victimId: string, pct:
   world.addFighter(a);
   world.addFighter(v);
   const mv = CHARACTERS[atkId].moves[moveId];
-  const ult = mv?.kind === 'ultimate';
-  const plan = ult ? null : planHit(atkId, moveId);
+  const trans = isTransform(atkId, moveId);
+  const ult = mv?.kind === 'ultimate' && !trans;
+  let plan = ult ? null : trans ? planHit(atkId, transformMove(atkId) ?? '') : planHit(atkId, moveId);
   const back = !!plan && isBack(plan.hb) && plan.hb.dir !== 'away';
   // forward hits: attacker behind the victim facing it; backward hits: attacker in front with its back to the victim
   a.spawn(x0 - gap, plat.top - 1, back ? -1 : 1);
   v.spawn(x0, plat.top - 1, -1);
   const ins = [makeInput(), makeInput()];
   for (let i = 0; i < 20; i++) world.step(ins);
+  if (trans) {
+    // a transforming ultimate (Gizmo's mech): perform it, then measure the transformed form's strongest launcher
+    a.meter = 1e6;
+    ins[0].pressed = ins[0].held = Button.Ultimate;
+    world.step(ins);
+    ins[0].pressed = ins[0].held = 0;
+    for (let i = 0; i < 120 && a.state === 'attack'; i++) world.step(ins);
+    const id = a.data.behavior?.remapMove?.(a, 'fsmash') ?? 'fsmash';
+    plan = planHit(atkId, id);
+    v.spawn(x0, plat.top - 1, -1);
+    for (let i = 0; i < 4; i++) world.step(ins);
+  }
   a.invuln = v.invuln = 0; // no respawn invincibility: a cinematic grab has to connect
   v.damage = pct + (plan?.preDamage ?? 0);
 
@@ -192,6 +214,7 @@ export function launchOnce(atkId: string, moveId: string, victimId: string, pct:
   const cpu = new CpuController(3, 1);
   const vin = makeInput();
   const neutral = makeInput();
+  const pst = newPolicyState();
   let endedAt = -1;
   let strict = false;
   for (let i = 0; i < MAX_FRAMES && !ko; i++) {
@@ -201,8 +224,11 @@ export function launchOnce(atkId: string, moveId: string, victimId: string, pct:
     if (endedAt >= 0) {
       // safe again: the launch is over
       if (i > endedAt && (v.grounded || v.state === 'ledge' || v.state === 'ledgeClimb')) break;
-      cpu.update(v, world, vin);
-      assistRecovery(v, plat, vin);
+      if (policy) policyInput(v, plat, policy, pst, vin);
+      else {
+        cpu.update(v, world, vin);
+        assistRecovery(v, plat, vin);
+      }
     }
     world.step([ins[0], endedAt >= 0 ? vin : neutral]);
     opts.trace?.push(`${i} ${v.state} ${v.move?.id ?? ''} x${v.x.toFixed(0)} y${v.y.toFixed(0)} v${v.vx.toFixed(1)},${v.vy.toFixed(1)} jumps${v.jumpsLeft} in ${endedAt >= 0 ? `${vin.stickX.toFixed(1)},${vin.stickY.toFixed(1)} p${vin.pressed}` : '-'}`);
@@ -223,17 +249,180 @@ function assistRecovery(v: Fighter, plat: { left: number; right: number; top: nu
   const off = v.x > plat.right || v.x < plat.left;
   if (!off) return;
   inp.stickX = v.x > plat.right ? -1 : 1;
+  // a recovering victim does not attack or fast-fall on its way back (the CPU sometimes swings at nobody off-stage)
+  inp.pressed &= ~(Button.Attack | Button.Smash);
+  inp.held &= ~(Button.Attack | Button.Smash);
+  if (inp.stickY > 0.5) inp.stickY = 0;
   if (v.jumpsLeft > 0 && v.vy > 0 && (inp.pressed & Button.Special) === 0) {
     inp.pressed |= Button.Jump;
     inp.held |= Button.Jump;
   }
 }
 
+// ---- best possible recovery ----------------------------------------------------------------------------------------
+
+/**
+ * A scripted recovery: drift toward the stage the whole time, spend the double jump(s) at `jump` timing, optionally use a
+ * horizontal special (`extra`) once, then the up special once the fighter has fallen to `upAt` px relative to the ledge
+ * (negative = above it), aimed `aim`. Hover / glide fighters hold Jump while out of jumps. A last-resort up special fires
+ * anyway once the fighter is well below the ledge.
+ */
+export interface RecoveryPolicy {
+  jump: 'asap' | 'late';
+  upAt: number;
+  aim: 'diag' | 'up' | 'flat';
+  extra: 'none' | 'sideB' | 'neutralB';
+}
+
+interface PolicyState {
+  extraUsed: boolean;
+  upUsed: boolean;
+}
+const newPolicyState = (): PolicyState => ({ extraUsed: false, upUsed: false });
+
+/** Every policy tried for `fighterId` (the extra specials only for fighters whose specials travel). */
+export function recoveryPolicies(fighterId: string): RecoveryPolicy[] {
+  const moves = CHARACTERS[fighterId].moves;
+  const travels = (id: string): boolean => {
+    const m = moves[id] ?? Object.entries(moves).find(([k]) => k.startsWith(`${id}_`))?.[1];
+    return !!m && ((m.motion ?? []).some((mo) => Math.abs(mo.vx ?? 0) >= 2) || (m.events ?? []).some((e) => e.action === 'teleport'));
+  };
+  const extras: RecoveryPolicy['extra'][] = ['none'];
+  if (travels('sideB')) extras.push('sideB');
+  if (travels('neutralB')) extras.push('neutralB');
+  const out: RecoveryPolicy[] = [];
+  for (const extra of extras)
+    for (const jump of ['asap', 'late'] as const)
+      for (const upAt of [-40, 0, 40, 90])
+        for (const aim of ['diag', 'up', 'flat'] as const) out.push({ jump, upAt, aim, extra });
+  return out;
+}
+
+/** Drive `v` for one frame under `pol` (fills `inp`). The stage is `plat`; the target ledge is the nearer edge. */
+function policyInput(v: Fighter, plat: { left: number; right: number; top: number }, pol: RecoveryPolicy, st: PolicyState, inp: FighterInput): void {
+  inp.pressed = inp.held = 0;
+  inp.stickX = inp.stickY = 0;
+  if (v.grounded || v.state === 'ledge' || v.state === 'ledgeClimb') return;
+  const off = v.x > plat.right || v.x < plat.left;
+  if (!off) return;
+  const toward = v.x > plat.right ? -1 : 1;
+  const edgeDx = v.x > plat.right ? v.x - plat.right : plat.left - v.x;
+  const below = v.y - plat.top; // + = below the ledge
+  inp.stickX = toward;
+  if (v.state === 'attack' || v.helpless || v.state === 'tether') return;
+  if (v.state !== 'air') return;
+  if (v.jumpsLeft > 0) {
+    const go = pol.jump === 'asap' ? v.vy > 0 : v.vy > 0 && below > -10;
+    if (go) {
+      inp.pressed = inp.held = Button.Jump;
+      return;
+    }
+    if (below < 120) return;
+  }
+  if (v.data.hover || v.data.glide) inp.held |= Button.Jump;
+  if (pol.extra !== 'none' && !st.extraUsed && edgeDx > 30 && v.vy > -1) {
+    st.extraUsed = true;
+    inp.pressed |= Button.Special;
+    inp.held |= Button.Special;
+    inp.stickX = pol.extra === 'sideB' ? toward : toward * 0.3;
+    inp.stickY = 0;
+    return;
+  }
+  if (!st.upUsed && v.vy >= 0 && (below >= pol.upAt || below > 100)) {
+    st.upUsed = true;
+    inp.pressed |= Button.Special;
+    inp.held |= Button.Special;
+    inp.stickX = pol.aim === 'up' ? 0 : pol.aim === 'diag' ? toward * 0.6 : toward * 0.75;
+    inp.stickY = pol.aim === 'flat' ? -0.65 : pol.aim === 'diag' ? -0.8 : -1;
+  }
+}
+
+/**
+ * Recovery reach: the farthest a fighter can be from the ledge (px, horizontally, measured from the stage edge to its
+ * body centre) and still make it back to the ledge or stage, starting airborne at rest with every jump and special
+ * unused, `below` px under the stage's top (0 = level with the ledge). Best over every RecoveryPolicy. Classic stage.
+ */
+export function recoveryReach(fighterId: string, below = 0, stage = 'classic', upOnly = false): number {
+  const plat = mainPlatform(stage);
+  const pols = recoveryPolicies(fighterId).filter((p) => !upOnly || (p.extra === 'none' && p.jump === 'asap'));
+  const makes = (d: number): boolean => pols.some((pol) => recovers(fighterId, plat, stage, d, below, pol, undefined, upOnly));
+  let lo = 0;
+  let hi = 400;
+  if (!makes(lo)) return 0;
+  while (hi - lo > 2) {
+    const mid = Math.round((lo + hi) / 2);
+    if (makes(mid)) lo = mid;
+    else hi = mid;
+  }
+  return lo;
+}
+
+export function recovers(fighterId: string, plat: { left: number; right: number; top: number }, stage: string, d: number, below: number, pol: RecoveryPolicy, trace?: string[], upOnly = false): boolean {
+  const world = new World(STAGES[stage]);
+  const v = new Fighter(0, CHARACTERS[fighterId]);
+  world.addFighter(v);
+  v.spawn(plat.right + d, plat.top + below, -1);
+  v.invuln = 0;
+  if (upOnly) {
+    v.jumpsLeft = 0;
+    if (v.data.hover) v.jetFrames = v.data.hover.frames;
+    if (v.data.glide) v.glideFrames = v.data.glide.max;
+  }
+  const inp = makeInput();
+  const st = newPolicyState();
+  let ko = false;
+  world.listener = (t, f) => {
+    if (t === 'ko' && f === v) ko = true;
+  };
+  for (let i = 0; i < 600 && !ko; i++) {
+    if (v.grounded || v.state === 'ledge' || v.state === 'ledgeClimb') return v.y <= plat.top + 1 || v.state !== 'idle';
+    policyInput(v, plat, pol, st, inp);
+    world.step([inp]);
+    trace?.push(`${i} ${v.state} ${v.move?.id ?? ''} x${v.x.toFixed(0)} y${v.y.toFixed(0)} v${v.vx.toFixed(1)},${v.vy.toFixed(1)} j${v.jumpsLeft} in ${inp.stickX.toFixed(1)},${inp.stickY.toFixed(1)} p${inp.pressed}`);
+  }
+  return false;
+}
+
+/**
+ * Fighter ids with their recovery reach: `out` / `low` with everything (jumps, drift, hover, specials) level with the
+ * ledge and from 60 px below it; `upOut` / `upLow` the same with the jumps (and hover / glide) already spent, so the up
+ * special (plus drift) has to do it alone.
+ */
+export function recoveryTable(only?: string[]): { id: string; out: number; low: number; upOut: number; upLow: number }[] {
+  return ids()
+    .filter((id) => !only || only.includes(id))
+    .map((id) => ({ id, out: recoveryReach(id, 0), low: recoveryReach(id, 60), upOut: recoveryReach(id, 0, 'classic', true), upLow: recoveryReach(id, 60, 'classic', true) }));
+}
+
+/** A transforming ultimate: no hits, projectiles or cutscene of its own; it changes the moves (remapMove) for a while. */
+function isTransform(atkId: string, moveId: string): boolean {
+  const mv = CHARACTERS[atkId].moves[moveId];
+  if (mv?.kind !== 'ultimate' || mv.cinematic || mv.hitboxes.length) return false;
+  if ((mv.events ?? []).some((e) => e.action === 'projectile' || e.action === 'deploy')) return false;
+  return !!CHARACTERS[atkId].behavior?.remapMove;
+}
+
+/** The move a transformed fighter's forward smash becomes (measured as the ultimate's launcher). */
+function transformMove(atkId: string): string | null {
+  const data = CHARACTERS[atkId];
+  const f = new Fighter(0, data);
+  f.res.mech = 1;
+  for (const k of Object.keys(f.res)) f.res[k] = Math.max(1, f.res[k]);
+  const id = data.behavior?.remapMove?.(f, 'fsmash');
+  return id && id !== 'fsmash' && data.moves[id] ? id : null;
+}
+
 /** Lowest percent at which the move KOs; see the module comment for the rules. */
 export function killPercent(atkId: string, moveId: string, victimId: string, opts: ProbeOptions = {}): ProbeResult {
   const mv = CHARACTERS[atkId].moves[moveId];
-  const none = (via: string): ProbeResult => ({ recover: NEVER, strict: NEVER, dir: null, strictDir: null, via });
+  const none = (via: string): ProbeResult => ({ recover: NEVER, strict: NEVER, best: NEVER, dir: null, strictDir: null, bestDir: null, via });
   if (!mv) return none('missing');
+  if (isTransform(atkId, moveId)) {
+    const id = transformMove(atkId);
+    const plan = id ? planHit(atkId, id) : null;
+    if (!plan) return none('transform: no launcher');
+    return search(atkId, moveId, victimId, opts, 30, `transform, then ${id}: ${plan.via}`);
+  }
   if (mv.kind === 'ultimate') {
     // find a spacing at which the ultimate connects (cinematic grabs need to be close; beams and barrages reach further)
     const cin = mv.cinematic;
@@ -250,7 +439,7 @@ export function killPercent(atkId: string, moveId: string, victimId: string, opt
 function search(atkId: string, moveId: string, victimId: string, opts: ProbeOptions, gap: number, via: string): ProbeResult {
   const max = opts.maxPct ?? 300;
   const step = opts.step ?? 5;
-  const res: ProbeResult = { recover: NEVER, strict: NEVER, dir: null, strictDir: null, via };
+  const res: ProbeResult = { recover: NEVER, strict: NEVER, best: NEVER, dir: null, strictDir: null, bestDir: null, via };
   for (let pct = 0; pct <= max && res.strict === NEVER; pct += step) {
     const r = launchOnce(atkId, moveId, victimId, pct, opts, gap);
     if (r.ko && res.recover === NEVER) {
@@ -260,6 +449,28 @@ function search(atkId: string, moveId: string, victimId: string, opts: ProbeOpti
     if (r.strict) {
       res.strict = pct;
       res.strictDir = r.dir;
+    }
+  }
+  res.best = res.strict;
+  res.bestDir = res.strictDir;
+  if (opts.best === false || res.recover === NEVER) return res;
+  // best recovery: between the CPU figure and the pure-launch figure, the first percent no scripted recovery survives
+  const pols = recoveryPolicies(victimId);
+  for (let pct = res.recover; pct < res.strict; pct += step) {
+    let dir: KoDir | null = null;
+    let all = true;
+    for (const pol of pols) {
+      const r = launchOnce(atkId, moveId, victimId, pct, opts, gap, pol);
+      if (!r.ko) {
+        all = false;
+        break;
+      }
+      dir = r.dir;
+    }
+    if (all) {
+      res.best = pct;
+      res.bestDir = dir;
+      break;
     }
   }
   return res;
@@ -324,15 +535,16 @@ export function probeFighter(atkId: string, opts: Omit<ProbeOptions, 'position'>
 export const playableIds = ids;
 
 /**
- * Design targets for kill power (against the mid-weight reference victim, classic stage, `recover` rule unless noted):
+ * Design targets for kill power (against the mid-weight reference victim, classic stage, `best` rule: the victim recovers
+ * as well as it can, see RecoveryPolicy; KILL_RULE=recover / strict switches the rule):
  * KOs should start around 110-140%: each fighter's strongest move kills a middleweight around 110% from centre stage,
  * its typical kill moves by about 140%, and side KOs should be a real share (forward smashes launch out the side).
  */
 export const KILL_TARGETS = {
   /** The fighter's strongest non-ultimate kill move from centre stage. */
-  strongest: { min: 95, max: 125 },
+  strongest: { min: 105, max: 130 },
   /** Median of the fighter's smashes (f/u/d) and best aerial from centre stage. */
-  typical: { min: 120, max: 155 },
+  typical: { min: 120, max: 150 },
   /** No non-ultimate move kills a middleweight at centre stage below this. */
   floor: 90,
   /** Forward smash from the ledge: earlier than centre, but not absurdly early. */
@@ -342,3 +554,68 @@ export const KILL_TARGETS = {
   /** At least one non-ultimate move's pure launch kill (strict rule) from centre must leave through the side blast zone. */
   sideKiller: true,
 } as const;
+
+// ---- raw hits (stage hazards, items) --------------------------------------------------------------------------------
+
+export interface RawHit {
+  damage: number;
+  base: number;
+  scaling: number;
+  angle: number;
+  /** +1 sends the victim right. */
+  direction?: 1 | -1;
+  /** Soak frames applied with the hit (water geysers). */
+  soak?: number;
+}
+
+/**
+ * Lowest percent (steps of `step`) at which a raw hit (a stage hazard, an item blast) KOs `victimId` standing at `x` on
+ * `stage`: `recover` with the HARD CPU recovering, `best` with the best scripted recovery as well (see RecoveryPolicy).
+ */
+export function hitKillPercent(victimId: string, hit: RawHit, stage: string, x: number, step = 5, max = 300): { recover: number; best: number } {
+  const plat = mainPlatform(stage);
+  const once = (pct: number, policy: RecoveryPolicy | null): boolean => {
+    const world = new World({ ...STAGES[stage], hazards: [] });
+    const v = new Fighter(0, CHARACTERS[victimId]);
+    world.addFighter(v);
+    v.spawn(x, plat.top - 1, -1);
+    const neutral = makeInput();
+    for (let i = 0; i < 20; i++) world.step([neutral]);
+    v.invuln = 0;
+    v.damage = pct;
+    let ko = false;
+    world.listener = (t, f) => {
+      if (t === 'ko' && f === v) ko = true;
+    };
+    v.receiveHit({ damage: hit.damage, base: hit.base, scaling: hit.scaling, angle: hit.angle, direction: hit.direction ?? 1, hitlag: 8 }, world);
+    if (hit.soak) v.applyStatus({ type: 'soak', frames: hit.soak }, world);
+    const cpu = new CpuController(3, 0);
+    const vin = makeInput();
+    const pst = newPolicyState();
+    let ended = false;
+    for (let i = 0; i < MAX_FRAMES && !ko; i++) {
+      if (!ended && v.state !== 'hitstun' && v.hitlag <= 0) ended = true;
+      if (ended) {
+        if (v.grounded || v.state === 'ledge' || v.state === 'ledgeClimb') break;
+        if (policy) policyInput(v, plat, policy, pst, vin);
+        else {
+          cpu.update(v, world, vin);
+          assistRecovery(v, plat, vin);
+        }
+      }
+      world.step([ended ? vin : neutral]);
+    }
+    return ko;
+  };
+  let recover = NEVER;
+  for (let pct = 0; pct <= max; pct += step) {
+    if (once(pct, null)) {
+      recover = pct;
+      break;
+    }
+  }
+  if (recover === NEVER) return { recover, best: NEVER };
+  const pols = recoveryPolicies(victimId);
+  for (let pct = recover; pct <= max; pct += step) if (pols.every((p) => once(pct, p))) return { recover, best: pct };
+  return { recover, best: NEVER };
+}

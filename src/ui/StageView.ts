@@ -1,7 +1,7 @@
 import Phaser from 'phaser';
 import { MASS_HEAD, MASS_OVER, PLAT_HEAD } from '../art/stageMass';
-import { ensureStageArt, stageArtKey } from '../art/stageArt';
-import { addCanvasTexture } from '../art/canvasTexture';
+import { ensureStageArtNow, glowPixels, stageArtEmissive, stageArtKey, type Emissive } from '../art/stageArt';
+import { addCanvasTexture, context2d, holdTexture } from '../art/canvasTexture';
 import type { World } from '../engine/world';
 import { stageLight } from '../stages/lighting';
 import { STAGE_LIGHT_KEY } from './RimLight';
@@ -20,64 +20,35 @@ interface GlowStrip {
 /** Themes whose platforms have no light sources of their own. */
 const NO_GLOW = new Set(['dawn']);
 
-/** Glow overlays already derived from a platform texture (null: the texture has nothing that glows). */
-const glowCache = new Map<string, string | null>();
-
-/**
- * The emissive parts of a platform texture (lamps, lit windows, runes, crystals: bright, saturated pixels) on a transparent
- * canvas, with a two-pixel halo around each in its own colour, for an additive overlay. Built once per texture.
- */
-function glowTexture(scene: Phaser.Scene, key: string): string | null {
-  const gk = `${key}:glow`;
-  if (glowCache.has(gk) && (glowCache.get(gk) === null || scene.textures.exists(gk))) return glowCache.get(gk)!;
-  const src = scene.textures.get(key).getSourceImage() as HTMLCanvasElement;
-  const ctx = typeof src.getContext === 'function' ? src.getContext('2d') : null;
-  if (!ctx) return null;
-  const W = src.width;
-  const H = src.height;
-  const d = ctx.getImageData(0, 0, W, H).data;
-  const out = new Uint8ClampedArray(W * H * 4);
-  let count = 0;
-  const HALO = [255, 120, 48];
-  for (let y = 0; y < H; y++) {
-    for (let x = 0; x < W; x++) {
-      const o = (y * W + x) * 4;
-      if (d[o + 3] < 200) continue;
-      const mx = Math.max(d[o], d[o + 1], d[o + 2]);
-      const mn = Math.min(d[o], d[o + 1], d[o + 2]);
-      if (mx < 190 || mx - mn < 100) continue;
-      count++;
-      for (let dy = -2; dy <= 2; dy++) {
-        const yy = y + dy;
-        if (yy < 0 || yy >= H) continue;
-        for (let dx = -2; dx <= 2; dx++) {
-          const xx = x + dx;
-          if (xx < 0 || xx >= W) continue;
-          const a = HALO[Math.max(Math.abs(dx), Math.abs(dy))];
-          const q = (yy * W + xx) * 4;
-          if (out[q + 3] >= a) continue;
-          out[q] = d[o];
-          out[q + 1] = d[o + 1];
-          out[q + 2] = d[o + 2];
-          out[q + 3] = a;
-        }
-      }
-    }
-  }
-  if (count === 0) {
-    glowCache.set(gk, null);
-    return null;
-  }
+/** The glow overlay of a piece as a canvas (see glowPixels). */
+function glowCanvas(e: Emissive): HTMLCanvasElement | null {
+  const W = e.width;
+  const H = e.height;
+  const out = glowPixels(e);
   const c = document.createElement('canvas');
   c.width = W;
   c.height = H;
-  const g = c.getContext('2d')!;
-  const img = g.createImageData(W, H);
-  img.data.set(out);
-  g.putImageData(img, 0, 0);
-  if (scene.textures.exists(gk)) scene.textures.remove(gk);
-  addCanvasTexture(scene, gk, c);
-  glowCache.set(gk, gk);
+  const g = context2d(c);
+  if (!g) return null;
+  g.putImageData(new ImageData(out, W, H), 0, 0);
+  return c;
+}
+
+/**
+ * The emissive parts of a platform texture (lamps, lit windows, runes, crystals: bright, saturated pixels) on a transparent
+ * texture, with a two-pixel halo around each in its own colour, for an additive overlay. Made from the emissive pixels
+ * found when the piece was built (no readback of the art), held by the match and removed after it.
+ */
+function glowTexture(scene: Phaser.Scene, key: string): string | null {
+  const e = stageArtEmissive(key);
+  if (!e) return null;
+  const gk = `${key}:glow`;
+  if (!scene.textures.exists(gk)) {
+    const c = glowCanvas(e);
+    if (!c) return null;
+    addCanvasTexture(scene, gk, c, () => glowCanvas(e));
+  }
+  holdTexture(scene, gk);
   return gk;
 }
 
@@ -91,7 +62,7 @@ export class StageView {
     layer: Phaser.GameObjects.Layer,
     private readonly world: World,
   ) {
-    ensureStageArt(scene, world.stage); // usually prebuilt in the background since boot
+    ensureStageArtNow(scene, world.stage); // usually built in the background already (Stage Select, see ensureStageArt)
     scene.data.set(STAGE_LIGHT_KEY, stageLight(world.stage.background)); // the fighters' rim light (RimLight) reads it
     world.platforms.forEach((p, index) => {
       const parts: PlatView['parts'] = [];
@@ -106,8 +77,8 @@ export class StageView {
       // marble of the dawn stages, whose gold trim is metal catching the sun rather than a light source)
       const gk = NO_GLOW.has(world.stage.background.theme ?? '') ? null : glowTexture(scene, key);
       if (gk) {
-        const tw = scene.textures.get(gk).getSourceImage().width;
-        const th = scene.textures.get(gk).getSourceImage().height;
+        const tw = scene.textures.get(gk).source[0].width;
+        const th = scene.textures.get(gk).source[0].height;
         const strips = Math.max(1, Math.round(tw / 48));
         for (let i = 0; i < strips; i++) {
           const x0 = Math.floor((i * tw) / strips);

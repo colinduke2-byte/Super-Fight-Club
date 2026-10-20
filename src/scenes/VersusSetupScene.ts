@@ -3,7 +3,8 @@ import { PIXEL_FONT, up } from '../art/pixelFont';
 import type { MenuEvent } from '../input/menuInput';
 import { DEFAULT_RULES, session, teamsFor, type MatchRules } from '../game/session';
 import { PRESETS, applyRules, loadSavedRules, presetName, saveCustomRules, saveLastRules, type SavedRules } from '../game/rulesets';
-import { ITEM_KINDS } from '../engine/items';
+import { CELL_METER, CORE_METER, ITEM_KINDS } from '../engine/items';
+import { ITEM_NAMES } from '../game/howToPlay';
 import { footerHint } from '../input/prompts';
 import { STAGE_LIST } from '../stages';
 import { COLORS, MenuList, MenuScene, drawPanel, text, textPx, type MenuBackdrop, type MenuItem } from '../ui/menuKit';
@@ -11,17 +12,16 @@ import { COLORS, MenuList, MenuScene, drawPanel, text, textPx, type MenuBackdrop
 /** The saved rules are applied once per run (on the first visit). */
 let rulesRestored = false;
 
-const ITEM_NAMES: Record<string, string> = { heal: 'HEART', cell: 'ENERGY CELL', boost: 'OVERDRIVE', bomb: 'SHOCK BOMB', aegis: 'AEGIS PRISM', sword: 'BEAM SWORD', raygun: 'RAY GUN', crate: 'CRATE', core: 'POWER CORE' };
 const ITEM_HINTS: Record<string, string> = {
   heal: 'Heals 25% damage.',
-  cell: 'A chunk of ultimate meter.',
+  cell: `+${CELL_METER} ultimate meter.`,
   boost: 'Overdrive: a burst of power for a while.',
   bomb: 'Carried and thrown: bursts on contact.',
   aegis: 'A few seconds of invincibility.',
   sword: 'Long-reach swings until it burns out.',
   raygun: 'Seven straight laser shots.',
   crate: 'Break it open for items (some explode).',
-  core: 'Fills the ultimate meter.',
+  core: `Rare: +${CORE_METER} ultimate meter.`,
 };
 
 /** Team layouts the TEAMS row cycles through, per player count. */
@@ -170,7 +170,7 @@ export class VersusSetupScene extends MenuScene {
         onConfirm: toggle(() => !!r.teamAttack, (v) => (r.teamAttack = v)),
       },
       { label: 'ITEMS', hint: 'How often items drop.', value: () => ['OFF', 'LOW', 'HIGH'][r.items], onLeft: () => (r.items = ((r.items + 2) % 3) as 0 | 1 | 2), onRight: () => (r.items = ((r.items + 1) % 3) as 0 | 1 | 2), onConfirm: () => (r.items = ((r.items + 1) % 3) as 0 | 1 | 2) },
-      { label: 'ITEM SWITCH', hint: 'Turn single items on or off.', value: () => onCount(ITEM_KINDS, r.itemsOff), onConfirm: () => this.showPage('items'), onRight: () => this.showPage('items') },
+      { label: 'ITEM SWITCH', hint: 'Turn single items on or off.', value: () => (r.items ? onCount(ITEM_KINDS, r.itemsOff) : '-'), enabled: () => r.items > 0, onConfirm: () => this.showPage('items'), onRight: () => this.showPage('items') },
       { label: 'STAGE HAZARDS', hint: 'Geysers, lightning and water spouts. Off is the plain stage.', value: () => (r.hazards ? 'ON' : 'OFF'), onLeft: () => (r.hazards = !r.hazards), onRight: () => (r.hazards = !r.hazards), onConfirm: () => (r.hazards = !r.hazards) },
       { label: 'RANDOM STAGES', hint: 'The stages RANDOM can pick.', value: () => `${STAGE_LIST.filter((st) => inPool(r, st.id)).length} / ${STAGE_LIST.length}`, onConfirm: () => this.showPage('stages'), onRight: () => this.showPage('stages') },
       { label: 'CHOOSE FIGHTERS', hint: 'On to the lobby.', onConfirm: () => this.next() },

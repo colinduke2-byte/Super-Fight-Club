@@ -1,5 +1,5 @@
 import { Button, type FighterInput } from '../engine/buttons';
-import { GRAB_DISTANCE, type Fighter } from '../engine/fighter';
+import { GRAB_DISTANCE, SHIELD_DROP_FRAMES, type Fighter } from '../engine/fighter';
 import { avalancheX, hazardPhase } from '../engine/hazards';
 import * as Items from '../engine/items';
 import { hitboxEnd, moveTotal, type MoveDef } from '../engine/moves';
@@ -8,10 +8,11 @@ import type { HazardDef } from '../engine/types';
 import type { World } from '../engine/world';
 import { applyHeld, clearInput, type Controller } from '../game/controllers';
 import { killScore, launchOf, fly, survivalDi } from './knockout';
-import { chooseLedgeOption, hangRunningOut, trapLedge, type LedgeOption } from './ledge';
+import { chooseLedgeOption, dropSafe, hangRunningOut, trapLedge, type LedgeOption } from './ledge';
 import { attackDecel, moveTable, NORMAL_INPUTS, specialTable, travel, type AiMove } from './moveInfo';
 import { aiFor, skillForLevel, skillParams, type CharacterAi, type CpuLevel, type LevelParams } from './profiles';
 import { newEpisode, offstage, overStage, recoveryStep, type RecoveryEpisode, type RecoveryOut } from './recovery';
+import { canGetBack, drift, type Sim } from './recoveryPlan';
 import { chooseTarget } from './targeting';
 import { detectThreat, type Threat } from './threat';
 // deterministic PRNG: the CPU must not use Math.random so matches can be replayed from inputs
@@ -131,6 +132,8 @@ export class CpuController implements Controller {
 
   /** Skill on the 1..9 scale (the lobby's levels 1 / 2 / 3 play at 1 / 5 / 9 unless a skill is given). */
   readonly skill: number;
+  /** Skill as 0..1 (1 -> 0, 9 -> 1). */
+  private readonly q: number;
 
   constructor(
     readonly level: CpuLevel,
@@ -138,9 +141,20 @@ export class CpuController implements Controller {
     skill?: number,
   ) {
     this.skill = skill ?? skillForLevel(level);
-    this.params = skillParams(this.skill);
+    // a private copy: the graded switches (smart play, edge-guarding) are rolled per controller, see rollSwitches
+    this.params = { ...skillParams(this.skill) };
+    this.q = Math.max(0, Math.min(1, (this.skill - 1) / 8));
     this.rnd = mulberry32(seed * 7919 + level * 104729 + (skill ?? 0) * 31);
     this.bias = [0, 1, 2, 3].map(() => (this.rnd() - 0.5) * 70);
+  }
+
+  private lastRoll = -1;
+  /** Graded difficulty: whether this stretch of play is `smart` / edge-guards (see LevelParams.smartness). */
+  private rollSwitches(): void {
+    const base = skillParams(this.skill);
+    this.lastRoll = 1;
+    this.params.smart = base.smartness >= 1 || (base.smartness > 0 && this.rnd() < base.smartness);
+    this.params.edgeguard = base.edgeguardRate >= 1 || (base.edgeguardRate > 0 && this.rnd() < base.edgeguardRate);
   }
 
   get currentMode(): Mode {
@@ -148,6 +162,14 @@ export class CpuController implements Controller {
   }
   get currentTarget(): number {
     return this.targetId;
+  }
+  /** The recovery attempt in progress (null when on the stage); for measurement tools. */
+  get recoveryEpisode(): Readonly<RecoveryEpisode> | null {
+    return this.episode;
+  }
+  /** Label of the scripted input plan running now ('' if none); for measurement tools. */
+  get planLabel(): string {
+    return this.plan?.label ?? '';
   }
 
   update(self: Fighter, world: World, out: FighterInput): void {
@@ -177,6 +199,7 @@ export class CpuController implements Controller {
       }
     }
 
+    if (world.tick % 120 === 0 || this.lastRoll < 0) this.rollSwitches();
     if (self.state !== 'ko') {
       let sum = 0;
       for (const f of world.fighters) sum += f.damage;
@@ -206,16 +229,24 @@ export class CpuController implements Controller {
     }
     const tgt = this.targetId >= 0 ? world.fighters[this.targetId] : null;
 
+    // back on solid ground or a ledge: the recovery attempt is over (a landing state would otherwise keep a stale one)
+    if (this.episode && (self.grounded || self.state === 'ledge' || self.state === 'ledgeClimb')) {
+      this.episode = null;
+      if (this.mode === 'recover') this.mode = 'neutral';
+    }
     // involuntary / special states first
     switch (self.state) {
       case 'hitstun':
         this.hitstun(self, world);
         return;
-      case 'grabbed':
-        this.mashToggle = !this.mashToggle;
+      case 'grabbed': {
+        // mash out: a press every ~4 frames at the top (a fast human), every ~10 at the bottom
+        const every = Math.round(4 + (1 - this.q) * 6);
+        this.mashToggle = world.tick % every === 0;
         this.held = this.mashToggle ? Button.Attack : 0;
-        this.sx = this.mashToggle ? 1 : -1;
+        this.sx = world.tick % (every * 2) < every ? 1 : -1;
         return;
+      }
       case 'holding':
         this.holding(self, world, tgt);
         return;
@@ -358,6 +389,8 @@ export class CpuController implements Controller {
       this.held &= ~(Button.Smash | Button.Attack);
       if (p) p.holdFrames = 0;
     }
+    // hit and run (Vex, Rime): a move that whiffed is followed by backing off out of the rival's punish range
+    if (aiFor(self.data.id).style === 'hitandrun' && self.grounded && !self.moveHit && self.moveFrame === moveTotal(m) - 2) this.retreat = Math.round(moveTotal(m) * 0.5);
     // a hit that put the target in hitstun: follow it up (chase it, decide every frame) for a moment after this move
     if (self.moveHit && tgt && tgt.state === 'hitstun' && world.tick >= this.comboUntil - 5 && this.rnd() < this.params.combo * 0.25) {
       this.comboUntil = world.tick + (moveTotal(m) - self.moveFrame) + Math.min(40, tgt.hitstun + 10);
@@ -368,7 +401,7 @@ export class CpuController implements Controller {
       if (follow && world.tick % 3 === 0) this.held |= Button.Attack;
     }
     // hit-confirm cancels: after connecting, route into the next move (combos)
-    if (m.cancels && self.moveHit && this.params.smart && tgt && this.rnd() < 0.25 + 0.5 * this.params.punish) this.cancelInput(self, m, tgt);
+    if (m.cancels && self.moveHit && this.params.smart && tgt && this.rnd() < 0.25 + 0.5 * this.params.punish) this.cancelInput(self, m, tgt, world);
     // drift toward the target during aerials; recovery specials steer toward the ledge
     if (self.state === 'attack' && !self.grounded && tgt && m.kind === 'aerial') {
       this.sx = Math.sign(tgt.x - self.x) * 0.6;
@@ -413,10 +446,11 @@ export class CpuController implements Controller {
     }
   }
 
-  /** Press the input of a random eligible cancel route (see MoveCancel). */
-  private cancelInput(self: Fighter, m: NonNullable<Fighter['move']>, tgt: Fighter): void {
+  /** Press the input of the most valuable eligible cancel route (see MoveCancel): damage, kill potential, position. */
+  private cancelInput(self: Fighter, m: NonNullable<Fighter['move']>, tgt: Fighter, world?: World): void {
     let pick = -1;
     let n = 0;
+    let bestV = -Infinity;
     const cs = m.cancels!;
     for (let i = 0; i < cs.length; i++) {
       const c = cs[i];
@@ -426,9 +460,32 @@ export class CpuController implements Controller {
       if (Math.abs(tgt.x - self.x) > 140) continue;
       // never cancel into a lunge (Charge Shoulder, Shark Lunge, Agni's Spin Kick variants) that would carry us off the stage
       if (self.grounded && this.lungesOff(self, travel(this.slotMove(self, self.resolveVariant(c.into)), attackDecel(self.data)), c.dir === 'side' ? (tgt.x >= self.x ? 1 : -1) : c.dir === 'back' ? -self.facing : self.facing)) continue;
-      if (this.rnd() < 1 / ++n) pick = i; // reservoir pick
+      // value: the follow-up's damage, more for one whose launch kills (a sharp CPU computes it), a little noise for variety
+      const mv = self.data.moves[self.resolveVariant(c.into)];
+      let v = this.rnd() * 3;
+      if (mv) {
+        let dmg = 0;
+        let kb: NonNullable<AiMove['kb']> | null = null;
+        for (const h of mv.hitboxes) {
+          dmg = Math.max(dmg, h.damage);
+          if (!kb || h.base + h.scaling * 100 > kb.base + kb.scaling * 100) kb = { base: h.base, scaling: h.scaling, angle: h.angle, weight: h.weight, damage: h.damage };
+        }
+        v += dmg;
+        if (world && kb && tgt.damage > 40 && this.params.killConfirm > 0) {
+          const d = (tgt.x >= self.x ? 1 : -1) as 1 | -1;
+          const l = launchOf(self, tgt, kb, d);
+          if (fly(tgt, world, tgt.x, tgt.y, l.vx, l.vy, l.stun).ko) v += 30 * this.params.killConfirm;
+        }
+        // a route that would carry us out past the edge: worth less (the lunge test above drops the worst ones)
+        if (world && !overStage(self.x + self.facing * 30, self.y - 2, world)) v -= 8;
+      }
+      n++;
+      if (v > bestV) {
+        bestV = v;
+        pick = i;
+      }
     }
-    if (pick < 0) return;
+    if (pick < 0 || n === 0) return;
     const c = cs[pick];
     this.held |= c.button === 'attack' ? Button.Attack : c.button === 'special' ? Button.Special : c.button === 'smash' ? Button.Smash : c.button === 'grab' ? Button.Grab : Button.Jump;
     const mag = c.button === 'attack' ? 0.6 : 0.9; // a half-pressed stick on Attack is a tilt, not a smash flick
@@ -465,8 +522,11 @@ export class CpuController implements Controller {
   private clampEdge(self: Fighter): void {
     const pl = self.groundPlat;
     if (!pl || !self.grounded || this.sx === 0) return;
-    // leave room to brake: a fast runner / dasher needs a few frames to stop
-    const margin = 10 + Math.abs(self.vx) * 7;
+    // leave room to brake: a fast runner / dasher needs a few frames to stop; a full flick from standing starts a dash
+    // (Vex's blink dash) that carries its whole length
+    const dash = self.data.dash;
+    const flick = dash && Math.abs(this.sx) >= 0.8 && Math.abs(this.lastSx) < 0.8 && self.state !== 'dash' && self.dashCd === 0 ? dash.speed * dash.frames : 0;
+    const margin = 10 + Math.abs(self.vx) * 7 + flick;
     if (this.sx > 0 && self.x > pl.right - margin) this.sx = 0;
     else if (this.sx < 0 && self.x < pl.x + margin) this.sx = 0;
   }
@@ -511,8 +571,9 @@ export class CpuController implements Controller {
     const ep = this.episode!;
     // a rival right next to us out here, while we still have a jump and the stage is within reach: hit it on the way back
     const high = !!ep.ledge && self.y < ep.ledge.y + 20;
-    if (tgt && high && this.params.smart && self.jumpsLeft > 0 && !self.helpless && Math.abs(tgt.x - self.x) < 60 && Math.abs(tgt.y - self.y) < 50 && !this.cooldownBusy('recAerial', 30) && this.rnd() < this.params.combo) {
-      if (this.tryAerial(self, world, tgt, 1)) return;
+    if (tgt && high && ep.ledge && this.params.smart && self.jumpsLeft > 0 && !self.helpless && Math.abs(tgt.x - self.x) < 60 && Math.abs(tgt.y - self.y) < 50 && !this.cooldownBusy('recAerial', 30) && this.rnd() < this.params.combo) {
+      // only an aerial after which a simulated recovery still gets back (see tryAerial's `safe`)
+      if (this.tryAerial(self, world, tgt, 1, ep.ledge)) return;
     }
     // something about to hit us on the way back (an edge-guarder's swing, a shot): air dodge through it
     if (this.params.smart && !self.airDodgeUsed && !self.helpless && detectThreat(self, world, this.threat) && this.threat.eta <= 4 && this.rnd() < this.params.defend * 0.6) {
@@ -765,6 +826,37 @@ export class CpuController implements Controller {
       this.sy = -1;
       return;
     }
+    // the rival's move is spent next to our shield: punish out of shield. An up smash comes out at once (on a rival above /
+    // beside us), a short-hop aerial through the jump; a long opening is worth dropping the shield for (its drop lag,
+    // SHIELD_DROP_FRAMES) and answering with the ground game; otherwise the grab below
+    const win = tgt ? punishWindow(tgt) : 0;
+    if (tgt && this.params.smart && !th && self.state === 'shield' && win > 0 && this.rnd() < this.params.punish * 0.5) {
+      const dx = Math.abs(tgt.x - self.x);
+      const dyU = tgt.y - self.y;
+      const us = moveTable(self.data).find((m) => m.id === 'usmash');
+      if (us && us.startup <= win + 1 && dx < us.maxX + tgt.hw && dyU > us.minY - 6 && dyU < 10 && tgt.invuln < us.startup) {
+        this.held |= Button.Smash | Button.Shield;
+        this.sy = -1;
+        return;
+      }
+      const jsq = self.stats.jumpsquatFrames;
+      const air = moveTable(self.data).find((m) => m.id === 'nair');
+      if (air && air.startup + jsq + 1 <= win && dx < air.maxX + tgt.hw && Math.abs(dyU) < 40 && !this.cooldownBusy('oosAir', 30)) {
+        const seq: SeqStep[] = [{ btn: Button.Jump | Button.Shield, sx: 0, sy: 0 }];
+        for (let i = 0; i < jsq; i++) seq.push({ btn: i === jsq - 1 ? Button.Attack : 0, sx: 0, sy: 0 });
+        seq.push({ btn: 0, sx: 0, sy: 0 });
+        this.useCount[air.index]++;
+        this.startPlan(world, 'oos_nair', 0, 0, 0, { seq });
+        this.runPlan(self, world);
+        return;
+      }
+      if (win > SHIELD_DROP_FRAMES + 8) {
+        // drop the shield: the offence picks the punish once it is down (the opening is still there)
+        this.shieldHold = 0;
+        this.thinkLeft = 0;
+        return;
+      }
+    }
     // grab out of shield when the target is right there and its move is spent (or it is shielding too)
     if (tgt && this.params.smart && !th && self.state === 'shield' && Math.hypot(tgt.x - self.x, tgt.y - self.y) < 40 && this.rnd() < this.params.punish * 0.3) {
       this.held |= Button.Grab | Button.Shield;
@@ -791,7 +883,8 @@ export class CpuController implements Controller {
 
   private facingFix(self: Fighter, tgt: Fighter): void {
     const want = tgt.x >= self.x ? 1 : -1;
-    if (self.facing !== want && self.state !== 'shield') this.sx = want;
+    // a light tilt turns around without dashing (a full flick would dash, at a stage edge that dashes off it)
+    if (self.facing !== want && self.state !== 'shield') this.sx = self.grounded ? want * 0.3 : want;
   }
 
   // ---- involuntary states ----------------------------------------------------------------------
@@ -891,10 +984,30 @@ export class CpuController implements Controller {
     else if (id === 'dthrow') this.sy = 1;
     else if (id === 'bthrow') this.sx = -fwd;
     else this.sx = fwd;
-    if (id === 'dthrow' || id === 'uthrow') {
-      // a combo throw: chase after it
-      if (this.rnd() < p.combo) this.comboUntil = world.tick + 50;
-    }
+    // any throw whose launch leaves a follow-up (enough hitstun, a short flight that stays over the stage): chase after it
+    const fu = this.throwFollowUp(self, world, victim, id);
+    if (fu > 0 && this.rnd() < p.combo) this.comboUntil = world.tick + fu;
+  }
+
+  /**
+   * Frames worth chasing after throw `id` (0 = no follow-up): its computed launch must leave the victim in hitstun long
+   * enough to be reached, and not too far away (or off the stage) to get to in time.
+   */
+  private throwFollowUp(self: Fighter, world: World, victim: Fighter, id: string): number {
+    const m = self.data.moves[id];
+    const hb = m?.hitboxes.find((h) => h.throw) ?? m?.hitboxes[0];
+    if (!hb) return 0;
+    const kb = { base: hb.base, scaling: hb.scaling, angle: hb.angle, weight: hb.weight, damage: hb.damage };
+    const dir = (hb.dir === 'away' ? (victim.x >= self.x ? 1 : -1) : id === 'bthrow' ? -self.facing : self.facing) as 1 | -1;
+    const l = launchOf(self, victim, kb, dir);
+    const sp = Math.hypot(l.vx, l.vy);
+    // where the victim is when the hitstun ends (roughly): reachable by a run / jump in that time?
+    const t = l.stun;
+    const ex = victim.x + l.vx * t * 0.7;
+    const ey = victim.y + l.vy * t * 0.5;
+    const reach = self.stats.runSpeed * t + 40;
+    if (t < 14 || sp > 9 || Math.abs(ex - self.x) > reach || ey < self.y - 160 || !overStage(ex, self.y - 2, world)) return 0;
+    return Math.min(70, t + 20);
   }
 
   private killThrow = 'fthrow';
@@ -929,9 +1042,8 @@ export class CpuController implements Controller {
         // off the stage = an edge-guard; otherwise how far it sends them toward a blast zone, or a low launch to follow up
         const endX = vx + l.vx * Math.min(l.stun, 30) * 0.8;
         const off = !overStage(endX, victim.y - 2, world);
-        const sp = Math.hypot(l.vx, l.vy);
         sc = (off ? 60 : 0) + Math.max(0, 200 - fl.margin) * 0.3;
-        if (sp < 7 && (id === 'dthrow' || id === 'uthrow') && victim.damage < 90) sc += 45 * p.combo; // follow-up throw
+        if (victim.damage < 90 && this.throwFollowUp(self, world, victim, id) > 0) sc += 45 * p.combo; // a throw that combos
         sc += this.rnd() * 20;
       }
       if (sc > bestScore) {
@@ -950,11 +1062,11 @@ export class CpuController implements Controller {
     this.ledgeWait++;
     const l = self.ledge;
     if (!l) return;
-    if (!this.ledgePlan) this.ledgePlan = chooseLedgeOption(self, world, l, this.params, this.rnd);
+    if (!this.ledgePlan) this.ledgePlan = chooseLedgeOption(self, world, l, this.params, this.rnd, aiFor(self.data.id));
     const plan = this.ledgePlan;
     // something about to hit us on the ledge (no ledge invincibility here): let go / jump rather than eat it
     if (this.params.smart && self.ledgeFrames >= 8 && this.detectThreat(self, world) && this.threat.eta <= 5 && this.rnd() < this.params.defend) {
-      if (this.threat.eta <= 2 || this.rnd() < 0.5) this.sy = 1; // drop under it
+      if ((this.threat.eta <= 2 || this.rnd() < 0.5) && dropSafe(self, world, l, aiFor(self.data.id))) this.sy = 1; // drop under it
       else this.held |= Button.Jump;
       this.ledgePlan = null;
       return;
@@ -1056,7 +1168,14 @@ export class CpuController implements Controller {
 
   /** Grab a nearby item when nobody is on top of us. */
   private chaseItem(self: Fighter, world: World, tgt: Fighter | null): boolean {
-    if (!self.grounded || world.config.itemRate === 0) return false;
+    if (world.config.itemRate === 0) return false;
+    // a carried item in reach is picked up with a Grab press (an Attack press would too, but could start an attack instead)
+    const near = Items.itemInReach(world, self.id);
+    if (near && CAN_ACT.has(self.state) && this.itemValue(self, near.kind) > 4 && !this.cooldownBusy('pick', 6)) {
+      this.held |= Button.Grab;
+      return true;
+    }
+    if (!self.grounded) return false;
     if (tgt && Math.abs(tgt.x - self.x) < 60 && Math.abs(tgt.y - self.y) < 50) return false;
     let best: { x: number; y: number } | null = null;
     let bestScore = 0;
@@ -1262,8 +1381,18 @@ export class CpuController implements Controller {
     return 90;
   }
 
-  /** Try an aerial that reaches the target now. */
-  private tryAerial(self: Fighter, world: World, tgt: Fighter, chance: number): boolean {
+  /** An aerial thrown from here (off the stage) leaves a simulated way back to ledge `l` (its own motion included). */
+  private aerialSafe(self: Fighter, world: World, m: AiMove, l: Ledge): boolean {
+    const mi = NORMAL_INPUTS[m.id];
+    const from = { x: self.x, y: self.y, vx: self.vx, vy: self.vy };
+    return canGetBack(self, world, l, aiFor(self.data.id).recovery.aim, from, !!(self.data.glide || self.data.hover), { ax: mi.fwd * self.facing, ay: mi.up, total: Math.round(m.total) });
+  }
+
+  /**
+   * Try an aerial that reaches the target now. With `safe` (a ledge): only one that still leaves a way back to it (off the
+   * stage), and otherwise only one that lands back on something when thrown near or past the stage's edge.
+   */
+  private tryAerial(self: Fighter, world: World, tgt: Fighter, chance: number, safe?: Ledge): boolean {
     if (self.helpless || this.rnd() > chance) return false;
     const ai = aiFor(self.data.id);
     // an aerial whose hitbox would come out after we land is only landing lag next to the opponent
@@ -1281,6 +1410,8 @@ export class CpuController implements Controller {
       }
     }
     if (!best) return false;
+    const edge = safe ?? (land === Infinity ? this.nearLedge(self, world) : null);
+    if (edge && !this.aerialSafe(self, world, best, edge)) return false;
     const mi = NORMAL_INPUTS[best.id];
     this.useCount[best.index]++;
     this.startPlan(world, best.id, Button.Attack, self.facing * mi.fwd, mi.up);
@@ -1316,11 +1447,16 @@ export class CpuController implements Controller {
     // ultimate
     const ultCost = self.data.ultimate?.cost ?? 100;
     const transformed = self.data.transform ? (self.res[self.data.transform.resource] ?? 0) > 0 : false;
-    if (self.meter >= ultCost && self.data.moves.ultimate && !self.helpless && !transformed && this.rnd() < 0.5) {
+    // a strong CPU fires it often and well (in range, on a target that can be hit, ideally one that cannot block or dodge
+    // it); a weak one rarely, with a sloppy range read and no check that the target can be hit at all
+    const q = this.q;
+    if (self.meter >= ultCost && self.data.moves.ultimate && !self.helpless && !transformed && this.rnd() < 0.15 + 0.4 * q) {
       const cin = self.data.moves.ultimate.hitboxes.some((h) => h.cinematic);
-      // only on a target that can be hit right now (not mid-respawn / invulnerable) and that is within the ult's reach
-      const open = tgt.invuln === 0 && tgt.state !== 'ko';
-      if (open && ((cin && dist < ai.ultimateRange && Math.abs(dy) < 40 && grounded) || (!cin && dist < ai.ultimateRange))) {
+      const range = ai.ultimateRange * (1 + 0.7 * (1 - q));
+      const open = tgt.state !== 'ko' && (q < 0.3 || tgt.invuln === 0);
+      // timing: a sharp CPU waits for an opening (a whiff, a landing, a lying rival) or a kill percent
+      const timed = q < 0.5 || tgtVulnerable || tgt.damage >= 70 || (!shielding && this.rnd() < 0.25);
+      if (open && timed && ((cin && dist < range && Math.abs(dy) < 40 && grounded) || (!cin && dist < range))) {
         this.facingFix(self, tgt);
         this.startPlan(world, 'ultimate', Button.Ultimate, 0, 0);
         this.runPlan(self, world);
@@ -1382,10 +1518,8 @@ export class CpuController implements Controller {
       let bestScore = -Infinity;
       const armor = tgt.armorThreshold(); // an armored move cannot be interrupted by weak hits: do not poke into it
       const hasGrab = candidates.some((c) => c.kind === 'grab' || c.cmdGrab);
-      const quickOnly = ai.style === 'hitandrun' && !punishing && tgt.damage < 100;
       for (const m of candidates) {
         const grabby = m.kind === 'grab' || m.cmdGrab;
-        if (quickOnly && m.total > 34 && !grabby) continue;
         if (p.smart && armor > 0 && !grabby && m.maxHit <= armor) continue;
         if (p.smart && shielding && !grabby && hasGrab) continue;
         if (!p.smart && grabby && this.rnd() < 0.7) continue;
@@ -1486,8 +1620,6 @@ export class CpuController implements Controller {
   private execMove(self: Fighter, world: World, m: AiMove, tgt: Fighter, dir: number, safe: boolean): void {
     this.useCount[m.index]++;
     if (m.proj) this.shotReady[m.index] = world.tick + SHOT_GAP;
-    const ai = aiFor(self.data.id);
-    if (ai.style === 'hitandrun') this.retreat = Math.round(m.total * 0.5);
     const p = this.params;
     if (m.kind === 'special') {
       const [bx, by] = SPECIAL_DIR[m.slot ?? 'neutralB'] ?? [0, 0];
@@ -1612,6 +1744,8 @@ export class CpuController implements Controller {
     };
     const stalled = this.stall > 420;
     if (!self.grounded && this.tryDive(self, world, tgt, ai)) return true;
+    // in the air a special (a steered missile, a charged shot) holds us up while we fall: only over something to land on
+    if (!self.grounded && this.framesToLand(self, world) === Infinity) return false;
     // upgrade our deployables when one is near the action (Gizmo's Overclock: forward = more damage)
     const bf = ai.buff;
     if (bf && p.smart && (self.res[bf.key] ?? 0) >= bf.min && usable(bf.slot) && !this.cooldownBusy('buff', 360)) {
@@ -1742,7 +1876,8 @@ export class CpuController implements Controller {
       // do not follow the target out past the stage edge unless deliberately edge-guarding
       // (unless the target is standing on another platform out there: then crossing the gap is the point)
       const acrossGap = tgt.grounded && !!tgt.groundPlat && tgt.groundPlat !== this.mainPlatform(world);
-      if (this.mode !== 'edgeguard' && !acrossGap) {
+      // (a deliberate edge-guard leap is a scripted plan of its own, see leapAerial)
+      if (!acrossGap) {
         const main = this.mainPlatform(world);
         if ((this.sx > 0 && self.x > main.right - 6) || (this.sx < 0 && self.x < main.x + 6)) this.sx = 0;
       }
@@ -1757,6 +1892,12 @@ export class CpuController implements Controller {
       }
       const over = this.mainPlatform(world);
       if (self.vy > 0 && tgt.y > self.y + 30 && dist < 40 && p.smart && self.x > over.x && self.x < over.right) this.sy = 1; // fast fall onto them
+      return;
+    }
+    // the target is off the stage and we are not edge-guarding it: hold our ground (no jump after it, no run off the edge)
+    if (this.mode === 'edgeguard' && self.grounded && offstage(tgt, world)) {
+      this.sx = dist > 30 ? dir * 0.5 : 0;
+      this.clampEdge(self);
       return;
     }
     const want = chasing ? 0 : ai.spacing * (p.smart ? 1 : 0.7) * (this.stall > 420 ? 0.5 : 1);
@@ -1779,7 +1920,8 @@ export class CpuController implements Controller {
       this.hopTarget = true;
       return;
     }
-    if (downBelow && self.groundPlat && self.groundPlat.kind === 'pass' && dist < 140) {
+    // drop through a one-way platform onto a rival below (only with something under it to land on, never into the pit)
+    if (downBelow && self.groundPlat && self.groundPlat.kind === 'pass' && (dist < 140 || this.stall > 480) && this.groundBelow(self, world, self.groundPlat)) {
       this.held |= Button.Jump;
       this.sy = 1; // drop through
       return;
@@ -1797,7 +1939,7 @@ export class CpuController implements Controller {
     const wanted = this.sx;
     if (!(downBelow && dist < 160)) this.clampEdge(self);
     // stopped at our edge while the target stands on another platform within jumping range: jump the gap
-    if (wanted !== 0 && this.sx === 0 && tgt.grounded && tgt.groundPlat && tgt.groundPlat !== self.groundPlat && dist < 300 && Math.abs(dy) < 110 && self.jumpsLeft > 0 && !this.cooldownBusy('gap', 45)) {
+    if (wanted !== 0 && this.sx === 0 && tgt.grounded && tgt.groundPlat && tgt.groundPlat !== self.groundPlat && dist < 300 && (Math.abs(dy) < 110 || (this.stall > 480 && dy > 0 && dy < 200)) && self.jumpsLeft > 0 && !this.cooldownBusy('gap', 45)) {
       this.held |= Button.Jump;
       this.sx = wanted;
       this.hopTarget = true;
@@ -1810,6 +1952,26 @@ export class CpuController implements Controller {
       this.held |= Button.Jump;
       this.hopTarget = true;
     }
+  }
+
+  /** The ledge nearest the fighter (to check a way back when it acts over the pit). */
+  private nearLedge(self: Fighter, world: World): Ledge | null {
+    let best: Ledge | null = null;
+    let bd = Infinity;
+    for (const l of world.ledges) {
+      const d = Math.abs(l.x - self.x) + Math.abs(l.y - self.y) * 0.5;
+      if (d < bd) {
+        bd = d;
+        best = l;
+      }
+    }
+    return best;
+  }
+
+  /** Is there another platform below `pl` under the fighter (somewhere to land after dropping through it)? */
+  private groundBelow(self: Fighter, world: World, pl: Platform): boolean {
+    for (const p of world.platforms) if (p !== pl && self.x >= p.x + 4 && self.x <= p.right - 4 && p.top > pl.top + 4) return true;
+    return false;
   }
 
   /** Where a falling fighter will land (x), from its current fall; null over a pit. */
@@ -1858,6 +2020,61 @@ export class CpuController implements Controller {
   }
 
   /**
+   * An edge-guard leap: a full hop out toward the off-stage rival with an aerial timed to meet it, taken only when the aerial
+   * reaches where the rival will be and a simulated recovery from where the aerial ends gets back to the ledge.
+   */
+  private leapAerial(self: Fighter, world: World, tgt: Fighter, l: Ledge): boolean {
+    const s = self.stats;
+    const out = l.side;
+    const jsq = s.jumpsquatFrames;
+    const v0 = -Math.sqrt(2 * s.gravity * s.jumpHeight);
+    const sim: Sim = { x: self.x, y: self.y, vx: self.vx, vy: 0 };
+    const tg = { x: tgt.x, y: tgt.y, vy: tgt.vy };
+    const ts = tgt.stats;
+    // our arc (jumpsquat, then a full hop drifting out) and the rival's fall, frame by frame
+    const arc: Sim[] = [];
+    const tgs: { x: number; y: number }[] = [];
+    for (let t = 0; t < 48; t++) {
+      if (t === jsq) sim.vy = v0;
+      if (t >= jsq) drift(self, sim, out);
+      arc.push({ ...sim });
+      tg.vy = Math.min(ts.fallSpeed, tg.vy + ts.gravity);
+      tg.x += tgt.vx * 0.9;
+      tg.y += tg.vy;
+      tgs.push({ x: tg.x, y: tg.y });
+    }
+    let pick: AiMove | null = null;
+    let at = -1;
+    for (const m of moveTable(self.data)) {
+      if (m.kind !== 'aerial' || NORMAL_INPUTS[m.id].fwd === -1) continue;
+      for (let t = jsq + 1; t + m.startup < 46; t += 2) {
+        const me = arc[t + m.startup];
+        const them = tgs[t + m.startup];
+        const x0 = me.x + (out > 0 ? m.minX : -m.maxX);
+        const x1 = me.x + (out > 0 ? m.maxX : -m.minX);
+        if (!(them.x + tgt.hw > x0 && them.x - tgt.hw < x1 && them.y > me.y + m.minY && them.y - tgt.hurtH < me.y + m.maxY)) continue;
+        if (pick && m.dmg <= pick.dmg) break;
+        pick = m;
+        at = t;
+        break;
+      }
+    }
+    if (!pick) return false;
+    // the aerial thrown from that point of the arc (its own motion included), then a simulated way back?
+    const mi = NORMAL_INPUTS[pick.id];
+    const p0 = arc[at];
+    const from = { x: p0.x, y: p0.y, vx: p0.vx, vy: p0.vy, jumpsLeft: self.stats.doubleJumps, airDodgeUsed: false, helpless: false, facing: out as 1 | -1 };
+    if (!canGetBack(self, world, l, aiFor(self.data.id).recovery.aim, from, !!(self.data.glide || self.data.hover), { ax: out * mi.fwd, ay: mi.up, total: Math.round(pick.total) })) return false;
+    const seq: SeqStep[] = [];
+    for (let t = 0; t < at; t++) seq.push({ btn: t < jsq + 2 ? Button.Jump : 0, sx: t === 0 ? 0 : out, sy: 0 });
+    for (let i = 0; i < 3; i++) seq.push({ btn: i === 0 ? Button.Attack : 0, sx: mi.fwd === 0 ? 0 : out * mi.fwd, sy: mi.up });
+    this.useCount[pick.index]++;
+    this.startPlan(world, `leap_${pick.id}`, 0, 0, 0, { seq });
+    this.runPlan(self, world);
+    return true;
+  }
+
+  /**
    * Stand at the edge the opponent is coming back to and hit it as it tries to. The edge is picked per platform: the free
    * ledge nearest the opponent on the platform we stand on (Skyhold's islands, the Wreck's decks), not always the main stage.
    */
@@ -1876,7 +2093,6 @@ export class CpuController implements Controller {
     if (!l || bd > 420) return false;
     const p = this.params;
     const edgeX = l.x - l.side * 14;
-    const outDir = l.side;
     const dx = tgt.x - self.x;
     // ranged specials on a recovering opponent
     if (Math.abs(tgt.y - self.y) < 140 && Math.abs(dx) < 300) {
@@ -1894,15 +2110,14 @@ export class CpuController implements Controller {
       this.thinkLeft = p.thinkEvery;
       if (this.chooseAction(self, world, tgt, ai, Math.abs(dx), tgt.y - self.y, dx >= 0 ? 1 : -1, punishWindow(tgt))) return true;
     }
-    // skilled CPUs leap out after them when they are healthy and still have a jump (and an aerial that reaches)
-    if (p.edgeguardLeap > 0 && self.jumpsLeft > 0 && self.damage < 90 && Math.abs(self.x - edgeX) < 24 && Math.abs(dx) < 120 && tgt.y > self.y - 20 && tgt.y < self.y + 110 && !tgt.helpless && !this.cooldownBusy('leap', 120) && this.rnd() < p.edgeguardLeap) {
-      this.hopTarget = true;
-      this.held |= Button.Jump;
-      this.sx = outDir;
-      return true;
+    // skilled CPUs leap out after them when they are healthy and still have a jump, but only with an aerial that meets the
+    // rival out there and a simulated way back afterwards (a leap that cannot attack, or cannot get home, is not taken)
+    if (p.edgeguardLeap > 0 && self.jumpsLeft > 0 && self.damage < 90 && Math.abs(self.x - edgeX) < 24 && Math.abs(dx) < 150 && tgt.y > self.y - 40 && tgt.y < self.y + 120 && !tgt.helpless && !this.cooldownBusy('leap', 60) && this.rnd() < p.edgeguardLeap) {
+      if (this.leapAerial(self, world, tgt, l)) return true;
     }
     if (Math.abs(self.x - edgeX) > 10) {
-      this.sx = Math.sign(edgeX - self.x);
+      // walk the last stretch: a run (or a dash) into the corner overshoots it
+      this.sx = Math.sign(edgeX - self.x) * (Math.abs(edgeX - self.x) > 60 ? 1 : 0.5);
       this.clampEdge(self);
     } else {
       this.facingFix(self, tgt);
@@ -1929,7 +2144,8 @@ export function punishWindow(t: Fighter): number {
       return Math.max(0, left);
     }
     case 'landing':
-      return Math.max(1, 8 - t.stateFrame);
+      // the landing lag actually served (an aerial's own landing lag, or the short default landing)
+      return Math.max(1, (t.lagFrames || 2) - t.stateFrame);
     case 'shieldbreak':
       return 120;
     case 'downed':

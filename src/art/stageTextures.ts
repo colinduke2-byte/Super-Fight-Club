@@ -1,5 +1,5 @@
 import Phaser from 'phaser';
-import { addCanvasTexture } from './canvasTexture';
+import { addCanvasTexture, context2d } from './canvasTexture';
 
 /**
  * All world / background art is generated here at "art pixel" density: 1 art pixel = 0.5 world
@@ -16,7 +16,9 @@ function canvas(w: number, h: number): [HTMLCanvasElement, Ctx] {
   const c = document.createElement('canvas');
   c.width = w;
   c.height = h;
-  const ctx = c.getContext('2d', { willReadFrequently: true })!;
+  // (willReadFrequently keeps these on the CPU rasteriser, which the art was drawn and checked with)
+  const ctx = context2d(c, { willReadFrequently: true });
+  if (!ctx) throw new Error(`no canvas memory for a ${w}x${h} texture`);
   ctx.imageSmoothingEnabled = false;
   return [c, ctx];
 }
@@ -2120,87 +2122,97 @@ const GROUND_BUILDERS: Record<string, () => HTMLCanvasElement[]> = {
   'bg-cove-sea': () => seaGround(1111, [0x041018, 0x061a28, 0x0a2434, 0x0e2e42, 0x245470, 0x4a86a6], 0xb0e0f0, 0, [0x0a1218, 0x1a2a32, 0x34505c]),
 };
 
-/** Make sure a ground set's textures (`${key}-0..2`) exist, generating them now if the idle-time prebuild hasn't reached them yet. */
+/**
+ * Make sure a ground set's textures (`${key}-0..2`) exist, generating them now if needed. They are built on demand (a
+ * stage preview or a match that shows them) and dropped again once no scene holds them (see holdTexture).
+ */
 export function ensureGroundTextures(scene: Phaser.Scene, key: string): void {
   const build = GROUND_BUILDERS[key];
   if (!build || scene.textures.exists(`${key}-0`)) return;
-  build().forEach((c, i) => addCanvasTexture(scene, `${key}-${i}`, c));
+  let layers: HTMLCanvasElement[];
+  try {
+    layers = build();
+  } catch (err) {
+    // no canvas memory: the backdrop shows its sky and skylines without the ground planes
+    console.warn(`[stageTextures] could not build ${key}:`, err);
+    return;
+  }
+  layers.forEach((c, i) => {
+    if (scene.textures.exists(`${key}-${i}`)) scene.textures.remove(`${key}-${i}`);
+    addCanvasTexture(scene, `${key}-${i}`, c);
+  });
 }
 
 /** Generates all stage / background / effect textures. */
 export function buildStageTextures(scene: Phaser.Scene): void {
-  const add = (key: string, c: HTMLCanvasElement): void => {
+  const add = (key: string, build: () => HTMLCanvasElement): void => {
+    let c: HTMLCanvasElement;
+    try {
+      c = build();
+    } catch (err) {
+      // no canvas memory (the browser's cap): this texture is skipped, its users draw without it, nothing throws
+      console.warn(`[stageTextures] could not build ${key}:`, err);
+      return;
+    }
     if (scene.textures.exists(key)) scene.textures.remove(key);
     addCanvasTexture(scene, key, c);
   };
-  add('tile-stone', stoneTile());
+  add('tile-stone', () => stoneTile());
   const SLATE = ['#0e141c', '#18212d', '#243040', '#32425a', '#44587a', '#5a7298'];
   const SLATE_SEAM = ['#103a5a', '#1c6a9c', '#46a8e8', '#9fd8ff', '#e6f6ff'];
   const MARBLE = ['#a89088', '#c4aea4', '#dccbbc', '#ecdecb', '#f7ecdc', '#fff8ee'];
   const MARBLE_SEAM = ['#6a4a1c', '#b08a30', '#e8c050', '#ffe08a', '#fff4c0'];
-  add('tile-stone-storm', stoneTile(SLATE, SLATE_SEAM, 31));
-  add('tile-cap-storm', capTile(['#3a4a62', '#566e90', '#8aa6cc', '#2c3a50', '#41546e', '#1c2636', '#9fbfe8', '#18202e', '#10161f', '#0a0f18'], SLATE_SEAM));
-  add('tile-pass-storm', cloudPass('#e8f2ff', '#b6c9e2', '#7e98bc', '#cfeaff'));
-  add('tile-move-storm', cloudPass('#cfdcf0', '#8a9fc0', '#56688a', '#ffffff'));
-  add('stage-under-storm', stageUnder(SLATE, [SLATE_SEAM, ['#103a5a', '#1c6a9c', '#46a8e8', '#9fd8ff', '#e6f6ff']]));
-  add('tile-stone-dawn', stoneTile(MARBLE, MARBLE_SEAM, 41));
-  add('tile-cap-dawn', capTile(['#d8c4a4', '#ecdcbc', '#fff4d8', '#bca480', '#d0b890', '#8a7250', '#fff0c0', '#6a5638', '#4a3a24', '#3a2c1a'], MARBLE_SEAM));
-  add('tile-pass-dawn', woodPass());
-  add('tile-move-dawn', cloudPass('#fff0e0', '#f4c8b8', '#c48aa0', '#ffffff'));
-  add('stage-under-dawn', stageUnder(MARBLE.map((c) => c).reverse().map((_, i) => ['#6a4a52', '#8a6a6c', '#a88884', '#c4a6a0', '#dcc4b8', '#f0dcd0'][i]), [['#6a4a1c', '#b08a30', '#e8c050', '#ffe08a', '#fff4c0'], ['#2a6a3a', '#4aa05a', '#7ad07a', '#b0f0a0', '#e8ffe0']]));
-  add('tile-cap', capTile());
-  add('tile-pass', passTile());
-  add('tile-move', moveTile());
-  add('stage-under', stageUnder());
-  add('bg-planet', planet());
-  add('bg-nebula', nebula());
-  add('bg-stars-a', stars(7, 60, 3));
-  add('bg-stars-b', stars(19, 34, 5));
-  add('bg-ruins-far', ruins(21, '#2e1f55', '#4a3585', '#241848', ['#ffcf6a', '#7fe8ff'], 0.18, 512, 192));
-  add('bg-ruins-near', ruins(44, '#1a1033', '#32215e', '#120a26', ['#ffcf6a', '#ff8a5a', '#7fe8ff'], 0.3, 512, 192));
+  add('tile-stone-storm', () => stoneTile(SLATE, SLATE_SEAM, 31));
+  add('tile-cap-storm', () => capTile(['#3a4a62', '#566e90', '#8aa6cc', '#2c3a50', '#41546e', '#1c2636', '#9fbfe8', '#18202e', '#10161f', '#0a0f18'], SLATE_SEAM));
+  add('tile-pass-storm', () => cloudPass('#e8f2ff', '#b6c9e2', '#7e98bc', '#cfeaff'));
+  add('tile-move-storm', () => cloudPass('#cfdcf0', '#8a9fc0', '#56688a', '#ffffff'));
+  add('stage-under-storm', () => stageUnder(SLATE, [SLATE_SEAM, ['#103a5a', '#1c6a9c', '#46a8e8', '#9fd8ff', '#e6f6ff']]));
+  add('tile-stone-dawn', () => stoneTile(MARBLE, MARBLE_SEAM, 41));
+  add('tile-cap-dawn', () => capTile(['#d8c4a4', '#ecdcbc', '#fff4d8', '#bca480', '#d0b890', '#8a7250', '#fff0c0', '#6a5638', '#4a3a24', '#3a2c1a'], MARBLE_SEAM));
+  add('tile-pass-dawn', () => woodPass());
+  add('tile-move-dawn', () => cloudPass('#fff0e0', '#f4c8b8', '#c48aa0', '#ffffff'));
+  add('stage-under-dawn', () => stageUnder(MARBLE.map((c) => c).reverse().map((_, i) => ['#6a4a52', '#8a6a6c', '#a88884', '#c4a6a0', '#dcc4b8', '#f0dcd0'][i]), [['#6a4a1c', '#b08a30', '#e8c050', '#ffe08a', '#fff4c0'], ['#2a6a3a', '#4aa05a', '#7ad07a', '#b0f0a0', '#e8ffe0']]));
+  add('tile-cap', () => capTile());
+  add('tile-pass', () => passTile());
+  add('tile-move', () => moveTile());
+  add('stage-under', () => stageUnder());
+  add('bg-planet', () => planet());
+  add('bg-nebula', () => nebula());
+  add('bg-stars-a', () => stars(7, 60, 3));
+  add('bg-stars-b', () => stars(19, 34, 5));
+  add('bg-ruins-far', () => ruins(21, '#2e1f55', '#4a3585', '#241848', ['#ffcf6a', '#7fe8ff'], 0.18, 512, 192));
+  add('bg-ruins-near', () => ruins(44, '#1a1033', '#32215e', '#120a26', ['#ffcf6a', '#ff8a5a', '#7fe8ff'], 0.3, 512, 192));
   INDUSTRY_VENTS.length = 0;
-  add('bg-industry-far', industry(52, '#4a1c14', '#8a3a1c', '#2a0c0a', '#ff8a30', 512, 192, INDUSTRY_VENTS));
-  add('bg-industry-near', industry(77, '#2a0e0c', '#5a2414', '#160606', '#ffb040', 512, 192));
-  add('bg-pylons-far', pylons(31, '#1c4a64', '#4a9ac0', '#0e2a3c', '#7ff0ff', 512, 192));
-  add('bg-pylons-near', pylons(63, '#0e2c42', '#2a6a90', '#08182a', '#bffcff', 512, 192));
-  add('bg-clouds', cloudStrip());
-  add('bg-spires-far', spires(11, '#1e3350', '#3e6a96', '#101c30', '#9fd8ff', 512, 192));
-  add('bg-spires-near', spires(23, '#0f1c30', '#27456a', '#08101e', '#cfeeff', 512, 192));
-  add('bg-islands-far', islands(5, '#8a6a7a', '#c89aa0', '#5a4256', '#7a9a5a', '#b8d27a', '255,235,215', 512, 192));
-  add('bg-islands-near', islands(9, '#a07a78', '#e0aa98', '#6a4a5e', '#8aae60', '#c8e088', '255,240,225', 512, 192));
-  add('bg-jungle-far', ziggurats(14, '#2a4a46', '#4a7a6a', '#1a302e', '#ffb040', 512, 192));
-  add('bg-jungle-near', canopy(27, '#1e4a2a', '#3a7a3a', '#10301a', '#2a1e14', 512, 192));
-  add('bg-mist', cloudBank(12, '#7ab0a0', '#b8e0c8', '#4a8070', 512, 128));
-  add('bg-cloudsea', cloudBank(3, '#f4c8b8', '#fff0e0', '#c48aa0', 512, 128));
-  add('bg-cove-far', seaStacks(4, '#1e3442', '#3a5a6a', '#0e1c26', '#2e5a4a', '#0e2a3c', '#6a9ab0', 1024, 192));
-  add('bg-cove-near', wrecks(17, '#2a2420', '#4a3e34', '#140f0c', '#8a8a7a', '#0a2232', '#5a8aa0', '#4ae0d0', 512, 192));
-  add('bg-surf', surf(6, [['#0e2a40', '#2a5a78', '#6a9ab8'], ['#0a2236', '#2a6a8a', '#9acce0'], ['#071a2a', '#3a7a9a', '#d0f0ff']], 512, 128));
-  add('bg-geode-far', geodeCave(31, '#1c1428', '#2e2240', '#120c1a', ['#3a1f66', '#7a44c0', '#b07ae8', '#f0e2ff'], 512, 192));
-  add('bg-geode-near', geodeCave(57, '#100c16', '#1e1828', '#08060c', ['#2a1650', '#6a34a0', '#a868e0', '#f4e8ff'], 512, 192, true));
-  add('bg-cavemist', cloudBank(19, '#3a2458', '#5a3c80', '#22143a', 512, 128));
-  add('bg-stormbank', cloudBank(8, '#2e4560', '#5a7a9c', '#16243a', 512, 128));
-  add('bg-peaks-far', peaks(13, '#3a4a68', '#5a6e90', '#24304a', '#e8f2ff', '#a8bcd8', 512, 192));
-  add('bg-shrine-near', shrineWoods(29, '#14283a', '#24405a', '#0a1622', '#e8f2ff', '#b02a30', '#6a1418', '#ffd08a', 512, 192));
-  add('bg-snowbank', cloudBank(23, '#c8d8ec', '#f4f8ff', '#8aa0c0', 512, 128));
-  // the ground planes are only needed by the stage being played: build them in idle time after boot, one set per slice
-  const keys = Object.keys(GROUND_BUILDERS);
-  const idle = (fn: () => void): void => {
-    const ric = (globalThis as { requestIdleCallback?: (cb: () => void, o?: { timeout: number }) => number }).requestIdleCallback;
-    if (ric) ric(fn, { timeout: 2000 });
-    else setTimeout(fn, 50);
-  };
-  const next = (): void => {
-    const key = keys.shift();
-    if (!key) return;
-    ensureGroundTextures(scene, key);
-    idle(next);
-  };
-  idle(next);
-  add('bg-thunderheads-far', thunderheads(41, '#4e2e5c', '#7a4670', '#b8687a', '#eaa290', 512, 192));
-  add('spark', sparkTex());
-  add('ring', ringTex());
-  add('bubble', bubbleTex());
-  const [p, g] = canvas(4, 4);
-  px(g, '#ffffff', 0, 0, 4, 4);
-  add('px', p);
+  add('bg-industry-far', () => industry(52, '#4a1c14', '#8a3a1c', '#2a0c0a', '#ff8a30', 512, 192, INDUSTRY_VENTS));
+  add('bg-industry-near', () => industry(77, '#2a0e0c', '#5a2414', '#160606', '#ffb040', 512, 192));
+  add('bg-pylons-far', () => pylons(31, '#1c4a64', '#4a9ac0', '#0e2a3c', '#7ff0ff', 512, 192));
+  add('bg-pylons-near', () => pylons(63, '#0e2c42', '#2a6a90', '#08182a', '#bffcff', 512, 192));
+  add('bg-clouds', () => cloudStrip());
+  add('bg-spires-far', () => spires(11, '#1e3350', '#3e6a96', '#101c30', '#9fd8ff', 512, 192));
+  add('bg-spires-near', () => spires(23, '#0f1c30', '#27456a', '#08101e', '#cfeeff', 512, 192));
+  add('bg-islands-far', () => islands(5, '#8a6a7a', '#c89aa0', '#5a4256', '#7a9a5a', '#b8d27a', '255,235,215', 512, 192));
+  add('bg-islands-near', () => islands(9, '#a07a78', '#e0aa98', '#6a4a5e', '#8aae60', '#c8e088', '255,240,225', 512, 192));
+  add('bg-jungle-far', () => ziggurats(14, '#2a4a46', '#4a7a6a', '#1a302e', '#ffb040', 512, 192));
+  add('bg-jungle-near', () => canopy(27, '#1e4a2a', '#3a7a3a', '#10301a', '#2a1e14', 512, 192));
+  add('bg-mist', () => cloudBank(12, '#7ab0a0', '#b8e0c8', '#4a8070', 512, 128));
+  add('bg-cloudsea', () => cloudBank(3, '#f4c8b8', '#fff0e0', '#c48aa0', 512, 128));
+  add('bg-cove-far', () => seaStacks(4, '#1e3442', '#3a5a6a', '#0e1c26', '#2e5a4a', '#0e2a3c', '#6a9ab0', 1024, 192));
+  add('bg-cove-near', () => wrecks(17, '#2a2420', '#4a3e34', '#140f0c', '#8a8a7a', '#0a2232', '#5a8aa0', '#4ae0d0', 512, 192));
+  add('bg-surf', () => surf(6, [['#0e2a40', '#2a5a78', '#6a9ab8'], ['#0a2236', '#2a6a8a', '#9acce0'], ['#071a2a', '#3a7a9a', '#d0f0ff']], 512, 128));
+  add('bg-geode-far', () => geodeCave(31, '#1c1428', '#2e2240', '#120c1a', ['#3a1f66', '#7a44c0', '#b07ae8', '#f0e2ff'], 512, 192));
+  add('bg-geode-near', () => geodeCave(57, '#100c16', '#1e1828', '#08060c', ['#2a1650', '#6a34a0', '#a868e0', '#f4e8ff'], 512, 192, true));
+  add('bg-cavemist', () => cloudBank(19, '#3a2458', '#5a3c80', '#22143a', 512, 128));
+  add('bg-stormbank', () => cloudBank(8, '#2e4560', '#5a7a9c', '#16243a', 512, 128));
+  add('bg-peaks-far', () => peaks(13, '#3a4a68', '#5a6e90', '#24304a', '#e8f2ff', '#a8bcd8', 512, 192));
+  add('bg-shrine-near', () => shrineWoods(29, '#14283a', '#24405a', '#0a1622', '#e8f2ff', '#b02a30', '#6a1418', '#ffd08a', 512, 192));
+  add('bg-snowbank', () => cloudBank(23, '#c8d8ec', '#f4f8ff', '#8aa0c0', 512, 128));
+  add('bg-thunderheads-far', () => thunderheads(41, '#4e2e5c', '#7a4670', '#b8687a', '#eaa290', 512, 192));
+  add('spark', () => sparkTex());
+  add('ring', () => ringTex());
+  add('bubble', () => bubbleTex());
+  add('px', () => {
+    const [p, g] = canvas(4, 4);
+    px(g, '#ffffff', 0, 0, 4, 4);
+    return p;
+  });
 }

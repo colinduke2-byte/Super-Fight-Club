@@ -1,5 +1,6 @@
 import Phaser from 'phaser';
 import { catchErrors } from './crashGuard';
+import { holdGame, inMatch } from './display';
 
 /**
  * Crash handling.
@@ -11,7 +12,9 @@ import { catchErrors } from './crashGuard';
  * scene it happened in and its stack.
  *
  * The overlay shows the first error (later ones bump a counter, see the console for all of them), can be dismissed, and
- * offers RELOAD and MAIN MENU (stops every scene and starts the title screen again).
+ * offers RELOAD and MAIN MENU (stops every scene and starts the title screen again). The raw stack and browser details sit
+ * behind DETAILS (COPY still copies everything). A match under the overlay is frozen until it is closed, and its buttons
+ * are finger-sized and take taps even while the touch controls are up.
  */
 
 /** Recent error reports (newest last, at most 20): read by tests and handy from the console (`__errors`). */
@@ -19,8 +22,10 @@ export const errorLog: string[] = [];
 
 let box: HTMLDivElement | null = null;
 let text: HTMLPreElement | null = null;
+let summary: HTMLDivElement | null = null;
 let count = 0;
 let first = '';
+let firstShort = '';
 let gameRef: Phaser.Game | null = null;
 
 /** Scene keys that are running right now (for error reports). */
@@ -48,6 +53,13 @@ export function describeError(e: unknown, stackLines = 8): string {
 function render(): void {
   if (!text) return;
   text.textContent = count > 1 ? `${first}\n\n(+${count - 1} more, see the console)` : first;
+  if (summary) summary.textContent = `${firstShort}${count > 1 ? `  (+${count - 1} more)` : ''}`;
+}
+
+/** The first line of a report (error name and message), cut to a readable length. */
+export function errorHeadline(msg: string): string {
+  const line = msg.split('\n')[0] ?? '';
+  return line.length > 160 ? `${line.slice(0, 157)}...` : line;
 }
 
 /** Report an error: logged to the console and shown in the overlay. `where` names the scene (or the source) it came from. */
@@ -61,48 +73,64 @@ export function reportError(e: unknown, where?: string): void {
   if (typeof document === 'undefined') return;
   if (!box) {
     first = msg.slice(0, 3000);
+    firstShort = errorHeadline(msg);
     box = document.createElement('div');
     box.setAttribute('role', 'alert');
+    // taps here are the overlay's, never the touch controller's (see touch.ts)
+    box.dataset.touchPass = '1';
     box.style.cssText =
-      'position:fixed;top:12px;left:50%;transform:translateX(-50%);z-index:9999;width:min(560px,calc(100% - 32px));box-sizing:border-box;padding:10px 12px;background:#1a0b12f0;border:1px solid #ff5a6e;color:#ffe4e8;font:12px/1.4 ui-monospace,Menlo,Consolas,monospace;box-shadow:0 4px 18px #0008';
-    const head = document.createElement('div');
-    head.style.cssText = 'display:flex;gap:8px;align-items:center;margin-bottom:6px;flex-wrap:wrap';
+      'position:fixed;top:calc(12px + env(safe-area-inset-top,0px));left:50%;transform:translateX(-50%);z-index:9999;width:min(560px,calc(100% - 24px));box-sizing:border-box;padding:12px 14px;background:#1a0b12f2;border:2px solid #ff5a6e;color:#ffe4e8;font:13px/1.45 ui-monospace,Menlo,Consolas,monospace;box-shadow:0 4px 18px #0008;max-height:calc(100% - 24px);overflow:auto;touch-action:manipulation';
     const title = document.createElement('strong');
     title.textContent = 'Something broke';
-    title.style.cssText = 'flex:1;color:#ff8a98';
-    const menu = document.createElement('button');
-    menu.textContent = 'Main menu';
-    menu.onclick = () => {
+    title.style.cssText = 'display:block;color:#ff8a98;font-size:15px;margin-bottom:4px';
+    summary = document.createElement('div');
+    summary.style.cssText = 'color:#ffd0d6;word-break:break-word;margin-bottom:10px';
+    const row = document.createElement('div');
+    row.style.cssText = 'display:flex;gap:8px;flex-wrap:wrap';
+    const btn = (label: string, fn: () => void): HTMLButtonElement => {
+      const b = document.createElement('button');
+      b.textContent = label;
+      b.onclick = fn;
+      b.style.cssText = 'font:inherit;font-weight:700;background:#2a1520;color:inherit;border:2px solid #ff5a6e;min-height:44px;min-width:44px;padding:8px 14px;cursor:pointer;touch-action:manipulation;flex:1 1 auto';
+      return b;
+    };
+    const menu = btn('Main menu', () => {
       dismiss();
       toTitle();
-    };
-    const reload = document.createElement('button');
-    reload.textContent = 'Reload';
-    reload.onclick = () => location.reload();
-    const copy = document.createElement('button');
-    copy.textContent = 'Copy';
-    copy.onclick = () => void navigator.clipboard?.writeText(errorLog.join('\n\n---\n\n')).catch(() => undefined);
-    const close = document.createElement('button');
-    close.textContent = '×';
+    });
+    const reload = btn('Reload', () => location.reload());
+    const copy = btn('Copy', () => {
+      void navigator.clipboard?.writeText(errorLog.join('\n\n---\n\n')).then(
+        () => (copy.textContent = 'Copied'),
+        () => (copy.textContent = 'Copy failed'),
+      );
+    });
+    const details = btn('Details', () => {
+      const open = text!.style.display === 'none';
+      text!.style.display = open ? 'block' : 'none';
+      details.textContent = open ? 'Hide details' : 'Details';
+    });
+    const close = btn('Close', dismiss);
     close.setAttribute('aria-label', 'Dismiss');
-    close.onclick = dismiss;
-    for (const b of [menu, reload, copy, close]) b.style.cssText = 'font:inherit;background:#2a1520;color:inherit;border:1px solid #ff5a6e;padding:4px 10px;cursor:pointer;touch-action:manipulation';
-    head.append(title, menu, reload, copy, close);
+    row.append(menu, reload, details, copy, close);
     text = document.createElement('pre');
-    text.style.cssText = 'margin:0;white-space:pre-wrap;word-break:break-word;max-height:40vh;overflow:auto;color:#ffd0d6;user-select:text';
-    box.append(head, text);
+    text.style.cssText = 'display:none;margin:10px 0 0;white-space:pre-wrap;word-break:break-word;max-height:40vh;overflow:auto;color:#ffd0d6;user-select:text;font-size:12px';
+    box.append(title, summary, row, text);
     // keys typed while the overlay is focused must not drive the game
     box.addEventListener('keydown', (ev) => ev.stopPropagation());
     (document.body ?? document.documentElement).append(box);
+    // a match underneath stops until the report is closed (the players cannot fight with it in the way)
+    if (inMatch()) holdGame('error', true);
   }
   render();
 }
 
 function dismiss(): void {
   box?.remove();
-  box = text = null;
+  box = text = summary = null;
   count = 0;
-  first = '';
+  first = firstShort = '';
+  holdGame('error', false);
 }
 
 /** MAIN MENU on the overlay: stop every scene and start the title screen. */

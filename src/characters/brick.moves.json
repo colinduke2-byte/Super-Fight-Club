@@ -44,7 +44,8 @@
      "base": 10,
      "scaling": 0.188,
      "minHitstun": 20,
-     "fx": "punch"
+     "fx": "punch",
+     "setKb": 14
     }
    ],
    "pose": {
@@ -97,7 +98,8 @@
      "base": 10,
      "scaling": 0.188,
      "minHitstun": 22,
-     "fx": "punch"
+     "fx": "punch",
+     "setKb": 14
     }
    ],
    "pose": {
@@ -215,7 +217,7 @@
      "damage": 6.31,
      "angle": 40,
      "base": 32,
-     "scaling": 0.658,
+     "scaling": 0.697,
      "hitlag": 1.1,
      "fx": "punch"
     }
@@ -265,7 +267,7 @@
      "damage": 5.52,
      "angle": 80,
      "base": 30,
-     "scaling": 0.611,
+     "scaling": 0.648,
      "dir": "away",
      "fx": "punch"
     }
@@ -317,7 +319,7 @@
      "damage": 4.73,
      "angle": 75,
      "base": 24,
-     "scaling": 0.47,
+     "scaling": 0.498,
      "fx": "punch"
     }
    ],
@@ -370,7 +372,7 @@
      "damage": 7.1,
      "angle": 45,
      "base": 40,
-     "scaling": 0.752,
+     "scaling": 0.797,
      "hitlag": 1.1,
      "fx": "heavy"
     }
@@ -409,7 +411,7 @@
      "damage": 13.64,
      "angle": 38,
      "base": 50,
-     "scaling": 0.83,
+     "scaling": 0.88,
      "hitlag": 1.3,
      "fx": "heavy"
     }
@@ -461,7 +463,7 @@
      "damage": 10.61,
      "angle": 82,
      "base": 45,
-     "scaling": 0.761,
+     "scaling": 0.807,
      "dir": "away",
      "hitlag": 1.2,
      "fx": "heavy"
@@ -474,7 +476,7 @@
      "damage": 10.61,
      "angle": 82,
      "base": 45,
-     "scaling": 0.761,
+     "scaling": 0.807,
      "dir": "away",
      "hitlag": 1.2,
      "fx": "heavy"
@@ -578,7 +580,7 @@
      "damage": 9.1,
      "angle": 40,
      "base": 46,
-     "scaling": 0.84,
+     "scaling": 0.89,
      "dir": "away",
      "fx": "shock"
     },
@@ -590,7 +592,7 @@
      "damage": 9.1,
      "angle": 40,
      "base": 46,
-     "scaling": 0.84,
+     "scaling": 0.89,
      "dir": "away",
      "fx": "shock"
     }
@@ -649,7 +651,7 @@
      "damage": 3.94,
      "angle": 50,
      "base": 42,
-     "scaling": 0.752,
+     "scaling": 0.797,
      "window": [
       15,
       18
@@ -676,7 +678,8 @@
      "dir": "away",
      "minHitstun": 10,
      "hitlag": 0.7,
-     "fx": "punch"
+     "fx": "punch",
+     "setKb": 18
     }
    ],
    "pose": {
@@ -724,7 +727,7 @@
      "damage": 11.03,
      "angle": 270,
      "base": 30,
-     "scaling": 0.564,
+     "scaling": 0.598,
      "hitlag": 1.3,
      "fx": "meteor"
     },
@@ -736,7 +739,7 @@
      "damage": 7.1,
      "angle": 45,
      "base": 36,
-     "scaling": 0.658,
+     "scaling": 0.697,
      "fx": "punch"
     }
    ],
@@ -783,7 +786,7 @@
      "damage": 8.67,
      "angle": 140,
      "base": 40,
-     "scaling": 0.846,
+     "scaling": 0.897,
      "hitlag": 1.15,
      "fx": "heavy"
     }
@@ -832,7 +835,7 @@
      "damage": 7.1,
      "angle": 85,
      "base": 38,
-     "scaling": 0.705,
+     "scaling": 0.747,
      "fx": "punch"
     }
    ],
@@ -869,7 +872,7 @@
      "damage": 9.1,
      "angle": 280,
      "base": 28,
-     "scaling": 0.564,
+     "scaling": 0.598,
      "hitlag": 1.2,
      "fx": "meteor"
     }
@@ -923,7 +926,7 @@
      "damage": 6.83,
      "angle": 45,
      "base": 50,
-     "scaling": 0.5,
+     "scaling": 0.53,
      "throw": true,
      "fx": "heavy"
     }
@@ -946,7 +949,7 @@
      "damage": 7.58,
      "angle": 140,
      "base": 46,
-     "scaling": 0.64,
+     "scaling": 0.678,
      "throw": true,
      "fx": "heavy"
     }
@@ -969,7 +972,7 @@
      "damage": 6.07,
      "angle": 85,
      "base": 48,
-     "scaling": 0.5,
+     "scaling": 0.53,
      "throw": true,
      "fx": "heavy"
     }
@@ -992,7 +995,7 @@
      "damage": 5.31,
      "angle": 100,
      "base": 45,
-     "scaling": 0.28,
+     "scaling": 0.297,
      "throw": true,
      "fx": "heavy"
     }
@@ -1039,7 +1042,7 @@
      "damage": 6.83,
      "angle": 40,
      "base": 58,
-     "scaling": 0.94,
+     "scaling": 0.996,
      "minCharge": 1,
      "breaksShield": true,
      "shieldDamage": 3,
@@ -1058,7 +1061,7 @@
      "damage": 5.31,
      "angle": 38,
      "base": 42,
-     "scaling": 0.752,
+     "scaling": 0.797,
      "hitlag": 1.1,
      "window": [
       1,
@@ -1154,7 +1157,7 @@
      "damage": 11.37,
      "angle": 72,
      "base": 52,
-     "scaling": 0.827,
+     "scaling": 0.877,
      "throw": true,
      "hitlag": 1.3,
      "fx": "heavy"
@@ -1174,11 +1177,11 @@
    "motion": [
     {
      "frame": 5,
-     "vy": -5.3
+     "vy": -5.9
     },
     {
      "frame": 20,
-     "vy": -2.6
+     "vy": -3
     }
    ],
    "events": [
@@ -1186,6 +1189,11 @@
      "frame": 5,
      "action": "fx",
      "name": "jet"
+    },
+    {
+     "frame": 14,
+     "action": "ledgeSnap",
+     "range": 80
     }
    ],
    "hitboxes": [
@@ -1207,7 +1215,8 @@
      "dir": "away",
      "minHitstun": 8,
      "hitlag": 0.6,
-     "fx": "punch"
+     "fx": "punch",
+     "setKb": 18
     },
     {
      "x": 0,
@@ -1217,7 +1226,7 @@
      "damage": 4.2,
      "angle": 72,
      "base": 46,
-     "scaling": 0.771,
+     "scaling": 0.817,
      "window": [
       25,
       30
@@ -1238,7 +1247,8 @@
     "smear": 1.4,
     "ghosts": true,
     "arc": "ring"
-   }
+   },
+   "airDrift": 1.35
   },
   "upB_g": {
    "name": "Whirling Jet",
@@ -1280,7 +1290,8 @@
      "dir": "away",
      "minHitstun": 8,
      "hitlag": 0.6,
-     "fx": "punch"
+     "fx": "punch",
+     "setKb": 18
     },
     {
      "x": 0,
@@ -1290,7 +1301,7 @@
      "damage": 4.2,
      "angle": 60,
      "base": 44,
-     "scaling": 0.733,
+     "scaling": 0.777,
      "window": [
       21,
       26
@@ -1350,7 +1361,7 @@
      "damage": 6.83,
      "angle": 50,
      "base": 38,
-     "scaling": 0.705,
+     "scaling": 0.747,
      "dir": "away",
      "hitlag": 1.4,
      "fx": "blast"
@@ -1613,7 +1624,7 @@
     "angle": 75,
     "base": 40,
     "scaling": 0.55,
-    "hitlag": 1.0,
+    "hitlag": 1,
     "fx": "heavy"
    },
    "look": {

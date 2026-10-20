@@ -331,6 +331,7 @@ function projectilesHitFighters(world: World): void {
         kbMult: 1,
         freezeOwner: false,
         rect: rA, // only a shield that covers where the shot is blocks it
+        source: p.moveId,
       });
       world.emit('projectileHit', f, p.x, p.y, 1, def.hit.damage);
       if (!def.pierce) {

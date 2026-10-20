@@ -1,5 +1,6 @@
 import Phaser from 'phaser';
 import { ALT_LOOKS, assignPalettes } from '../art/palettes';
+import { ensureStageArt, stageArtReady } from '../art/stageArt';
 import { PIXEL_FONT, up } from '../art/pixelFont';
 import { ambience } from '../audio/ambience';
 import { announcer } from '../audio/announcer';
@@ -13,6 +14,7 @@ import type { World } from '../engine/world';
 import { currentFight } from '../game/ladder';
 import type { LaunchContest } from '../game/launch';
 import { fillReplayInputs, type Replay, type ReplayRecorder } from '../game/replay';
+import { MatchTally } from '../game/results';
 import { MatchRunner } from '../game/runner';
 import { session, type PlayerSlot } from '../game/session';
 import { inputManager } from '../input/inputManager';
@@ -51,6 +53,7 @@ import { canvasDpr, hudUnit, MatchHud } from './match/hudLayout';
 import { LaunchMode } from './match/launchMode';
 import type { MatchModeHooks } from './match/mode';
 import { PauseMenu } from './match/pauseMenu';
+import { ReplayControls } from './match/replayControls';
 import { prepareSkins, resolveMatchSetup, type MatchSetup } from './match/setup';
 import { createMatchState, type MatchState } from './match/state';
 import { TargetsMode } from './match/targetsMode';
@@ -78,8 +81,12 @@ export class MatchScene extends Phaser.Scene {
   labels: string[] = [];
   /** Texture id per fighter (its palette). */
   skins: string[] = [];
-  /** Recording of the live match (versus only). */
+  /** Recording of the live match (versus, arcade, challenges). */
   recorder: ReplayRecorder | null = null;
+  /** Per-match numbers for the results (ultimate KOs, ledge grabs, the biggest launch), counted from world events. */
+  tally!: MatchTally;
+  /** Watching a replay: pause, 2x speed and the exit prompt (null in a live match). */
+  replayCtl: ReplayControls | null = null;
   ctl!: MatchControllers;
   hud!: MatchHud;
   pauseUi!: PauseMenu;
@@ -231,6 +238,8 @@ export class MatchScene extends Phaser.Scene {
     this.slots = setup.slots;
     this.runner = new MatchRunner(setup.runner);
     this.st = createMatchState(this.fighters.length);
+    this.tally = new MatchTally(this.fighters.length);
+    this.replayCtl = null;
     this.recorder = setup.recorder;
     this.ctl = new MatchControllers(this.slots, this.runner, { replay: !!rep, isTraining: setup.isTraining, isLaunch: setup.isLaunch });
     this.mode = this.runner.launch ? new LaunchMode(this, this.runner.launch) : this.runner.isTargets ? new TargetsMode(this) : null;
@@ -267,15 +276,24 @@ export class MatchScene extends Phaser.Scene {
     const wants = this.fighters.map((f, i) => ({ data: f.data, palette: palettes[i] }));
     this.events.once('shutdown', () => this.runId++);
     let loading: Phaser.GameObjects.BitmapText | null = null;
-    const ready = prepareSkins(
+    // the stage's art is built lazily (art workers): the match waits for it here, behind the same LOADING card
+    const artReady = stageArtReady(this, stage);
+    const art = artReady ? null : ensureStageArt(this, stage);
+    let ready = prepareSkins(
       this,
       wants,
       (skins) => {
-        loading?.destroy();
-        this.build(skins, palettes);
+        const go = (): void => {
+          if (run !== this.runId) return;
+          loading?.destroy();
+          this.build(skins, palettes);
+        };
+        if (art) void art.then(go);
+        else go();
       },
       () => run === this.runId,
     );
+    if (art) ready = false;
     if (!ready) {
       loading = this.add.bitmapText(w / 2, h / 2, PIXEL_FONT, 'LOADING').setOrigin(0.5).setScale(hudUnit(h) * 2).setTint(0xb8b0e8);
       this.uiLayer.add(loading);
@@ -346,7 +364,7 @@ export class MatchScene extends Phaser.Scene {
       const lad = session.mode === 'arcade' ? session.ladder : null;
       const fight = lad ? currentFight(lad) : null;
       const chal = setup.chal;
-      const head = rep ? 'REPLAY\nESC: EXIT' : fight ? `FIGHT ${fight.index + 1}\n${fight.title}` : this.mode ? this.mode.intro : chal ? `CHALLENGE\n${chal.title}` : session.demo ? 'DEMO PLAY' : 'READY?';
+      const head = rep ? 'REPLAY' : fight ? `FIGHT ${fight.index + 1}\n${fight.title}` : this.mode ? this.mode.intro : chal ? `CHALLENGE\n${chal.title}` : session.demo ? 'DEMO PLAY' : 'READY?';
       this.countdownSeq.begin(up(head));
     }
 
@@ -383,6 +401,7 @@ export class MatchScene extends Phaser.Scene {
     });
     // views hear about world events after the runner has applied the rules (a KO is scored before its blast is drawn)
     this.runner.subscribe((type, f, x, y, mag, extra, tag) => {
+      this.tally.onEvent(type, f, extra, this.fighters, this.world.cinematic?.attacker.id ?? -1);
       this.trainer.onEvent(type, f, x, y, mag, extra);
       // the boss's last stock: its power-down sting (before the KO is drawn, so the finale freeze plays over it)
       if (type === 'ko' && this.slots[f.id]?.boss && this.flow.endsMatch(f)) music.sting('overseerDown');
@@ -403,6 +422,10 @@ export class MatchScene extends Phaser.Scene {
     // the Overseer's enraged sheet is built in the background from the start, ready for phase 2
     this.phase2 = this.fighters.map(() => 0);
     if (this.slots.some((sl) => sl.boss)) requestOverseerPhase2(this).catch((err: unknown) => console.warn('[boss] phase-2 sheet failed', err));
+    if (rep) {
+      this.replayCtl = new ReplayControls(this);
+      this.replayCtl.layout(w, h);
+    }
     this.built = true;
   }
 
@@ -427,6 +450,8 @@ export class MatchScene extends Phaser.Scene {
     this.pauseUi.onConnections(this.ctl.checkConnections((msg) => this.hud.showToast(msg)));
 
     st.stepsLastFrame = 0;
+    const rc = this.replayCtl;
+    if (rc && rc.poll()) return; // left the replay
     if (st.paused) {
       this.pauseUi.update(now);
     } else if (st.stepMode) {
@@ -436,9 +461,11 @@ export class MatchScene extends Phaser.Scene {
         st.stepsLastFrame = 1;
       }
       inputManager.endTick();
+    } else if (rc?.paused) {
+      this.ts.reset(); // a paused replay holds the picture (and does not catch up on resume)
     } else if (!this.flow.holdSim(frameMs)) {
       const s0 = performance.now();
-      st.stepsLastFrame = this.ts.advance(st.slowMo ? frameMs * 0.25 : frameMs * st.timeScale, () => this.tick());
+      st.stepsLastFrame = this.ts.advance((st.slowMo ? frameMs * 0.25 : frameMs * st.timeScale) * (rc?.speed ?? 1), () => this.tick());
       this.simMs += (performance.now() - s0 - this.simMs) * 0.05;
     }
     this.render(frameMs);
@@ -478,10 +505,12 @@ export class MatchScene extends Phaser.Scene {
 
     // ...but the CPUs (and their RNG), the training scenario and queued training actions only run on ticks that step the world
     if (!rp) this.ctl.updateControllers(this.fighters, this.world);
+    else this.ctl.updateReplayShadows(this.fighters, this.world);
     this.trainer.beforeStep(this.ctl.inputs);
     this.recorder?.record(this.ctl.inputs);
     this.mode?.beforeStep?.();
     this.runner.step(this.ctl.inputs);
+    this.tally.step(this.fighters);
     inputManager.endTick();
     this.mode?.afterStep?.();
     this.flow.afterStep();
@@ -542,6 +571,7 @@ export class MatchScene extends Phaser.Scene {
     this.perf.update(frameMs, () => `${this.scale.width}x${this.scale.height} @${canvasDpr(this).toFixed(1)}x  z${zoom.toFixed(2)}  ${st.stepsLastFrame}/f  sim ${this.simMs.toFixed(2)}ms  frame-js ${this.updMs.toFixed(2)}ms  1%low ${this.perf.lowFps.toFixed(0)}`);
     this.hud.updateFx(frameMs, view);
     this.hud.updateToast();
+    this.replayCtl?.update();
   }
 
   /** The boss enters its second phase (once): the phase-2 music and call, and its enraged sheet once that is built. */
@@ -572,10 +602,7 @@ export class MatchScene extends Phaser.Scene {
   // ---------------------------------------------------------------------------------------------
   private onKey(code: string, e?: KeyboardEvent): void {
     if (!this.built) return;
-    if (this.replay && !this.st.paused && (code === 'Escape' || code === 'Enter' || code === 'Space')) {
-      this.flow.toResults();
-      return;
-    }
+    if (this.replay) return; // the replay's controls read the menu input (keys, pads and touch alike): see ReplayControls
     if (this.st.paused) return;
     // the dev hotkeys (1 debug, T tap-jump, F fullscreen, ` perf, H key list) belong to Training: in a match those keys may be
     // a player's controls, so there they need Ctrl or Alt held
@@ -598,5 +625,6 @@ export class MatchScene extends Phaser.Scene {
     this.debug.layout(w, m);
     this.hud.layout(w, h);
     this.pauseUi.layout(w, h, hudUnit(h));
+    this.replayCtl?.layout(w, h);
   }
 }

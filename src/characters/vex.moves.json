@@ -93,7 +93,8 @@
      "scaling": 0.1,
      "minHitstun": 14,
      "hitlag": 0.7,
-     "fx": "slash"
+     "fx": "slash",
+     "setKb": 14
     }
    ],
    "pose": {
@@ -165,7 +166,8 @@
      "scaling": 0.1,
      "minHitstun": 14,
      "hitlag": 0.7,
-     "fx": "slash"
+     "fx": "slash",
+     "setKb": 14
     }
    ],
    "pose": {
@@ -230,7 +232,8 @@
      "scaling": 0.1,
      "minHitstun": 14,
      "hitlag": 0.7,
-     "fx": "slash"
+     "fx": "slash",
+     "setKb": 14
     }
    ],
    "pose": {
@@ -292,7 +295,8 @@
      "scaling": 0.1,
      "minHitstun": 14,
      "hitlag": 0.7,
-     "fx": "slash"
+     "fx": "slash",
+     "setKb": 14
     }
    ],
    "pose": {
@@ -611,7 +615,8 @@
      ],
      "group": 0,
      "minHitstun": 22,
-     "fx": "slash"
+     "fx": "slash",
+     "setKb": 20
     },
     {
      "x": 24,
@@ -831,7 +836,8 @@
      "dir": "away",
      "minHitstun": 8,
      "hitlag": 0.6,
-     "fx": "slash"
+     "fx": "slash",
+     "setKb": 14
     }
    ],
    "pose": {
@@ -1370,7 +1376,7 @@
    "motion": [
     {
      "frame": 4,
-     "vx": 6.0
+     "vx": 6
     }
    ],
    "hitboxes": [

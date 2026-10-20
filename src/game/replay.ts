@@ -7,6 +7,18 @@ export interface ReplayPlayer {
   palette?: number;
   /** Who played the slot (for the P1 / CPU labels when it is watched back). */
   type?: 'human' | 'cpu';
+  /** Starting stocks when the slot had its own (arcade handicaps, the boss, challenges). */
+  stocks?: number;
+  /** The slot was the boss (its music, label and phase-2 look on playback). */
+  boss?: boolean;
+}
+
+/** The modes whose matches are recorded (the last one is kept in memory for WATCH REPLAY / the replay vault). */
+export type ReplayMode = 'versus' | 'arcade' | 'challenge';
+
+/** Is a match of this mode recorded? (Training, Target Smash, Launch Contest and the attract demo are not.) */
+export function recordsReplay(mode: string, demo = false): mode is ReplayMode {
+  return !demo && (mode === 'versus' || mode === 'arcade' || mode === 'challenge');
 }
 
 /**
@@ -14,6 +26,8 @@ export interface ReplayPlayer {
  * `src/engine`, seeded item drops), so feeding the same inputs into the same setup reproduces the match exactly.
  */
 export interface Replay {
+  /** The mode it was played in (absent: versus, older recordings). */
+  mode?: ReplayMode;
   stage: string;
   rules: MatchRules;
   players: ReplayPlayer[];
@@ -36,6 +50,7 @@ export class ReplayRecorder {
     private readonly rules: MatchRules,
     private readonly players: ReplayPlayer[],
     private readonly smashFlick: boolean,
+    private readonly mode: ReplayMode = 'versus',
   ) {}
 
   /** Call once per simulation tick, before `world.step`, with the inputs about to be used. */
@@ -49,6 +64,7 @@ export class ReplayRecorder {
 
   finish(): Replay {
     return {
+      mode: this.mode,
       stage: this.stage,
       rules: { ...this.rules },
       players: this.players.map((p) => ({ ...p })),

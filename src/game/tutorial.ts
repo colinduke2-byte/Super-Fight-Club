@@ -1,8 +1,9 @@
 import type Phaser from 'phaser';
 import type { Fighter } from '../engine/fighter';
 import type { World, WorldEventType } from '../engine/world';
-import { MergedDevice } from '../input/device';
+import { MergedDevice, type InputDevice } from '../input/device';
 import { inputManager } from '../input/inputManager';
+import { lastInput } from '../input/lastDevice';
 import { promptFor } from '../input/prompts';
 import { session } from './session';
 
@@ -14,8 +15,8 @@ import { session } from './session';
 export interface Lesson {
   id: string;
   title: string;
-  /** Goal text (built when shown, so the prompts follow the device in use). */
-  goal: () => string;
+  /** Goal text for the player's device (built when shown, so the prompts follow the device in use; none: the last one used). */
+  goal: (device?: InputDevice | null) => string;
   /** How many times the goal has to happen. */
   count: number;
   /** Dummy behaviour for this lesson. */
@@ -26,17 +27,33 @@ export interface Lesson {
   offstage?: boolean;
 }
 
-const P = (a: Parameters<typeof promptFor>[0]): string => promptFor(a);
+type Act = Parameters<typeof promptFor>[0];
+
+/** What kind of controls `device` has (a merged keyboard + pad device: whichever was used last). */
+export function deviceKind(device?: InputDevice | null): 'keyboard' | 'gamepad' | 'touch' {
+  if (device && device.kind !== 'merged') return device.kind;
+  return lastInput.kind;
+}
+
+/** Prompt words for one device: keys / buttons by name, and directions as the player would say them. */
+function words(d?: InputDevice | null) {
+  const kind = deviceKind(d);
+  const P = (a: Act): string => promptFor(a, d);
+  // keyboard: the actual keys ("A / D"); pads and touch: the stick
+  const sides = kind === 'keyboard' ? `${P('left')} / ${P('right')}` : 'THE STICK LEFT / RIGHT';
+  const up = kind === 'keyboard' ? P('up') : 'UP';
+  return { P, kind, sides, up };
+}
 
 export const LESSONS: Lesson[] = [
-  { id: 'move', title: 'MOVE', goal: () => `RUN TO BOTH EDGES OF THE STAGE  (${P('left')} / ${P('right')})`, count: 2, dummy: 'stand', dummyPercent: 0 },
-  { id: 'jump', title: 'JUMP', goal: () => `PRESS ${P('jump')} TO JUMP, THEN ${P('jump')} AGAIN IN THE AIR TO DOUBLE JUMP`, count: 2, dummy: 'stand', dummyPercent: 0 },
-  { id: 'attack', title: 'ATTACK', goal: () => `HIT THE DUMMY 3 TIMES WITH ${P('attack')}  (HOLD A DIRECTION FOR OTHER MOVES)`, count: 3, dummy: 'stand', dummyPercent: 0 },
-  { id: 'special', title: 'SPECIALS', goal: () => `USE 2 DIFFERENT SPECIALS: ${P('special')}, AND ${P('special')} + A DIRECTION`, count: 2, dummy: 'stand', dummyPercent: 0 },
-  { id: 'shield', title: 'SHIELD', goal: () => `HOLD ${P('shield')} TO BLOCK 2 OF THE DUMMY'S ATTACKS`, count: 2, dummy: 'jab', dummyPercent: 0 },
-  { id: 'grab', title: 'GRAB AND THROW', goal: () => `GET CLOSE, GRAB WITH ${P('grab')}, THEN TILT ${P('left')} / ${P('right')} / ${P('up')} / ${P('down')} TO THROW`, count: 1, dummy: 'stand', dummyPercent: 0 },
-  { id: 'recover', title: 'RECOVER', goal: () => `GET BACK: DOUBLE JUMP, THEN ${P('special')} + ${P('up')} TO REACH THE LEDGE`, count: 1, dummy: 'stand', dummyPercent: 0, offstage: true },
-  { id: 'ko', title: 'KNOCK OUT', goal: () => `THE DUMMY IS AT 150%: LAUNCH IT OFF THE SCREEN! (${P('smash')} OR A FLICK + ${P('attack')} FOR A SMASH)`, count: 1, dummy: 'stand', dummyPercent: 150 },
+  { id: 'move', title: 'MOVE', goal: (d) => `RUN TO BOTH EDGES OF THE STAGE  (${words(d).sides})`, count: 2, dummy: 'stand', dummyPercent: 0 },
+  { id: 'jump', title: 'JUMP', goal: (d) => { const { P } = words(d); return `PRESS ${P('jump')} TO JUMP, THEN ${P('jump')} AGAIN IN THE AIR TO DOUBLE JUMP`; }, count: 2, dummy: 'stand', dummyPercent: 0 },
+  { id: 'attack', title: 'ATTACK', goal: (d) => `HIT THE DUMMY 3 TIMES WITH ${words(d).P('attack')}  (HOLD A DIRECTION FOR OTHER MOVES)`, count: 3, dummy: 'stand', dummyPercent: 0 },
+  { id: 'special', title: 'SPECIALS', goal: (d) => { const { P } = words(d); return `USE 2 DIFFERENT SPECIALS: ${P('special')}, AND ${P('special')} + A DIRECTION`; }, count: 2, dummy: 'stand', dummyPercent: 0 },
+  { id: 'shield', title: 'SHIELD', goal: (d) => `HOLD ${words(d).P('shield')} TO BLOCK 2 OF THE DUMMY'S ATTACKS`, count: 2, dummy: 'jab', dummyPercent: 0 },
+  { id: 'grab', title: 'GRAB AND THROW', goal: (d) => `GET CLOSE, GRAB WITH ${words(d).P('grab')}, THEN PUSH ANY DIRECTION TO THROW`, count: 1, dummy: 'stand', dummyPercent: 0 },
+  { id: 'recover', title: 'RECOVER', goal: (d) => { const { P, up } = words(d); return `GET BACK: DOUBLE JUMP, THEN ${P('special')} + ${up} TO REACH THE LEDGE`; }, count: 1, dummy: 'stand', dummyPercent: 0, offstage: true },
+  { id: 'ko', title: 'KNOCK OUT', goal: (d) => { const { P } = words(d); return `THE DUMMY IS AT 150%: LAUNCH IT OFF THE SCREEN! (${P('smash')} OR A FLICK + ${P('attack')} FOR A SMASH)`; }, count: 1, dummy: 'stand', dummyPercent: 150 },
 ];
 
 /** Drives the lessons: setup, event checks, progress. Pure enough to run headless in tests. */
@@ -235,21 +252,28 @@ export function tutorialReturnScene(): string {
 }
 
 /**
- * Starts the tutorial from any scene: a training match on the sandbox (P1 = keyboard + any pad) with the lesson overlay.
- * `back` is the scene to return to when it ends or is quit from its menu.
+ * Starts the tutorial from any scene: a training match on the sandbox with the lesson overlay. Player 1 plays on `device`
+ * (the one that chose the tutorial) when it is a pad or the touch controls; otherwise on keyboard 1 plus any pad, or on
+ * the touch controls when a finger was the last thing used. `back` is the scene to return to when it ends or is quit.
  */
-export function startTutorial(scene: Phaser.Scene, back = 'ModeSelect', character?: string): void {
+export function startTutorial(scene: Phaser.Scene, back = 'ModeSelect', character?: string, device?: InputDevice | null): void {
   pending = true;
   returnTo = back;
   markTutorialOffered();
   inputManager.init();
-  const device = session.players.find((p) => p.type === 'human')?.device ?? new MergedDevice('p1', 'Keyboard + Gamepad', () => [inputManager.keyboards[0], ...inputManager.padList]);
+  const touch = inputManager.touch;
+  const dev =
+    device && (device.kind === 'gamepad' || device.kind === 'touch')
+      ? device
+      : !device && (lastInput.kind === 'touch' || touch.recentTouch())
+        ? touch
+        : new MergedDevice('p1', 'Keyboard + Gamepad', () => [inputManager.keyboards[0], ...inputManager.padList]);
   const char = character ?? session.players.find((p) => p.type === 'human')?.character ?? 'brick';
   session.mode = 'training';
   session.stage = 'sandbox';
   session.players = [
-    { index: 0, type: 'human', device, character: char, cpuLevel: 1 },
-    { index: 1, type: 'cpu', device: null, character: char === 'vex' ? 'nova' : 'vex', cpuLevel: 1 } // a light dummy (Brick's armour would shrug off light jabs),
+    { index: 0, type: 'human', device: dev, character: char, cpuLevel: 1 },
+    { index: 1, type: 'cpu', device: null, character: char === 'vex' ? 'nova' : 'vex', cpuLevel: 1 }, // a light dummy (Brick's armour would shrug off light jabs)
   ];
   scene.scene.start('Match');
 }

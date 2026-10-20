@@ -26,8 +26,8 @@ function rig(gap = 40) {
 }
 
 describe('Rime', () => {
-  it('is the lightest, fastest fighter with two double jumps and a wall jump', () => {
-    expect(rime.stats.weight).toBeLessThan(85);
+  it('is one of the lightest, the fastest fighter, with two double jumps and a wall jump', () => {
+    expect(rime.stats.weight).toBeLessThanOrEqual(90);
     expect(rime.stats.runSpeed).toBeGreaterThanOrEqual(3.2);
     expect(rime.stats.doubleJumps).toBe(2);
     expect(rime.wallJump).toBe(true);

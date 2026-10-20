@@ -224,6 +224,7 @@ function applyHit(world: World, c: Candidate): void {
     def.facing = (-atk.facing) as 1 | -1;
     world.emit('grab', def, def.x, midY, 0, 0);
     atk.data.behavior?.onGrab?.(atk, def, world);
+    atk.grabMove = move.id;
     if (hb.thenMove) atk.startMove(hb.thenMove, null, world); // command grab: slam straight away
     return;
   }
@@ -236,6 +237,7 @@ function applyHit(world: World, c: Candidate): void {
     const direction: 1 | -1 = hb.dir === 'away' ? away : atk.facing;
     def.releaseGrab();
     def.grabbedBy = -1;
+    def.lastHitMove = move.hidden && atk.grabMove ? atk.grabMove : move.id; // a command grab's own slam counts as the grab
     def.receiveHit({ damage: c.damage, base: hb.base, scaling: hb.scaling, angle: hb.angle, direction, moveWeight: hb.weight, hitlag: 0, attackerId: atk.id, kbMult }, world);
     def.lastHitFx = hb.fx ?? '';
     atk.grabTarget = -1;
@@ -269,6 +271,8 @@ export interface HitDelivery {
   freezeOwner?: boolean;
   /** World rect [x, y, w, h] of the hitting box. When given, a shield only blocks the hit if the box touches the bubble. */
   rect?: readonly number[];
+  /** Move the hit is credited to (default: the attacker's current move; projectiles pass the move that fired them). */
+  source?: string;
 }
 
 /** Does the hit rect touch the defender's shield bubble (the circle the view draws: body centre, `shieldRadius`)? */
@@ -365,13 +369,14 @@ export function deliverHit(world: World, d: HitDelivery): void {
   }
 
   // --- clean hit ---
+  def.lastHitMove = d.source ?? (d.freezeOwner === false ? '' : (atk?.move?.id ?? ''));
   // momentum: a body moving into its own melee hit (a dash attack, a drifting aerial) carries part of its speed into the launch
   let carryVx = 0;
   if (atk && d.freezeOwner !== false && atk.vx * direction > MOMENTUM_MIN) {
     carryVx = Math.min(MOMENTUM_MAX, (atk.vx * direction - MOMENTUM_MIN) * MOMENTUM_CARRY) * direction;
   }
   def.receiveHit(
-    { damage: d.damage, base: hb.base, scaling: hb.scaling, angle: hb.angle, direction, moveWeight: hb.weight, hitlag: hl, minHitstun: hb.minHitstun, kbMult: d.kbMult, attackerId: d.ownerId, carryVx },
+    { damage: d.damage, base: hb.base, scaling: hb.scaling, angle: hb.angle, direction, moveWeight: hb.weight, hitlag: hl, minHitstun: hb.minHitstun, setKb: hb.setKb, kbMult: d.kbMult, attackerId: d.ownerId, carryVx: hb.setKb !== undefined ? 0 : carryVx },
     world,
   );
   def.lastHitFx = hb.fx ?? '';

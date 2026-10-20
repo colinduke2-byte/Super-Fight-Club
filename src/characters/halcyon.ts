@@ -39,7 +39,7 @@ function halcyonAnimations(): CharacterData['sprite']['animations'] {
 }
 
 /**
- * Halcyon: a storm-winged lancer. A long spear (sweet-spotted at the tip) and wings: three air flaps and a held-Jump glide.
+ * Halcyon: a storm-winged lancer. A long spear (sweet-spotted at the tip) and wings: two air flaps and a held-Jump glide.
  * GALE builds in the air and from landing hits; spend it on the Javelin volley, or ride it for a little extra speed.
  */
 export const halcyon: CharacterData = {
@@ -63,14 +63,14 @@ export const halcyon: CharacterData = {
     groundAccel: 0.3,
     groundFriction: 0.32,
     airAccel: 0.2,
-    airFriction: 0.05,
+    airFriction: 0.06,
     gravity: 0.4,
     fallSpeed: 5.4,
     fastFallSpeed: 8.6,
     jumpHeight: 64,
     shortHopHeight: 30,
     doubleJumpHeight: 38,
-    doubleJumps: 3,
+    doubleJumps: 2,
     jumpsquatFrames: 4,
   },
   body: { width: 16, height: 29, footHalfWidth: 5 },

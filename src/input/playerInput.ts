@@ -3,6 +3,9 @@ import { makeRaw, type InputDevice, type RawInput } from './device';
 import { settings } from '../settings';
 import { notePad } from './lastDevice';
 
+/** performance.now() of the last time a match read a player's device: "a human is fighting right now" (rotate prompt). */
+export const fightActivity = { at: -1e9 };
+
 const TAP_UP_THRESHOLD = -0.7;
 const TAP_UP_RELEASE = -0.4;
 
@@ -26,6 +29,7 @@ export class PlayerInput {
     const raw = this.raw;
     const d = this.device;
     d.use?.('fight');
+    fightActivity.at = typeof performance !== 'undefined' ? performance.now() : 0;
     d.sample(raw);
     if (raw.held !== 0 && d.kind === 'gamepad') notePad((d as { padId?: string }).padId ?? '');
     let held = raw.held;

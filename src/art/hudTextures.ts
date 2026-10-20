@@ -1,5 +1,5 @@
 import Phaser from 'phaser';
-import { addCanvasTexture } from './canvasTexture';
+import { addCanvasTexture, context2dOrBlank } from './canvasTexture';
 
 function px(g: CanvasRenderingContext2D, c: string, x: number, y: number, w = 1, h = 1): void {
   g.fillStyle = c;
@@ -13,7 +13,7 @@ export function buildHudTextures(scene: Phaser.Scene): void {
   const c = document.createElement('canvas');
   c.width = W;
   c.height = H;
-  const g = c.getContext('2d')!;
+  const g = context2dOrBlank(c);
   // body
   px(g, '#171528', 0, 0, W, H);
   px(g, '#24213d', 1, 1, W - 2, H - 2);

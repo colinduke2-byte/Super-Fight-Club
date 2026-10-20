@@ -10,6 +10,18 @@ export type ItemKind = 'heal' | 'cell' | 'boost' | 'bomb' | 'aegis' | 'sword' | 
 export const ITEM_KINDS: ItemKind[] = ['heal', 'cell', 'boost', 'bomb', 'aegis', 'sword', 'raygun', 'crate', 'core'];
 /** Carried in hand (the `heldBomb` path): Attack uses them instead of the fighter's own attacks. */
 export const HELD_KINDS: ReadonlySet<ItemKind> = new Set(['bomb', 'sword', 'raygun']);
+/**
+ * Picking items up. Carried items (HELD_KINDS) are picked up by pressing Attack or Grab while the fighter's hurtbox, grown
+ * by PICKUP_REACH px, touches the item (on the ground or in the air, empty-handed, able to act): see `itemInReach` /
+ * `pickUpItem`. Instant-use items (AUTO_PICKUP_KINDS: the Med-Kit, Energy Cell, Overdrive, Aegis Prism and Core
+ * Fragment) still apply on touch.
+ */
+export const PICKUP_REACH = 6;
+export const AUTO_PICKUP_KINDS: ReadonlySet<ItemKind> = new Set(['heal', 'cell', 'boost', 'aegis', 'core']);
+/** Core Fragment: ultimate meter added (a big chunk, not a full bar). */
+export const CORE_METER = 50;
+/** Live items at once (spawns wait while this many are out). */
+export const MAX_LIVE_ITEMS = 3;
 /** Aegis Prism: frames of invincibility, lost early the moment its holder lands a hit. */
 export const AEGIS_FRAMES = 180;
 /** Energy Cell: ultimate meter added. */
@@ -20,11 +32,11 @@ export const BOMB = { fuse: 150, speed: 6.2, lift: -3.2, upSpeed: -8.5, gravity:
  * Beam Sword: Attack swings it with the fighter's own tilt / aerial animation (so every swing has that move's startup and
  * recovery), but the hit is the blade's: longer reach, one hit per swing. It burns out after `swings`.
  */
-export const SWORD = { swings: 10, reach: 42, damage: 10, base: 32, scaling: 0.78, angle: 40, hitlag: 1.1 };
+export const SWORD = { swings: 10, reach: 42, damage: 7, base: 30, scaling: 0.72, angle: 40, hitlag: 1.1 };
 /** Ray Gun: Attack fires a straight laser (reflectable); a short cooldown, `shots` shots, then the next Attack tosses it. */
 export const RAYGUN = { shots: 7, cooldown: 26, speed: 8.5, recoil: 0.7 };
 /** Crate: attacks chip it (`hp` damage); a plain one spills 1-2 items, a hazard-striped one primes and blows after `fuse`. */
-export const CRATE = { hp: 18, hw: 10, h: 18, volatileChance: 0.35, fuse: 40, radius: 46, damage: 16, base: 46, scaling: 0.9, angle: 60, hitCd: 10 };
+export const CRATE = { hp: 18, hw: 10, h: 18, volatileChance: 0.35, fuse: 40, radius: 46, damage: 16, base: 44, scaling: 0.8, angle: 60, hitCd: 10 };
 /** Spawn odds (relative weights). Crates never drop crates. */
 const SPAWN_WEIGHTS: readonly (readonly [ItemKind, number])[] = [
   ['heal', 20],
@@ -35,7 +47,7 @@ const SPAWN_WEIGHTS: readonly (readonly [ItemKind, number])[] = [
   ['sword', 9],
   ['raygun', 9],
   ['crate', 15],
-  ['core', 4],
+  ['core', 2],
 ];
 const LIFE = 720;
 const HALF = 7;
@@ -169,12 +181,12 @@ export function heldItem(world: World, id: number): ItemKind | null {
   return heldState(world, id).kind ?? 'bomb';
 }
 
-/** Med-Kit -25%, Energy Cell +25 meter, Overdrive 10 s of +30% damage, Aegis Prism 3 s invincibility (lost on landing a hit), Core Fragment fills the meter. */
+/** Med-Kit -25%, Energy Cell +25 meter, Overdrive 10 s of +30% damage, Aegis Prism 3 s invincibility (lost on landing a hit), Core Fragment +50 meter. */
 export function applyItem(world: World, kind: ItemKind, fighterId: number): void {
   const f = world.fighters[fighterId];
   if (kind === 'heal') f.damage = Math.max(0, f.damage - 25);
   else if (kind === 'cell') f.addMeterRaw(CELL_METER, world);
-  else if (kind === 'core') f.addMeterRaw(1e6, world);
+  else if (kind === 'core') f.addMeterRaw(CORE_METER, world);
   else if (kind === 'aegis') {
     f.invuln = Math.max(f.invuln, AEGIS_FRAMES);
     f.aegisFrames = AEGIS_FRAMES;
@@ -244,6 +256,8 @@ function spawnWeight(world: World, p: import('./platform').Platform): number {
 }
 
 function safeSpot(world: World, plat: import('./platform').Platform, x: number): boolean {
+  // spread out: not right next to an item already lying there
+  for (const it of world.items) if (it.active && it.age > 0 && Math.abs(it.x - x) < 60 && Math.abs(it.y - (plat.top - HALF)) < 40) return false;
   for (const hz of world.stage.hazards ?? []) {
     if (hz.kind === 'avalanche') continue;
     if (Math.abs(x - hz.x) < hz.w / 2 + 14) return false;
@@ -256,13 +270,22 @@ function safeSpot(world: World, plat: import('./platform').Platform, x: number):
   return true;
 }
 
+/** Next spawn attempt per world: the interval for the item setting, varied +-25% so drops do not arrive like a metronome. */
+const NEXT_SPAWN = new WeakMap<World, number>();
+
 export function stepItems(world: World): void {
   const rate = world.config.itemRate;
   const items = world.items;
-  if (rate > 0 && world.tick % ITEM_INTERVAL[rate] === 0 && world.tick > 0) {
+  let next = NEXT_SPAWN.get(world);
+  if (rate > 0 && (next === undefined || next < world.tick - ITEM_INTERVAL[rate] * 2)) {
+    next = world.tick - (world.tick % ITEM_INTERVAL[rate]) + ITEM_INTERVAL[rate];
+    NEXT_SPAWN.set(world, next);
+  }
+  if (rate > 0 && next !== undefined && world.tick >= next && world.tick > 0) {
+    NEXT_SPAWN.set(world, world.tick + Math.round(ITEM_INTERVAL[rate] * (0.75 + rnd(world) * 0.5)));
     let live = 0;
     for (const it of items) if (it.active) live++;
-    if (live < 2) {
+    if (live < MAX_LIVE_ITEMS) {
       const slot = items.find((it) => !it.active);
       const kind = slot ? rollKind(world, false) : null;
       if (slot && kind) {
@@ -307,29 +330,61 @@ export function stepItems(world: World): void {
       bumpFighters(world, it);
       continue;
     }
-    if (bumpFighters(world, it) || it.pickDelay > 0) continue;
+    if (bumpFighters(world, it) || it.pickDelay > 0 || !AUTO_PICKUP_KINDS.has(it.kind)) continue;
+    // instant-use items apply on touch; carried ones wait for an Attack / Grab press (pickUpItem)
     for (const f of world.fighters) {
-      if (f.state === 'ko') continue;
-      hurtRect(f, r);
-      if (it.x + HALF > r[0] && it.x - HALF < r[0] + r[2] && it.y + HALF > r[1] && it.y - HALF < r[1] + r[3]) {
-        if (f.id === it.knockedBy && it.knockGrace > 0) continue; // just batted it away
-        const h = heldState(world, f.id);
-        if (HELD_KINDS.has(it.kind)) {
-          if (f.heldBomb || f.state === 'grabbed') continue; // one at a time
-          f.heldBomb = true;
-          h.kind = it.kind;
-          h.uses = it.kind === 'sword' ? SWORD.swings : it.kind === 'raygun' ? RAYGUN.shots : 0;
-          h.cd = 0;
-          h.swing = null;
-        } else applyItem(world, it.kind, f.id);
-        it.active = false;
-        h.popKind = it.kind;
-        h.popTick = world.tick;
-        world.emit('itemPickup', f, it.x, it.y, ITEM_KINDS.indexOf(it.kind), 0);
-        break;
-      }
+      if (f.state === 'ko' || !touches(f, it, 0)) continue;
+      if (f.id === it.knockedBy && it.knockGrace > 0) continue; // just batted it away
+      takeItem(world, f, it);
+      break;
     }
   }
+}
+
+function touches(f: Fighter, it: Item, grow: number): boolean {
+  hurtRect(f, r);
+  return it.x + HALF > r[0] - grow && it.x - HALF < r[0] + r[2] + grow && it.y + HALF > r[1] - grow && it.y - HALF < r[1] + r[3] + grow;
+}
+
+function takeItem(world: World, f: Fighter, it: Item): void {
+  const h = heldState(world, f.id);
+  if (HELD_KINDS.has(it.kind)) {
+    f.heldBomb = true;
+    h.kind = it.kind;
+    h.uses = it.kind === 'sword' ? SWORD.swings : it.kind === 'raygun' ? RAYGUN.shots : 0;
+    h.cd = 0;
+    h.swing = null;
+  } else applyItem(world, it.kind, f.id);
+  it.active = false;
+  h.popKind = it.kind;
+  h.popTick = world.tick;
+  world.emit('itemPickup', f, it.x, it.y, ITEM_KINDS.indexOf(it.kind), 0);
+}
+
+/**
+ * The carried item fighter `id` could pick up right now with an Attack or Grab press (its hurtbox grown by PICKUP_REACH
+ * touches it, it is empty-handed and the item is free: not thrown, primed, spent, a crate or just batted away by it), the
+ * nearest one if several; null if none. The CPU can use this to decide when to press.
+ */
+export function itemInReach(world: World, id: number): Item | null {
+  const f = world.fighters[id];
+  if (!f || f.heldBomb || f.state === 'ko' || f.state === 'grabbed') return null;
+  let best: Item | null = null;
+  for (const it of world.items) {
+    if (!it.active || !HELD_KINDS.has(it.kind) || it.thrown || it.primed || it.spent || it.pickDelay > 0) continue;
+    if (f.id === it.knockedBy && it.knockGrace > 0) continue;
+    if (!touches(f, it, PICKUP_REACH)) continue;
+    if (!best || Math.abs(it.x - f.x) < Math.abs(best.x - f.x)) best = it;
+  }
+  return best;
+}
+
+/** Pick up the item in reach (see itemInReach). Called by the fighter on an Attack / Grab press; true if it took one. */
+export function pickUpItem(world: World, id: number): boolean {
+  const it = itemInReach(world, id);
+  if (!it) return false;
+  takeItem(world, world.fighters[id], it);
+  return true;
 }
 
 /** Per fighter: forget items no longer in hand, run Beam Sword swings and Ray Gun cooldowns, strip an Aegis whose holder landed a hit. */

@@ -62,6 +62,12 @@ export interface LevelParams {
   mistakes: number;
   /** Uses grabs, platforms, aerial approaches and stage hazards smartly. */
   smart: boolean;
+  /**
+   * 0..1 how much of the time the CPU plays `smart` / `edgeguard` (rolled every couple of seconds by each controller), so the
+   * step from a plain CPU to a smart one is graded across skills 1..5 instead of switching on at once.
+   */
+  smartness: number;
+  edgeguardRate: number;
   /** 0..1 how well it values items (heals at high percent, bombs thrown from the air). */
   itemSense: number;
 }
@@ -70,9 +76,9 @@ type NumKey = { [K in keyof LevelParams]: LevelParams[K] extends number ? K : ne
 
 /** Anchor skills: 1 (old Easy), 5 (Normal), 9 (Hard). Everything in between is interpolated. */
 const ANCHORS: Record<1 | 5 | 9, LevelParams> = {
-  1: { name: 'EASY', thinkEvery: 22, reaction: 24, defend: 0.25, perfectShield: 0, tech: 0, di: 0, sdi: 0, survivalDi: 0, recovery: 0.7, recoveryMix: 0, edgeguard: false, edgeguardLeap: 0, ledgeTrap: 0, ledgeMix: 0, aggression: 0.45, punish: 0.15, whiffPunish: 0.05, combo: 0.05, shortHop: 0, juggle: 0, killConfirm: 0, charge: 0, mistakes: 0.22, smart: false, itemSense: 0.2 },
-  5: { name: 'NORMAL', thinkEvery: 8, reaction: 16, defend: 0.55, perfectShield: 0.05, tech: 0.45, di: 0.55, sdi: 0.2, survivalDi: 0.2, recovery: 0.9, recoveryMix: 0.3, edgeguard: true, edgeguardLeap: 0.1, ledgeTrap: 0.2, ledgeMix: 0.35, aggression: 0.6, punish: 0.5, whiffPunish: 0.2, combo: 0.2, shortHop: 0.15, juggle: 0.15, killConfirm: 0.2, charge: 0.4, mistakes: 0.08, smart: true, itemSense: 0.5 },
-  9: { name: 'HARD', thinkEvery: 4, reaction: 12, defend: 0.78, perfectShield: 0.3, tech: 0.9, di: 1, sdi: 0.85, survivalDi: 1, recovery: 1, recoveryMix: 0.85, edgeguard: true, edgeguardLeap: 0.7, ledgeTrap: 0.85, ledgeMix: 0.9, aggression: 0.85, punish: 0.95, whiffPunish: 0.9, combo: 0.9, shortHop: 0.7, juggle: 0.8, killConfirm: 0.95, charge: 0.8, mistakes: 0.01, smart: true, itemSense: 1 },
+  1: { name: 'EASY', thinkEvery: 22, reaction: 24, defend: 0.25, perfectShield: 0, tech: 0, di: 0, sdi: 0, survivalDi: 0, recovery: 0.7, recoveryMix: 0, edgeguard: false, edgeguardRate: 0, edgeguardLeap: 0, ledgeTrap: 0, ledgeMix: 0, aggression: 0.45, punish: 0.15, whiffPunish: 0.05, combo: 0.05, shortHop: 0, juggle: 0, killConfirm: 0, charge: 0, mistakes: 0.22, smart: false, smartness: 0, itemSense: 0.2 },
+  5: { name: 'NORMAL', thinkEvery: 8, reaction: 16, defend: 0.55, perfectShield: 0.05, tech: 0.45, di: 0.55, sdi: 0.2, survivalDi: 0.2, recovery: 0.9, recoveryMix: 0.3, edgeguard: true, edgeguardRate: 1, edgeguardLeap: 0.1, ledgeTrap: 0.2, ledgeMix: 0.35, aggression: 0.6, punish: 0.5, whiffPunish: 0.2, combo: 0.2, shortHop: 0.15, juggle: 0.15, killConfirm: 0.2, charge: 0.4, mistakes: 0.08, smart: true, smartness: 1, itemSense: 0.5 },
+  9: { name: 'HARD', thinkEvery: 4, reaction: 12, defend: 0.78, perfectShield: 0.3, tech: 0.9, di: 1, sdi: 0.85, survivalDi: 1, recovery: 1, recoveryMix: 0.85, edgeguard: true, edgeguardRate: 1, edgeguardLeap: 0.7, ledgeTrap: 0.85, ledgeMix: 0.9, aggression: 0.85, punish: 0.95, whiffPunish: 0.9, combo: 0.9, shortHop: 0.7, juggle: 0.8, killConfirm: 0.95, charge: 0.8, mistakes: 0.01, smart: true, smartness: 1, itemSense: 1 },
 };
 
 const SKILL_NAMES = ['', 'EASY', 'EASY+', 'NOVICE', 'NORMAL-', 'NORMAL', 'NORMAL+', 'SKILLED', 'HARD-', 'HARD'];
@@ -91,7 +97,7 @@ function lerpParams(a: LevelParams, b: LevelParams, t: number, skill: number): L
 }
 
 /** Parameters of every skill 1..9 (index 0 unused). */
-export const SKILLS: readonly LevelParams[] = [ANCHORS[1], ...[1, 2, 3, 4, 5, 6, 7, 8, 9].map((s) => (s === 1 || s === 5 || s === 9 ? ANCHORS[s] : s < 5 ? lerpParams(ANCHORS[1], ANCHORS[5], (s - 1) / 4, s) : lerpParams(ANCHORS[5], ANCHORS[9], (s - 5) / 4, s)))];
+export const SKILLS: readonly LevelParams[] = [ANCHORS[1], ...[1, 2, 3, 4, 5, 6, 7, 8, 9].map((s) => (s === 1 || s === 5 || s === 9 ? ANCHORS[s] : s < 5 ? lerpParams(ANCHORS[1], ANCHORS[5], (s - 1) / 4, s) : lerpParams(ANCHORS[5], ANCHORS[9], Math.pow((s - 5) / 4, 0.6), s)))];
 
 /** The skill a lobby level plays at. */
 export function skillForLevel(level: CpuLevel): CpuSkill {
@@ -131,7 +137,7 @@ export interface CharacterAi {
   recovery: { slot: string; up: number; out: number; aim: 'stick8' | 'tether' | 'fixed' };
   /** Max distance at which the ultimate is used (cinematic grabs need to be close). */
   ultimateRange: number;
-  /** 'hitandrun': prefers quick moves, backs off after each one instead of trading slow smashes (Rime, Vex). */
+  /** 'hitandrun': backs off out of punish range after a move that whiffed (Rime, Vex); smashes and all are still used. */
   style?: 'hitandrun';
   /** Preferred fighting distance (px between centres) when approaching. */
   spacing: number;

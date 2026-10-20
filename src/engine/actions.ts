@@ -160,9 +160,11 @@ export function snapToLedge(f: Fighter, range: number, world: World): boolean {
  */
 function fireTether(f: Fighter, angle: number, range: number, speed: number, grabsOpponents: boolean, world: World, cone: number): void {
   // try the aimed angle first, then fan out either side (a forgiving hook for recoveries)
-  const offsets = [0];
-  for (let c = 10; c <= cone; c += 10) offsets.push(-c, c);
-  for (const off of offsets) if (tryTether(f, angle + off, range, speed, grabsOpponents, world)) return;
+  if (tryTether(f, angle, range, speed, grabsOpponents, world)) return;
+  for (let c = 10; c <= cone; c += 10) {
+    if (tryTether(f, angle - c, range, speed, grabsOpponents, world)) return;
+    if (tryTether(f, angle + c, range, speed, grabsOpponents, world)) return;
+  }
 }
 
 function tryTether(f: Fighter, angle: number, range: number, speed: number, grabsOpponents: boolean, world: World): boolean {
@@ -175,7 +177,8 @@ function tryTether(f: Fighter, angle: number, range: number, speed: number, grab
     const px = ox + dx * d;
     const py = oy + dy * d;
     if (grabsOpponents) {
-      for (const v of world.fighters) {
+      for (let vi = 0; vi < world.fighters.length; vi++) {
+        const v = world.fighters[vi];
         // the same rule as a grab hitbox: fighters in hitstun or hanging on a ledge cannot be grabbed (no hitstun chain-grabs)
         if (v === f || v.state === 'ko' || v.invuln > 0 || v.state === 'grabbed' || v.state === 'hitstun' || v.state === 'ledge' || world.allied(f.id, v.id)) continue;
         hurtRect(v, tmpRect);
@@ -189,15 +192,19 @@ function tryTether(f: Fighter, angle: number, range: number, speed: number, grab
       }
     }
     // a hook passing close to a free ledge corner latches it (forgiving: it need not touch the stage itself)
-    for (const l of world.ledges) {
+    for (let li = 0; li < world.ledges.length; li++) {
+      const l = world.ledges[li];
       if (l.occupant !== -1 && l.occupant !== f.id) continue;
-      if (Math.hypot(l.x - px, l.y - py) <= LEDGE_ATTACH_RADIUS) {
+      const lx = l.x - px;
+      const ly = l.y - py;
+      if (lx * lx + ly * ly <= LEDGE_ATTACH_RADIUS * LEDGE_ATTACH_RADIUS) {
         f.beginTether(l.x, l.y, speed, l, null);
         world.emit('tether', f, l.x, l.y, 0, -1);
         return true;
       }
     }
-    for (const p of world.platforms) {
+    for (let pi = 0; pi < world.platforms.length; pi++) {
+      const p = world.platforms[pi];
       if (px < p.x - 2 || px > p.right + 2 || py < p.top - 2 || py > p.bottom + 2) continue;
       if (p.kind === 'solid') {
         // solids can only be hooked at a ledge corner

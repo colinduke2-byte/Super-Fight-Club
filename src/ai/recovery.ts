@@ -1,8 +1,8 @@
 import type { Fighter } from '../engine/fighter';
-import type { Ledge } from '../engine/platform';
+import { Ledge } from '../engine/platform';
 import type { World } from '../engine/world';
 import type { CharacterAi, LevelParams } from './profiles';
-import { driftThenReaches, jumpThenReaches, pathReaches, upBPath, drift, type Sim } from './recoveryPlan';
+import { NO_POLICY, policyDirs, policyStick, simulateRecovery, type RecPolicy } from './recoveryPlan';
 
 /**
  * True if the fighter is airborne with no stage under it: no solid platform spans its x with a top at or below its feet.
@@ -44,6 +44,16 @@ export interface RecoveryEpisode {
   recallTried: boolean;
   /** Recovery variety of the CPU (copied from its LevelParams). */
   mix: number;
+  /** Planner state: the attempt chosen, frames between plans, waits for the last moment (precise) or fires at once. */
+  pol: RecPolicy | null;
+  nextPlan: number;
+  planEvery: number;
+  precise: boolean;
+  decision: 'special' | 'jump' | 'dodge' | 'wait' | 'none';
+  /** Episode tick a planned delayed up special is due (-1 = none). */
+  waitFire: number;
+  /** Winged / jet fighter: holds Jump to glide / hover once the jumps are spent. */
+  float: boolean;
 }
 
 export function newEpisode(world: World, p: LevelParams, rnd: () => number): RecoveryEpisode {
@@ -62,8 +72,121 @@ export function newEpisode(world: World, p: LevelParams, rnd: () => number): Rec
     sideUsed: false,
     recallTried: false,
     mix,
+    pol: null,
+    nextPlan: 0,
+    // re-plan every frame at the top, every ~4 at the bottom (a slower read of the same physics)
+    planEvery: 2 + Math.round((1 - p.recovery) * 7),
+    precise: mix >= 0.25,
+    decision: 'none',
+    waitFire: -1,
+    float: false,
   };
 }
+
+function landInFor(ep: RecoveryEpisode): number {
+  return ep.aim === 'high' ? 34 : 10;
+}
+
+const stick = { x: 0, y: 0 };
+
+/** Scratch attempts for planRecovery (reused: it runs every frame or two of a recovery). */
+const polPool: RecPolicy[] = Array.from({ length: 24 }, () => ({ jumpAt: -1, specialAt: -1, dodgeAt: -1, inX: 1, sy: -1, float: false }));
+const probe: RecPolicy = { jumpAt: -1, specialAt: -1, dodgeAt: -1, inX: 1, sy: -1, float: false };
+
+function setPol(p: RecPolicy, jumpAt: number, specialAt: number, dodgeAt: number, inX: number, sy: number, float: boolean): RecPolicy {
+  p.jumpAt = jumpAt;
+  p.specialAt = specialAt;
+  p.dodgeAt = dodgeAt;
+  p.inX = inX;
+  p.sy = sy;
+  p.float = float;
+  return p;
+}
+
+/** The chosen attempt is kept on the episode (its own object, so the pool can be reused). */
+function keep(ep: RecoveryEpisode, p: RecPolicy): void {
+  ep.pol = setPol(ep.pol ?? { jumpAt: -1, specialAt: -1, dodgeAt: -1, inX: 1, sy: -1, float: false }, p.jumpAt, p.specialAt, p.dodgeAt, p.inX, p.sy, p.float);
+}
+
+/** One planning step: what to do now so that a simulated attempt gets back (see simulateRecovery). */
+function planRecovery(f: Fighter, world: World, l: Ledge, ai: CharacterAi, ep: RecoveryEpisode): RecoveryEpisode['decision'] {
+  const dirs = policyDirs(ai.recovery.aim);
+  const float = !!(f.data.glide || f.data.hover);
+  ep.float = float;
+  const landIn = landInFor(ep);
+  // a glide / jet hover drifts in slowly: give those attempts a longer horizon
+  const horizon = float ? 170 : 100;
+  const ok = (pol: RecPolicy): boolean => simulateRecovery(f, world, l, pol, horizon, landIn) >= 0;
+  const hangY = l.y + f.h * 0.9;
+  // below the hang point with a jump left and falling: the jump comes first (it keeps a margin for a ledge taken by a
+  // rival meanwhile, a hit, a misjudged snap); above it the up special alone may do
+  const jumpFirst = f.jumpsLeft > 0 && f.vy >= 0 && f.y > hangY - 10;
+  const jumpStep = (): RecoveryEpisode['decision'] | null => {
+    if (f.jumpsLeft <= 0 || f.vy <= -2) return null;
+    let n = 0;
+    setPol(polPool[n++], 0, 999, -1, 1, -1, float);
+    if (!ep.specialPressed) for (let d = 0; d < Math.min(2, dirs.length); d++) for (const s of SPECIAL_AFTER_JUMP) setPol(polPool[n++], 0, s, -1, dirs[d][0], dirs[d][1], float);
+    for (let i = 0; i < n; i++) {
+      const pol = polPool[i];
+      if (!ok(pol)) continue;
+      keep(ep, pol);
+      // a precise CPU holds the jump while jumping a few frames later still makes it (and it is not yet below the hang point)
+      if (ep.precise && f.vy >= 0 && !jumpFirst && ok(setPol(probe, 5, pol.specialAt + 5, -1, pol.inX, pol.sy, float))) return 'wait';
+      return 'jump';
+    }
+    return null;
+  };
+  if (jumpFirst) {
+    const d = jumpStep();
+    if (d) return d;
+  }
+  // 1) the up special now
+  if (!ep.specialPressed) {
+    for (const [inX, sy] of dirs) {
+      const pol = setPol(polPool[0], -1, 0, -1, inX, sy, float);
+      if (!ok(pol)) continue;
+      keep(ep, pol);
+      // a precise CPU keeps drifting while firing 6 frames later still works (comes in lower, keeps its options)
+      if (ep.precise && ok(setPol(probe, -1, 6, -1, inX, sy, float))) return 'wait';
+      return 'special';
+    }
+  }
+  // 2) the double jump now, then the up special (or no special at all)
+  if (f.jumpsLeft > 0 && f.vy > -2) return jumpStep() ?? 'none';
+  if (ep.specialPressed) return 'none';
+  // 3) an air dodge in, then the up special
+  if (!f.airDodgeUsed && f.vy > -1) {
+    for (const [inX, sy] of dirs)
+      for (const s of [16, 24]) {
+        const pol = setPol(polPool[0], -1, s, 0, inX, sy, float);
+        if (ok(pol)) {
+          keep(ep, pol);
+          return 'dodge';
+        }
+      }
+  }
+  // 4) float / drift a while, then the up special: first the attempt already under way (its special is that much nearer
+  // now; re-trying only fixed delays would put it off for ever), then fresh ones
+  const left = ep.waitFire - (world.tick - ep.startTick);
+  if (ep.pol && left > 0 && ep.pol.jumpAt < 0 && ep.pol.dodgeAt < 0) {
+    const pol = setPol(polPool[0], -1, left, -1, ep.pol.inX, ep.pol.sy, float);
+    if (ok(pol)) return 'wait';
+  }
+  for (const [inX, sy] of dirs)
+    for (const s of float ? FLOAT_WAITS : DRIFT_WAITS) {
+      const pol = setPol(polPool[0], -1, s, -1, inX, sy, float);
+      if (ok(pol)) {
+        keep(ep, pol);
+        ep.waitFire = world.tick - ep.startTick + s;
+        return 'wait';
+      }
+    }
+  return 'none';
+}
+
+const SPECIAL_AFTER_JUMP = [8, 18, 32];
+const DRIFT_WAITS = [8, 20, 36];
+const FLOAT_WAITS = [8, 20, 36, 60, 90];
 
 export interface RecoveryOut {
   sx: number;
@@ -91,19 +214,56 @@ export function edgeGuarder(f: Fighter, world: World, l: Ledge): number {
   return best;
 }
 
-/** The best free ledge to aim for: nearest to the fighter, preferring ones it can reach by climbing up. */
-export function pickLedge(f: Fighter, world: World, keep: Ledge | null): Ledge | null {
-  if (keep && (keep.occupant === -1 || keep.occupant === f.id)) {
-    // keep the current choice unless it became far worse
-    return keep;
+/**
+ * Is ledge `l` worth aiming for? A free ledge, or one a rival holds: hanging rivals can be knocked off by grabbing it (a
+ * ledge trump) and climbing ones are gone in a moment (the stage top is there anyway). One an ally holds is not.
+ */
+export function ledgeOpen(f: Fighter, world: World, l: Ledge): boolean {
+  if (l.occupant === -1 || l.occupant === f.id) return true;
+  return !world.allied(f.id, l.occupant);
+}
+
+const cornerCache = new WeakMap<World, Ledge[]>();
+
+/**
+ * Stage corners with no ledge to hang on (a block flush with the edge, like Stormrunner's crate): still somewhere to recover
+ * to, by landing on top. Returned as ledge-shaped aim points that are not in `world.ledges`, so nothing can grab them.
+ */
+export function bareCorners(world: World): Ledge[] {
+  let out = cornerCache.get(world);
+  if (out) return out;
+  out = [];
+  for (const p of world.platforms) {
+    if (p.kind !== 'solid' || p.dynamic) continue;
+    for (const side of [-1, 1] as const) {
+      if (world.ledges.some((l) => l.platform === p && l.side === side)) continue;
+      const cx = side === -1 ? p.x : p.right;
+      // a corner sitting on (or covered by) another solid block is not an edge of the stage
+      const inner = world.platforms.some((q) => q !== p && q.kind === 'solid' && cx > q.x + 2 && cx < q.right - 2 && q.top >= p.top - 1 && q.top <= p.top + 140);
+      const covered = world.platforms.some((q) => q !== p && q.kind === 'solid' && Math.abs(q.bottom - p.top) < 1 && cx >= q.x - 12 && cx <= q.right + 12);
+      if (!inner && !covered) out.push(new Ledge(p, side));
+    }
   }
+  cornerCache.set(world, out);
+  return out;
+}
+
+/** The best ledge to aim for: nearest to the fighter (a trumpable one costs a little extra), preferring ones it can reach. */
+export function pickLedge(f: Fighter, world: World, keep: Ledge | null): Ledge | null {
+  const cost = (l: Ledge): number => Math.abs(l.x + l.side * (f.hw + 4) - f.x) + Math.abs(l.y + f.h * 0.9 - f.y) * 1.6 + (l.occupant !== -1 && l.occupant !== f.id ? 30 : 0);
   let best: Ledge | null = null;
   let bestD = Infinity;
-  for (const l of world.ledges) {
-    if (l.occupant !== -1 && l.occupant !== f.id) continue;
-    const hx = l.x + l.side * (f.hw + 4);
-    const hy = l.y + f.h * 0.9;
-    const d = Math.abs(hx - f.x) + Math.abs(hy - f.y) * 1.6;
+  // keep the current choice unless another one became much nearer
+  if (keep && ledgeOpen(f, world, keep)) {
+    best = keep;
+    bestD = cost(keep) - 120;
+  }
+  const corners = bareCorners(world);
+  const n = world.ledges.length;
+  for (let i = 0; i < n + corners.length; i++) {
+    const l = i < n ? world.ledges[i] : corners[i - n];
+    if (!ledgeOpen(f, world, l)) continue;
+    const d = cost(l) + (i < n ? 0 : 20);
     if (d < bestD) {
       bestD = d;
       best = l;
@@ -144,6 +304,14 @@ export function recoveryStep(f: Fighter, world: World, ai: CharacterAi, ep: Reco
   const t = world.tick - ep.startTick;
   const canAct = f.state === 'air' && !f.helpless;
 
+  if (f.state === 'attack' && ep.pol && ep.specialPressed) {
+    // a planned up special: fly it the way the simulation did
+    out.steering = true;
+    policyStick(f, l, ep.pol, landInFor(ep), stick);
+    out.sx = stick.x;
+    out.sy = stick.y;
+    return;
+  }
   if (f.state === 'attack') {
     // mid recovery special: steer toward the ledge
     out.steering = true;
@@ -197,52 +365,47 @@ export function recoveryStep(f: Fighter, world: World, ai: CharacterAi, ep: Reco
       return;
     }
   }
-  // physics-planned recovery (fixed up specials): fire the up special at the last frame its flown path still reaches the
-  // ledge / stage, spend the double jump only when waiting longer would lose it, air dodge in when that is what it takes
-  const path = rec.aim === 'fixed' && !(above && Math.abs(toCorner) < 60) ? upBPath(f, world, rec.slot) : null;
-  if (path && ep.mix > 0.1) {
-    const dirIn = -l.side;
-    const out2 = (f.x - l.x) * l.side; // px outside the corner
-    // drift in at full speed while level with / above the stage; below it, stay out from under the stage's underside
-    if (f.y - f.h < l.y) {
-      if (out2 > -4) out.sx = dirIn;
-    } else out.sx = out2 < f.hw + 6 ? l.side : out2 > f.hw + 16 ? dirIn : 0;
-    const s: Sim = { x: f.x, y: f.y, vx: f.vx, vy: f.vy };
-    const now = pathReaches(f, l, path, s.x, s.y, s.vx);
-    const s3: Sim = { ...s };
-    for (let i = 0; i < 3; i++) drift(f, s3, dirIn);
-    const later = pathReaches(f, l, path, s3.x, s3.y, s3.vx);
-    if (now && !ep.specialPressed && !later && t >= ep.specialDelay) {
-      out.special = true;
-      out.steering = true;
-      out.sy = -1;
-      out.sx = dirIn;
-      return;
-    }
-    if (now) return; // reachable later too: keep drifting in, keep the jump
-    if (f.jumpsLeft > 0) {
-      const jNow = jumpThenReaches(f, l, path, s, 0);
-      if (jNow) {
-        if (!jumpThenReaches(f, l, path, s, 3) && t >= ep.jumpDelay) out.jump = true;
-        return;
-      }
-      if (driftThenReaches(f, l, path, s)) return;
-      // nothing reaches: fall back to the plain rules below (jump once falling)
-    } else if (!f.airDodgeUsed && ep.mix > 0 && f.vy > -1) {
-      // a directional air dodge in and up (~40 px) then the up special
-      // the dodge carries ~30 px each way, then ~12 frames of falling with no drift before control returns
-      const d: Sim = { x: f.x + dirIn * 30, y: f.y - 26, vx: 0, vy: 0 };
-      for (let i = 0; i < 12; i++) {
-        d.vy = Math.min(f.stats.fallSpeed, d.vy + f.stats.gravity);
-        d.y += d.vy;
-      }
-      if (pathReaches(f, l, path, d.x, d.y, 0) || driftThenReaches(f, l, path, d, 30)) {
+  // engine-simulated recovery (every recovery type, every level): fire the up special when a simulated attempt from here
+  // reaches the ledge / stage (a precise CPU waits for the last frame that still does), spend the double jump only when
+  // waiting longer would lose it, air dodge in when that is what it takes. A weaker CPU re-plans less often and fires as
+  // soon as an attempt works instead of waiting for the last moment.
+  if (t >= ep.nextPlan) {
+    ep.nextPlan = t + ep.planEvery;
+    // the planned moment for a delayed up special has come and nothing reaches now (the world moved): fire it anyway
+    const due = ep.waitFire >= 0 && t >= ep.waitFire && !ep.specialPressed;
+    ep.decision = planRecovery(f, world, l, ai, ep);
+    // nothing reaches from here: look again a little later (the plain rules below steer meanwhile)
+    if (ep.decision === 'none') ep.nextPlan = t + Math.max(4, ep.planEvery);
+    if (ep.decision === 'none' && due) ep.decision = 'special';
+    if (ep.decision !== 'wait') ep.waitFire = -1;
+  } else if (ep.decision !== 'wait' && ep.decision !== 'none') ep.decision = 'wait';
+  if (ep.decision !== 'none') {
+    const pol = ep.pol ?? NO_POLICY;
+    policyStick(f, l, pol, landInFor(ep), stick);
+    out.sx = stick.x;
+    out.sy = 0;
+    switch (ep.decision) {
+      case 'special':
+        ep.specialPressed = true;
+        out.special = true;
+        out.steering = true;
+        out.sx = -l.side * pol.inX;
+        out.sy = -1; // Up selects the up special; the aimed direction is held once it runs (policyStick)
+        break;
+      case 'jump':
+        out.jump = true;
+        break;
+      case 'dodge':
         out.dodge = true;
-        out.sx = dirIn * 0.7;
+        out.sx = -l.side * 0.7;
         out.sy = -0.7;
-        return;
-      }
+        break;
+      default:
+        // waiting: winged / jet fighters out of jumps float while they drift in
+        if (ep.float && f.jumpsLeft === 0 && f.vy >= 0) out.jump = true;
     }
+    if (ep.decision !== 'wait') ep.decision = 'wait';
+    return;
   }
   // horizontal recovery special (Pirate's Dash, Frost Step, Skewer Dash): from far out, at about stage height, it covers
   // the gap the jump and the up special could not

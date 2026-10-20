@@ -4,7 +4,7 @@ import { CHARACTERS } from '../../characters';
 import type { MatchConfig } from '../../engine/match';
 import type { StageData } from '../../engine/types';
 import { challengeById, challengeRules, type Challenge } from '../../game/challenges';
-import { ReplayRecorder, type Replay } from '../../game/replay';
+import { recordsReplay, ReplayRecorder, type Replay } from '../../game/replay';
 import type { RunnerSetup } from '../../game/runner';
 import { DEFAULT_RULES, runnerExtras, session, type MatchRules, type PlayerSlot } from '../../game/session';
 import { MergedDevice } from '../../input/device';
@@ -30,7 +30,7 @@ export interface MatchSetup {
   stage: StageData;
   cfg: MatchConfig;
   runner: RunnerSetup;
-  /** Recording of the live match (versus only). */
+  /** Recording of the live match (versus, arcade and challenge matches). */
   recorder: ReplayRecorder | null;
 }
 
@@ -40,7 +40,7 @@ export function resolveMatchSetup(): MatchSetup {
   session.watchReplay = false;
   if (!replay) ensureSession();
   const rep = replay;
-  const slots: PlayerSlot[] = rep ? rep.players.map((p, i) => ({ index: i, type: 'cpu' as const, device: null, character: p.character, cpuLevel: 1 as const, palette: p.palette })) : session.players;
+  const slots: PlayerSlot[] = rep ? rep.players.map((p, i) => ({ index: i, type: 'cpu' as const, device: null, character: p.character, cpuLevel: 1 as const, palette: p.palette, stocks: p.stocks, boss: p.boss })) : session.players;
   const isTraining = !rep && session.mode === 'training';
   const isLaunch = !rep && session.mode === 'launch' && slots.length === 2;
   const chal = !rep && session.mode === 'challenge' ? challengeById(session.challenge) : undefined;
@@ -64,8 +64,18 @@ export function resolveMatchSetup(): MatchSetup {
     // teams, team attack, handicaps, item switches, sudden death, stock time limit
     ...(isTraining || isLaunch || wantsTargets ? {} : runnerExtras(rules, slots.length)),
   };
+  // versus, arcade fights (the boss too) and challenges are recorded; only the last match is kept (session.replay)
+  const mode = session.mode;
   const recorder =
-    !rep && !isTraining && session.mode === 'versus' && !session.demo ? new ReplayRecorder(session.stage, rules, slots.map((sl) => ({ character: sl.character, palette: sl.palette, type: sl.type })), settings.smashMode === 'flick') : null;
+    !rep && !isTraining && !isLaunch && !wantsTargets && recordsReplay(mode, !!session.demo)
+      ? new ReplayRecorder(
+          session.stage,
+          rules,
+          slots.map((sl) => ({ character: sl.character, palette: sl.palette, type: sl.type, ...(sl.stocks ? { stocks: sl.stocks } : {}), ...(sl.boss ? { boss: true } : {}) })),
+          settings.smashMode === 'flick',
+          mode,
+        )
+      : null;
   return { replay, slots, isTraining, isLaunch, wantsTargets, chal, rules, stage, cfg, runner, recorder };
 }
 

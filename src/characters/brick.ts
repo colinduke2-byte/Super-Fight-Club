@@ -39,11 +39,11 @@ export const brick: CharacterData = {
   stats: {
     weight: 120,
     runSpeed: 2.0,
-    airSpeed: 1.45,
+    airSpeed: 1.6,
     groundAccel: 0.22,
     groundFriction: 0.28,
     airAccel: 0.14,
-    airFriction: 0.05,
+    airFriction: 0.035,
     gravity: 0.62,
     fallSpeed: 8.4,
     fastFallSpeed: 11.8,

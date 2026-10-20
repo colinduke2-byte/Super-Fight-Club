@@ -3,8 +3,9 @@ import { fighterAnimKey, fighterTextureKey, uiTexK } from '../art/proceduralFigh
 import { PIXEL_FONT } from '../art/pixelFont';
 import { CHARACTER_LIST } from '../characters';
 import type { MenuEvent } from '../input/menuInput';
+import { promptSerial } from '../input/prompts';
 import { STAGE_LIST } from '../stages';
-import { COLORS, MenuScene, drawPanel, text, textPx, type MenuBackdrop } from '../ui/menuKit';
+import { COLORS, MenuScene, drawPanel, footer, text, textPx, type MenuBackdrop } from '../ui/menuKit';
 
 /** Lines of the credits roll: [text, colour]; an empty string is a gap. */
 const ROLL: [string, number][] = [
@@ -26,8 +27,12 @@ const ROLL: [string, number][] = [
   ['THANKS FOR PLAYING', COLORS.title],
 ];
 
-/** A slow credits roll over a parade of the roster running along the bottom. */
+/** A slow credits roll over a parade of the roster running along the bottom. A click, tap or confirm speeds it up; a second one leaves. */
 export class CreditsScene extends MenuScene {
+  protected override tapConfirms = true;
+  /** Fast-forwarding (after the first confirm / tap). */
+  private fast = false;
+  private hintSerial = -1;
   private lines: Phaser.GameObjects.BitmapText[] = [];
   private runners: Phaser.GameObjects.Sprite[] = [];
   private hint!: Phaser.GameObjects.BitmapText;
@@ -44,6 +49,8 @@ export class CreditsScene extends MenuScene {
     // the roll opens with the title already on screen (set on the first frame, once the size is known)
     this.scroll = -1;
     this.last = -1;
+    this.fast = false;
+    this.hintSerial = -1;
     this.plate = this.add.graphics();
     this.ui.add(this.plate);
     this.lines = ROLL.map(([s, c]) => this.add.bitmapText(0, 0, PIXEL_FONT, s).setOrigin(0.5).setTint(c || COLORS.text));
@@ -56,7 +63,14 @@ export class CreditsScene extends MenuScene {
       return s;
     });
     this.hint = text(this, this.ui, '', COLORS.dim).setOrigin(0.5);
-    this.bindFooter(this.hint, [['back', 'BACK']]);
+    this.refreshHint();
+  }
+
+  /** Footer for the device in use: confirm speeds the roll up, then skips it. */
+  private refreshHint(): void {
+    this.hintSerial = promptSerial();
+    this.hint.setText(footer([['confirm', this.fast ? 'SKIP' : 'FAST FORWARD'], ['back', 'BACK']]));
+    this.placeFooter(this.hint);
   }
 
   protected override layoutUi(w: number, _h: number, u: number): void {
@@ -91,7 +105,8 @@ export class CreditsScene extends MenuScene {
     const bottom = h * 0.62;
     const top = h * 0.06;
     if (this.scroll < 0) this.scroll = bottom - top - h * 0.14;
-    this.scroll += dt * 30 * u;
+    if (promptSerial() !== this.hintSerial) this.refreshHint();
+    this.scroll += dt * 30 * u * (this.fast ? 6 : 1);
     const total = (ROLL.length + 2) * this.lineH * 1.4;
     const off = this.scroll % (total + (bottom - top));
     this.lines.forEach((l, i) => {
@@ -111,6 +126,9 @@ export class CreditsScene extends MenuScene {
   }
 
   protected onEvent(e: MenuEvent): void {
-    if (e.action === 'back' || e.action === 'confirm') this.go('ModeSelect');
+    if (e.action === 'confirm' && !this.fast) {
+      this.fast = true;
+      this.refreshHint();
+    } else if (e.action === 'back' || e.action === 'confirm' || e.action === 'start') this.go('ModeSelect');
   }
 }

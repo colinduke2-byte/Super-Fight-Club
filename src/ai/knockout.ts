@@ -3,6 +3,7 @@ import { DI_MAX_ANGLE, HITSTUN_FALL_GRAVITY, HITSTUN_RISE_GRAVITY, SOAK_KB_PER_L
 import { computeKnockback, hitstunFrames, KB_TO_SPEED, LAUNCH_DRAG, MAX_LAUNCH_SPEED } from '../engine/knockback';
 import type { World } from '../engine/world';
 import type { AiMove } from './moveInfo';
+import { aiFor } from './profiles';
 
 /**
  * Launch prediction for the CPU's decisions: would this hit kill, and which way should we DI to live? Everything is
@@ -14,9 +15,13 @@ export interface Flight {
   ko: boolean;
   /** Smallest distance to any blast zone along the flight (px). */
   margin: number;
+  /** Where (and how fast) the body is when the hitstun ends (the fighter can act from there). */
+  x: number;
+  y: number;
+  vy: number;
 }
 
-const tmp: Flight = { ko: false, margin: 0 };
+const tmp: Flight = { ko: false, margin: 0, x: 0, y: 0, vy: 0 };
 
 /**
  * Fly a launched body from (x, y) with velocity (vx, vy) and `stun` frames of hitstun (launch drag, hitstun gravity, then
@@ -28,9 +33,17 @@ export function fly(f: Fighter, world: World, x: number, y: number, vx: number, 
   let margin = Infinity;
   let post = 0;
   out.ko = false;
+  out.x = x;
+  out.y = y;
+  out.vy = vy;
   for (let t = 1; t <= frames; t++) {
     if (stun > 0) {
       stun--;
+      if (stun === 0) {
+        out.x = x;
+        out.y = y;
+        out.vy = vy;
+      }
       vy = Math.min(s.fastFallSpeed, vy + s.gravity * (vy < 0 ? HITSTUN_RISE_GRAVITY : HITSTUN_FALL_GRAVITY));
       vx = vx > LAUNCH_DRAG ? vx - LAUNCH_DRAG : vx < -LAUNCH_DRAG ? vx + LAUNCH_DRAG : 0;
     } else {
@@ -84,6 +97,34 @@ export function launchOf(atk: Fighter, tgt: Fighter, kb: NonNullable<AiMove['kb'
 }
 
 /**
+ * Can a fighter at (x, y) once its hitstun ends get back to the stage? A rough reach test against the nearest ledge from
+ * its kit (double jumps, the up special's lift and reach from its CPU profile, a glide or a jet hover): false = a launch
+ * that leaves it short of the stage with no way back, as good as a KO.
+ */
+export function canReturnFrom(f: Fighter, world: World, x: number, y: number): boolean {
+  // over a platform: it lands
+  for (const p of world.platforms) if (p.kind === 'solid' && x >= p.x && x <= p.right && y <= p.top + 4) return true;
+  let near = Infinity;
+  let ly = 0;
+  for (const l of world.ledges) {
+    const d = Math.abs(l.x - x);
+    if (d < near) {
+      near = d;
+      ly = l.y;
+    }
+  }
+  if (near === Infinity) return true;
+  const s = f.stats;
+  const rec = aiFor(f.data.id).recovery;
+  const jumps = Math.max(0, f.jumpsLeft);
+  const up = jumps * s.doubleJumpHeight + rec.up + 24;
+  let out = rec.out + s.airSpeed * (40 + 18 * jumps) + f.hw;
+  if (f.data.glide) out += f.data.glide.max * s.airSpeed * f.data.glide.speed * 0.8;
+  if (f.data.hover) out += f.data.hover.frames * s.airSpeed * f.data.hover.drift * 0.8;
+  return near <= out && y - ly <= up;
+}
+
+/**
  * Chance-like score 0..1 that the hit kills: the launch is flown with no DI and with the target's best DI either way
  * (a sharp opponent bends it); 1 = kills through any DI, 0.5 = kills only if they DI badly, 0 = survives.
  */
@@ -91,7 +132,9 @@ export function killScore(atk: Fighter, tgt: Fighter, world: World, m: AiMove, d
   if (!m.kb || m.kb.base + m.kb.scaling * 100 <= 0) return 0;
   const l = launchOf(atk, tgt, m.kb, dir);
   const { vx, vy, stun } = l;
-  if (!fly(tgt, world, atX, atY, vx, vy, stun).ko) return 0;
+  const fl = fly(tgt, world, atX, atY, vx, vy, stun);
+  // short of a blast zone but out where it cannot get back from: nearly as good (an edge-guard finishes it)
+  if (!fl.ko) return canReturnFrom(tgt, world, fl.x, fl.y) ? 0 : 0.45;
   // DI either way (whichever the opponent picks): rotate by the full DI angle
   let lives = 0;
   for (const s of [-1, 1]) {
@@ -116,7 +159,9 @@ export function survivalDi(f: Fighter, world: World): { x: number; y: number } |
   const none = fly(f, world, f.x, f.y, f.vx, f.vy, stun);
   const noneKo = none.ko;
   const noneMargin = none.margin;
-  if (!noneKo && noneMargin > 120) return null;
+  // a launch that is not near a blast zone but would leave us short of the stage: DI toward the stage instead
+  const short = !noneKo && !canReturnFrom(f, world, none.x, none.y);
+  if (!noneKo && noneMargin > 120 && !short) return null;
   // the stick perpendicular to the launch, either side: the engine bends the flight by cross * DI_MAX_ANGLE
   let best = -Infinity;
   let bx = 0;
@@ -129,7 +174,10 @@ export function survivalDi(f: Fighter, world: World): { x: number; y: number } |
     const c = Math.cos(a);
     const sn = Math.sin(a);
     const r = fly(f, world, f.x, f.y, f.vx * c - f.vy * sn, f.vx * sn + f.vy * c, stun);
-    const score = r.ko ? r.margin - 1000 : r.margin;
+    // alive and able to get back beats alive and stranded; among those, nearer the stage (a fall-short) or further from
+    // the blast zones (a launch toward one)
+    const back = !r.ko && canReturnFrom(f, world, r.x, r.y);
+    const score = r.ko ? r.margin - 1000 : short ? (back ? 500 : 0) - nearestLedge(world, r.x, r.y) : r.margin;
     if (score > best) {
       best = score;
       bx = px;
@@ -139,4 +187,11 @@ export function survivalDi(f: Fighter, world: World): { x: number; y: number } |
   diOut.x = bx;
   diOut.y = by;
   return diOut;
+}
+
+/** Distance from (x, y) to the nearest ledge corner (Infinity with none). */
+function nearestLedge(world: World, x: number, y: number): number {
+  let d = Infinity;
+  for (const l of world.ledges) d = Math.min(d, Math.hypot(l.x - x, l.y - y));
+  return d;
 }

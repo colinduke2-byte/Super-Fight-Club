@@ -259,14 +259,23 @@ export class MatchHud {
     // HUD plates (112 art px wide) spread evenly; a window too narrow for them at the HUD scale packs them edge to edge, and
     // only if they still do not fit drops to the largest half-step scale that does
     const gap = 2 * u;
-    const avail = w - 2 * m;
+    // a touch player's stick and buttons fill the bottom corners: the plates keep to the strip between them, or, when they
+    // do not fit there at full size (3-4 fighters on a phone), move to the top edge
+    const touch = s.slots.some((p) => p?.type === 'human' && p.device?.kind === 'touch');
+    const corner = touch ? Math.min(w * 0.27, 210 * canvasDpr(s)) : 0;
+    const strip = w - 2 * m - 2 * corner;
+    const atTop = touch && n * 112 * u + (n - 1) * gap > strip;
+    const x0 = atTop ? m : m + corner;
+    const avail = atTop ? w - 2 * m : strip;
     let hu = u;
     while (hu > 1 && n * 112 * hu + (n - 1) * gap > avail) hu -= 0.5;
     s.st.hudU = hu;
-    const spread = w / (n + 1) >= 112 * hu + gap;
+    const spread = avail / n >= 112 * hu + gap && !touch;
     const slot = avail / Math.max(1, n);
-    this.huds.forEach((hud, i) => hud.layout(Math.round(spread ? (w * (i + 1)) / (n + 1) : m + slot * (i + 0.5)), h - m, hu));
+    // at the top: under the clock (time mode) and clear of the pause button's row height
+    const y = atTop ? m + 40 * hu + (this.clock.visible ? 7 * u * 2.5 + m : 0) : h - m;
+    this.huds.forEach((hud, i) => hud.layout(Math.round(spread ? (w * (i + 1)) / (n + 1) : x0 + slot * (i + 0.5)), y, hu));
     // the camera frames the fighters above the HUD plates instead of letting the floor fight hide behind them
-    s.camera.cam.cfg.bottomInset = n > 0 ? Math.min(0.3, (40 * hu + m) / h) : 0;
+    s.camera.cam.cfg.bottomInset = n > 0 && !atTop ? Math.min(0.3, (40 * hu + m) / h) : 0;
   }
 }

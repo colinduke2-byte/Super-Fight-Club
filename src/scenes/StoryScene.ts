@@ -27,9 +27,14 @@ export class StoryScene extends MenuScene {
   private frame!: Phaser.GameObjects.Graphics;
   private left: Phaser.GameObjects.Sprite | null = null;
   private right: Phaser.GameObjects.Sprite | null = null;
+  /** The brawl card's back-up rivals, drawn behind the main one. */
+  private extras: Phaser.GameObjects.Sprite[] = [];
   private box = { x: 0, y: 0, s: 3 };
   /** Plate behind the caption. */
   private plateBox = { x: 0, y: 0, w: 0, h: 0 };
+
+  /** A click or tap anywhere turns the card (the BACK chip still skips them all). */
+  protected override tapConfirms = true;
 
   constructor() {
     super('Story');
@@ -93,12 +98,21 @@ export class StoryScene extends MenuScene {
     if (!c) return;
     this.left?.destroy();
     this.right?.destroy();
+    this.extras.forEach((e) => e.destroy());
+    this.extras = [];
     // the player in their chosen look, the rival in the one it rolled (a mirror match never shows two identical fighters)
     const lp = session.arcadeHuman?.palette ?? 0;
     let rp = c.rightPalette ?? 0;
     if (c.right && c.right === c.left && rp === lp) rp = (rp + 1) % paletteCount(c.right);
     this.left = this.spriteFor(c.left, false, lp);
+    // back-up rivals first so the main one draws over them
+    for (const r of (c.rivals ?? []).slice(1).reverse()) {
+      if (!characterById(r.character) || !this.textures.exists(fighterTextureKey(r.character))) continue;
+      const e = this.spriteFor(r.character, true, r.palette ?? 0);
+      if (e) this.extras.push(e.setTint(0x9a94b8));
+    }
     this.right = this.spriteFor(c.right, true, rp);
+    if (this.right && this.extras.length) this.ui.bringToTop(this.right);
     this.title.setText(up(c.title));
     this.caption.setText('');
     this.vs.setVisible(c.art === 'duel');
@@ -141,6 +155,11 @@ export class StoryScene extends MenuScene {
     } else if (c.art === 'duel') {
       this.left?.setScale(s * 1.05 * ((this.left?.getData('k') as number | undefined) ?? 0.4)).setPosition(x + 38 * s, base);
       this.right?.setScale(s * 1.05 * ((this.right?.getData('k') as number | undefined) ?? 0.4)).setPosition(x + 122 * s, base);
+      // back-up rivals step out behind the main one, a little smaller
+      this.extras.forEach((e, i) => {
+        const k = (e.getData('k') as number | undefined) ?? 0.4;
+        e.setScale(s * 0.85 * k).setPosition(x + (122 + (i % 2 ? -1 : 1) * (18 + 6 * i)) * s, base - 3 * s);
+      });
     } else {
       this.left?.setScale(s * 1.1 * ((this.left?.getData('k') as number | undefined) ?? 0.4)).setPosition(x + (c.art === 'victory' ? 80 : 58) * s, base - (c.art === 'arena' ? 2 : 0) * s);
     }

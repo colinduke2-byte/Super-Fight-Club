@@ -7,15 +7,26 @@ import { endDemo } from '../../game/demo';
 import { moveListText } from '../../game/moveList';
 import { session } from '../../game/session';
 import { inputManager } from '../../input/inputManager';
+import type { InputDevice } from '../../input/device';
 import { menuInput, type MenuEvent } from '../../input/menuInput';
-import { MenuList, type MenuItem } from '../../ui/menuKit';
+import { footerHint } from '../../input/prompts';
+import { deviceKind } from '../../game/tutorial';
+import { drawPanel, MenuList, type MenuItem } from '../../ui/menuKit';
 import type { MatchScene } from '../MatchScene';
 import { hudUnit } from './hudLayout';
-import { openTrainingMenu } from './training';
+import { menuKeyLabel, openTrainingMenu } from './training';
 
-/** Controls reminder shown under the pause menu (outside Training the match itself shows no key list). */
-const PAUSE_HELP_MATCH = 'ESC / START: RESUME   CTRL+F FULLSCREEN   CTRL+1 DEBUG';
-const PAUSE_HELP_TRAINING = 'ESC / START: RESUME   H: TRAINING KEYS';
+/**
+ * Controls reminder under the pause menu, for the device of the player who paused (none: the last device used): the menu
+ * controls, plus Ctrl+F on a keyboard (no other dev combos: those are listed in Training's own help).
+ */
+export function pauseHelp(device: InputDevice | null | undefined, training: boolean): string {
+  if (deviceKind(device) === 'touch') return training ? 'TAP AN OPTION   MENU (TOP RIGHT): TRAINING MENU' : 'TAP AN OPTION';
+  const base = footerHint([['updown', 'MOVE'], ['confirm', 'SELECT'], ['start', 'RESUME']], device);
+  if (training) return `${base}   ${menuKeyLabel(device ?? null)}: TRAINING MENU`;
+  // Ctrl+F is the one match hotkey worth naming to a keyboard player (the keyboard hub keeps the browser's find bar shut)
+  return deviceKind(device) === 'keyboard' ? `${base}   CTRL+F: FULLSCREEN   CTRL+1: DEBUG` : base;
+}
 
 /**
  * Pausing: the dim overlay, "P2 PAUSED" / WINDOW LOST FOCUS / CONTROLLER DISCONNECTED text, the RESUME / RESTART / MOVE LIST
@@ -35,8 +46,10 @@ export class PauseMenu {
   dcMenu!: MenuList;
   /** Pause > MOVE LIST: the paused player's moves with inputs, damage and first active frame. */
   moveListBox!: Phaser.GameObjects.BitmapText;
-  /** "< P1  BRICK >" over the move list (left / right switch fighters). */
+  /** "< P1  BRICK >" over the move list (left / right switch fighters), with its controls under it. */
   moveListHead!: Phaser.GameObjects.BitmapText;
+  /** Backing panel under the move list (and its head), so it reads over a busy stage. */
+  moveListPlate!: Phaser.GameObjects.Graphics;
 
   constructor(private readonly s: MatchScene) {}
 
@@ -44,7 +57,7 @@ export class PauseMenu {
     const s = this.s;
     this.overlay = s.add.rectangle(0, 0, 10, 10, 0x000000, 0.6).setOrigin(0, 0).setVisible(false);
     this.text = s.add.bitmapText(0, 0, PIXEL_FONT, '').setOrigin(0.5).setVisible(false).setCenterAlign();
-    this.help = s.add.bitmapText(0, 0, PIXEL_FONT, up(s.isTraining ? PAUSE_HELP_TRAINING : PAUSE_HELP_MATCH)).setOrigin(0.5, 0).setTint(0xb8b0e8).setCenterAlign().setVisible(false);
+    this.help = s.add.bitmapText(0, 0, PIXEL_FONT, up(pauseHelp(null, s.isTraining))).setOrigin(0.5, 0).setTint(0xb8b0e8).setCenterAlign().setVisible(false);
     s.uiLayer.add([this.overlay, this.text, this.help]);
     const canRestart = session.mode !== 'arcade' && !s.replay && !session.demo;
     const items: MenuItem[] = [
@@ -68,9 +81,10 @@ export class PauseMenu {
       { label: 'QUIT', onConfirm: () => this.ask('quit') },
     ]);
     for (const m of [this.menu, this.confirmMenu, this.dcMenu]) m.setVisible(false);
+    this.moveListPlate = s.add.graphics().setVisible(false);
     this.moveListBox = s.add.bitmapText(0, 0, PIXEL_FONT, '').setOrigin(0.5).setLeftAlign().setVisible(false);
     this.moveListHead = s.add.bitmapText(0, 0, PIXEL_FONT, '').setOrigin(0.5, 1).setCenterAlign().setTint(0xffe14a).setVisible(false);
-    s.uiLayer.add([this.moveListBox, this.moveListHead]);
+    s.uiLayer.add([this.moveListPlate, this.moveListBox, this.moveListHead]);
 
     // losing focus (alt-tab, another window, a hidden tab) pauses a live match instead of letting the CPUs win
     const onBlur = (): void => {
@@ -90,13 +104,24 @@ export class PauseMenu {
   layout(w: number, h: number, u: number): void {
     this.overlay.setSize(w, h);
     this.text.setScale(u * 2).setPosition(w / 2, h * 0.26);
-    const rows = this.menu.items.length;
     this.menu.layout(w / 2, h * 0.38, u, 110);
     this.confirmMenu.layout(w / 2, h * 0.42, u, 70);
     this.dcMenu.layout(w / 2, h * 0.44, u, 150);
-    // the key reminder sits under the menu, shrunk to the window
+    this.placeHelp(w, h, u);
+    if (this.moveListBox.visible) this.fillMoveList();
+  }
+
+  /** The key reminder sits under the menu, shrunk to the window. */
+  private placeHelp(w: number, h: number, u: number): void {
+    // under the menu's plate (its rows are a finger tall on touch screens)
     const hs = Math.min(u, (w * 0.9) / Math.max(1, this.help.getTextBounds().local.width));
-    this.help.setScale(hs).setPosition(w / 2, Math.min(h - 12 * u, h * 0.38 + rows * 18 * u + 10 * u));
+    this.help.setScale(hs).setPosition(w / 2, Math.min(h - 12 * u, this.menu.bottom + 6 * u));
+  }
+
+  /** The device of the player who paused (null: a focus / disconnect pause, or nobody in particular). */
+  private pauserDevice(): InputDevice | null {
+    const by = this.s.st.pausedBy;
+    return by >= 0 ? (this.s.slots[by]?.device ?? null) : null;
   }
 
   /** Which list takes input right now. */
@@ -182,11 +207,15 @@ export class PauseMenu {
     if (!p) {
       this.moveListBox?.setVisible(false);
       this.moveListHead?.setVisible(false);
+      this.moveListPlate?.setVisible(false);
       this.overlay.setAlpha(0.6);
     }
     music.setDuck(p ? 0.3 : 1);
+    if (p) inputManager.touch.setMenuPad('none'); // a touch player taps the pause rows themselves
     if (p) {
       this.text.setText(up(this.title()));
+      this.help.setText(up(pauseHelp(this.pauserDevice(), s.isTraining)));
+      this.placeHelp(s.scale.width, s.scale.height, hudUnit(s.scale.height));
       if (!was || reason === 'disconnect') {
         this.menu.index = 0;
         this.dcMenu.index = s.ctl.freeKeyboard() ? 0 : 1;
@@ -264,11 +293,15 @@ export class PauseMenu {
     const s = this.s;
     if (on) {
       const by = s.st.pausedBy;
+      this.moveListHead.setCenterAlign();
       s.st.moveListIdx = by >= 0 ? by : Math.max(0, s.slots.findIndex((sl) => sl.type === 'human'));
       this.fillMoveList();
     }
     this.moveListBox.setVisible(on);
     this.moveListHead.setVisible(on);
+    this.moveListPlate.setVisible(on);
+    // touch: the move list closes with the BACK button; the pause rows are tapped directly
+    if (s.st.paused) inputManager.touch.setMenuPad(on ? 'buttons' : 'none');
     this.overlay.setAlpha(on ? 0.88 : 0.6);
     this.text.setVisible(!on && s.st.paused);
     this.help.setVisible(!on && s.st.paused && s.st.pauseReason !== 'disconnect');
@@ -284,22 +317,39 @@ export class PauseMenu {
     sfx.play('menuMove', 0.45, 0);
   }
 
+  /**
+   * The move list of the fighter on show, with inputs for the device of the player who opened it, on a panel that stops
+   * above the HUD plates; its head names the fighter and the controls to switch fighters and close it.
+   */
   private fillMoveList(): void {
     const s = this.s;
     const i = Math.min(s.fighters.length - 1, Math.max(0, s.st.moveListIdx));
     const f = s.fighters[i];
-    this.moveListBox.setText(moveListText(f.data)).setScale(1);
+    const dev = this.pauserDevice() ?? s.slots.find((sl) => sl.type === 'human')?.device ?? null;
+    this.moveListBox.setText(moveListText(f.data, dev)).setScale(1);
     const w = s.scale.width;
     const h = s.scale.height;
     const u = hudUnit(h);
-    const b = this.moveListBox.getTextBounds().local;
-    const k = Math.min(u * 1.4, (w * 0.92) / Math.max(1, b.width), (h * 0.84) / Math.max(1, b.height));
-    this.moveListBox.setScale(k).setPosition(w / 2, h / 2 + 4 * u);
     const many = s.fighters.length > 1;
-    this.moveListHead
-      .setText(up(`${many ? '<  ' : ''}${s.labels[i] ?? `P${i + 1}`}  ${f.data.name}${many ? '  >' : ''}`))
-      .setScale(Math.max(1, u))
-      .setPosition(w / 2, Math.max(8 * u, h / 2 + 4 * u - (b.height * k) / 2 - 3 * u));
+    const keys = footerHint([...(many ? ([['leftright', 'FIGHTER']] as const) : []), ['back', 'CLOSE']], dev);
+    this.moveListHead.setText(up(`${many ? '<  ' : ''}${s.labels[i] ?? `P${i + 1}`}  ${f.data.name}${many ? '  >' : ''}\n${keys}`)).setScale(Math.max(1, u));
+    const headH = this.moveListHead.displayHeight;
+    // the panel runs from under the head to just above the fighter plates at the bottom
+    const m = Math.round(8 * (s.scale.width / Math.max(1, window.innerWidth)));
+    const bottom = h - (40 * (s.st.hudU || u) + m) - 4 * u;
+    const top = Math.max(6 * u, m) + headH + 6 * u;
+    const pad = 5 * u;
+    const b = this.moveListBox.getTextBounds().local;
+    const k = Math.min(u * 1.4, (w * 0.94 - pad * 2) / Math.max(1, b.width), (bottom - top - pad * 2) / Math.max(1, b.height));
+    const bh = b.height * k;
+    const cy = top + pad + bh / 2;
+    this.moveListBox.setScale(k).setPosition(w / 2, cy);
+    const pw = Math.max(b.width * k, this.moveListHead.displayWidth) + pad * 2;
+    const py = cy - bh / 2 - pad - headH - 4 * u;
+    this.moveListHead.setPosition(w / 2, cy - bh / 2 - pad - 2 * u);
+    const g = this.moveListPlate.clear();
+    drawPanel(g, w / 2 - pw / 2, py, pw, cy + bh / 2 + pad - py, u, 0.94);
+    g.fillStyle(0x1c1840, 1).fillRect(w / 2 - pw / 2 + u, py + u, pw - 2 * u, headH + 2 * u);
   }
 }
 

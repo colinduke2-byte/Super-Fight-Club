@@ -59,7 +59,8 @@ export class LaunchMode implements MatchModeHooks {
     const s = this.scene;
     const ch = s.slots[0].character;
     const distance = Math.round(this.lc.distance * 10) / 10;
+    const prevBest = bestLaunch(ch);
     const record = recordLaunch(ch, distance);
-    session.launchRun = { character: ch, distance, damage: Math.round(this.lc.distance > 0 ? s.runner.launchDamage : s.fighters[1].damage), best: bestLaunch(ch), record };
+    session.launchRun = { character: ch, distance, damage: Math.round(this.lc.distance > 0 ? s.runner.launchDamage : s.fighters[1].damage), best: bestLaunch(ch), record, prevBest, dummy: s.slots[1]?.character };
   }
 }

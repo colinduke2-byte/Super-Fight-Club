@@ -5,10 +5,11 @@ import type { FighterView } from './FighterView';
 import { drawPortShape, portOfColor } from './menuKit';
 import { settings } from '../settings';
 
-/** A tag's short form for crowded (3-4 fighter) matches: 'CPU3' -> 'C3', 'DUMMY' -> 'DUM'. */
+/**
+ * A tag's text. CPUs keep the name their HUD plate shows ('CPU3', not 'C3') so the tag and the plate read as the same
+ * fighter; crowded (3-4 fighter) matches draw tags a little smaller instead. Only the training dummy shortens ('DUM').
+ */
 export function shortTag(label: string): string {
-  const m = /^CPU(\d)$/.exec(label);
-  if (m) return `C${m[1]}`;
   if (label === 'DUMMY') return 'DUM';
   return label;
 }
@@ -96,7 +97,8 @@ export class PlayerTags {
       const sx = ((v.x + this.entX[f.id] - view.x) / Math.max(1, view.width)) * sw;
       let sy = ((v.y + this.entY[f.id] - f.h * f.sizeMul - this.lift[f.id] - view.y) / Math.max(1, view.height)) * sh;
       const shape = settings.portShapes;
-      const k1 = this.fighters.length >= 3 ? 1 : 1.1;
+      // crowded matches: a slightly smaller tag (the full CPU1..CPU4 names stay, matching the HUD plates)
+      const k1 = this.fighters.length >= 3 ? 0.9 : 1.1;
       t.setScale(u * k1);
       // the shape sits left of the label inside the tag
       const shapeW = shape ? 6 * u : 0;

@@ -85,7 +85,7 @@ export const havoc: CharacterData = {
     groundAccel: 0.3,
     groundFriction: 0.34,
     airAccel: 0.16,
-    airFriction: 0.05,
+    airFriction: 0.045,
     gravity: 0.56,
     fallSpeed: 7.2,
     fastFallSpeed: 11,

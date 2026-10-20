@@ -1,9 +1,9 @@
 import Phaser from 'phaser';
 import { MASS_HEAD, MASS_OVER, PLAT_HEAD } from '../art/stageMass';
-import { ensureStageArt, stageArtKey } from '../art/stageArt';
+import { ensureStageArtNow, stageArtSource } from '../art/stageArt';
 import type { StageData } from '../engine/types';
 import { BACKDROPS, type Backdrop } from './BackgroundView';
-import { addCanvasTexture } from '../art/canvasTexture';
+import { addCanvasTexture, context2d, holdTexture } from '../art/canvasTexture';
 import { GROUND_LAYERS, ensureGroundTextures } from '../art/stageTextures';
 
 /** The match backdrop's ground-layer parallax (BackgroundView's GROUND_PARALLAX). */
@@ -12,35 +12,46 @@ const GROUND_PARALLAX = [0.26, 0.34, 0.45];
 const VW = 1280;
 const VH = 720;
 
-const tintCache = new Map<string, HTMLCanvasElement>();
+/** Tinted layer copies made while drawing one thumbnail (freed when it is done). */
+type TintCache = Map<string, HTMLCanvasElement>;
 /** A copy of a layer texture multiplied by `tint` (alpha kept), as Phaser's tint does in the match. */
-function tinted(key: string, img: CanvasImageSource, tint: number): CanvasImageSource {
+function tinted(cache: TintCache, key: string, img: CanvasImageSource, tint: number): CanvasImageSource {
   if (tint === 0xffffff) return img;
   const id = `${key}:${tint}`;
-  const hit = tintCache.get(id);
+  const hit = cache.get(id);
   if (hit) return hit;
   const sw = (img as HTMLCanvasElement).width;
   const sh = (img as HTMLCanvasElement).height;
   const c = document.createElement('canvas');
   c.width = sw;
   c.height = sh;
-  const g = c.getContext('2d')!;
+  const g = context2d(c);
+  if (!g) return img;
   g.drawImage(img, 0, 0);
   g.globalCompositeOperation = 'multiply';
   g.fillStyle = `#${tint.toString(16).padStart(6, '0')}`;
   g.fillRect(0, 0, sw, sh);
   g.globalCompositeOperation = 'destination-in';
   g.drawImage(img, 0, 0);
-  tintCache.set(id, c);
+  cache.set(id, c);
   return c;
 }
+
+/** Bottom-row colours already read (by texture key and tint): the layer textures never change. */
+const skirtCache = new Map<string, string | null>();
 
 /** Average colour of a texture's bottom row, or null when that row is not (nearly) opaque all the way across. */
 function bottomColour(img: CanvasImageSource): string | null {
   const c = img as HTMLCanvasElement;
-  const ctx = typeof c.getContext === 'function' ? c.getContext('2d') : null;
-  if (!ctx) return null;
-  const row = ctx.getImageData(0, c.height - 1, c.width, 1).data;
+  if (typeof c.getContext !== 'function' || !c.width || !c.height) return null;
+  let row: Uint8ClampedArray;
+  try {
+    const ctx = c.getContext('2d');
+    if (!ctx) return null;
+    row = ctx.getImageData(0, c.height - 1, c.width, 1).data;
+  } catch {
+    return null;
+  }
   let r = 0;
   let gg = 0;
   let bb = 0;
@@ -54,6 +65,15 @@ function bottomColour(img: CanvasImageSource): string | null {
   }
   if (n < c.width * 0.85) return null;
   return `rgb(${Math.round(r / n)},${Math.round(gg / n)},${Math.round(bb / n)})`;
+}
+
+function cachedBottomColour(id: string, img: () => CanvasImageSource | null): string | null {
+  if (skirtCache.has(id)) return skirtCache.get(id)!;
+  const im = img();
+  if (!im) return null;
+  const v = bottomColour(im);
+  skirtCache.set(id, v);
+  return v;
 }
 
 /**
@@ -72,6 +92,7 @@ function drawBackdrop(
   cx: number,
   cy: number,
   src: (k: string) => CanvasImageSource | null,
+  tints: TintCache,
 ): void {
   const f = W / VW;
   const zoom = sc / f;
@@ -83,7 +104,7 @@ function drawBackdrop(
   g.fillRect(0, 0, VW, VH);
   const tile = (key: string, img: CanvasImageSource | null, y: number, s: number, off: number, tint = 0xffffff, rows?: number): number => {
     if (!img) return 0;
-    const im = tinted(key, img, tint);
+    const im = tinted(tints, key, img, tint);
     const sw = (img as HTMLCanvasElement).width;
     const sh = rows ?? (img as HTMLCanvasElement).height;
     const w = sw * s;
@@ -119,7 +140,7 @@ function drawBackdrop(
   const nearY = (52 - cy * 0.26) * zoom + VH / 2 - 192 * ns;
   tile(nearTex, src(nearTex), nearY, ns, (cx * 0.26 * zoom) / ns, b.near);
   let bottom = nearY + 192 * ns;
-  let skirt = src(nearTex) ? bottomColour(tinted(nearTex, src(nearTex)!, b.near)) : null;
+  let skirt = src(nearTex) ? cachedBottomColour(`${nearTex}:${b.near}`, () => tinted(tints, nearTex, src(nearTex)!, b.near)) : null;
   if (b.ground) {
     ensureGroundTextures(scene, b.ground);
     const base = Math.floor(bottom) - 1;
@@ -128,8 +149,8 @@ function drawBackdrop(
       tile(key, src(key), Math.floor(base + L.top * ns), ns, (cx * GROUND_PARALLAX[i] * zoom) / ns);
       bottom = base + L.top * ns + L.h * ns;
     });
-    const last = src(`${b.ground}-${GROUND_LAYERS.length - 1}`);
-    skirt = last ? bottomColour(last) : null;
+    const lastKey = `${b.ground}-${GROUND_LAYERS.length - 1}`;
+    skirt = cachedBottomColour(lastKey, () => src(lastKey));
   }
   if (skirt && bottom < VH) {
     g.fillStyle = skirt;
@@ -139,14 +160,49 @@ function drawBackdrop(
   g.restore();
 }
 
-/** Stage-select preview: the stage's own sky, skylines and platform art, framed on its platforms. Cached per stage. */
+/** Stage-select preview: the stage's own sky, skylines and platform art, framed on its platforms. Cached per stage while a scene shows it. */
 export function stageThumb(scene: Phaser.Scene, stage: StageData, W = 480, H = 270): string {
   const key = `thumb:${stage.id}:${W}x${H}`;
-  if (scene.textures.exists(key)) return key;
+  // the match draws this stage's ground planes too: keep them (and the preview) while this screen is up
+  holdGround(scene, stage);
+  if (!scene.textures.exists(key)) {
+    ensureStageArtNow(scene, stage);
+    const tm = scene.textures;
+    const c = drawThumb({ textures: tm } as Phaser.Scene, stage, W, H);
+    // released once uploaded (WebGL), redrawn the same way after a context loss
+    if (c) addCanvasTexture(scene, key, c, () => drawThumb({ textures: tm } as Phaser.Scene, stage, W, H));
+  }
+  if (scene.textures.exists(key)) holdTexture(scene, key);
+  return scene.textures.exists(key) ? key : '__MISSING';
+}
+
+/** Hold a stage's ground-plane textures (building them if needed) for as long as `scene` runs. */
+export function holdGround(scene: Phaser.Scene, stage: StageData): void {
+  const b = BACKDROPS[stage.background.theme ?? 'skyline'] ?? BACKDROPS.skyline;
+  if (!b.ground) return;
+  ensureGroundTextures(scene, b.ground);
+  for (let i = 0; i < GROUND_LAYERS.length; i++) if (scene.textures.exists(`${b.ground}-${i}`)) holdTexture(scene, `${b.ground}-${i}`);
+}
+
+function drawThumb(scene: Phaser.Scene, stage: StageData, W: number, H: number): HTMLCanvasElement | null {
   const c = document.createElement('canvas');
   c.width = W;
   c.height = H;
-  const g = c.getContext('2d')!;
+  const g = context2d(c);
+  if (!g) return null;
+  const tints: TintCache = new Map();
+  try {
+    paintThumb(scene, g, stage, W, H, tints);
+  } finally {
+    for (const t of tints.values()) {
+      t.width = 0;
+      t.height = 0;
+    }
+  }
+  return c;
+}
+
+function paintThumb(scene: Phaser.Scene, g: CanvasRenderingContext2D, stage: StageData, W: number, H: number, tints: TintCache): void {
   g.imageSmoothingEnabled = false;
   const theme = stage.background.theme;
   const b = BACKDROPS[theme ?? 'skyline'] ?? BACKDROPS.skyline;
@@ -165,18 +221,15 @@ export function stageThumb(scene: Phaser.Scene, stage: StageData, W = 480, H = 2
   const sc = Math.min(W / span, (H * 0.54) / (-y0 + 16));
   const ox = W / 2 - ((x0 + x1) / 2) * sc;
   const oy = H * 0.62;
-  drawBackdrop(scene, g, b, theme, W, H, sc, (x0 + x1) / 2, (H / 2 - oy) / sc, src);
-  ensureStageArt(scene, stage);
+  drawBackdrop(scene, g, b, theme, W, H, sc, (x0 + x1) / 2, (H / 2 - oy) / sc, src, tints);
   stage.platforms.forEach((p, index) => {
-    if (p.kind === 'solid') {
-      const mk = stageArtKey(stage, index);
-      const m = src(mk) as HTMLCanvasElement;
-      g.drawImage(m, ox + (p.x - MASS_OVER / 2) * sc, oy + (p.y - MASS_HEAD / 2) * sc, m.width * 0.5 * sc, m.height * 0.5 * sc);
-    } else {
-      const pk = stageArtKey(stage, index);
-      const t = src(pk) as HTMLCanvasElement;
-      g.drawImage(t, ox + p.x * sc, oy + (p.y - PLAT_HEAD / 2) * sc, t.width * 0.5 * sc, t.height * 0.5 * sc);
-    }
+    // the piece's pixels (its texture gave its canvas back once uploaded)
+    const art = stageArtSource(scene, stage, index);
+    if (!art) return;
+    const m = art.img;
+    if (p.kind === 'solid') g.drawImage(m, ox + (p.x - MASS_OVER / 2) * sc, oy + (p.y - MASS_HEAD / 2) * sc, m.width * 0.5 * sc, m.height * 0.5 * sc);
+    else g.drawImage(m, ox + p.x * sc, oy + (p.y - PLAT_HEAD / 2) * sc, m.width * 0.5 * sc, m.height * 0.5 * sc);
+    art.done();
   });
   for (const h of stage.hazards ?? []) {
     const cx = ox + h.x * sc;
@@ -219,6 +272,4 @@ export function stageThumb(scene: Phaser.Scene, stage: StageData, W = 480, H = 2
   v.addColorStop(1, 'rgba(0,0,0,0.45)');
   g.fillStyle = v;
   g.fillRect(0, 0, W, H);
-  addCanvasTexture(scene, key, c);
-  return key;
 }

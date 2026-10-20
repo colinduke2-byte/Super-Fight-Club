@@ -29,16 +29,19 @@ import { applyHeld, clearInput, type Controller } from '../../game/controllers';
 import type { CpuLevel } from '../../game/lobby';
 import { session } from '../../game/session';
 import { clearedTrials, markTrialCleared, trialsFor, TrialChecker, type Trial } from '../../game/trials';
-import { LESSONS, markTutorialDone, takePendingTutorial, tutorialReturnScene, TutorialRunner } from '../../game/tutorial';
+import { deviceKind, LESSONS, markTutorialDone, takePendingTutorial, tutorialReturnScene, TutorialRunner } from '../../game/tutorial';
+import type { KeyboardSchemeId } from '../../input/actions';
+import type { InputDevice } from '../../input/device';
 import { inputManager } from '../../input/inputManager';
 import { lastInput } from '../../input/lastDevice';
 import { menuInput } from '../../input/menuInput';
-import { keyLabel, padButtonLabel, padStyleForId, promptFor, promptSerial } from '../../input/prompts';
+import { keyLabel, menuPrompt, moveLabel, padButtonLabel, padStyleForId, promptFor, promptSerial } from '../../input/prompts';
 import { saveSettings, settings } from '../../settings';
 import { STAGE_LIST, STAGES } from '../../stages';
 import { sandboxStage } from '../../stages/sandbox';
 import { LaunchPreview } from '../../ui/LaunchPreview';
 import { COLORS, drawPanel, hudUnit, type MenuItem } from '../../ui/menuKit';
+import { canvasDpr } from './hudLayout';
 import { TrainingMenu, wrap, type TrainingMenuPage } from '../../ui/TrainingMenu';
 import type { MatchScene } from '../MatchScene';
 
@@ -46,16 +49,36 @@ import type { MatchScene } from '../MatchScene';
 export const MENU_KEY = 'Tab';
 export const MENU_PAD_BUTTON = 8;
 
-/** The training-menu control for the device in use ('TAB', 'VIEW', 'MENU' chip on touch). */
-export function menuKeyLabel(): string {
-  if (lastInput.kind === 'gamepad') return padButtonLabel(MENU_PAD_BUTTON, padStyleForId(lastInput.padId));
-  if (lastInput.kind === 'touch') return 'TAP MENU';
+/** The device whose controls the help names: the training player's own (null: the last device used). */
+let helpDevice: InputDevice | null = null;
+
+/** How much training help shows: one line (the default), every key, or none. Kept for the session; H / the menu cycle it. */
+export type HelpMode = 'short' | 'full' | 'off';
+let helpMode: HelpMode = 'short';
+export function trainingHelpMode(): HelpMode {
+  return helpMode;
+}
+
+/** Pad face-button style of a device (a merged keyboard + pad device: the pad used last). */
+function padIdOf(d: InputDevice | null): string {
+  return (d && d.kind === 'gamepad' ? (d as { padId?: string }).padId : undefined) ?? lastInput.padId;
+}
+
+function schemeOf(d: InputDevice | null): KeyboardSchemeId {
+  return (d && d.kind === 'keyboard' ? (d as { scheme?: KeyboardSchemeId }).scheme : undefined) ?? lastInput.scheme;
+}
+
+/** The training-menu control for the player's device ('TAB', 'VIEW', 'MENU' chip on touch). */
+export function menuKeyLabel(d: InputDevice | null = helpDevice): string {
+  const kind = deviceKind(d);
+  if (kind === 'gamepad') return padButtonLabel(MENU_PAD_BUTTON, padStyleForId(padIdOf(d)));
+  if (kind === 'touch') return 'TAP MENU';
   return keyLabel(MENU_KEY);
 }
 
 /** Text of the corner chip that opens the menu with a click / tap. */
 function chipLabel(): string {
-  return lastInput.kind === 'touch' ? 'MENU' : `${menuKeyLabel()}: MENU`;
+  return deviceKind(helpDevice) === 'touch' ? 'MENU' : `${menuKeyLabel()}: MENU`;
 }
 
 let urlTutorialUsed = false;
@@ -69,27 +92,48 @@ function urlTutorial(): boolean {
 /** Set while the tutorial runs (the help block shrinks to the lesson basics). */
 let tutorialOn = false;
 
-/** The training help block: controls from the live bindings, the menu key and the number-key shortcuts. */
+/** The fight controls of a device in one line ('MOVE WASD  JUMP I ...', 'MOVE STICK  JUMP Y ...'; touch: its labelled buttons). */
+export function controlsLine(d: InputDevice | null = helpDevice): string {
+  const kind = deviceKind(d);
+  if (kind === 'touch') return 'STICK: MOVE   TAP THE LABELLED BUTTONS TO JUMP, ATTACK, SPECIAL, SHIELD AND GRAB';
+  const p = (a: Parameters<typeof promptFor>[0]): string => promptFor(a, d);
+  const move = kind === 'keyboard' ? moveLabel(schemeOf(d)) : 'STICK';
+  return `MOVE ${move}  JUMP ${p('jump')}  ATTACK ${p('attack')}  SPECIAL ${p('special')}  SHIELD ${p('shield')}  GRAB ${p('grab')}  SMASH ${p('smash')}`;
+}
+
+/**
+ * The training help block for the player's device: by default one line (how to open the training menu); in full, the
+ * controls, the menu and (on a keyboard) the hotkeys. Pads and touch get no key shortcuts they cannot press.
+ */
 export function trainingHelp(): string[] {
-  const p = promptFor;
-  const moves = `MOVE ${p('up')}${p('left')}${p('down')}${p('right')}`.replace(/^MOVE WASD$/, 'MOVE WASD');
-  const controls = `${moves}  JUMP ${p('jump')}  ATTACK ${p('attack')}  SPECIAL ${p('special')}  SHIELD ${p('shield')}  GRAB ${p('grab')}  SMASH ${p('smash')}`;
-  if (tutorialOn) return [controls, `${menuKeyLabel()}: TUTORIAL MENU  H HIDE THIS`];
+  const d = helpDevice;
+  const kb = deviceKind(d) === 'keyboard';
+  const menu = menuKeyLabel(d);
+  const opens = deviceKind(d) === 'touch' ? 'TAP MENU (TOP RIGHT):' : `${menu}:`;
+  if (tutorialOn) return [controlsLine(d), `${opens} TUTORIAL MENU${kb ? '   H: HIDE' : ''}`];
+  if (helpMode === 'off') return [];
+  if (helpMode === 'short') return [`${opens} TRAINING MENU${kb ? '   H: ALL KEYS' : ''}`];
   return [
-    controls,
-    `${menuKeyLabel()}: TRAINING MENU (DUMMY, DI, SPEED, TRIALS...)`,
-    'SHORTCUTS: 1 HITBOXES  2 HIT DUMMY  3 HIT SELF  4 +25%  5 CLEAR %  6 DUMMY MODE  0 RESET',
-    '[ ] SELECT MOVE  ENTER RUN IT  M SLOW-MO  N STEP MODE  B STEP  T TAP-JUMP  F FULLSCREEN  H HIDE  ESC PAUSE',
+    controlsLine(d),
+    `${opens} TRAINING MENU (DUMMY, DI, SPEED, TRIALS...)`,
+    ...(kb
+      ? ['SHORTCUTS: 1 HITBOXES  2 HIT DUMMY  3 HIT SELF  4 +25%  5 CLEAR %  6 DUMMY MODE  0 RESET', '[ ] SELECT MOVE  ENTER RUN IT  M SLOW-MO  N STEP MODE  B STEP  F FULLSCREEN  H: HIDE']
+      : []),
     'HITS DRAW THE NO-DI LAUNCH PATH: ORANGE = CRASH SPEED, X = KO',
   ];
 }
 
+/** Help outside Training (hidden unless asked for): how to pause, for the last device used. */
+export function matchHelp(): string[] {
+  return [`${menuPrompt('start')}: PAUSE${lastInput.kind === 'keyboard' ? '   CTRL+F: FULLSCREEN   CTRL+H: HIDE' : ''}`];
+}
+
 /** Kept for callers of the old constant: the training help as it reads right now. */
 export const HELP_TRAINING = trainingHelp();
-export const HELP_MATCH = ['ESC / START: PAUSE   1 DEBUG   F FULLSCREEN   H HIDE THIS'];
+export const HELP_MATCH = matchHelp();
 
 export function helpLines(training: boolean): string[] {
-  return training ? trainingHelp() : HELP_MATCH;
+  return training ? trainingHelp() : matchHelp();
 }
 
 /** Re-wraps help lines to at most `max` characters, breaking between their double-spaced entries where it can. */
@@ -204,6 +248,8 @@ export class TrainingTools {
     this.combo = s.isTraining ? new ComboTracker(s.fighters[0], s.fighters[1]) : null;
     const tut = s.isTraining && (takePendingTutorial() || urlTutorial());
     tutorialOn = tut;
+    // the help names the training player's own controls (not whichever device was touched last)
+    helpDevice = s.isTraining ? (s.slots.find((p) => p.type === 'human')?.device ?? null) : null;
     this.tutorial = tut ? new TutorialRunner(s.world, s.fighters[0], s.fighters[1]) : null;
     this.stance = new StanceDummy(this.opts);
     if (!s.isTraining) return;
@@ -228,6 +274,7 @@ export class TrainingTools {
     s.events.once('shutdown', () => {
       s.scale.off('resize', onResize);
       tutorialOn = false;
+      helpDevice = null;
     });
     this.layout();
     // options that carry over from the last training session
@@ -253,6 +300,27 @@ export class TrainingTools {
     this.menu?.layout(w, h, u);
     this.lessonSerial = -1;
   }
+
+  private setHelpMode(m: HelpMode): void {
+    helpMode = m;
+    this.refreshHelp();
+  }
+
+  /** Rewrites the help block (the scene's HUD shows it) for the current mode and device, wrapped to the window. */
+  private refreshHelp(): void {
+    const s = this.s;
+    const hud = s.hud;
+    if (!hud?.helpText) return;
+    const w = s.scale.width;
+    const u = hudUnit(s.scale.height);
+    const m = Math.round(8 * canvasDpr(s));
+    const lines = helpLines(s.isTraining);
+    hud.helpText.setText(up(wrapHelp(lines, Math.max(20, Math.floor((w - 2 * m) / (7 * u))))));
+    s.st.plateX = s.st.plateY = -1;
+    hud.setHelp(lines.length > 0 && (this.tutorial ? s.st.helpOn : true));
+  }
+
+  private helpShown = false;
 
   onEvent(type: WorldEventType, f: Fighter, x: number, y: number, mag: number, extra: number): void {
     this.runner?.onEvent(type, f, x, y, mag, extra);
@@ -337,6 +405,7 @@ export class TrainingTools {
         o.hitboxes = !o.hitboxes;
         this.applyHitboxes();
       }, 'SHOW HITBOXES, HURTBOXES AND FRAME DATA'),
+      this.row('HELP TEXT', () => helpMode.toUpperCase(), (d) => this.setHelpMode(cycle(['short', 'full', 'off'] as const, helpMode, d)), 'THE CONTROLS HELP IN THE TOP LEFT: ONE LINE, EVERY KEY, OR NONE'),
       this.row('INPUT DISPLAY', () => (o.inputDisplay ? 'ON' : 'OFF'), () => (o.inputDisplay = !o.inputDisplay), 'SHOW YOUR STICK AND BUTTONS'),
       this.row('COMBO COUNTER', () => (o.comboCounter ? 'ON' : 'OFF'), () => (o.comboCounter = !o.comboCounter), 'HITS, DAMAGE AND FRAME ADVANTAGE OF YOUR LAST HIT OR BLOCKED HIT'),
       this.row('SAVE POSITIONS', () => (this.saved ? 'SAVED' : ''), undefined, 'REMEMBER WHERE BOTH FIGHTERS ARE (AND THEIR %)', () => {
@@ -656,13 +725,23 @@ export class TrainingTools {
         s.hud.refreshHelp();
         return;
       case 'KeyH':
-        s.hud.setHelp(!st.helpOn);
+        // Training: one line -> every key -> hidden; the tutorial and matches just show / hide it
+        if (s.isTraining && !this.tutorial) this.setHelpMode(helpMode === 'short' ? 'full' : helpMode === 'full' ? 'off' : 'short');
+        else s.hud.setHelp(!st.helpOn);
         return;
-      case 'KeyT':
+      case 'KeyT': {
+        // tap-jump is a pad / touch setting: a keyboard-only player pressing T changes nothing they could feel
+        const d = s.isTraining ? helpDevice : null;
+        const padOrTouch = !d || d.kind === 'gamepad' || d.kind === 'touch' || (d.kind === 'merged' && inputManager.padList.length > 0);
+        if (!padOrTouch) {
+          s.hud.showToast('Tap-jump is for pads and touch (Settings)');
+          return;
+        }
         settings.tapJump = !settings.tapJump;
         saveSettings();
-        s.hud.showToast(`Tap-jump ${settings.tapJump ? 'ON' : 'OFF'}`);
+        s.hud.showToast(`Tap-jump ${settings.tapJump ? 'ON' : 'OFF'} (pads and touch)`);
         return;
+      }
       case 'Backquote':
         s.perf.visible = !s.perf.visible;
         settings.showPerf = s.perf.visible;
@@ -741,10 +820,13 @@ export class TrainingTools {
     }
     this.padWasDown = pad;
     // prompts follow the device in use
-    if (promptSerial() !== this.promptSerial) {
+    if (promptSerial() !== this.promptSerial || !this.helpShown) {
       this.promptSerial = promptSerial();
       m.setChip(chipLabel());
       this.lessonSerial = -1;
+      // a merged keyboard + pad player: the help follows whichever of the two they use
+      this.helpShown = true;
+      this.refreshHelp();
     }
     if (m.open && !s.st.paused) {
       // humans keep being sampled (and discarded) so a key that closes the menu (Escape = pause, J = attack) is not a
@@ -775,14 +857,33 @@ export class TrainingTools {
     const l = t.lesson;
     const max = Math.max(20, Math.floor((w * 0.8) / (7 * u)));
     const head = t.finished ? 'TUTORIAL COMPLETE!' : `LESSON ${t.index + 1}/${LESSONS.length}: ${l.title}${t.cleared ? '  - CLEAR!' : ''}`;
-    const body = t.finished ? 'YOU KNOW THE BASICS. TRY TRAINING, VERSUS OR ARCADE NEXT!' : `${l.goal()}\n${'#'.repeat(t.progress)}${'-'.repeat(l.count - t.progress)}  ${t.progress}/${l.count}`;
+    const body = t.finished ? 'YOU KNOW THE BASICS. TRY TRAINING, VERSUS OR ARCADE NEXT!' : l.goal(helpDevice);
     txt.setText(up(`${head}\n\n${wrap(body, max)}`)).setScale(u);
     txt.setTint(t.cleared || t.finished ? COLORS.good : COLORS.text);
-    const y = Math.round(s.scale.height * 0.12);
+    // below the help block (top left) on narrow windows, where the card would otherwise cover it
+    const helpBottom = s.hud.helpText.visible && s.hud.helpText.text ? s.hud.helpText.y + s.hud.helpText.displayHeight : 0;
+    const y = Math.round(Math.max(s.scale.height * 0.12, helpBottom + 10 * u));
     txt.setPosition(w / 2, y);
     const pad = 6 * u;
+    // the progress bar: one segment per repetition the lesson asks for, filled as they land
+    const barH = t.finished ? 0 : 6 * u;
+    const bw = Math.max(txt.displayWidth, 80 * u);
     g.clear();
-    drawPanel(g, w / 2 - txt.displayWidth / 2 - pad, y - pad, txt.displayWidth + pad * 2, txt.displayHeight + pad * 2, u, 0.85);
+    drawPanel(g, w / 2 - bw / 2 - pad, y - pad, bw + pad * 2, txt.displayHeight + pad * 2 + (barH ? barH + 5 * u : 0), u, 0.85);
+    if (barH) {
+      const n = l.count;
+      const gap = 2 * u;
+      const segW = Math.min(30 * u, (bw - gap * (n - 1)) / n);
+      const total = segW * n + gap * (n - 1);
+      const by = y + txt.displayHeight + 5 * u;
+      for (let k = 0; k < n; k++) {
+        const x = w / 2 - total / 2 + k * (segW + gap);
+        const on = k < t.progress;
+        g.fillStyle(on ? COLORS.good : 0x1c1840, 1).fillRect(x, by, segW, barH);
+        g.lineStyle(Math.max(1, u / 2), on ? COLORS.good : 0x5a5680, 1).strokeRect(x, by, segW, barH);
+        if (on) g.fillStyle(0xffffff, 0.35).fillRect(x, by, segW, Math.max(1, u));
+      }
+    }
     if (t.cleared || t.finished) sfx.play('ding', 0.7, 0);
   }
 

@@ -3,12 +3,14 @@ import { PIXEL_FONT, up } from '../art/pixelFont';
 import { sfx } from '../audio/sfx';
 import type { MenuEvent } from '../input/menuInput';
 import { resetSettings, saveSettings, settings, type ParticleQuality, type RenderQuality, type Settings, type SmashMode } from '../settings';
-import { applySize } from '../display';
-import { COLORS, MenuList, MenuScene, PORT_SHAPES, drawPanel, drawPortShape, playerColors, pointerXY, text, textPx, type MenuBackdrop, type MenuItem } from '../ui/menuKit';
+import { applySize, fullscreenSupported, isIosBrowser, showHomeScreenTip } from '../display';
+import { COLORS, MenuList, MenuScene, PORT_SHAPES, drawPanel, drawPortShape, playerColors, pointerXY, tapMin, text, textPx, type MenuBackdrop, type MenuItem } from '../ui/menuKit';
 
 const QUALITY: ParticleQuality[] = ['low', 'medium', 'high'];
 const SMASH: SmashMode[] = ['flick', 'button'];
 const UI_SCALES = [0.75, 1, 1.25, 1.5];
+const TOUCH_SIZES = [0.75, 0.875, 1, 1.15, 1.3, 1.5];
+const TOUCH_OPACITY = [0.2, 0.35, 0.5, 0.6, 0.75, 0.9];
 
 function cycle<T>(arr: T[], v: T, d: number): T {
   return arr[(arr.indexOf(v) + d + arr.length) % arr.length];
@@ -28,7 +30,7 @@ const TABS: { id: SettingsTab; label: string }[] = [
 const TAB_KEYS: Record<SettingsTab, (keyof Settings)[]> = {
   audio: ['masterVolume', 'sfxVolume', 'musicVolume', 'announcer', 'ambience'],
   video: ['renderQuality', 'particleQuality', 'autoQuality', 'showPerf', 'screenShake', 'killCam'],
-  gameplay: ['tapJump', 'tapJumpKeyboard', 'smashMode', 'deadzone', 'rumble'],
+  gameplay: ['tapJump', 'tapJumpKeyboard', 'smashMode', 'deadzone', 'rumble', 'touchSize', 'touchOpacity', 'touchLeftHanded', 'touchStickX', 'touchStickY', 'touchBtnX', 'touchBtnY'],
   access: ['playerPalette', 'portShapes', 'uiScale', 'reduceMotion', 'reduceFlashes'],
 };
 
@@ -115,7 +117,13 @@ export class SettingsScene extends MenuScene {
       saveSettings();
       if (key !== 'deadzone') sfx.play('ding', 0.4, 0);
     };
-    const toggle = (key: 'tapJump' | 'tapJumpKeyboard' | 'showPerf' | 'autoQuality' | 'rumble' | 'reduceFlashes' | 'killCam' | 'announcer' | 'ambience' | 'portShapes' | 'reduceMotion') => () => {
+    const stepList = (list: number[], key: 'touchSize' | 'touchOpacity', d: number) => () => {
+      let i = list.findIndex((v) => v >= settings[key] - 1e-6);
+      if (i < 0) i = list.length - 1;
+      settings[key] = list[clamp(i + d, 0, list.length - 1)];
+      saveSettings();
+    };
+    const toggle = (key: 'tapJump' | 'tapJumpKeyboard' | 'showPerf' | 'autoQuality' | 'rumble' | 'reduceFlashes' | 'killCam' | 'announcer' | 'ambience' | 'portShapes' | 'reduceMotion' | 'touchLeftHanded') => () => {
       settings[key] = !settings[key];
       saveSettings();
     };
@@ -174,11 +182,17 @@ export class SettingsScene extends MenuScene {
             onConfirm: () => { settings.particleQuality = cycle(QUALITY, settings.particleQuality, 1); saveSettings(); },
           },
           sw('autoQuality', 'AUTO PARTICLES', 'Cut particles automatically if the frame rate drops.'),
-          {
-            label: 'FULLSCREEN', hint: 'Fill the whole screen.',
-            value: () => onOff(this.scale.isFullscreen),
-            onConfirm: () => (this.scale.isFullscreen ? this.scale.stopFullscreen() : this.scale.startFullscreen()),
-          },
+          isIosBrowser() && !fullscreenSupported()
+            ? {
+                label: 'FULLSCREEN', hint: 'iPhone: tap Share, then Add to Home Screen, and open the game from there to play fullscreen.',
+                value: () => 'HOW?',
+                onConfirm: () => showHomeScreenTip(true),
+              }
+            : {
+                label: 'FULLSCREEN', hint: 'Fill the whole screen. On a phone it also turns the game sideways where the browser allows.',
+                value: () => onOff(this.scale.isFullscreen),
+                onConfirm: () => (this.scale.isFullscreen ? this.scale.stopFullscreen() : this.scale.startFullscreen()),
+              },
           sw('showPerf', 'FPS COUNTER', 'Show the frame rate in the corner during matches.'),
           { label: 'SCREEN SHAKE', hint: 'How hard the camera kicks on big hits.', value: () => pct(settings.screenShake), onLeft: step('screenShake', -0.25, 0, 1), onRight: step('screenShake', 0.25, 0, 1) },
           sw('killCam', 'KILL-CAM SLOW-MO', 'A slow-motion zoom on a match-winning KO.'),
@@ -209,6 +223,9 @@ export class SettingsScene extends MenuScene {
           },
           { label: 'STICK DEADZONE', hint: 'How far the stick must move before it counts. Raise it for worn sticks.', value: () => pct(settings.deadzone), onLeft: step('deadzone', -0.05, 0, 0.9), onRight: step('deadzone', 0.05, 0, 0.9) },
           sw('rumble', 'CONTROLLER RUMBLE', 'Vibration on hits and KOs (controllers that support it).'),
+          { label: 'TOUCH BUTTON SIZE', hint: 'Size of the on-screen stick and buttons. CONTROLS... > TOUCH SCREEN lets you drag them too.', value: () => pct(settings.touchSize), onLeft: stepList(TOUCH_SIZES, 'touchSize', -1), onRight: stepList(TOUCH_SIZES, 'touchSize', 1) },
+          { label: 'TOUCH OPACITY', hint: 'How see-through the on-screen buttons are when not pressed.', value: () => pct(settings.touchOpacity), onLeft: stepList(TOUCH_OPACITY, 'touchOpacity', -1), onRight: stepList(TOUCH_OPACITY, 'touchOpacity', 1) },
+          sw('touchLeftHanded', 'LEFT-HANDED TOUCH', 'Mirror the touch controls: the stick on the right, the buttons on the left.'),
         ];
         break;
       case 'access': {
@@ -225,8 +242,8 @@ export class SettingsScene extends MenuScene {
         rows = [
           { label: 'PLAYER COLOURS', hint: 'COLOUR-BLIND swaps the player colours for a set that stays distinct with any colour vision.', value: () => (settings.playerPalette === 'classic' ? 'CLASSIC' : 'COLOUR-BLIND'), onLeft: pal, onRight: pal, onConfirm: pal },
           sw('portShapes', 'PLAYER SHAPES', 'A shape per player (circle, square, triangle, diamond) on tags, HUD plates and off-screen bubbles.'),
-          { label: 'TEXT SIZE', hint: 'Scales menu text and the match HUD.', value: () => pct(settings.uiScale), onLeft: sc(-1), onRight: sc(1), onConfirm: sc(1) },
-          sw('reduceMotion', 'REDUCE MOTION', 'Calmer menus: no gliding cursor, sliding intros, swaying lights or confetti.'),
+          { label: 'TEXT SIZE', hint: 'Scales menu text and the match HUD. Long menus scroll rather than shrink.', value: () => pct(settings.uiScale), onLeft: sc(-1), onRight: sc(1), onConfirm: sc(1) },
+          sw('reduceMotion', 'REDUCE MOTION', 'Calmer menus: no gliding cursor, sliding intros, swaying lights or confetti. Starts on when your device asks for less motion.'),
           sw('reduceFlashes', 'REDUCE FLASHES', 'Softer white flashes on KOs, hits and ultimates, and no blinking or strobing text.'),
         ];
         break;
@@ -259,7 +276,8 @@ export class SettingsScene extends MenuScene {
   }
 
   protected override layoutUi(w: number, h: number, u: number): void {
-    this.title.setScale(Math.min(u * 4, (h * 0.1) / 7)).setPosition(w / 2, Math.max(h * 0.1, 6 * u + (7 * Math.min(u * 4, (h * 0.1) / 7)) / 2));
+    const tk = Math.min(u * 4, (h * 0.1) / 7, (w * 0.9) / Math.max(1, textPx(this.title)));
+    this.title.setScale(tk).setPosition(w / 2, Math.max(h * 0.09, 8 * u + (7 * tk) / 2));
     // the tab strip under the title: shrunk to fit the width
     const ty = this.title.y + this.title.displayHeight / 2 + 9 * u;
     const pad = 6 * u;
@@ -267,16 +285,18 @@ export class SettingsScene extends MenuScene {
     const raw = this.tabTexts.reduce((a, t) => a + textPx(t), 0);
     const k = Math.min(u * 1.2, (w * 0.94 - (pad * 2 + gap) * TABS.length) / Math.max(1, raw));
     let x = w / 2 - (raw * k + (pad * 2 + gap) * TABS.length - gap) / 2;
+    // finger-tall tabs on a touch screen
+    const tabH = Math.max(7 * k + 4 * u, tapMin(this) * 0.85);
     this.tabBoxes = this.tabTexts.map((t) => {
       t.setScale(k);
       const bw = textPx(t) * k + pad * 2;
-      const box = { x, y: ty - 5 * u, w: bw, h: 7 * k + 4 * u };
+      const box = { x, y: ty - 5 * u, w: bw, h: tabH };
       t.setPosition(x + bw / 2, ty - 5 * u + box.h / 2);
       x += bw + gap;
       return box;
     });
     this.drawTabs();
-    const listTop = ty - 5 * u + 7 * k + 4 * u + 12 * u;
+    const listTop = ty - 5 * u + tabH + 12 * u;
     // the list stops above the footer (description + controls hint) with a clear gap
     const footTop = this.placeFooter(this.hint, this.desc);
     this.list.layout(w / 2, listTop, u, 200, footTop - 8 * u);

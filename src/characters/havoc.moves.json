@@ -54,7 +54,7 @@
     "y": 0,
     "w": 1,
     "h": 1,
-    "damage": 10.0,
+    "damage": 10,
     "angle": 45,
     "base": 40,
     "scaling": 0.72,
@@ -92,7 +92,7 @@
     "y": 0,
     "w": 1,
     "h": 1,
-    "damage": 14.0,
+    "damage": 14,
     "angle": 40,
     "base": 38,
     "scaling": 0.95,
@@ -131,7 +131,7 @@
     "y": 0,
     "w": 1,
     "h": 1,
-    "damage": 13.0,
+    "damage": 13,
     "angle": 88,
     "base": 40,
     "scaling": 0.9,
@@ -169,11 +169,11 @@
     "y": 0,
     "w": 1,
     "h": 1,
-    "damage": 7.0,
+    "damage": 7,
     "angle": 70,
     "base": 43.5,
     "scaling": 0.522,
-    "hitlag": 1.0,
+    "hitlag": 1,
     "fx": "blast"
    },
    "blast": {
@@ -215,7 +215,7 @@
      "y": 0,
      "w": 1,
      "h": 1,
-     "damage": 14.0,
+     "damage": 14,
      "angle": 62,
      "base": 48,
      "scaling": 0.82,
@@ -284,7 +284,8 @@
      "base": 8,
      "scaling": 0.15,
      "minHitstun": 16,
-     "fx": "slash"
+     "fx": "slash",
+     "setKb": 14
     }
    ]
   },
@@ -323,7 +324,8 @@
      "base": 8,
      "scaling": 0.15,
      "minHitstun": 16,
-     "fx": "punch"
+     "fx": "punch",
+     "setKb": 14
     }
    ]
   },
@@ -490,7 +492,7 @@
      "y": -3,
      "w": 30,
      "h": 10,
-     "damage": 6.0,
+     "damage": 6,
      "angle": 70,
      "base": 26,
      "scaling": 0.45,
@@ -593,7 +595,7 @@
      "y": -18,
      "w": 22,
      "h": 16,
-     "damage": 5.0,
+     "damage": 5,
      "angle": 150,
      "base": 34,
      "scaling": 0.5,
@@ -787,7 +789,7 @@
      "y": -14,
      "w": 44,
      "h": 26,
-     "damage": 3.0,
+     "damage": 3,
      "angle": 361,
      "base": 14,
      "scaling": 0.15,
@@ -797,14 +799,15 @@
      ],
      "group": 0,
      "minHitstun": 10,
-     "fx": "kick"
+     "fx": "kick",
+     "setKb": 20
     },
     {
      "x": 0,
      "y": -14,
      "w": 46,
      "h": 28,
-     "damage": 6.0,
+     "damage": 6,
      "angle": 48,
      "base": 34,
      "scaling": 0.6,
@@ -851,7 +854,7 @@
      "y": -10,
      "w": 24,
      "h": 22,
-     "damage": 12.0,
+     "damage": 12,
      "angle": 280,
      "base": 28,
      "scaling": 0.55,
@@ -867,7 +870,7 @@
      "y": -10,
      "w": 24,
      "h": 22,
-     "damage": 9.0,
+     "damage": 9,
      "angle": 45,
      "base": 32,
      "scaling": 0.65,
@@ -912,7 +915,7 @@
      "y": -12,
      "w": 28,
      "h": 18,
-     "damage": 10.0,
+     "damage": 10,
      "angle": 140,
      "base": 34,
      "scaling": 0.82,
@@ -1002,7 +1005,8 @@
      "rehit": 4,
      "minHitstun": 8,
      "hitlag": 0.6,
-     "fx": "kick"
+     "fx": "kick",
+     "setKb": 12
     },
     {
      "x": 2,
@@ -1058,7 +1062,7 @@
      "y": -15,
      "w": 40,
      "h": 34,
-     "damage": 8.0,
+     "damage": 8,
      "angle": 40,
      "base": 50,
      "scaling": 0.62,
@@ -1102,7 +1106,7 @@
      "y": -15,
      "w": 40,
      "h": 34,
-     "damage": 7.0,
+     "damage": 7,
      "angle": 90,
      "base": 46,
      "scaling": 0.55,
@@ -1124,7 +1128,7 @@
      "y": -15,
      "w": 40,
      "h": 34,
-     "damage": 6.0,
+     "damage": 6,
      "angle": 80,
      "base": 34,
      "scaling": 0.35,
@@ -1282,7 +1286,8 @@
     {
      "frame": 5,
      "vy": -6.4,
-     "mode": "set"
+     "mode": "set",
+     "vx": 0.9
     },
     {
      "frame": 16,
@@ -1299,7 +1304,7 @@
     {
      "frame": 12,
      "action": "ledgeSnap",
-     "range": 80
+     "range": 92
     }
    ],
    "cancels": [
@@ -1410,7 +1415,7 @@
      "y": -42,
      "w": 30,
      "h": 16,
-     "damage": 2.0,
+     "damage": 2,
      "angle": 70,
      "base": 18,
      "scaling": 0.2,
@@ -1422,7 +1427,8 @@
      "dir": "away",
      "fx": "punch"
     }
-   ]
+   ],
+   "airDrift": 1.25
   },
   "downB": {
    "name": "C4",

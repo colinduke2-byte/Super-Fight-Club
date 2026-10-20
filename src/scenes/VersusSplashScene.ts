@@ -1,5 +1,6 @@
 import Phaser from 'phaser';
 import { PIXEL_FONT, up } from '../art/pixelFont';
+import { ensureStageArt } from '../art/stageArt';
 import { ensurePalette, fighterAnimKey, fighterTextureKey, uiTexK } from '../art/proceduralFighter';
 import { characterById } from '../characters';
 import { session } from '../game/session';
@@ -55,6 +56,7 @@ export class VersusSplashScene extends MenuScene {
 
   protected build(): void {
     const stage = STAGES[session.stage];
+    if (this.next === 'Match') void ensureStageArt(this, session.stage); // ready (or close) by the time the fight starts
     this.bg.setTheme(stage?.background.theme);
     this.bgImg = stage ? this.add.image(0, 0, stageThumb(this, stage)).setOrigin(0.5).setTint(0x8a84a8) : null;
     if (this.bgImg) this.ui.add(this.bgImg);

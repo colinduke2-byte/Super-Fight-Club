@@ -5,13 +5,62 @@ import { sfx } from '../audio/sfx';
 import { inputManager } from '../input/inputManager';
 import type { InputDevice } from '../input/device';
 import { menuInput, type MenuAction, type MenuEvent } from '../input/menuInput';
-import { footerHint, promptSerial, type MenuVerb } from '../input/prompts';
+import { footerHint, lastInput, promptSerial, splitFooter, wrapText, type MenuVerb } from '../input/prompts';
+
+export { splitFooter, wrapText };
+import type { MenuPad } from '../input/touch';
 import { settings } from '../settings';
+import { layoutUnit, TAP_MIN_CSS, viewport } from '../display';
 import { BackgroundView } from './BackgroundView';
 
-/** Device pixels per UI art pixel (integer >= 2); scales text and panels with the window and the TEXT SIZE setting. */
-export function hudUnit(h: number): number {
-  return Math.max(2, Math.round((h / 360) * (settings.uiScale || 1)));
+/**
+ * Render (canvas) pixels per UI art pixel for a canvas `h` tall (and `w` wide: the current window's width when omitted).
+ * Follows the shorter of the window's width and height in CSS pixels, never drops below a readable size on touch
+ * screens, and scales with the TEXT SIZE setting in real steps (see display.layoutUnit). Whole pixels from 4 up, half
+ * pixels below.
+ */
+export function hudUnit(h: number, w?: number): number {
+  const v = viewport;
+  const perCss = v.cssH > 0 ? h / v.cssH : 1;
+  const ww = w ?? (v.cssW > 0 ? v.cssW * perCss : (h * 16) / 9);
+  return layoutUnit(h, ww, perCss, v.coarse, settings.uiScale || 1);
+}
+
+/** Render pixels per CSS pixel of the canvas right now (1 before the display is set up). */
+export function renderPerCss(scene?: Phaser.Scene): number {
+  if (scene && viewport.cssW > 0) return scene.scale.width / viewport.cssW;
+  return viewport.scale || 1;
+}
+
+/** Smallest comfortable tap target in render pixels: ~44 CSS px on a touch screen, 0 with a mouse. */
+export function tapMin(scene?: Phaser.Scene): number {
+  return viewport.coarse ? TAP_MIN_CSS * renderPerCss(scene) : 0;
+}
+
+/**
+ * Shrink a text (keeping its origin) so it is no wider than `maxW` render px, never above `maxScale`. Returns the scale.
+ */
+export function fitText(t: Phaser.GameObjects.BitmapText, maxW: number, maxScale: number): number {
+  const k = Math.min(maxScale, maxW / Math.max(1, textPx(t)));
+  t.setScale(k);
+  return k;
+}
+
+/** Cut `str` (ending it with '..') until the text is no wider than `maxPx` unscaled pixels; returns the text shown. */
+export function truncateText(t: Phaser.GameObjects.BitmapText, str: string, maxPx: number): string {
+  t.setText(str);
+  if (textPx(t) <= maxPx || str.length <= 2) return str;
+  let lo = 1;
+  let hi = str.length - 1;
+  while (lo < hi) {
+    const mid = (lo + hi + 1) >> 1;
+    t.setText(`${str.slice(0, mid).trimEnd()}..`);
+    if (textPx(t) <= maxPx) lo = mid;
+    else hi = mid - 1;
+  }
+  const out = `${str.slice(0, lo).trimEnd()}..`;
+  t.setText(out);
+  return out;
 }
 
 /** Player / port colours: the classic set, and an Okabe-Ito set (sky blue, orange, bluish green, reddish purple) that stays distinct for colour-blind players. */
@@ -114,12 +163,17 @@ export function drawPanel(g: Phaser.GameObjects.Graphics, x: number, y: number, 
 
 /**
  * The device a mouse click / finger tap acts for: the touch controller for a finger (so a tap in character select
- * joins as the touch player), else keyboard 1 (a mouse sits with a keyboard).
+ * joins as the touch player), else the device used last (a pad player who clicks joins as their pad, a keyboard player as
+ * their side of the keyboard).
  */
 export function pointerDevice(p?: Phaser.Input.Pointer): InputDevice {
   const t = inputManager.touch;
   if (p?.wasTouch || t.recentTouch()) return t;
-  return inputManager.keyboards[0];
+  if (lastInput.kind === 'gamepad') {
+    const pad = inputManager.padList.find((d) => d.padId === lastInput.padId && d.connected) ?? inputManager.padList.find((d) => d.connected);
+    if (pad) return pad;
+  }
+  return inputManager.keyboards[lastInput.scheme === 'kb2' ? 1 : 0];
 }
 
 /**
@@ -172,6 +226,14 @@ export class MenuList {
   interactive = true;
   /** Text scale factor of the last update (the plate and the hit boxes follow it). */
   private lastK = 1.5;
+  /**
+   * Scrolling: the first row shown and how many fit. A list longer than the space it is given (down to `bottom`, or the
+   * footer) keeps its row size and scrolls with the cursor (and a finger drag) instead of shrinking its text.
+   */
+  private first = 0;
+  private shown = 1;
+  /** A finger on the list: where it went down, the scroll it started from, and whether it has turned into a drag. */
+  private press: { id: number; y: number; first: number; row: number; drag: boolean; x: number } | null = null;
 
   constructor(
     private readonly scene: Phaser.Scene,
@@ -183,6 +245,7 @@ export class MenuList {
     this.rebuild();
     scene.input.on(Phaser.Input.Events.POINTER_MOVE, this.onPointerMove, this);
     scene.input.on(Phaser.Input.Events.POINTER_DOWN, this.onPointerDown, this);
+    scene.input.on(Phaser.Input.Events.POINTER_UP, this.onPointerUp, this);
     scene.events.once(Phaser.Scenes.Events.SHUTDOWN, this.detachPointer, this);
     if (scene instanceof MenuScene) scene.lists.push(this);
   }
@@ -190,6 +253,17 @@ export class MenuList {
   private detachPointer(): void {
     this.scene.input?.off(Phaser.Input.Events.POINTER_MOVE, this.onPointerMove, this);
     this.scene.input?.off(Phaser.Input.Events.POINTER_DOWN, this.onPointerDown, this);
+    this.scene.input?.off(Phaser.Input.Events.POINTER_UP, this.onPointerUp, this);
+  }
+
+  /** Rows shown at once (all of them unless the list scrolls). */
+  get visibleRows(): number {
+    return this.shown;
+  }
+
+  /** First row shown (0 unless the list scrolls). */
+  get scrollTop(): number {
+    return this.first;
   }
 
   /** Row under a screen point (-1: none). Rows span the whole plate width. */
@@ -201,12 +275,29 @@ export class MenuList {
     const x = this.cx - (this.width / 2) * u - pad;
     if (px < x || px > x + this.width * u + pad * 2) return -1;
     const y0 = this.top - (rh - 7 * this.lastK * u) / 2;
-    const i = Math.floor((py - y0) / rh);
-    return i >= 0 && i < this.items.length ? i : -1;
+    const slot = Math.floor((py - y0) / rh);
+    if (slot < 0 || slot >= this.shown) return -1;
+    const i = this.first + slot;
+    return i < this.items.length ? i : -1;
   }
 
   private onPointerMove(p: Phaser.Input.Pointer): void {
     const q = pointerXY(this.scene, p);
+    const pr = this.press;
+    if (pr && p.id === pr.id) {
+      // a finger dragged along a long list scrolls it (the press then no longer counts as a tap)
+      const rh = this.rowH * this.u;
+      if (!pr.drag && Math.abs(q.y - pr.y) > Math.max(rh * 0.4, 10 * renderPerCss(this.scene))) pr.drag = this.items.length > this.shown;
+      if (pr.drag) {
+        this.first = Math.max(0, Math.min(this.items.length - this.shown, pr.first - Math.round((q.y - pr.y) / rh)));
+        // the cursor stays on a row that is on screen
+        if (this.index < this.first) this.index = this.first;
+        else if (this.index >= this.first + this.shown) this.index = this.first + this.shown - 1;
+        this.barPos = this.index;
+      }
+      return;
+    }
+    if (p.wasTouch) return; // a finger only hovers while pressed
     const i = this.rowAt(q.x, q.y);
     if (i < 0 || i === this.index || !this.enabled(i)) return;
     this.index = i;
@@ -217,7 +308,32 @@ export class MenuList {
     if (p.rightButtonDown()) return;
     const q = pointerXY(this.scene, p);
     const i = this.rowAt(q.x, q.y);
-    if (i < 0 || !this.enabled(i)) return;
+    if (i < 0) return;
+    if (p.wasTouch) {
+      // a finger acts when it lifts, so a drag can scroll instead
+      this.press = { id: p.id, y: q.y, x: q.x, first: this.first, row: i, drag: false };
+      if (this.enabled(i) && i !== this.index) {
+        this.index = i;
+        sfx.play('menuMove', 0.45, 0);
+      }
+      return;
+    }
+    this.act(i, q.x, pointerDevice(p));
+  }
+
+  private onPointerUp(p: Phaser.Input.Pointer): void {
+    const pr = this.press;
+    if (!pr || p.id !== pr.id) return;
+    this.press = null;
+    if (pr.drag) return;
+    const q = pointerXY(this.scene, p);
+    const i = this.rowAt(q.x, q.y);
+    if (i === pr.row) this.act(i, pr.x, pointerDevice(p));
+  }
+
+  /** A click / tap on row i at screen x: confirm it, or step its value left / right when the value is hit. */
+  private act(i: number, x: number, device: InputDevice): void {
+    if (!this.enabled(i)) return;
     this.index = i;
     const it = this.items[i];
     let action: MenuAction | null = it.onConfirm ? 'confirm' : null;
@@ -225,11 +341,10 @@ export class MenuList {
       // on the value (or a row that only steps): its left half steps left, its right half right
       const v = this.values[i];
       const vl = v.x - v.displayWidth;
-      if (q.x >= vl - 6 * this.u || !action) action = it.onLeft && (q.x < vl + v.displayWidth / 2 || !it.onRight) ? 'left' : 'right';
+      if (x >= vl - 6 * this.u || !action) action = it.onLeft && (x < vl + v.displayWidth / 2 || !it.onRight) ? 'left' : 'right';
     }
-    if (action) menuInput.inject(action, pointerDevice(p), this);
+    if (action) menuInput.inject(action, device, this);
   }
-
 
   rebuild(): void {
     for (const t of [...this.labels, ...this.values]) t.destroy();
@@ -243,24 +358,49 @@ export class MenuList {
     this.lastVals = [];
     this.popAt = [];
     this.barPos = -1;
-    this.layout(this.cx, this.top, this.u, this.width);
+    this.first = 0;
+    this.press = null;
+    this.layout(this.cx, this.top, this.u, this.width, this.bottomArg);
   }
 
-  /** `width` in art pixels: the row is centred on cx. */
+  /** The `bottom` the scene last laid the list out with (undefined: the screen's footer line). */
+  private bottomArg: number | undefined;
+
+  /**
+   * `width` in art pixels: the row is centred on cx (and never wider than the screen). Rows end above `bottom` (default:
+   * above the footer line at the bottom of the screen); a list with more rows than fit scrolls. On a touch screen rows
+   * are at least a finger tall (~44 CSS px).
+   */
   layout(cx: number, top: number, u: number, width = this.width, bottom?: number): void {
     this.cx = cx;
     this.top = top;
     this.u = u;
-    this.width = width;
-    // long menus shrink their rows (and text) to fit above `bottom`
+    this.bottomArg = bottom;
+    const sw = this.scene.scale.width || cx * 2;
+    const sh = this.scene.scale.height || top + 400 * u;
+    // the plate's padding (6 units a side) and a small margin stay on screen
+    this.width = Math.max(40, Math.min(width, (sw - 16 * u) / u));
+    this.rowH = Math.max(18, tapMin(this.scene) / u);
+    this.fontK = 1.5;
     const n = Math.max(1, this.items.length);
-    this.rowH = bottom === undefined ? 18 : Math.min(18, (bottom - top) / (n * u));
-    this.fontK = Math.min(1.5, (this.rowH * 0.78) / 7);
-    this.items.forEach((_, i) => {
-      const y = top + i * this.rowH * u;
-      this.labels[i].setScale(u * this.fontK).setPosition(cx - (width / 2) * u, y);
-      this.values[i].setScale(u * this.fontK).setOrigin(1, 0).setPosition(cx + (width / 2) * u, y);
-    });
+    const lim = bottom ?? sh - 24 * u;
+    this.shown = Math.max(1, Math.min(n, Math.floor((lim - top + (this.rowH - 7 * this.fontK) * u * 0.5) / (this.rowH * u))));
+    this.first = Math.max(0, Math.min(this.first, n - this.shown));
+    this.placeRows(this.fontK);
+  }
+
+  /** Puts the shown rows in place (the rest hidden). */
+  private placeRows(k: number): void {
+    const u = this.u;
+    const cx = this.cx;
+    const width = this.width;
+    for (let i = 0; i < this.items.length; i++) {
+      const slot = i - this.first;
+      const on = this.visible && slot >= 0 && slot < this.shown;
+      const y = this.top + slot * this.rowH * u;
+      this.labels[i].setScale(u * k).setPosition(cx - (width / 2) * u, y).setVisible(on);
+      this.values[i].setScale(u * k).setOrigin(1, 0).setPosition(cx + (width / 2) * u, y).setVisible(on);
+    }
   }
 
   private enabled(i: number): boolean {
@@ -303,7 +443,8 @@ export class MenuList {
   setVisible(v: boolean): void {
     this.visible = v;
     this.panel.setVisible(v);
-    for (const t of [...this.labels, ...this.values]) t.setVisible(v);
+    if (!v) for (const t of [...this.labels, ...this.values]) t.setVisible(false);
+    else this.placeRows(this.lastK);
   }
 
   /** The selected row's hint ('' if it has none). */
@@ -315,7 +456,7 @@ export class MenuList {
   /** Bottom edge of the plate in screen pixels, for placing what follows the list. */
   get bottom(): number {
     const rh = this.rowH * this.u;
-    return this.top - (rh - 7 * this.fontK * this.u) / 2 - this.u * 2 + this.items.length * rh + this.u * 3;
+    return this.top - (rh - 7 * this.fontK * this.u) / 2 - this.u * 2 + this.shown * rh + this.u * 3;
   }
 
   /** Solid plate behind the rows plus a bar under the cursor, so the menu reads over any backdrop. */
@@ -330,43 +471,82 @@ export class MenuList {
     const x = this.cx - (this.width / 2) * u - pad;
     const w = this.width * u + pad * 2;
     const y = this.top - (rh - textH) / 2 - u * 2;
-    const h = this.items.length * rh + u * 3;
+    const h = this.shown * rh + u * 3;
     drawPanel(g, x, y, w, h, u);
-    // cursor bar (glides between rows)
-    const sy = this.top + (this.barPos < 0 ? this.index : this.barPos) * rh - (rh - textH) / 2;
-    const a = settings.reduceMotion ? 0.18 : 0.16 + 0.06 * Math.sin(time * 6);
-    g.fillStyle(COLORS.hot, a).fillRect(x + u, sy, w - u * 2, rh);
-    g.fillStyle(COLORS.hot, 0.9).fillRect(x + u, sy, u * 2, rh);
+    // cursor bar (glides between rows; hidden while it is scrolled out of view)
+    const slot = (this.barPos < 0 ? this.index : this.barPos) - this.first;
+    if (slot > -1 && slot < this.shown) {
+      const sy = this.top + slot * rh - (rh - textH) / 2;
+      const a = settings.reduceMotion ? 0.18 : 0.16 + 0.06 * Math.sin(time * 6);
+      g.fillStyle(COLORS.hot, a).fillRect(x + u, sy, w - u * 2, rh);
+      g.fillStyle(COLORS.hot, 0.9).fillRect(x + u, sy, u * 2, rh);
+    }
+    // a scrolling list: a thin track and thumb down the right edge, and arrows where more rows wait
+    const n = this.items.length;
+    if (n > this.shown) {
+      const tx = x + w - u * 3;
+      const ty = y + u * 4;
+      const th = h - u * 8;
+      g.fillStyle(PANEL.border, 0.9).fillRect(tx, ty, u, th);
+      const thumbH = Math.max(u * 4, (th * this.shown) / n);
+      const thumbY = ty + ((th - thumbH) * this.first) / Math.max(1, n - this.shown);
+      g.fillStyle(COLORS.title, 0.95).fillRect(tx - u * 0.5, thumbY, u * 2, thumbH);
+      const ax = x + w / 2;
+      const s = u * 3;
+      if (this.first > 0) g.fillStyle(COLORS.title, 0.95).fillTriangle(ax - s, y - u * 2, ax + s, y - u * 2, ax, y - u * 2 - s);
+      if (this.first + this.shown < n) g.fillStyle(COLORS.title, 0.95).fillTriangle(ax - s, y + h + u * 2, ax + s, y + h + u * 2, ax, y + h + u * 2 + s);
+    }
   }
 
   update(time: number): void {
     const dt = this.lastTime < 0 ? 1 : Math.max(0, Math.min(0.1, time - this.lastTime));
     this.lastTime = time;
+    const n = this.items.length;
+    // keep the cursor's row on screen (a drag moves the window itself, see onPointerMove)
+    if (!this.press?.drag) {
+      if (this.index < this.first) this.first = this.index;
+      else if (this.index >= this.first + this.shown) this.first = this.index - this.shown + 1;
+      this.first = Math.max(0, Math.min(this.first, n - this.shown));
+    }
     // the cursor bar eases to the selected row; a wrap-around (or the first frame) jumps straight there
     if (this.barPos < 0 || Math.abs(this.index - this.barPos) > 2.5 || settings.reduceMotion) this.barPos = this.index;
     else this.barPos += (this.index - this.barPos) * Math.min(1, dt * 22);
     let worst = 1;
+    const labels: string[] = [];
+    const vals: string[] = [];
     this.items.forEach((it, i) => {
       const sel = i === this.index;
       const on = this.enabled(i);
       const label = typeof it.label === 'function' ? it.label() : it.label;
       const pulse = sel && !settings.reduceMotion && blink(time, 2);
-      this.labels[i].setText(up(`${sel ? '> ' : '  '}${label}`));
+      labels[i] = up(`${sel ? '> ' : '  '}${label}`);
+      this.labels[i].setText(labels[i]);
       this.labels[i].setTint(!on ? 0x5a5680 : sel ? (pulse ? COLORS.hot : COLORS.title) : COLORS.text);
-      const v = it.value ? up(`${sel && it.onLeft ? '< ' : ''}${it.value()}${sel && it.onRight ? ' >' : ''}`) : '';
-      this.values[i].setText(v).setTint(!on ? 0x5a5680 : sel ? COLORS.hot : COLORS.accent);
+      vals[i] = it.value ? up(`${sel && it.onLeft ? '< ' : ''}${it.value()}${sel && it.onRight ? ' >' : ''}`) : '';
+      this.values[i].setText(vals[i]).setTint(!on ? 0x5a5680 : sel ? COLORS.hot : COLORS.accent);
       const raw = it.value ? it.value() : undefined;
       if (this.lastVals[i] !== undefined && raw !== this.lastVals[i]) this.popAt[i] = time;
       this.lastVals[i] = raw;
       worst = Math.max(worst, textPx(this.labels[i]) + (it.value ? textPx(this.values[i]) + 12 : 0));
     });
-    // one text size for the whole menu: shrunk only when the widest row (label + value) would overflow the menu width
-    const k = (this.lastK = Math.min(this.fontK, (this.width * this.u) / (worst * this.u)));
-    for (let i = 0; i < this.items.length; i++) {
-      this.labels[i].setScale(this.u * k);
+    // one text size for the whole menu: shrunk when the widest row (label + value) would overflow the menu width, but never
+    // below the font's own size (k = 1); rows still too long are cut short with '..' instead
+    const k = (this.lastK = Math.max(Math.min(1, this.fontK), Math.min(this.fontK, this.width / worst)));
+    const room = this.width / k;
+    for (let i = 0; i < n; i++) {
+      const lw = textPx(this.labels[i]);
+      const vw = vals[i] ? textPx(this.values[i]) + 12 : 0;
+      if (lw + vw > room) {
+        // the label gives way first (it keeps at least ~45% of the row), then the value
+        truncateText(this.labels[i], labels[i], Math.max(room * 0.45, room - vw));
+        if (vals[i]) truncateText(this.values[i], vals[i], Math.max(8, room - textPx(this.labels[i]) - 12));
+      }
+    }
+    this.placeRows(k);
+    for (let i = 0; i < n; i++) {
       // a changed value pops (briefly larger, centred on its row) so a left / right press visibly lands
       const pop = settings.reduceMotion ? 1 : 1 + 0.3 * Math.max(0, 1 - (time - (this.popAt[i] ?? -9)) / 0.2);
-      const y = this.top + i * this.rowH * this.u;
+      const y = this.top + (i - this.first) * this.rowH * this.u;
       this.values[i].setScale(this.u * k * pop).setY(y - (7 * this.u * k * (pop - 1)) / 2);
     }
     this.drawPlate(k, time);
@@ -392,6 +572,15 @@ export interface MenuBackdrop {
 /** Looks a screen gets unless it says otherwise (screens owned elsewhere still get their own dressing). */
 const DEFAULT_LOOKS: Record<string, MenuBackdrop> = {
   CharacterSelect: { arena: true },
+};
+
+/**
+ * On-screen touch controls per screen when the screen does not choose (`touchPad`): character select taps its cards
+ * directly but needs OK / BACK / START to lock in and start; the title takes a tap anywhere.
+ */
+const DEFAULT_TOUCH_PADS: Record<string, MenuPad> = {
+  CharacterSelect: 'buttons',
+  Title: 'none',
 };
 
 /** Last cursor row per scene (scenes with `rememberCursor`), kept for the session. */
@@ -425,6 +614,18 @@ export abstract class MenuScene extends Phaser.Scene {
   private footSerial = -1;
   /** Arena dressing (spotlights + floor), drawn over the backdrop when the look asks for it. */
   private arenaG: Phaser.GameObjects.Graphics | null = null;
+  /**
+   * The touch controls shown on this screen for a touch player: 'none' where everything is tapped directly, 'buttons'
+   * (OK / BACK / START), 'full' (with a d-pad). 'auto': none on screens with menu lists or tap-anywhere, else full.
+   */
+  protected touchPad: MenuPad | 'auto' = 'auto';
+  /**
+   * Is there something this screen handles taps on at (x, y) render px, beyond menu rows and the BACK chip (cards,
+   * tiles...)? A touch pad button drawn over such a spot lets the tap through to the screen.
+   */
+  protected tapTargetAt(_x: number, _y: number): boolean {
+    return false;
+  }
 
   protected abstract build(): void;
   protected abstract onEvent(e: MenuEvent): void;
@@ -489,6 +690,7 @@ export abstract class MenuScene extends Phaser.Scene {
       this.events.once('shutdown', () => CURSORS.set(key, list.index));
     }
     this.buildPointer();
+    this.claimTouch();
     this.scale.on('resize', this.onResize, this);
     this.events.once('shutdown', () => this.scale.off('resize', this.onResize, this));
     this.relayout(w, h);
@@ -499,6 +701,7 @@ export abstract class MenuScene extends Phaser.Scene {
     // an overlay that paused this screen hands input back when it resumes it
     const onResume = (): void => {
       this.inputHeld = false;
+      this.claimTouch();
     };
     this.events.on('resume', onResume);
     this.events.once('shutdown', () => this.events.off('resume', onResume));
@@ -533,6 +736,54 @@ export abstract class MenuScene extends Phaser.Scene {
       this.onEvent(e);
     }
     this.tick(time, 1 / 60);
+    this.fitOverflow();
+  }
+
+  /**
+   * Safety net for narrow (portrait) windows: any UI text wider than the screen, or running off its side, is shrunk to
+   * fit (texts tagged `setData('noFit', true)` are left alone). Runs after the scene's own layout each frame, so a screen
+   * that sizes its texts itself only gets corrected where they would be cut off.
+   */
+  private fitOverflow(): void {
+    const w = this.scale.width;
+    const margin = 4 * this.u;
+    for (const o of this.ui.list) {
+      if (!(o instanceof Phaser.GameObjects.BitmapText) || !o.visible || !o.text || o.getData('noFit')) continue;
+      if (o.x < 0 || o.x > w) continue;
+      const dw = o.displayWidth;
+      const left = o.x - o.originX * dw;
+      if (left >= margin * 0.5 && left + dw <= w - margin * 0.5) continue;
+      // room on each side of the anchor, for this origin
+      const room = Math.min(o.originX > 0 ? (o.x - margin) / o.originX : Infinity, o.originX < 1 ? (w - margin - o.x) / (1 - o.originX) : Infinity);
+      if (!(room > w * 0.25) || room >= dw) continue;
+      o.setScale(o.scaleX * (room / dw), o.scaleY * (room / dw));
+    }
+  }
+
+  /** Tell the touch controller what this screen wants on screen, and what on it can be tapped directly. */
+  private claimTouch(): void {
+    const t = inputManager.touch;
+    const pad = this.touchPad === 'auto' ? (DEFAULT_TOUCH_PADS[this.scene.key] ?? (this.lists.length || this.tapConfirms ? 'none' : 'full')) : this.touchPad;
+    t.setMenuPad(pad);
+    const through = (cx: number, cy: number): boolean => {
+      if (!this.sys.isActive()) return false;
+      const k = renderPerCss(this);
+      const x = cx * k;
+      const y = cy * k;
+      return this.lists.some((l) => l.rowAt(x, y) >= 0) || this.inChipAt(x, y) || this.tapTargetAt(x, y);
+    };
+    t.passThrough = through;
+    this.events.once('shutdown', () => {
+      if (t.passThrough === through) t.passThrough = null;
+    });
+  }
+
+  /** The BACK chip's hit box (a little larger than the chip: fingers are fat) contains render point (x, y). */
+  private inChipAt(x: number, y: number): boolean {
+    const c = this.chip;
+    if (!c) return false;
+    const s = this.u * 3;
+    return x >= c.x - s && x <= c.x + c.w + s && y >= c.y - s && y <= c.y + c.h + s;
   }
 
   /** Mouse / touch: the BACK chip, right-click = back, the wheel moves up / down, and (opt-in) tap-anywhere = confirm. */
@@ -545,11 +796,8 @@ export abstract class MenuScene extends Phaser.Scene {
       this.chip = { g, t, x: 0, y: 0, w: 0, h: 0, hover: false };
     }
     const inChip = (pp: Phaser.Input.Pointer): boolean => {
-      const c = this.chip;
       const p = pointerXY(this, pp);
-      // the hit box is a little larger than the drawn chip: fingers are fat
-      const s = this.u * 3;
-      return !!c && p.x >= c.x - s && p.x <= c.x + c.w + s && p.y >= c.y - s && p.y <= c.y + c.h + s;
+      return this.inChipAt(p.x, p.y);
     };
     this.input.on(Phaser.Input.Events.POINTER_MOVE, (p: Phaser.Input.Pointer) => {
       const c = this.chip;
@@ -628,7 +876,7 @@ export abstract class MenuScene extends Phaser.Scene {
     const c = this.chip;
     if (!c) return;
     const u = this.u;
-    c.t.setScale(u).setPosition(c.x + 4 * u, c.y + c.h / 2).setTint(c.hover ? COLORS.hot : COLORS.dim);
+    c.t.setScale(u).setPosition(c.x + (c.w - textPx(c.t) * u) / 2, c.y + c.h / 2).setTint(c.hover ? COLORS.hot : COLORS.hint);
     const g = c.g.clear();
     g.fillStyle(PANEL.fill, c.hover ? 0.95 : 0.7).fillRect(c.x, c.y, c.w, c.h);
     g.lineStyle(u, c.hover ? COLORS.hot : PANEL.border, c.hover ? 0.9 : 0.8).strokeRect(c.x - u / 2, c.y - u / 2, c.w + u, c.h + u);
@@ -642,8 +890,10 @@ export abstract class MenuScene extends Phaser.Scene {
     c.t.setScale(u);
     c.x = 5 * u;
     c.y = 5 * u;
-    c.w = textPx(c.t) * u + 8 * u;
-    c.h = 7 * u + 6 * u;
+    // a finger-sized chip on touch screens
+    const tap = tapMin(this);
+    c.w = Math.max(textPx(c.t) * u + 8 * u, tap * 1.4);
+    c.h = Math.max(7 * u + 6 * u, tap);
     this.drawChip();
   }
 
@@ -654,7 +904,7 @@ export abstract class MenuScene extends Phaser.Scene {
   }
 
   private relayout(w: number, h: number): void {
-    this.u = hudUnit(h);
+    this.u = hudUnit(h, w);
     this.bg.resize(w, h);
     this.look = { ...(DEFAULT_LOOKS[this.scene.key] ?? {}), ...this.backdrop(w, h) };
     if (!this.look.arena) this.arenaG?.clear();
@@ -671,7 +921,14 @@ export abstract class MenuScene extends Phaser.Scene {
     const w = this.scale.width;
     const h = this.scale.height;
     const u = this.u;
-    hint.setOrigin(0.5).setScale(Math.min(u, (w * 0.97) / Math.max(1, textPx(hint)))).setPosition(w / 2, h - 10 * u);
+    // a footer too long for the width at a readable size breaks onto two lines (at an entry boundary) instead
+    const minK = u * 0.8;
+    if (!hint.text.includes('\n') && (w * 0.97) / Math.max(1, textPx(hint)) < minK) {
+      const two = splitFooter(hint.text);
+      if (two) hint.setText(two).setCenterAlign();
+    }
+    hint.setOrigin(0.5).setScale(Math.min(u, (w * 0.97) / Math.max(1, textPx(hint))));
+    hint.setPosition(w / 2, h - 6 * u - hint.displayHeight / 2);
     // brighter than the old dim footers, on a soft dark band, so they read over any backdrop
     if (hint.tintTopLeft === COLORS.dim) hint.setTint(COLORS.hint);
     let top = hint.y - hint.displayHeight / 2;
@@ -682,9 +939,22 @@ export abstract class MenuScene extends Phaser.Scene {
       g.fillStyle(0x05040e, 0.25).fillRect(0, y0 - 2 * u, w, 2 * u);
     }
     if (desc) {
-      desc.setOrigin(0.5).setScale(Math.min(u * descK, (w * 0.94) / Math.max(1, textPx(desc))));
-      desc.setPosition(w / 2, top - 6 * u - (7 * desc.scaleY) / 2);
-      top = desc.y - (7 * desc.scaleY) / 2;
+      // a description too long for one readable line wraps (up to three lines) rather than shrinking
+      const raw = desc.getData('raw') as { flat: string; wrapped: string } | undefined;
+      const flat = raw !== undefined && desc.text === raw.wrapped ? raw.flat : desc.text.replace(/\n/g, ' ');
+      desc.setText(flat);
+      const k1 = (w * 0.94) / Math.max(1, textPx(desc));
+      if (k1 < u * descK * 0.8 && flat.length > 12) {
+        const lines = Math.min(3, Math.ceil((textPx(desc) * u * descK) / (w * 0.94)));
+        const wrapped = wrapText(flat, Math.max(12, Math.ceil(flat.length / lines + 4)));
+        desc.setText(wrapped).setCenterAlign();
+        desc.setData('raw', { flat, wrapped });
+      }
+      // wrapped lines read at the normal text size (a large single-line description stays large)
+      const dk = desc.text.includes('\n') ? Math.min(descK, 1) : descK;
+      desc.setOrigin(0.5).setScale(Math.min(u * dk, (w * 0.94) / Math.max(1, textPx(desc))));
+      desc.setPosition(w / 2, top - 6 * u - desc.displayHeight / 2);
+      top = desc.y - desc.displayHeight / 2;
     }
     return top;
   }
