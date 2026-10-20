@@ -4,6 +4,7 @@ import type { FighterView } from './FighterView';
 import { PIXEL_FONT } from '../art/pixelFont';
 import { drawPortShape, portOfColor } from './menuKit';
 import { settings } from '../settings';
+import { fastShapes } from './fastShapes';
 
 /** The damage readout's colour, as on the HUD plate: white -> yellow -> orange -> red as damage climbs. */
 export function damageTint(damage: number): number {
@@ -22,6 +23,8 @@ export class OffscreenBubbles {
   private readonly minis: Phaser.GameObjects.Sprite[];
   /** Circle masks so the miniature stays inside its bubble. */
   private readonly masks: Phaser.GameObjects.Graphics[];
+  /** The circle each mask holds now ([x, y, r], NaN = none yet): a mask is only redrawn when its bubble moves or resizes. */
+  private readonly maskAt: Float64Array;
   /** Each bubble's damage readout (drawn over the miniature) and the plate behind it. */
   private readonly pcts: Phaser.GameObjects.BitmapText[];
   private readonly front: Phaser.GameObjects.Graphics;
@@ -34,16 +37,17 @@ export class OffscreenBubbles {
     private readonly views: FighterView[],
     private readonly colors: number[],
   ) {
-    this.g = scene.add.graphics();
+    this.g = fastShapes(scene.add.graphics());
     layer.add(this.g);
-    this.masks = fighters.map(() => scene.make.graphics({}, false));
+    this.masks = fighters.map(() => fastShapes(scene.make.graphics({}, false)));
+    this.maskAt = new Float64Array(fighters.length * 3).fill(NaN);
     this.minis = fighters.map((f) => {
       const s = scene.add.sprite(0, 0, views[f.id].sprite.texture.key, 0).setOrigin(0.5, 1).setVisible(false);
       s.setMask(this.masks[f.id].createGeometryMask());
       layer.add(s);
       return s;
     });
-    this.front = scene.add.graphics();
+    this.front = fastShapes(scene.add.graphics());
     layer.add(this.front);
     this.pcts = fighters.map(() => {
       const t = scene.add.bitmapText(0, 0, PIXEL_FONT, '').setOrigin(0.5, 0.5).setVisible(false);
@@ -89,7 +93,14 @@ export class OffscreenBubbles {
       g.fillStyle(col, 1).fillTriangle(bx + Math.cos(a) * tip, by + Math.sin(a) * tip, bx + Math.cos(a + 0.5) * R, by + Math.sin(a + 0.5) * R, bx + Math.cos(a - 0.5) * R, by + Math.sin(a - 0.5) * R);
       g.fillStyle(0x0c0a1c, 0.85).fillCircle(bx, by, R);
       g.lineStyle(Math.max(2, u), col, 1).strokeCircle(bx, by, R);
-      this.masks[f.id].clear().fillStyle(0xffffff, 1).fillCircle(bx, by, R - 1);
+      const at = this.maskAt;
+      const mi = f.id * 3;
+      if (at[mi] !== bx || at[mi + 1] !== by || at[mi + 2] !== R) {
+        at[mi] = bx;
+        at[mi + 1] = by;
+        at[mi + 2] = R;
+        this.masks[f.id].clear().fillStyle(0xffffff, 1).fillCircle(bx, by, R - 1);
+      }
       const sp = v.sprite;
       const q = (R * 1.2) / Math.max(1, f.h * f.sizeMul);
       mini

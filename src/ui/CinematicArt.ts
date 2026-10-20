@@ -4,7 +4,22 @@ import type { Fighter } from '../engine/fighter';
 import type { MoveDef } from '../engine/moves';
 import type { World } from '../engine/world';
 import { settings } from '../settings';
-import { fastShapes } from './SlashArcs';
+import { fastShapes } from './fastShapes';
+
+type Pt = { x: number; y: number };
+const pts = (n: number): Pt[] => Array.from({ length: n }, () => ({ x: 0, y: 0 }));
+/** Scratch outlines, reused every frame (the Graphics reads them as they are drawn). */
+const BODY = pts(7);
+const FACET = pts(6);
+const QUAD = pts(4);
+const JET = pts(5);
+const TRI3 = pts(3);
+let BEAM = pts(64);
+const set = (p: Pt, x: number, y: number): Pt => {
+  p.x = x;
+  p.y = y;
+  return p;
+};
 
 /**
  * Bespoke staging drawn over a cinematic ultimate, keyed by the attacker's id (others just get the generic cut-in, flashes
@@ -271,19 +286,28 @@ export class CinematicArt {
       const tip = 16 * grow;
       const L = vx - w / 2;
       const R = vx + w / 2;
-      const body = [
-        new Phaser.Math.Vector2(L, vy),
-        new Phaser.Math.Vector2(L, top + 6),
-        new Phaser.Math.Vector2(vx - w * 0.18, top - 2),
-        new Phaser.Math.Vector2(vx + w * 0.08, top - tip),
-        new Phaser.Math.Vector2(R - w * 0.12, top + 2),
-        new Phaser.Math.Vector2(R, top + 10),
-        new Phaser.Math.Vector2(R, vy),
-      ];
-      g.fillStyle(0x3e1f66, 0.9).fillPoints(body, true);
-      g.fillStyle(0x9a5ad6, 0.6 * pulse).fillPoints([body[1], body[2], body[3], new Phaser.Math.Vector2(vx - w * 0.05, top + 8), new Phaser.Math.Vector2(vx - w * 0.12, vy), body[0]], true);
-      g.fillStyle(0xc898f6, 0.5).fillPoints([body[2], body[3], new Phaser.Math.Vector2(vx - w * 0.05, top + 8)], true);
-      g.lineStyle(1.5, 0xf0e2ff, 0.95).strokePoints(body, true);
+      const body = BODY;
+      set(body[0], L, vy);
+      set(body[1], L, top + 6);
+      set(body[2], vx - w * 0.18, top - 2);
+      set(body[3], vx + w * 0.08, top - tip);
+      set(body[4], R - w * 0.12, top + 2);
+      set(body[5], R, top + 10);
+      set(body[6], R, vy);
+      g.fillStyle(0x3e1f66, 0.9).fillPoints(body as Phaser.Math.Vector2[], true);
+      const facet = FACET;
+      set(facet[0], body[1].x, body[1].y);
+      set(facet[1], body[2].x, body[2].y);
+      set(facet[2], body[3].x, body[3].y);
+      set(facet[3], vx - w * 0.05, top + 8);
+      set(facet[4], vx - w * 0.12, vy);
+      set(facet[5], body[0].x, body[0].y);
+      g.fillStyle(0x9a5ad6, 0.6 * pulse).fillPoints(facet as Phaser.Math.Vector2[], true);
+      set(TRI3[0], body[2].x, body[2].y);
+      set(TRI3[1], body[3].x, body[3].y);
+      set(TRI3[2], vx - w * 0.05, top + 8);
+      g.fillStyle(0xc898f6, 0.5).fillPoints(TRI3 as Phaser.Math.Vector2[], true);
+      g.lineStyle(1.5, 0xf0e2ff, 0.95).strokePoints(body as Phaser.Math.Vector2[], true);
       g.lineStyle(1, 0xf0e2ff, 0.5).lineBetween(vx - w * 0.05, top + 8, vx - w * 0.12, vy);
       for (let i = 0; i < 4; i++) {
         const gx = L + 4 + ((i * 11 + (tick >> 3)) % Math.max(1, w - 8));
@@ -523,21 +547,27 @@ export class CinematicArt {
   private jet(x: number, y: number, dir: number, s: number, t: number): void {
     const g = this.g;
     const a = this.glow;
-    const P = (px: number, py: number): Phaser.Math.Vector2 => new Phaser.Math.Vector2(x + px * dir * s, y + py * s);
+    const PX = (px: number): number => x + px * dir * s;
+    const PY = (py: number): number => y + py * s;
+    /** The jet outline through these art points, in the scratch JET (k points). */
+    const poly = (...xy: number[]): Phaser.Math.Vector2[] => {
+      for (let i = 0; i < xy.length; i += 2) set(JET[i >> 1], PX(xy[i]), PY(xy[i + 1]));
+      return JET as Phaser.Math.Vector2[];
+    };
     // contrail: two fading streams off the wingtips
     for (let i = 0; i < 6; i++) {
       const x0 = x - dir * (12 + i * 22) * s;
       const x1 = x - dir * (12 + (i + 1) * 22) * s;
       g.lineStyle(2 * s, 0xe8ecf4, 0.35 * (1 - i / 6)).lineBetween(x0, y + 1 * s, x1, y + 1 * s + i * 0.3);
     }
-    a.fillStyle(0xffb04a, 0.8).fillTriangle(P(-14, -1.5).x, P(-14, -1.5).y, P(-14, 1.5).x, P(-14, 1.5).y, P(-24 - (t % 3) * 2, 0).x, P(-24, 0).y);
-    a.fillStyle(0xffffff, 0.9).fillCircle(P(-14, 0).x, P(-14, 0).y, 1.6 * s);
+    a.fillStyle(0xffb04a, 0.8).fillTriangle(PX(-14), PY(-1.5), PX(-14), PY(1.5), PX(-24 - (t % 3) * 2), PY(0));
+    a.fillStyle(0xffffff, 0.9).fillCircle(PX(-14), PY(0), 1.6 * s);
     // fuselage, swept wing, tail fin and canopy glint
-    g.fillStyle(0x161a26, 0.95).fillPoints([P(16, 0), P(10, -2), P(-14, -2.5), P(-14, 2), P(8, 2.5)], true);
-    g.fillStyle(0x161a26, 0.95).fillPoints([P(4, 0), P(-8, 0), P(-12, 7), P(-6, 7)], true);
-    g.fillStyle(0x222838, 0.95).fillPoints([P(-6, -2), P(-14, -2), P(-17, -9), P(-12, -9)], true);
-    g.fillStyle(0x4a6a8a, 0.95).fillPoints([P(10, -2), P(6, -4), P(2, -4), P(2, -2)], true);
-    a.fillStyle(0xff3030, (t >> 2) % 2 ? 0.9 : 0.2).fillCircle(P(-12, 7).x, P(-12, 7).y, 1);
+    g.fillStyle(0x161a26, 0.95).fillPoints(poly(16, 0, 10, -2, -14, -2.5, -14, 2, 8, 2.5), true, false, 5);
+    g.fillStyle(0x161a26, 0.95).fillPoints(poly(4, 0, -8, 0, -12, 7, -6, 7), true, false, 4);
+    g.fillStyle(0x222838, 0.95).fillPoints(poly(-6, -2, -14, -2, -17, -9, -12, -9), true, false, 4);
+    g.fillStyle(0x4a6a8a, 0.95).fillPoints(poly(10, -2, 6, -4, 2, -4, 2, -2), true, false, 4);
+    a.fillStyle(0xff3030, (t >> 2) % 2 ? 0.9 : 0.2).fillCircle(PX(-12), PY(7), 1);
   }
 
   /** A falling Airstrike bomb with its whistle (pressure arcs, tightening as it nears the ground). */
@@ -648,8 +678,8 @@ export class CinematicArt {
       }
       for (let tri = 0; tri < 2; tri++) {
         const base = -mf * 0.09 + tri * Math.PI;
-        const pts = [0, 1, 2].map((j) => new Phaser.Math.Vector2(cx + Math.cos(base + (j * Math.PI * 2) / 3) * R * 0.78, cy + Math.sin(base + (j * Math.PI * 2) / 3) * R * 0.78));
-        a.lineStyle(1, col, 0.6 * out).strokePoints(pts, true);
+        for (let j = 0; j < 3; j++) set(TRI3[j], cx + Math.cos(base + (j * Math.PI * 2) / 3) * R * 0.78, cy + Math.sin(base + (j * Math.PI * 2) / 3) * R * 0.78);
+        a.lineStyle(1, col, 0.6 * out).strokePoints(TRI3 as Phaser.Math.Vector2[], true);
       }
       a.fillStyle(col, 0.1 * out).fillCircle(cx, cy, R);
       // three element orbs at the points of the circle, each lit by its stage; at the end they spiral into the hands
@@ -847,23 +877,25 @@ export class CinematicArt {
       [0.3, 0xfff4c8, 0.6],
     ];
     for (const [k, col, al] of shells) {
-      const pts: Phaser.Math.Vector2[] = [];
+      if (BEAM.length < 2 * (N + 1)) BEAM = pts(2 * (N + 1));
+      const beam = BEAM;
+      let nb = 0;
       for (let s = 0; s <= N; s++) {
         const u = s / N;
         const x = x0 + (x1 - x0) * u;
         const wob = 1 + 0.12 * Math.sin(u * len * 0.08 - T * 0.7) + 0.06 * Math.sin(u * len * 0.21 + T * 0.4);
         // the beam swells out of the disc over its first stretch
         const grow = Math.min(1, 0.45 + (u * len) / 40);
-        pts.push(new Phaser.Math.Vector2(x, oy - bw * k * wob * grow));
+        set(beam[nb++], x, oy - bw * k * wob * grow);
       }
       for (let s = N; s >= 0; s--) {
         const u = s / N;
         const x = x0 + (x1 - x0) * u;
         const wob = 1 + 0.12 * Math.sin(u * len * 0.08 - T * 0.7 + 1.3) + 0.06 * Math.sin(u * len * 0.21 + T * 0.4 + 2);
         const grow = Math.min(1, 0.45 + (u * len) / 40);
-        pts.push(new Phaser.Math.Vector2(x, oy + bw * k * wob * grow));
+        set(beam[nb++], x, oy + bw * k * wob * grow);
       }
-      a.fillStyle(col, al * fade).fillPoints(pts, true);
+      a.fillStyle(col, al * fade).fillPoints(beam as Phaser.Math.Vector2[], true, false, nb);
     }
     // the white core and streaks of hotter light running down the beam
     a.fillStyle(0xffffff, 0.85 * fade).fillRect(Math.min(x0, x1), oy - bw * 0.1, len, bw * 0.2);
@@ -952,10 +984,10 @@ function groundBelow(world: World, x: number, y: number): number | null {
 function quad(x: number, y: number, w: number, h: number, rot: number): Phaser.Math.Vector2[] {
   const c = Math.cos(rot);
   const s = Math.sin(rot);
-  return [
-    [-w / 2, -h / 2],
-    [w / 2, -h / 2],
-    [w / 2, h / 2],
-    [-w / 2, h / 2],
-  ].map(([px, py]) => new Phaser.Math.Vector2(x + px * c - py * s, y + px * s + py * c));
+  const q = QUAD;
+  set(q[0], x + (-w / 2) * c - (-h / 2) * s, y + (-w / 2) * s + (-h / 2) * c);
+  set(q[1], x + (w / 2) * c - (-h / 2) * s, y + (w / 2) * s + (-h / 2) * c);
+  set(q[2], x + (w / 2) * c - (h / 2) * s, y + (w / 2) * s + (h / 2) * c);
+  set(q[3], x + (-w / 2) * c - (h / 2) * s, y + (-w / 2) * s + (h / 2) * c);
+  return q as Phaser.Math.Vector2[];
 }

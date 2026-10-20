@@ -1,7 +1,7 @@
 import Phaser from 'phaser';
 import { avalancheX, hazardPhase, stalactiteFall } from '../engine/hazards';
 import type { HazardDef } from '../engine/types';
-import { fastShapes } from './SlashArcs';
+import { fastShapes } from './fastShapes';
 
 /** Scratch points of the lightning strike's jagged path, reused each redraw. */
 const BOLT_STEPS = 14;

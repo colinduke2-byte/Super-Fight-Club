@@ -1,13 +1,28 @@
 name: CI
 
 on:
+  # every branch push runs once; a pull request runs only when it comes from a fork (a branch in this repository was
+  # already checked by its push, so a PR from it would only repeat the same run)
   push:
+    branches: ['**']
   pull_request:
+
+concurrency:
+  # a newer push to the same branch supersedes a run still in progress
+  group: ci-${{ github.event_name }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+env:
+  # Playwright is not a project dependency; pin the version the smoke test is known to work with
+  PLAYWRIGHT_VERSION: 1.56.1
+  # bundle-size budget for the single game chunk, in KB (minified, before gzip)
+  BUNDLE_BUDGET_KB: 2400
 
 jobs:
   build-test:
+    if: github.event_name == 'push' || github.event.pull_request.head.repo.full_name != github.repository
     runs-on: ubuntu-latest
-    timeout-minutes: 20
+    timeout-minutes: 25
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -21,14 +36,34 @@ jobs:
         run: npx vitest run
       - name: Build
         run: npx vite build
+      - name: Bundle-size budget
+        run: |
+          node -e '
+            const fs = require("fs");
+            const budget = Number(process.env.BUNDLE_BUDGET_KB);
+            const files = fs.readdirSync("dist/assets").filter((f) => f.endsWith(".js"));
+            let total = 0;
+            for (const f of files) {
+              const kb = fs.statSync("dist/assets/" + f).size / 1024;
+              total += kb;
+              console.log(`${f}: ${kb.toFixed(0)} KB`);
+            }
+            console.log(`total JS: ${total.toFixed(0)} KB (budget ${budget} KB)`);
+            if (total > budget) { console.error(`::error::bundle is ${total.toFixed(0)} KB, over the ${budget} KB budget`); process.exit(1); }
+          '
       - name: Single-file artifact
         run: node scripts/make-artifact.mjs
+      - name: Cache Playwright browsers
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/ms-playwright
+          key: playwright-${{ runner.os }}-${{ env.PLAYWRIGHT_VERSION }}
       - name: Install Playwright (Chromium)
-        # not a project dependency: installed for this job only
+        # not a project dependency: installed for this job only, at the pinned version
         run: |
-          npm install --no-save playwright
-          npx playwright install --with-deps chromium
-      - name: Browser smoke test (boot, 10 s 4-CPU match, no page errors)
+          npm install --no-save playwright@${PLAYWRIGHT_VERSION}
+          npx playwright@${PLAYWRIGHT_VERSION} install --with-deps chromium
+      - name: Browser smoke test (boot, three short CPU matches on different stages and lineups, no page errors)
         run: node tests/e2e/smoke.mjs dist/super-fight-club.html
       - uses: actions/upload-artifact@v4
         if: always()

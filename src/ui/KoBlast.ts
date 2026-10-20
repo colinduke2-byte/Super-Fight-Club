@@ -1,6 +1,6 @@
 import Phaser from 'phaser';
 import { settings } from '../settings';
-import { fastShapes } from './SlashArcs';
+import { fastShapes } from './fastShapes';
 
 /** A spark flung out of the blast (screen space). */
 interface Spark {

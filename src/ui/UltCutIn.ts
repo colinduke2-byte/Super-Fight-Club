@@ -3,6 +3,7 @@ import { PIXEL_FONT } from '../art/pixelFont';
 import { animFrameIndex, fighterTextureKey, uiTexK } from '../art/proceduralFighter';
 import type { CharacterData } from '../engine/types';
 import { settings } from '../settings';
+import { fastShapes } from './fastShapes';
 
 const LIFE = 0.95;
 
@@ -42,11 +43,12 @@ export class UltCutIn {
 
   constructor(scene: Phaser.Scene, layer: Phaser.GameObjects.Layer) {
     this.dim = scene.add.graphics();
-    this.g = scene.add.graphics();
-    this.lines = scene.add.graphics().setBlendMode(Phaser.BlendModes.ADD);
+    // (the bands are convex quads: fastShapes records them as two triangles instead of an earcut path each frame)
+    this.g = fastShapes(scene.add.graphics());
+    this.lines = fastShapes(scene.add.graphics().setBlendMode(Phaser.BlendModes.ADD));
     this.echo = scene.add.image(0, 0, '__WHITE').setOrigin(0.5, 1).setVisible(false);
     this.sprite = scene.add.image(0, 0, '__WHITE').setOrigin(0.5, 1).setVisible(false);
-    this.top = scene.add.graphics().setBlendMode(Phaser.BlendModes.ADD);
+    this.top = fastShapes(scene.add.graphics().setBlendMode(Phaser.BlendModes.ADD));
     this.shadow = scene.add.bitmapText(0, 0, PIXEL_FONT, '').setOrigin(0.5).setVisible(false);
     this.name = scene.add.bitmapText(0, 0, PIXEL_FONT, '').setOrigin(0.5).setVisible(false);
     this.tag = scene.add.bitmapText(0, 0, PIXEL_FONT, 'ULTIMATE').setOrigin(0.5).setVisible(false);

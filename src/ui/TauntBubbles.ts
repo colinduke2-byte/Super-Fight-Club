@@ -2,6 +2,7 @@ import Phaser from 'phaser';
 import { PIXEL_FONT, up } from '../art/pixelFont';
 import type { Fighter } from '../engine/fighter';
 import type { FighterView } from './FighterView';
+import { fastShapes } from './fastShapes';
 
 const SHOW_MS = 2200;
 
@@ -17,7 +18,7 @@ export class TauntBubbles {
     private readonly fighters: Fighter[],
     private readonly views: FighterView[],
   ) {
-    this.g = scene.add.graphics();
+    this.g = fastShapes(scene.add.graphics());
     layer.add(this.g);
     this.texts = fighters.map((f) => {
       const t = scene.add.bitmapText(0, 0, PIXEL_FONT, up(wrap(f.data.persona?.taunt ?? 'COME ON!', 22))).setOrigin(0.5, 1).setCenterAlign().setTint(0x1a1630).setVisible(false);

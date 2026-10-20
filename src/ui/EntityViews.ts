@@ -6,7 +6,8 @@ import type { World } from '../engine/world';
 import type { ProjectileDef, DeployableDef } from '../engine/moves';
 import { ART_D, CRATE_SCALE, DEP_ART, ITEM_SCALE, pillarCanvas, PROJ_ART, type DepArt, type ProjArt } from '../art/entityTextures';
 import { addCanvasTexture } from '../art/canvasTexture';
-import { fastShapes, slashStyle, type SlashStyle } from './SlashArcs';
+import { slashStyle, type SlashStyle } from './SlashArcs';
+import { fastShapes } from './fastShapes';
 
 const SHAPE_TEX: Record<string, string> = { orb: 'proj-orb', bolt: 'proj-bolt', bullet: 'proj-bullet', fist: 'proj-fist', beam: 'proj-beam', shard: 'proj-shard', wave: 'proj-wave' };
 const DEP_TEX: Record<string, string> = { mine: 'dep-mine', turret: 'dep-turret', rune: 'dep-rune', marker: 'dep-marker', whirlpool: 'dep-whirlpool', icepatch: 'dep-icepatch' };

@@ -8,7 +8,7 @@ import type { Platform } from '../engine/platform';
 import { fighterTrailColor } from '../fx/runner';
 import { applyMechSkin } from './mechSkin';
 import { RimLight } from './RimLight';
-import { fastShapes } from './SlashArcs';
+import { fastShapes } from './fastShapes';
 
 /** Pixels the body is drawn left of the frame centre in the procedural sprite sheet (see proceduralFighter). */
 const BODY_SHIFT = 5;

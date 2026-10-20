@@ -59,19 +59,58 @@ export class BossBar {
     layer.add([this.g, this.glow, this.name, this.title, this.phaseText, this.pct, this.banner]);
   }
 
-  /** `u` = device pixels per HUD art pixel (as for the fighter plates). Spans most of the width, centred at the top. */
+  /**
+   * `u` = device pixels per HUD art pixel (as for the fighter plates). Spans most of the width, centred at the top, and every
+   * label sits clear of the bar and of each other at any window size:
+   *  - above the bar: the boss's name (double size when it fits) on the left, the phase on the right, and the subtitle after
+   *    the name when the row is wide enough;
+   *  - below it: the percent on the right and, when the top row has no room, the subtitle on the left (or on a row of its
+   *    own under that when it would run into the widest percent, "CRITICAL 999%");
+   *  - the PHASE banner under all of that, never over the bar.
+   */
   layout(u: number): void {
     this.u = u;
     const sw = this.scene.scale.width;
     this.w = Math.round(Math.min(sw - 24 * u, 300 * u));
     this.x = Math.round((sw - this.w) / 2);
-    this.y = Math.round(16 * u);
     const tu = Math.max(1, Math.floor(u));
-    this.name.setScale(tu * 2).setPosition(this.x, this.y - 2 * u);
-    this.title.setScale(tu).setPosition(this.x + this.name.width + 6 * u, this.y - 3 * u);
-    this.phaseText.setScale(tu).setPosition(this.x + this.w, this.y - 3 * u);
-    this.pct.setScale(tu).setPosition(this.x + this.w, this.y + 10 * u);
-    this.banner.setScale(tu * 3).setPosition(sw / 2, this.y + 18 * u);
+    const gap = 6 * u;
+    /** Width (device px) of `text` in this BitmapText at `scale`. */
+    const widthOf = (t: Phaser.GameObjects.BitmapText, text: string, scale: number): number => {
+      const keep = t.text;
+      t.setText(text);
+      const wd = t.getTextBounds().local.width * scale;
+      t.setText(keep);
+      return wd;
+    };
+    const lineH = Math.max(1, this.title.getTextBounds().local.height);
+    const nameW1 = widthOf(this.name, this.name.text, tu);
+    const titleW = widthOf(this.title, this.title.text, tu);
+    const phaseW = widthOf(this.phaseText, 'PHASE III', tu);
+    const pctW = widthOf(this.pct, 'CRITICAL 999%', tu);
+    // the name at double size if it still leaves room for the phase label
+    const ns = nameW1 * 2 + gap + phaseW <= this.w ? tu * 2 : tu;
+    const nameW = nameW1 * (ns / tu);
+    const titleInline = nameW + gap + titleW + gap + phaseW <= this.w;
+    // top row (its bottom 3u above the bar, clear of the frame's 2u border), then the bar
+    const top = Math.round(4 * u);
+    this.y = Math.round(top + lineH * ns + 3 * u);
+    const y = this.y;
+    const labels = y - 3 * u;
+    this.name.setScale(ns).setOrigin(0, 1).setPosition(this.x, labels);
+    this.phaseText.setScale(tu).setOrigin(1, 1).setPosition(this.x + this.w, labels);
+    // rows under the bar start below its frame and the notch tips (4u under the 8u bar)
+    const below = y + 8 * u + 5 * u;
+    const rowH = lineH * tu + 2 * u;
+    this.pct.setScale(tu).setOrigin(1, 0).setPosition(this.x + this.w, below);
+    let rows = 1;
+    if (titleInline) this.title.setScale(tu).setOrigin(0, 1).setPosition(this.x + nameW + gap, labels);
+    else if (titleW + gap + pctW <= this.w) this.title.setScale(tu).setOrigin(0, 0).setPosition(this.x, below);
+    else {
+      this.title.setScale(tu).setOrigin(0, 0).setPosition(this.x, below + rowH);
+      rows = 2;
+    }
+    this.banner.setScale(tu * 3).setPosition(sw / 2, below + rows * rowH + 4 * u);
   }
 
   setVisible(v: boolean): void {

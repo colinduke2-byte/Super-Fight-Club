@@ -32,5 +32,5 @@ describe('replays', () => {
     expect(replay.ticks).toBeGreaterThan(100);
     const again = play('storm', chars, (t, ins) => fillReplayInputs(replay, t, ins), replay.ticks);
     expect(again).toBe(live);
-  });
+  }, 120000); // two 2400-tick matches: a few seconds alone, far longer on a loaded machine (a timeout, not a mismatch)
 });

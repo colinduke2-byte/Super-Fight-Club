@@ -6,6 +6,7 @@ import { overseer, overseerPhase2, OVERSEER_PHASE2_SKIN } from '../characters/ov
 import { fighterTextureKey, registerPixels, releaseSheet } from '../art/proceduralFighter';
 import { buildSheetPixels } from '../art/sheetPool';
 import { sheetSpec } from '../art/sheetPixels';
+import { fastShapes, type FastShapes } from './fastShapes';
 
 /** Stage id of the boss arena (its lights are drawn here, per phase). */
 export const BOSS_ARENA_ID = 'apex';
@@ -30,19 +31,19 @@ const LIGHT_HOT = [0xc8f8ff, 0xffa060];
  * One instance per match scene: `new BossCinematic(scene, worldLayer)` and `update(world, tick)` each frame.
  */
 export class BossCinematic {
-  private readonly back: Phaser.GameObjects.Graphics;
-  private readonly backGlow: Phaser.GameObjects.Graphics;
-  private readonly g: Phaser.GameObjects.Graphics;
-  private readonly glow: Phaser.GameObjects.Graphics;
+  private readonly back: Phaser.GameObjects.Graphics & FastShapes;
+  private readonly backGlow: Phaser.GameObjects.Graphics & FastShapes;
+  private readonly g: Phaser.GameObjects.Graphics & FastShapes;
+  private readonly glow: Phaser.GameObjects.Graphics & FastShapes;
   /** Ticks since the boss entered phase 2 (-1 = not yet). */
   private since2 = -1;
   private lastEnrage = 0;
 
   constructor(scene: Phaser.Scene, layer: Phaser.GameObjects.Layer) {
-    this.back = scene.add.graphics().setDepth(-4);
-    this.backGlow = scene.add.graphics().setDepth(-4).setBlendMode(Phaser.BlendModes.ADD);
-    this.g = scene.add.graphics().setDepth(6);
-    this.glow = scene.add.graphics().setDepth(6).setBlendMode(Phaser.BlendModes.ADD);
+    this.back = fastShapes(scene.add.graphics().setDepth(-4));
+    this.backGlow = fastShapes(scene.add.graphics().setDepth(-4).setBlendMode(Phaser.BlendModes.ADD));
+    this.g = fastShapes(scene.add.graphics().setDepth(6));
+    this.glow = fastShapes(scene.add.graphics().setDepth(6).setBlendMode(Phaser.BlendModes.ADD));
     layer.add([this.back, this.backGlow, this.g, this.glow]);
   }
 
@@ -178,9 +179,7 @@ export class BossCinematic {
     for (let i = 0; i < 16; i++) {
       const a0 = spin + (i / 16) * Math.PI * 2;
       bg.lineStyle(5, i % 2 ? col : hot, 0.55 * dark);
-      bg.beginPath();
-      bg.arc(cx, cy, R, a0, a0 + 0.26);
-      bg.strokePath();
+      bg.strokeArc(cx, cy, R, a0, a0 + 0.26);
     }
     bg.lineStyle(1.5, hot, 0.35 * dark).strokeCircle(cx, cy, R * 0.72);
     // the eye-beam: a lance of light from the helm straight up into the dark
