@@ -44,9 +44,24 @@ export const riptide: CharacterData = {
   difficulty: 2,
   persona: {
     intro: 'Riptide was bred in the flooded pits under the arena, a gladiator in a shark\'s skin. The tide has risen. So has he.',
+    bio: 'A gladiator in a shark\'s skin, bred in the flooded pits under the arena. Riptide soaks rivals with every hit, then grabs and drags them under.',
     taunt: 'You can swim, right? Doesn\'t matter.',
+    // in-match taunt bubbles take turns through these
+    taunts: [
+      'You can swim, right? Doesn\'t matter.',
+      'Smell that? It\'s fear. And salt.',
+      'The tide\'s coming in.',
+      'Big fish. Little fish. Guess which you are.',
+    ],
     epilogue: 'At the top of the Ladder Riptide broke the floodgates open. The whole arena went under, and for the first time in years he was home.',
     victory: 'Tide\'s out. So are you.',
+    victories: [
+      'Tide\'s out. So are you.',
+      'Chum.',
+      'Swim it off.',
+    ],
+    // against their RIVAL (routes.ts): the line before the fight, and the one after beating them
+    rival: { taunt: 'Agni! You dried out my pits. Time for a cold shower.', victory: 'Hiss all you like, hothead. The water always wins.' },
   },
   stats: {
     weight: 102,

@@ -198,6 +198,43 @@ export const BACKDROPS: Record<string, Backdrop> = {
     scroll: 26,
     extras: ['sun', 'clouds', 'wisps', 'birds', 'flash', 'wind', 'flare'],
   },
+  harbour: {
+    // a night harbour: the city across the water, the docks' cranes and warehouses, the moon's path on the sea and the
+    // lighthouse sweeping the bay
+    sky: ['#03050f', '#060c1e', '#0c162e', '#142242', '#1c3052', '#28405e', '#3a5468'],
+    planet: false,
+    nebula: 0x8ab0d8,
+    far: 0x9cb0d0,
+    near: 0x8696b8,
+    tiles: 0xe0e8f4,
+    farTex: 'bg-ruins-far',
+    nearTex: 'bg-industry-near',
+    nearHaze: { drop: 18, alpha: 0.92 },
+    ground: 'bg-cove-sea',
+    glint: { cols: [0xffe0a0, 0xe6f2ff, 0x9ad0ff], y0: 1, y1: 160, path: true },
+    glowCol: [0x1a2a4a, 0xff9a40],
+    glowAlpha: 0.12,
+    nebulaOn: false,
+    extras: ['moon', 'beacon', 'glow', 'searchlights', 'motes'],
+  },
+  rail: {
+    // the sky-rail at night: the city streaming past below the line, searchlights, air traffic and the wind of the run
+    sky: ['#06041a', '#0c0a2a', '#18123e', '#281a52', '#3e2462', '#5e306e', '#9a4a72'],
+    planet: true,
+    nebula: 0xd8b8ff,
+    far: 0xd0c8f0,
+    near: 0xb8b0e0,
+    tiles: 0xf0e8ff,
+    farTex: 'bg-ruins-far',
+    nearTex: 'bg-ruins-near',
+    nearHaze: { drop: 40, alpha: 0.85 },
+    ground: 'bg-city-ground',
+    glint: { cols: [0xffcf6a, 0x7fe8ff, 0xff8a5a, 0xff7ae0], y0: 4, y1: 150, alpha: 0.9 },
+    glowCol: [0x3a1a6a, 0xff7ac0],
+    glowAlpha: 0.16,
+    scroll: 70,
+    extras: ['glow', 'searchlights', 'traffic', 'shooting', 'wind'],
+  },
   apex: {
     // the top of the world: a violet-black sky over a sea of cloud far below, the Overseer's citadel spires, and the vast
     // shadow of its spire crown and eye behind the arena (the 'crown' extra), all of which burn red in phase 2
@@ -622,6 +659,13 @@ export class BackgroundView {
   private flashNow = 0;
   private extras: Extra[] = [];
   private scroll = 0;
+  /** Travelling stages: the scroll speed multiplier of the current leg (eased toward `scrollGoal`) and the distance scrolled. */
+  private scrollMul = 1;
+  private scrollGoal = 1;
+  private travel = 0;
+  private lastTime = -1;
+  /** Set once a leg changes the speed: from then on the travel is integrated (otherwise exactly time x speed, as before). */
+  private varies = false;
   private nearDrop = 0;
   private farDrop = 0;
   private sky = SKY;
@@ -703,6 +747,9 @@ export class BackgroundView {
       if (this.scene.textures.exists(key)) holdTexture(this.scene, key);
     }
     this.scroll = b.scroll ?? 0;
+    this.scrollMul = this.scrollGoal = 1;
+    this.lastTime = -1;
+    this.varies = false;
     this.clouds.setVisible(this.extras.includes('clouds'));
     this.starsA.setVisible(b.stars !== false);
     this.starsB.setVisible(b.stars !== false);
@@ -751,8 +798,22 @@ export class BackgroundView {
     this.near.setSize(w, 192 * ps);
   }
 
+  /** Travelling stages: scroll the scenery at `k` x the theme's speed (eased in over a couple of seconds). */
+  setScrollMul(k: number): void {
+    if (k !== this.scrollGoal) this.varies = true;
+    this.scrollGoal = k;
+  }
+
   /** @param zoom world camera zoom (device px per world unit); @param time seconds, for twinkling */
   update(cx: number, cy: number, zoom: number, time: number): void {
+    // the scenery's travel is integrated, so a change of speed (a travelling stage's leg) never jumps
+    if (!this.varies || this.lastTime < 0 || time < this.lastTime) this.travel = time * this.scroll * this.scrollMul;
+    else {
+      const dt = Math.min(0.1, time - this.lastTime);
+      this.scrollMul += (this.scrollGoal - this.scrollMul) * Math.min(1, dt * 1.2);
+      this.travel += dt * this.scroll * this.scrollMul;
+    }
+    this.lastTime = time;
     const ps = this.ps;
     const W = this.w;
     const H = this.h;
@@ -782,7 +843,7 @@ export class BackgroundView {
       t.setTileScale(s, s);
       t.setSize(W, 192 * s);
       t.setPosition(0, (baseY - cy * f) * zoom + H / 2 - 192 * s);
-      t.tilePositionX = (cx * f * zoom) / s + time * this.scroll * (f / 0.12);
+      t.tilePositionX = (cx * f * zoom) / s + this.travel * (f / 0.12);
     }
     // the ground layers hang rigidly from the near skyline's base and slide past one another, nearer ones faster
     let bottom = this.near.y + this.near.height;
@@ -797,7 +858,7 @@ export class BackgroundView {
         t.setTileScale(s, s);
         t.setSize(W, Math.ceil(L.h * s) + 1);
         t.setPosition(0, Math.floor(base + L.top * s));
-        t.tilePositionX = (cx * f * zoom) / s + time * this.scroll * (f / 0.12);
+        t.tilePositionX = (cx * f * zoom) / s + this.travel * (f / 0.12);
       });
       const last = this.grounds[this.grounds.length - 1];
       bottom = last.y + GROUND_LAYERS[GROUND_LAYERS.length - 1].h * s;
@@ -820,7 +881,7 @@ export class BackgroundView {
       this.bank.setTileScale(k, k);
       this.bank.setSize(W, 128 * k);
       this.bank.setPosition(0, H - 128 * k * 0.55 + Math.max(0, cy * 0.02 * zoom));
-      this.bank.tilePositionX = (cx * 0.35 * zoom + time * (5 + this.scroll * 4) * ps) / k;
+      this.bank.tilePositionX = (cx * 0.35 * zoom + (time * 5 + this.travel * 4) * ps) / k;
     }
 
     this.drawExtras(cx, cy, zoom, time);
@@ -850,7 +911,7 @@ export class BackgroundView {
           this.clouds.setTileScale(k, k);
           this.clouds.setSize(W, 64 * k);
           this.clouds.setPosition(0, H * 0.34 - cy * 0.04 * zoom);
-          this.clouds.tilePositionX = (cx * 0.08 * zoom + time * (7 + this.scroll * 2) * ps) / k;
+          this.clouds.tilePositionX = (cx * 0.08 * zoom + (time * 7 + this.travel * 2) * ps) / k;
           this.clouds.setAlpha(0.85);
           break;
         }

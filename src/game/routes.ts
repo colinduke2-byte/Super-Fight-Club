@@ -34,6 +34,8 @@ export const HOME_STAGE: Record<string, string> = {
   rime: 'frostfang',
   riptide: 'wreck',
   vex: 'ring',
+  // the playable Overseer: its own chamber at the top of the arena
+  'overseer-versus': 'apex',
 };
 
 /** Each fighter's rival (the fight before the brawl). */
@@ -48,6 +50,8 @@ export const RIVAL: Record<string, string> = {
   vex: 'nova',
   halcyon: 'rime',
   rime: 'halcyon',
+  // the arena AI's rival is the engineer who wired its brain (one-way: Gizmo's own rival stays Obelisk)
+  'overseer-versus': 'gizmo',
 };
 
 /** The shape every route follows (index = fight number - 1). */
@@ -155,6 +159,18 @@ export const ROUTES: Record<string, RouteStep[]> = {
     { title: 'SMASH AND GRAB', stage: 'skyhold', kind: 'brawl', foes: ['rime', 'riptide', 'agni'], reason: 'Everybody wants a piece of the loot, Riptide included. Vex takes them all at once.' },
   ],
 };
+
+// The playable Overseer meets every other fighter once before it faces its own true form at the Apex.
+ROUTES['overseer-versus'] = [
+  { title: 'AUDIT', stage: 'classic', kind: 'duel', foes: ['brick'], reason: 'The Overseer steps down to the arena floor in a fighter\'s body. Brick still guards the gate out of habit.' },
+  { title: 'ANOMALY', stage: 'ring', kind: 'duel', foes: ['vex'], reason: 'Vex found an exploit in the arena\'s brain. The brain would like to discuss it in person.' },
+  { title: 'CALIBRATION', stage: 'skyhold', kind: 'team', foes: ['nova', 'halcyon'], ally: 'obelisk', reason: 'Obelisk agrees to a truce if the noise stops. Nova and Halcyon would rather pull the plug.' },
+  { title: 'SHADOW MATCH', stage: 'storm', kind: 'mirror', foes: [], reason: 'The arena runs a copy of its own body against itself. Both of them predicted this.' },
+  { title: 'COLD STORAGE', stage: 'frostfang', kind: 'metal', foes: ['rime'], reason: 'Rime, cased in the arena\'s own steel. The Overseer wants to see how its armour fights back.' },
+  { title: 'COUNTERMEASURE', stage: 'stormrunner', kind: 'duel', foes: ['havoc'], reason: 'Havoc was hired to shut the arena down. The Overseer boards the Stormrunner first.' },
+  { title: 'THE ENGINEER', stage: 'reactor', kind: 'rival', foes: ['gizmo'], reason: 'Gizmo wired the arena\'s brain. In the reactor that powers it, the brain asks its maker why.' },
+  { title: 'FULL SCAN', stage: 'hollow', kind: 'brawl', foes: ['agni', 'riptide', 'obelisk'], reason: 'Every fighter left comes at once, Obelisk too: the truce is over. The Overseer counts them all.' },
+];
 
 /** The route for `player`, or null when the fighter has no hand-written one. */
 export function routeFor(player: string): RouteStep[] | null {

@@ -1299,6 +1299,99 @@ function artCore(): HTMLCanvasElement {
   return P.canvas(rgb('#1a0620'));
 }
 
+/** Home-Run Bat item icon: a lacquered wooden bat on the diagonal, taped grip, a gold star on the barrel. */
+function artBatItem(): HTMLCanvasElement {
+  const P = new Painter(40, 40);
+  // the barrel swells from the handle (lower left) to the rounded end (upper right)
+  const x0 = 6;
+  const y0 = 35;
+  const x1 = 35;
+  const y1 = 5;
+  const len = Math.hypot(x1 - x0, y1 - y0);
+  const ux = (x1 - x0) / len;
+  const uy = (y1 - y0) / len;
+  P.each(0, 0, 39, 39, (x, y, u, v) => {
+    const t = ((u - x0) * ux + (v - y0) * uy) / len;
+    if (t < 0 || t > 1.02) return;
+    const d = (u - x0) * -uy + (v - y0) * ux;
+    const r = t < 0.38 ? 1.7 : 1.7 + (t - 0.38) * 7.2;
+    const end = t > 0.94 ? Math.sqrt(Math.max(0, 1 - ((t - 0.94) / 0.08) ** 2)) : 1;
+    const rr = r * end;
+    if (Math.abs(d) > rr) return;
+    const n = d / Math.max(0.01, rr);
+    const grip = t < 0.3;
+    const ramp = grip ? DSTEEL : WOOD;
+    let c = tone(ramp, lum(n * -0.8, n * -0.6, Math.sqrt(Math.max(0, 1 - n * n))));
+    if (grip && Math.floor(t * 40) % 3 === 0) c = DSTEEL[1];
+    if (!grip && noise(Math.floor(t * 60), Math.floor(n * 3), 3) > 0.86) c = WOOD[1];
+    P.put(x, y, c);
+  });
+  P.ball(x0 - 0.6, y0 + 0.6, 2.6, 2.6, DSTEEL);
+  // the star decal
+  const sx = 27;
+  const sy = 13;
+  const star: Pt[] = Array.from({ length: 10 }, (_, k) => {
+    const a = -Math.PI / 2 + (k * Math.PI) / 5;
+    const rr = k % 2 ? 1.6 : 3.6;
+    return [sx + Math.cos(a) * rr, sy + Math.sin(a) * rr] as Pt;
+  });
+  P.poly(star, (u, v) => (u + v < sx + sy ? GOLD[4] : GOLD[3]));
+  return P.canvas();
+}
+
+/** The Home-Run Bat in hand: handle at the left, barrel to the right (rotated by the view while swinging). */
+function artBatHeld(): HTMLCanvasElement {
+  const P = new Painter(120, 22);
+  const cy = 11;
+  P.tube(4, 116, cy, (t) => (t < 0.32 ? 2.4 : 2.4 + (t - 0.32) * 10.5) * (t > 0.95 ? Math.sqrt(Math.max(0, 1 - ((t - 0.95) / 0.05) ** 2)) : 1), WOOD);
+  for (let x = 6; x < 38; x += 4) P.tube(x, x + 1.6, cy, () => 2.7, DSTEEL);
+  P.ball(4, cy, 3.4, 3.6, DSTEEL);
+  const sx = 92;
+  const star: Pt[] = Array.from({ length: 10 }, (_, k) => {
+    const a = -Math.PI / 2 + (k * Math.PI) / 5;
+    const rr = k % 2 ? 2 : 4.4;
+    return [sx + Math.cos(a) * rr, cy - 1 + Math.sin(a) * rr] as Pt;
+  });
+  P.poly(star, (_u, v) => (v < cy - 1 ? GOLD[4] : GOLD[3]));
+  return P.canvas();
+}
+
+/** Proximity Mine item: a squat steel disc on three feet, a sensor dome with a status light (tinted by the view). */
+function artMineItem(): HTMLCanvasElement {
+  const P = new Painter(40, 40);
+  for (const fx0 of [9, 20, 31]) P.line(fx0, 26, fx0 + (fx0 - 20) * 0.25, 33, 2.4, DSTEEL[2]);
+  P.each(4, 16, 36, 30, (x, y, u, v) => {
+    const dx = (u - 20) / 16;
+    const dy = (v - 24) / 6.5;
+    const d2 = dx * dx + dy * dy;
+    if (d2 > 1) return;
+    const stripe = v > 24 && Math.floor((u - 4) / 4) % 2 === 0;
+    P.put(x, y, stripe ? (v > 26 ? rgb('#1a1410') : rgb('#ffd23a')) : tone(OLIVE, lum(dx * 0.7, dy, Math.sqrt(Math.max(0, 1 - d2)))));
+  });
+  P.ball(20, 19, 6.5, 5.5, DSTEEL);
+  P.halo(20, 17, 6, rgb('#ff4a3a'), 0.55);
+  P.ball(20, 17.5, 2.4, 2.1, [rgb('#ff4a3a'), rgb('#ffe0d0')], true);
+  return P.canvas();
+}
+
+/** Assist Drone item: a little four-rotor drone with a cyan camera eye. */
+function artDroneItem(): HTMLCanvasElement {
+  const P = new Painter(40, 40);
+  const BODY = R('#0c1a24', '#1c3446', '#2e5a74', '#4a8aa8', '#a0e0f4');
+  for (const [ax, ay] of [[7, 13], [33, 13]] as const) {
+    P.line(20, 20, ax, ay + 2, 2.6, DSTEEL[2]);
+    P.ball(ax, ay + 1, 7.5, 1.6, [rgb('#9ad8ff'), rgb('#e8fbff')], true, 0.45);
+    P.ball(ax, ay + 2, 2, 2, STEEL);
+  }
+  P.box(10, 16, 30, 28, 3, BODY, 4);
+  P.box(13, 27, 27, 31, 1, DSTEEL, 1);
+  P.halo(20, 22, 6, rgb('#5ae8ff'), 0.6);
+  P.ball(20, 22, 3.6, 3.6, [rgb('#063040'), rgb('#0e6a86'), rgb('#5ae0ff'), rgb('#e0ffff')], true);
+  P.line(13, 33, 13, 36, 1, DSTEEL[3]);
+  P.line(27, 33, 27, 36, 1, DSTEEL[3]);
+  return P.canvas();
+}
+
 /** Item textures (40 px; the crate 64 px) and the held Beam Sword blade. */
 function buildItemArt(add: (key: string, c: HTMLCanvasElement) => void): void {
   add('item-heal', artMedkit());
@@ -1312,6 +1405,10 @@ function buildItemArt(add: (key: string, c: HTMLCanvasElement) => void): void {
   add('item-crate', artCrate(false));
   add('item-crate-x', artCrate(true));
   add('item-core', artCore());
+  add('item-bat', artBatItem());
+  add('item-bat-held', artBatHeld());
+  add('item-mine', artMineItem());
+  add('item-drone', artDroneItem());
 }
 
 /** How a projectile's art is drawn: texture (frame 1 appends `-1`), the look.size it was designed for, how it turns. */
@@ -1349,6 +1446,7 @@ export const PROJ_ART: Record<string, ProjArt> = {
   'overseer:orb': { key: 'pa-voidorb', frames: 1, size: 1.3, orient: 'spin' },
   'overseer:quake': { key: 'pa-crescent', frames: 1, size: 1.3, orient: 'flip' },
   'item:raygun': { key: 'pa-raylaser', frames: 1, size: 1, orient: 'vel' },
+  'item:drone': { key: 'pa-shot-assist', frames: 1, size: 0.8, orient: 'vel' },
 };
 /** Deployable art by `character:deployableId`; (lx, ly) = the status light, in art px from the bottom centre. */
 export interface DepArt {
@@ -1383,6 +1481,7 @@ function buildProjectileArt(add: (key: string, c: HTMLCanvasElement) => void): v
   add('pa-arcane', artArcane());
   add('pa-shot-giz', artPlasma('#ffffff', '#ffd46a', '#ff9a3a'));
   add('pa-shot-drone', artPlasma('#ffffff', '#ff7a8a', '#ff2a4a'));
+  add('pa-shot-assist', artPlasma('#ffffff', '#9af4ff', '#2ab8e8'));
   add('pa-fist', artFist(false));
   add('pa-fist-hot', artFist(true));
   add('pa-crescent', artCrescent());

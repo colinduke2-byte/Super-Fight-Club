@@ -16,8 +16,8 @@ const human: PlayerSlot = { index: 0, type: 'human', device: null, character: 'v
 
 describe('Challenges', () => {
   it('ten challenges, unique ids, real fighters and stages, 2-4 fighters each', () => {
-    expect(CHALLENGES).toHaveLength(43);
-    expect(new Set(CHALLENGES.map((c) => c.id)).size).toBe(43);
+    expect(CHALLENGES).toHaveLength(46);
+    expect(new Set(CHALLENGES.map((c) => c.id)).size).toBe(46);
     for (const c of CHALLENGES) {
       expect(STAGES[c.stage] ?? targetCourseById(c.stage)?.stage, c.id).toBeDefined();
       if (c.kind === 'targets' || c.kind === 'launch') {

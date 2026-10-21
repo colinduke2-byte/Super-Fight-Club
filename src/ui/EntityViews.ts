@@ -1,7 +1,7 @@
 import Phaser from 'phaser';
 import { MAX_DEPLOYABLES, MAX_PROJECTILES } from '../engine/entities';
 import { MAX_FIGHTERS } from '../engine/fighter';
-import { CRATE, heldState, MAX_ITEMS, RAYGUN, type Item } from '../engine/items';
+import { CRATE, DRONE, heldState, MAX_ITEMS, MINE, mineArmed, RAYGUN, type Item } from '../engine/items';
 import type { World } from '../engine/world';
 import type { ProjectileDef, DeployableDef } from '../engine/moves';
 import { ART_D, CRATE_SCALE, DEP_ART, ITEM_SCALE, pillarCanvas, PROJ_ART, type DepArt, type ProjArt } from '../art/entityTextures';
@@ -37,7 +37,7 @@ function itemTexture(kind: string, volatile = false): string {
 }
 
 /** Halo colour behind each item kind, so pickups read against busy stages. */
-const ITEM_GLOW: Record<string, number> = { heal: 0xff7a7a, cell: 0xffd04a, boost: 0xff6a3a, aegis: 0xfff4ff, bomb: 0x3ad0e8, sword: 0x5ae8ff, raygun: 0x5af0c0, crate: 0xffd8a0, core: 0xffc84a };
+const ITEM_GLOW: Record<string, number> = { heal: 0xff7a7a, cell: 0xffd04a, boost: 0xff6a3a, aegis: 0xfff4ff, bomb: 0x3ad0e8, sword: 0x5ae8ff, raygun: 0x5af0c0, crate: 0xffd8a0, core: 0xffc84a, bat: 0xffd890, mine: 0xff6a4a, drone: 0x5ae8ff };
 
 /** Art for a projectile / deployable def, resolved once per def object (defs belong to one character's data). */
 const PROJ_LOOK = new Map<ProjectileDef, ProjArt | null>();
@@ -95,6 +95,9 @@ export class EntityViews {
   private readonly heldSword: Phaser.GameObjects.Image[] = [];
   private readonly heldGun: Phaser.GameObjects.Image[] = [];
   private readonly muzzle: Phaser.GameObjects.Image[] = [];
+  /** Carried Home-Run Bats and Proximity Mines, per fighter. */
+  private readonly heldBat: Phaser.GameObjects.Image[] = [];
+  private readonly heldMine: Phaser.GameObjects.Image[] = [];
   private readonly pop: Phaser.GameObjects.Image[] = [];
   private readonly popGlow: Phaser.GameObjects.Image[] = [];
   /** Additive strokes: sword swing arcs, Aegis shatter. */
@@ -155,7 +158,11 @@ export class EntityViews {
       const mz = scene.add.image(0, 0, glowTex).setVisible(false).setBlendMode(Phaser.BlendModes.ADD).setTint(0xff4a7a);
       const pg = scene.add.image(0, 0, 'item-glow').setVisible(false).setBlendMode(Phaser.BlendModes.ADD);
       const pi = scene.add.image(0, 0, 'item-heal').setVisible(false);
-      for (const o of [sw, gun, mz, pg, pi]) layer.add(o);
+      const bat = scene.add.image(0, 0, 'item-bat-held').setVisible(false).setScale(1 / ART_D).setOrigin(6 / 120, 0.5);
+      const mine = scene.add.image(0, 0, 'item-mine').setVisible(false).setScale(ITEM_SCALE);
+      this.heldBat.push(bat);
+      this.heldMine.push(mine);
+      for (const o of [sw, gun, mz, pg, pi, bat, mine]) layer.add(o);
       this.heldSword.push(sw);
       this.heldGun.push(gun);
       this.muzzle.push(mz);
@@ -327,6 +334,28 @@ export class EntityViews {
       sp.setVisible(false);
       return;
     }
+    if (it.kind === 'mine' && (it.thrown || it.deployed)) {
+      // a thrown mine tumbles; planted, it sits flat with its light blinking slowly while it arms and pulsing once live
+      const live = mineArmed(it);
+      const fading = it.deployed && it.age > MINE.life - 60 && (tick >> 2) % 2 === 0;
+      s.setTexture('item-mine').setVisible(!fading).setOrigin(0.5, 0.5).setPosition(it.x, it.y + (it.deployed ? 1.5 : 0)).setRotation(it.thrown ? it.spin : 0).setScale(ITEM_SCALE).setFlipX(false);
+      s.clearTint();
+      const on = live ? (tick >> 3) % 2 === 0 : (tick >> 4) % 2 === 0;
+      gl.setVisible(it.deployed && on && !fading).setPosition(it.x, it.y - 2).setTint(live ? 0xff3a2a : 0xffb040).setScale(live ? 0.75 + 0.2 * Math.sin(tick * 0.5) : 0.45).setAlpha(live ? 0.95 : 0.6);
+      sp.setVisible(false);
+      return;
+    }
+    if (it.kind === 'drone' && it.deployed) {
+      // hovering by its owner, tilting toward its last shot; it blinks out over its last second and a half
+      const fading = it.fuse < 90 && (tick >> 2) % 2 === 0;
+      const lean = Math.max(-0.35, Math.min(0.35, it.vx * 0.12));
+      s.setTexture('item-drone').setVisible(!fading).setOrigin(0.5, 0.5).setPosition(it.x, it.y).setRotation(lean).setScale(ITEM_SCALE * 1.1).setFlipX(false);
+      s.clearTint();
+      const shot = (it.age - DRONE.firstShot) % DRONE.every;
+      gl.setVisible(!fading).setPosition(it.x, it.y + 1).setTint(0x5ae8ff).setScale(it.age >= DRONE.firstShot && shot < 5 ? 1.1 : 0.7 + 0.08 * Math.sin(tick * 0.3)).setAlpha(0.8);
+      sp.setVisible(false);
+      return;
+    }
     if (it.thrown) {
       // spinning in flight, flashing faster as the fuse burns down
       const fast = it.fuse < 45 ? 2 : 3;
@@ -392,8 +421,10 @@ export class EntityViews {
       const mz = this.muzzle[i];
       const pi = this.pop[i];
       const pg = this.popGlow[i];
+      const bat = this.heldBat[i];
+      const mine = this.heldMine[i];
       if (!f || f.state === 'ko') {
-        for (const o of [sw, gun, mz, pi, pg]) o.setVisible(false);
+        for (const o of [sw, gun, mz, pi, pg, bat, mine]) o.setVisible(false);
         continue;
       }
       const h = heldState(w, i);
@@ -443,6 +474,42 @@ export class EntityViews {
           }
         }
       } else sw.setVisible(false);
+      // --- Home-Run Bat: carried on the shoulder, wound back while a smash charges, then a big flat swing ---
+      if (kind === 'bat') {
+        const m = f.move;
+        let ang = -2.3 + Math.sin(tick * 0.08) * 0.04;
+        let live = false;
+        if (h.swing && m === h.swing && f.state === 'attack') {
+          const st = m.startup;
+          const end = st + Math.max(4, m.active);
+          const a0 = h.batSmash ? -2.7 : -1.6;
+          const a1 = h.batSmash ? 0.5 : 0.9;
+          if (f.moveFrame < st) ang = ang + (a0 - ang) * easeOut(f.moveFrame / Math.max(1, st));
+          else if (f.moveFrame < end) {
+            ang = a0 + (a1 - a0) * easeOut((f.moveFrame - st) / (end - st));
+            live = true;
+          } else ang = a1;
+          // charging: the bat trembles, glowing hotter
+          if (f.chargeFrames > 0 && f.moveFrame < st + 1) ang += Math.sin(tick * 1.3) * 0.05;
+        }
+        bat.setVisible(true).setPosition(handX, handY).setFlipX(f.facing < 0).setRotation(f.facing < 0 ? -ang : ang).setScale(sm / ART_D);
+        bat.setTint(f.chargeFrac > 0 ? mixWhite(0xffc070, 1 - f.chargeFrac) : 0xffffff);
+        bat.setAlpha(h.uses <= 1 && !h.swing && (tick >> 2) % 3 === 0 ? 0.6 : 1);
+        if (live && h.batSmash) {
+          const len = 34 * sm;
+          const p = (a: number, r: number): [number, number] => [handX + Math.cos(a) * r * f.facing, handY + Math.sin(a) * r];
+          for (let k = 0; k < 8; k++) {
+            const t0 = -2.7 + ((ang + 2.7) * k) / 8;
+            const t1 = -2.7 + ((ang + 2.7) * (k + 1)) / 8;
+            const [x1, y1] = p(t0, len);
+            const [x2, y2] = p(t1, len);
+            g.lineStyle(2.2, 0xfff0c8, 0.6 * ((k + 1) / 8)).lineBetween(x1, y1, x2, y2);
+          }
+        }
+      } else bat.setVisible(false);
+      // --- Proximity Mine in hand ---
+      if (kind === 'mine') mine.setVisible(true).setPosition(handX + f.facing * 2 * sm, handY + 1).setScale(ITEM_SCALE * sm).setRotation(0).setFlipX(false);
+      else mine.setVisible(false);
       // --- Ray Gun ---
       if (kind === 'raygun') {
         const since = tick - h.shotTick;

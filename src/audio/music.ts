@@ -61,6 +61,8 @@ export const FANFARES: Record<string, Fanfare> = {
   havoc: { notes: [[67, 1], [67, 1], [67, 1], [72, 3], [0, 1], [67, 1], [72, 1], [76, 2], [72, 1], [76, 1], [79, 6]], step: 0.08, wave: 'square', harmony: 7, drums: true, level: -1.4 },
   // a rolling sea-shanty phrase
   riptide: { notes: [[62, 1], [62, 1], [62, 1], [0, 1], [62, 1], [65, 1], [69, 2], [67, 1], [65, 1], [64, 1], [62, 5]], step: 0.09, wave: 'square', harmony: 4, drums: true, level: -0.4 },
+  // the playable Overseer: a cold minor proclamation that climbs to a held high note
+  'overseer-versus': { notes: [[57, 2], [60, 2], [64, 2], [63, 1], [0, 1], [62, 2], [57, 2], [69, 6]], step: 0.1, wave: 'sawtooth', harmony: 7, drums: true, level: 0 },
 };
 
 /** One-shot stings for the boss fight, played through the same fanfare engine (the loop stops under them). */

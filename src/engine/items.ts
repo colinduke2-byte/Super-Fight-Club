@@ -1,15 +1,15 @@
 import { deliverHit, hitboxActive, hitboxRect, hurtRect } from './combat';
-import { makeInput } from './buttons';
+import { Button, makeInput } from './buttons';
 import type { Fighter } from './fighter';
 import type { HitboxDef, MoveDef, ProjectileDef } from './moves';
 import type { World } from './world';
 
 export const MAX_ITEMS = 4;
-export type ItemKind = 'heal' | 'cell' | 'boost' | 'bomb' | 'aegis' | 'sword' | 'raygun' | 'crate' | 'core';
+export type ItemKind = 'heal' | 'cell' | 'boost' | 'bomb' | 'aegis' | 'sword' | 'raygun' | 'crate' | 'core' | 'bat' | 'mine' | 'drone';
 /** Index order is part of the event contract (`itemPickup` / `itemSpawn` magnitude): append only. */
-export const ITEM_KINDS: ItemKind[] = ['heal', 'cell', 'boost', 'bomb', 'aegis', 'sword', 'raygun', 'crate', 'core'];
+export const ITEM_KINDS: ItemKind[] = ['heal', 'cell', 'boost', 'bomb', 'aegis', 'sword', 'raygun', 'crate', 'core', 'bat', 'mine', 'drone'];
 /** Carried in hand (the `heldBomb` path): Attack uses them instead of the fighter's own attacks. */
-export const HELD_KINDS: ReadonlySet<ItemKind> = new Set(['bomb', 'sword', 'raygun']);
+export const HELD_KINDS: ReadonlySet<ItemKind> = new Set(['bomb', 'sword', 'raygun', 'bat', 'mine']);
 /**
  * Picking items up. Carried items (HELD_KINDS) are picked up by pressing Attack or Grab while the fighter's hurtbox, grown
  * by PICKUP_REACH px, touches the item (on the ground or in the air, empty-handed, able to act): see `itemInReach` /
@@ -17,7 +17,7 @@ export const HELD_KINDS: ReadonlySet<ItemKind> = new Set(['bomb', 'sword', 'rayg
  * Fragment) still apply on touch.
  */
 export const PICKUP_REACH = 6;
-export const AUTO_PICKUP_KINDS: ReadonlySet<ItemKind> = new Set(['heal', 'cell', 'boost', 'aegis', 'core']);
+export const AUTO_PICKUP_KINDS: ReadonlySet<ItemKind> = new Set(['heal', 'cell', 'boost', 'aegis', 'core', 'drone']);
 /** Core Fragment: ultimate meter added (a big chunk, not a full bar). */
 export const CORE_METER = 50;
 /** Live items at once (spawns wait while this many are out). */
@@ -37,6 +37,31 @@ export const SWORD = { swings: 10, reach: 42, damage: 7, base: 30, scaling: 0.72
 export const RAYGUN = { shots: 7, cooldown: 26, speed: 8.5, recoil: 0.7 };
 /** Crate: attacks chip it (`hp` damage); a plain one spills 1-2 items, a hazard-striped one primes and blows after `fuse`. */
 export const CRATE = { hp: 18, hw: 10, h: 18, volatileChance: 0.35, fuse: 40, radius: 46, damage: 16, base: 44, scaling: 0.8, angle: 60, hitCd: 10 };
+/**
+ * Home-Run Bat: on the ground Attack (or Smash) swings it with the fighter's own forward smash, charged while the button is
+ * held; in the air a quick swing with the forward / neutral aerial. The full-charge ground swing is the one item hit that
+ * KOs a middleweight at about 100% (the uncharged one from about 125%); air swings are light. Burns out after `swings`.
+ */
+export const BAT = { swings: 6, reach: 34, damage: 17, base: 38, scaling: 0.98, angle: 40, chargeDamage: 1.25, chargeKb: 1.06, hitlag: 1.4, air: { damage: 8, base: 26, scaling: 0.6, angle: 45 } };
+/**
+ * Proximity Mine: carried and thrown (Attack: forward lob; stick down: dropped at the feet). It sticks where it lands, arms
+ * after `arm` frames (blinking) and goes off when a rival steps over it (never its thrower or their team); a planted mine
+ * fizzles after `life` frames. Launches upward; never a KO before ~130%.
+ */
+export const MINE = { arm: 50, life: 900, speed: 4.6, lift: -3, gravity: 0.3, trigger: 12, radius: 30, damage: 12, base: 42, scaling: 0.7, angle: 82 };
+/** Assist Drone: used on touch. Hovers by its owner for `frames` and fires a small shot at the nearest rival every `every` frames. */
+export const DRONE = { frames: 480, every: 50, range: 320, speed: 7, firstShot: 30 };
+/** The drone's shot (projectile pool; owner = the drone's owner). Light: it interrupts, it never KOs. */
+const DRONE_SHOT: ProjectileDef = {
+  w: 10,
+  h: 4,
+  life: 60,
+  hit: { x: 0, y: 0, w: 0, h: 0, damage: 3, angle: 30, base: 16, scaling: 0.2, hitlag: 0.5, fx: 'zap' },
+  reflectable: true,
+  look: { shape: 'bolt', color: '#5ae8ff' },
+};
+export const DRONE_PROJECTILE = 'item:drone';
+
 /** Spawn odds (relative weights). Crates never drop crates. */
 const SPAWN_WEIGHTS: readonly (readonly [ItemKind, number])[] = [
   ['heal', 20],
@@ -48,6 +73,9 @@ const SPAWN_WEIGHTS: readonly (readonly [ItemKind, number])[] = [
   ['raygun', 9],
   ['crate', 15],
   ['core', 2],
+  ['bat', 6],
+  ['mine', 8],
+  ['drone', 6],
 ];
 const LIFE = 720;
 const HALF = 7;
@@ -109,6 +137,10 @@ export class Item {
   primed = false;
   /** An emptied Ray Gun tossed away: not pickable, gone soon after it lands. */
   spent = false;
+  /** Mine: planted (stuck on a platform, arming then live) / Drone: deployed and hovering for its owner. */
+  deployed = false;
+  /** Planted mine: the platform it sticks to (index into world.platforms, -1 none). */
+  plat = -1;
   constructor(readonly index: number) {}
 }
 
@@ -131,6 +163,8 @@ function resetItem(it: Item, kind: ItemKind): void {
   it.volatile = false;
   it.primed = false;
   it.spent = false;
+  it.deployed = false;
+  it.plat = -1;
 }
 
 /** Per-fighter item state the fighter itself does not carry (what is in hand, ammo, the Aegis bookkeeping, view cues). */
@@ -150,6 +184,8 @@ export interface HeldState {
   /** damageDealt when the Aegis was picked up: any rise means its holder landed a hit. */
   aegisDealt: number;
   aegisLostTick: number;
+  /** Home-Run Bat: the current swing is the charged ground swing (else a light air swing). */
+  batSmash: boolean;
   /** Last pickup (view: the icon pops over the fighter). */
   popKind: ItemKind | null;
   popTick: number;
@@ -171,7 +207,7 @@ export function heldState(world: World, id: number): HeldState {
 }
 
 function emptyHand(): HeldState {
-  return { kind: null, uses: 0, cd: 0, swing: null, swingDir: 'fwd', swingMask: 0, swingTick: -999, shotTick: -999, aegisDealt: 0, aegisLostTick: -999, popKind: null, popTick: -999 };
+  return { kind: null, uses: 0, cd: 0, swing: null, swingDir: 'fwd', swingMask: 0, swingTick: -999, shotTick: -999, aegisDealt: 0, aegisLostTick: -999, popKind: null, popTick: -999, batSmash: false };
 }
 
 /** What fighter `id` carries: 'bomb' | 'sword' | 'raygun', or null. For the view and the CPU. */
@@ -301,6 +337,14 @@ export function stepItems(world: World): void {
   stepHolders(world);
   for (const it of items) {
     if (!it.active) continue;
+    if (it.kind === 'drone' && it.deployed) {
+      stepDrone(world, it);
+      continue;
+    }
+    if (it.kind === 'mine' && (it.deployed || it.thrown)) {
+      stepMine(world, it);
+      continue;
+    }
     if (it.primed) {
       stepPrimed(world, it);
       continue;
@@ -351,9 +395,21 @@ function takeItem(world: World, f: Fighter, it: Item): void {
   if (HELD_KINDS.has(it.kind)) {
     f.heldBomb = true;
     h.kind = it.kind;
-    h.uses = it.kind === 'sword' ? SWORD.swings : it.kind === 'raygun' ? RAYGUN.shots : 0;
+    h.uses = it.kind === 'sword' ? SWORD.swings : it.kind === 'raygun' ? RAYGUN.shots : it.kind === 'bat' ? BAT.swings : 0;
     h.cd = 0;
     h.swing = null;
+  } else if (it.kind === 'drone') {
+    // the drone stays in play (its item slot), hovering by its new owner
+    h.popKind = it.kind;
+    h.popTick = world.tick;
+    world.emit('itemPickup', f, it.x, it.y, ITEM_KINDS.indexOf(it.kind), 0);
+    it.deployed = true;
+    it.owner = f.id;
+    it.fuse = DRONE.frames;
+    it.age = 0;
+    it.vx = it.vy = 0;
+    it.resting = false;
+    return;
   } else applyItem(world, it.kind, f.id);
   it.active = false;
   h.popKind = it.kind;
@@ -371,7 +427,7 @@ export function itemInReach(world: World, id: number): Item | null {
   if (!f || f.heldBomb || f.state === 'ko' || f.state === 'grabbed') return null;
   let best: Item | null = null;
   for (const it of world.items) {
-    if (!it.active || !HELD_KINDS.has(it.kind) || it.thrown || it.primed || it.spent || it.pickDelay > 0) continue;
+    if (!it.active || !HELD_KINDS.has(it.kind) || it.thrown || it.deployed || it.primed || it.spent || it.pickDelay > 0) continue;
     if (f.id === it.knockedBy && it.knockGrace > 0) continue;
     if (!touches(f, it, PICKUP_REACH)) continue;
     if (!best || Math.abs(it.x - f.x) < Math.abs(best.x - f.x)) best = it;
@@ -405,14 +461,17 @@ function stepHolders(world: World): void {
       continue;
     }
     if (h.cd > 0) h.cd--;
-    if (h.kind !== 'sword') continue;
+    if (h.kind !== 'sword' && h.kind !== 'bat') continue;
     if (h.swing && (f.state !== 'attack' || f.move !== h.swing)) h.swing = null; // swing over (or interrupted)
-    if (h.swing) swordHits(world, f, h);
-    else if (h.uses <= 0) {
-      // the blade burns out once its last swing ends
+    if (h.swing) {
+      if (h.kind === 'sword') swordHits(world, f, h);
+      else batHits(world, f, h);
+    } else if (h.uses <= 0) {
+      // the blade burns out (the bat splinters) once its last swing ends
+      const k = h.kind;
       f.heldBomb = false;
       h.kind = null;
-      world.emit('itemKnock', f, f.x + f.facing * 10, f.y - f.h * 0.55, 4, ITEM_KINDS.indexOf('sword'));
+      world.emit('itemKnock', f, f.x + f.facing * 10, f.y - f.h * 0.55, 4, ITEM_KINDS.indexOf(k));
     }
   }
 }
@@ -776,8 +835,10 @@ export function throwBomb(world: World, fighterId: number, stickX: number, stick
   const h = heldState(world, fighterId);
   if (h.kind === 'sword') return swingSword(world, f, h, stickX, stickY);
   if (h.kind === 'raygun') return fireRayGun(world, f, h);
+  if (h.kind === 'bat') return swingBat(world, f, h, stickX, stickY);
   const slot = world.items.find((it) => !it.active);
   if (!slot) return false;
+  if (h.kind === 'mine') return throwMine(world, f, h, slot, stickX, stickY);
   f.heldBomb = false;
   h.kind = null;
   if (stickX * f.facing < -0.5) f.facing = f.facing === 1 ? -1 : 1; // back-throw turns around
@@ -871,5 +932,192 @@ function explode(world: World, it: Item, P: Blast, grace: number): void {
   for (const c of world.items) {
     if (!c.active || c.kind !== 'crate' || c.primed || c === it) continue;
     if (Math.hypot(c.x - it.x, c.y - it.y) <= P.radius + CRATE.hw) damageCrate(world, c, CRATE.hp, it.owner >= 0 ? it.owner : 0);
+  }
+}
+
+// ---- Home-Run Bat -----------------------------------------------------------------------------------------------------
+const BAT_HB: HitboxDef = { x: 0, y: 0, w: 0, h: 0, damage: BAT.damage, angle: BAT.angle, base: BAT.base, scaling: BAT.scaling, hitlag: BAT.hitlag, fx: 'heavy' };
+
+/** The bat's hit box for the current swing (world rect into `rb`): in front, chest high (air swings: a wider arc). */
+function batRect(f: Fighter, smash: boolean): void {
+  const reach = BAT.reach * f.sizeMul;
+  const h = f.h * f.sizeMul;
+  const x0 = f.x + f.facing * (smash ? 2 : -6);
+  const x1 = f.x + f.facing * (6 + reach);
+  rb[0] = Math.min(x0, x1);
+  rb[1] = f.y - h * (smash ? 1.0 : 1.1);
+  rb[2] = Math.abs(x1 - x0);
+  rb[3] = h * (smash ? 0.85 : 1.0);
+}
+
+/** The bat's hit params at this charge (0..1) for a ground smash swing. Exported for balance tests. */
+export function batHit(charge: number, smash = true): { damage: number; base: number; scaling: number; angle: number; kbMult: number } {
+  if (!smash) return { ...BAT.air, kbMult: 1 };
+  const c = Math.max(0, Math.min(1, charge));
+  return { damage: BAT.damage * (1 + (BAT.chargeDamage - 1) * c), base: BAT.base, scaling: BAT.scaling, angle: BAT.angle, kbMult: 1 + (BAT.chargeKb - 1) * c };
+}
+
+function batHits(world: World, f: Fighter, h: HeldState): void {
+  const m = h.swing!;
+  if (f.hitlag > 0 || !swingLive(f, m)) return;
+  batRect(f, h.batSmash);
+  const p = batHit(f.chargeFrac, h.batSmash);
+  for (const v of world.fighters) {
+    if (v === f || v.state === 'ko' || v.invuln > 0 || v.state === 'grabbed' || world.allied(f.id, v.id) || h.swingMask & (1 << v.id)) continue;
+    hurtRect(v, r);
+    if (r[0] >= rb[0] + rb[2] || r[0] + r[2] <= rb[0] || r[1] >= rb[1] + rb[3] || r[1] + r[3] <= rb[1]) continue;
+    h.swingMask |= 1 << v.id;
+    BAT_HB.angle = p.angle;
+    BAT_HB.base = p.base;
+    BAT_HB.scaling = p.scaling;
+    BAT_HB.hitlag = h.batSmash ? BAT.hitlag : 0.9;
+    BAT_HB.fx = h.batSmash ? 'heavy' : 'punch';
+    deliverHit(world, { atk: f, ownerId: f.id, def: v, hb: BAT_HB, damage: p.damage * f.outMul, facing: f.facing, originX: f.x, kbMult: p.kbMult, rect: rb });
+    f.moveHit = true;
+  }
+}
+
+/** Swing the bat: the fighter's own forward smash on the ground (charged by holding Attack / Smash), a quick aerial in the air. */
+function swingBat(world: World, f: Fighter, h: HeldState, stickX: number, stickY: number): boolean {
+  if (Math.abs(stickX) > 0.5) f.facing = stickX > 0 ? 1 : -1;
+  const inp = makeInput();
+  inp.stickX = stickX;
+  inp.stickY = stickY;
+  const smash = f.grounded;
+  let ok = smash ? f.startMove('fsmash', inp, world) || f.startMove('ftilt', inp, world) : f.startMove(Math.abs(stickX) > 0.5 ? 'fair' : 'nair', inp, world) || f.startMove('nair', inp, world);
+  if (!ok) ok = f.startMove(f.grounded ? 'jab' : 'nair', inp, world);
+  if (!ok) return false;
+  if (smash) f.setChargeButtons(Button.Attack | Button.Smash);
+  f.hitMask.fill(0xffff); // the fist under the bat does not land a hit of its own
+  h.swing = f.move;
+  h.swingDir = 'fwd';
+  h.swingMask = 0;
+  h.swingTick = world.tick;
+  h.batSmash = smash;
+  h.uses--;
+  world.emit('itemThrow', f, f.x + f.facing * 12, f.y - f.h * 0.6, 1, ITEM_KINDS.indexOf('bat'));
+  return true;
+}
+
+// ---- Proximity Mine ---------------------------------------------------------------------------------------------------
+function throwMine(world: World, f: Fighter, h: HeldState, slot: Item, stickX: number, stickY: number): boolean {
+  f.heldBomb = false;
+  h.kind = null;
+  if (stickX * f.facing < -0.5) f.facing = f.facing === 1 ? -1 : 1;
+  resetItem(slot, 'mine');
+  slot.thrown = true;
+  slot.owner = f.id;
+  slot.x = f.x + f.facing * 8;
+  slot.y = f.y - f.h * 0.5;
+  if (stickY > 0.5) {
+    slot.vx = 0;
+    slot.vy = f.grounded ? 0 : 3;
+  } else {
+    slot.vx = f.facing * MINE.speed + f.vx * 0.3;
+    slot.vy = MINE.lift;
+  }
+  world.emit('itemThrow', f, slot.x, slot.y, 3, ITEM_KINDS.indexOf('mine'));
+  return true;
+}
+
+const MINE_BLAST = { radius: MINE.radius, damage: MINE.damage, base: MINE.base, scaling: MINE.scaling, angle: MINE.angle };
+
+/** Is the mine planted and live (armed)? For the view and the CPU. */
+export function mineArmed(it: Item): boolean {
+  return it.active && it.kind === 'mine' && it.deployed && it.age >= MINE.arm;
+}
+
+function stepMine(world: World, it: Item): void {
+  it.age++;
+  if (it.thrown) {
+    // in flight: falls in an arc and sticks to the first platform top it lands on
+    const prev = it.y + HALF;
+    it.vy = Math.min(9, it.vy + MINE.gravity);
+    it.x += it.vx;
+    it.y += it.vy;
+    it.spin += it.vx * 0.15;
+    if (it.y > world.blast.bottom || it.x < world.blast.left || it.x > world.blast.right) {
+      it.active = false;
+      return;
+    }
+    wallBounce(world, it);
+    if (it.vy < 0) return;
+    for (let i = 0; i < world.platforms.length; i++) {
+      const p = world.platforms[i];
+      if (it.x < p.x || it.x > p.right || !(prev <= p.top + 1 && it.y + HALF >= p.top)) continue;
+      it.y = p.top - HALF;
+      it.thrown = false;
+      it.deployed = true;
+      it.plat = p.id;
+      it.age = 0;
+      it.vx = it.vy = 0;
+      it.spin = 0;
+      world.emit('itemKnock', world.fighters[it.owner] ?? world.fighters[0], it.x, it.y, 1, ITEM_KINDS.indexOf('mine'));
+      return;
+    }
+    return;
+  }
+  // planted: ride the platform; gone with it (a stump that crumbles, a route that leaves)
+  const p = world.platforms.find((q) => q.id === it.plat);
+  if (!p || it.x < p.x - 2 || it.x > p.right + 2 || it.age > MINE.life) {
+    it.active = false;
+    world.emit('itemKnock', world.fighters[it.owner] ?? world.fighters[0], it.x, it.y, 1, ITEM_KINDS.indexOf('mine'));
+    return;
+  }
+  it.x += p.dx;
+  it.y = p.top - HALF;
+  if (it.y > world.blast.bottom) {
+    it.active = false;
+    return;
+  }
+  if (it.age < MINE.arm) return;
+  for (const f of world.fighters) {
+    if (f.state === 'ko' || f.id === it.owner || world.allied(it.owner, f.id) || f.state === 'grabbed') continue;
+    hurtRect(f, r);
+    const footY = r[1] + r[3];
+    if (r[0] < it.x + MINE.trigger && r[0] + r[2] > it.x - MINE.trigger && footY > it.y - 10 && r[1] < it.y + HALF) {
+      explode(world, it, MINE_BLAST, 1e9);
+      return;
+    }
+  }
+}
+
+// ---- Assist Drone -----------------------------------------------------------------------------------------------------
+function stepDrone(world: World, it: Item): void {
+  const f = world.fighters[it.owner];
+  it.age++;
+  if (!f || f.state === 'ko' || --it.fuse <= 0) {
+    it.active = false;
+    world.emit('itemKnock', f ?? world.fighters[0], it.x, it.y, 2, ITEM_KINDS.indexOf('drone'));
+    return;
+  }
+  // hover over the owner's shoulder, bobbing
+  const tx = f.x - f.facing * 22;
+  const ty = f.y - f.h * f.sizeMul - 26 + Math.sin(it.age * 0.12) * 4;
+  it.vx = (tx - it.x) * 0.12;
+  it.vy = (ty - it.y) * 0.12;
+  it.x += it.vx;
+  it.y += it.vy;
+  if (it.age < DRONE.firstShot || (it.age - DRONE.firstShot) % DRONE.every !== 0) return;
+  let tgt: Fighter | null = null;
+  let best = DRONE.range;
+  for (const v of world.fighters) {
+    if (v === f || v.state === 'ko' || world.allied(f.id, v.id)) continue;
+    const d = Math.hypot(v.x - it.x, v.y - v.h / 2 - it.y);
+    if (d < best) {
+      best = d;
+      tgt = v;
+    }
+  }
+  if (!tgt) return;
+  const dx = tgt.x - it.x;
+  const dy = tgt.y - tgt.h * 0.5 - it.y;
+  const l = Math.hypot(dx, dy) || 1;
+  for (const p of world.projectiles) {
+    if (p.active || (p.def?.blast && !p.exploded && p.age > 0)) continue;
+    p.spawn(f.id, DRONE_PROJECTILE, DRONE_SHOT, it.x, it.y, (dx / l) * DRONE.speed, (dy / l) * DRONE.speed, 1);
+    it.spin = Math.atan2(dy, dx);
+    world.emit('projectile', f, it.x, it.y, 0, 0);
+    return;
   }
 }

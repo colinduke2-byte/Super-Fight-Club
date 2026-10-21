@@ -3,14 +3,21 @@ import { PIXEL_FONT, up } from '../art/pixelFont';
 import type { Fighter } from '../engine/fighter';
 import type { FighterView } from './FighterView';
 import { fastShapes } from './fastShapes';
+import { tauntLines } from '../game/story';
 
 const SHOW_MS = 2200;
 
-/** Speech bubbles: a fighter who taunts says their line (CharacterData.persona.taunt) above their head for a couple of seconds. */
+/**
+ * Speech bubbles: a fighter who taunts says one of their lines (CharacterData.persona.taunts, taking turns) above their
+ * head for a couple of seconds.
+ */
 export class TauntBubbles {
   private readonly g: Phaser.GameObjects.Graphics;
   private readonly texts: Phaser.GameObjects.BitmapText[];
   private readonly until: number[];
+  /** Each fighter's taunt lines (pre-wrapped) and the one said next. */
+  private readonly lines: string[][];
+  private readonly next: number[];
 
   constructor(
     scene: Phaser.Scene,
@@ -20,8 +27,10 @@ export class TauntBubbles {
   ) {
     this.g = fastShapes(scene.add.graphics());
     layer.add(this.g);
+    this.lines = fighters.map((f) => tauntLines(f.data.id).map((l) => up(wrap(l, 22))));
+    this.next = fighters.map(() => 0);
     this.texts = fighters.map((f) => {
-      const t = scene.add.bitmapText(0, 0, PIXEL_FONT, up(wrap(f.data.persona?.taunt ?? 'COME ON!', 22))).setOrigin(0.5, 1).setCenterAlign().setTint(0x1a1630).setVisible(false);
+      const t = scene.add.bitmapText(0, 0, PIXEL_FONT, this.lines[f.id][0]).setOrigin(0.5, 1).setCenterAlign().setTint(0x1a1630).setVisible(false);
       layer.add(t);
       return t;
     });
@@ -30,6 +39,15 @@ export class TauntBubbles {
 
   /** Fighter `id` just taunted. */
   say(id: number, now: number): void {
+    const lines = this.lines[id];
+    const t = this.texts[id];
+    if (lines?.length && t) {
+      // a new taunt while the last bubble still shows keeps that line up (mashing taunt does not flip through them)
+      if (this.until[id] <= now) {
+        t.setText(lines[this.next[id] % lines.length]);
+        this.next[id]++;
+      }
+    }
     this.until[id] = now + SHOW_MS;
   }
 

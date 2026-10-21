@@ -106,6 +106,27 @@ export const SCAPES: Record<string, Scape> = {
     events: [],
     level: 8,
   },
+  // the Overseer's summit: thin high-altitude wind with a faint choir hum (an open fifth) under it
+  apex: {
+    beds: [
+      { filter: 'lowpass', freq: 520, gain: 0.05, swell: { period: 9, depth: 0.75 } }, // wind over the summit
+      { filter: 'bandpass', freq: 1400, q: 0.7, gain: 0.008, swell: { period: 5.5, depth: 0.8 } }, // gusts whistling past the spires
+      { filter: 'lowpass', freq: 900, gain: 0.006, drone: { type: 'sine', hz: 220 }, swell: { period: 12, depth: 0.6 } }, // choir hum
+      { filter: 'lowpass', freq: 900, gain: 0.005, drone: { type: 'sine', hz: 330 }, swell: { period: 15, depth: 0.6 } },
+    ],
+    events: [{ kind: 'chime', every: 12 }],
+    level: 2.5,
+  },
+  // the launch stadium: a crowd murmuring in the stands
+  stadium: {
+    beds: [
+      { filter: 'bandpass', freq: 650, q: 0.9, gain: 0.05, swell: { period: 6, depth: 0.35 } }, // voices
+      { filter: 'bandpass', freq: 1600, q: 1.2, gain: 0.012, swell: { period: 3.7, depth: 0.5 } }, // the odd shout lifting over it
+      { filter: 'lowpass', freq: 180, gain: 0.02 }, // the room
+    ],
+    events: [],
+    level: 1.5,
+  },
 };
 
 interface Live {

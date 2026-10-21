@@ -1,5 +1,5 @@
 import { paletteCount } from '../art/palettes';
-import { CHARACTER_LIST, characterById } from '../characters';
+import { CHARACTER_LIST, CORE_CHARACTER_LIST, characterById } from '../characters';
 import { STAGE_LIST } from '../stages';
 import { levelForSkill, type CpuLevel } from './lobby';
 import { canBeMetal } from './metal';
@@ -366,12 +366,13 @@ export function buildEndless(player: string, rand: () => number = Math.random, d
 }
 
 /**
- * Gauntlet: every roster fighter once, in a random order (your own fighter included, as a shadow match), each on its home
- * stage with one stock. Your three stocks last the whole run; between fights you heal GAUNTLET_HEAL% of your damage.
+ * Gauntlet: each of the ten core fighters once (not the playable Overseer), in a random order (your own fighter included,
+ * as a shadow match), each on its home stage with one stock. Your three stocks last the whole run; between fights you heal
+ * GAUNTLET_HEAL% of your damage.
  */
 export function buildGauntlet(player: string, rand: () => number = Math.random, difficulty: ArcadeDifficulty = lastDifficulty()): LadderState {
   const order = shuffled(
-    CHARACTER_LIST.map((c) => c.id),
+    CORE_CHARACTER_LIST.map((c) => c.id),
     rand,
   );
   const fights: LadderFight[] = order.map((c, i) => ({

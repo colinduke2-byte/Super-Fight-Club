@@ -2,6 +2,7 @@ import Phaser from 'phaser';
 import { DEFAULT_CAMERA, MultiTargetCamera, type CamPoint } from '../../engine/camera';
 import type { Fighter } from '../../engine/fighter';
 import type { MatchScene } from '../MatchScene';
+import { stagePhase } from '../../stages/express';
 
 /** What the world camera shows this frame. */
 export interface CameraFrame {
@@ -76,6 +77,9 @@ export class MatchCamera {
       }
     }
     this.cam.step(this.targets, n, s.worldCam.width, s.worldCam.height);
+    // a travelling stage: the scenery runs at the current leg's speed (slowing into the station...)
+    const leg = stagePhase(s.runner.stage, s.world.tick);
+    if (leg) s.bg?.setScrollMul(s.runner.stage.phases![leg.index].scroll ?? 1);
   }
 
   /** After a sim step: shake and punch die away. */

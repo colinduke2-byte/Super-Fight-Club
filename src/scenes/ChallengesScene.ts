@@ -1,6 +1,7 @@
 import Phaser from 'phaser';
 import { PIXEL_FONT, up } from '../art/pixelFont';
 import { animFrameIndex, fighterTextureKey, portraitCrop, portraitK } from '../art/proceduralFighter';
+import { portraitKey } from '../art/portraits';
 import { characterById } from '../characters';
 import { CHALLENGES, TIER_COLORS, TIER_NAMES, armSpecialChallenge, challengeById, clearText, goalText, recordChallengeResult, type Challenge } from '../game/challenges';
 import { launchSlots } from '../game/launch';
@@ -279,7 +280,13 @@ export class ChallengesScene extends MenuScene {
       const im = this.foeImgs[i];
       const nm = this.foeNames[i];
       const cx = k.x + pad + slot * (i + 0.5);
-      if (data && this.textures.exists(fighterTextureKey(data.id)) && ph > 8 * u) {
+      const bust = data && ph > 8 * u ? portraitKey(this, data) : null;
+      if (data && bust) {
+        // the bust portrait (rivals face the ally / the player, as the crops did)
+        im.setTexture(bust).setCrop().setFlipX(!ally);
+        im.setScale(ph / Math.max(1, im.height)).setPosition(cx, y + ph / 2).setVisible(true);
+        g.fillStyle(ally ? COLORS.good : COLORS.bad, 0.12).fillRect(cx - slot / 2 + u, y, slot - 2 * u, ph);
+      } else if (data && this.textures.exists(fighterTextureKey(data.id)) && ph > 8 * u) {
         const cr = portraitCrop(data);
         im.setTexture(fighterTextureKey(data.id), animFrameIndex(data, 'idle', 0)).setCrop(...cr).setFlipX(!ally);
         const sc = (ph / 40) * portraitK(data);

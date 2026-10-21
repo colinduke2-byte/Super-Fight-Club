@@ -60,9 +60,24 @@ export const rime: CharacterData = {
   difficulty: 4,
   persona: {
     intro: 'Rime guarded the Frostfang Shrine for a hundred winters. The arena stole its bell, so the snow came down to fetch it.',
+    bio: 'Guardian of the Frostfang Shrine for a hundred winters. When the arena stole the shrine\'s bell, the snow came down to fetch it. Rime strikes fast and leaves frost behind.',
     taunt: 'You will not feel the cut until spring.',
+    // in-match taunt bubbles take turns through these
+    taunts: [
+      'You will not feel the cut until spring.',
+      'Cold hands. Colder blade.',
+      'Breathe. Watch it freeze.',
+      'Snow falls without a sound. So do I.',
+    ],
     epilogue: 'The bell rings once at the top of the mountain. Rime is already gone; only footprints in the snow remember the fight.',
     victory: 'Winter always wins.',
+    victories: [
+      'Winter always wins.',
+      'Rest. The snow will cover you.',
+      'Another season passes.',
+    ],
+    // against their RIVAL (routes.ts): the line before the fight, and the one after beating them
+    rival: { taunt: 'Halcyon. The bell rang from your gate last. Ring it again, or answer to winter.', victory: 'The bell comes home, Halcyon. The storm can ask me for it.' },
   },
   stats: {
     weight: 89,

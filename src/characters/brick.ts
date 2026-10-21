@@ -32,9 +32,24 @@ export const brick: CharacterData = {
   difficulty: 1,
   persona: {
     intro: 'Brick was built to guard a gate that fell long ago. Tonight he chooses to break the line instead of holding it.',
+    bio: 'A cyber-knight built to guard a gate that fell long ago. Brick is slow to anger and slower to fall, and a hit that lands while he is armored only makes the next swing hotter.',
     taunt: 'Not many get past me. Fewer get up.',
+    // in-match taunt bubbles take turns through these
+    taunts: [
+      'Not many get past me. Fewer get up.',
+      'Go ahead. Hit the wall.',
+      'I have stood here longer than you have been alive.',
+      'Halt. That was the polite version.',
+    ],
     epilogue: 'Brick sets his shield down on the cracked floor. For the first time in years there is nothing left to guard, and he does not mind.',
     victory: 'Shake it off. Or don\'t.',
+    victories: [
+      'Shake it off. Or don\'t.',
+      'The line holds.',
+      'Next.',
+    ],
+    // against their RIVAL (routes.ts): the line before the fight, and the one after beating them
+    rival: { taunt: 'Havoc. You want through this gate, you go through me.', victory: 'Gate held. Tell your commander to send someone heavier.' },
   },
   stats: {
     weight: 120,

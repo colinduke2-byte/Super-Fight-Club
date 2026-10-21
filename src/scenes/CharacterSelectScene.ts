@@ -16,6 +16,7 @@ import { buildLadder } from '../game/ladder';
 import { beginTurns } from '../game/turns';
 import { challengeById, challengeSlots } from '../game/challenges';
 import { introCards } from '../game/story';
+import { cycleProfile, lastProfileFor, listProfiles, profileById, setActiveProfiles } from '../game/profiles';
 import { session, type PlayerSlot } from '../game/session';
 import { settings } from '../settings';
 import { inputManager } from '../input/inputManager';
@@ -25,7 +26,9 @@ import { COLORS, MenuScene, PANEL, drawPanel, pointerDevice, pointerXY, tapMin, 
 
 /** Team colour names (team index = player colour index). */
 const TEAM_NAMES = ['BLUE', 'RED', 'GREEN', 'YELLOW'];
-const ROW_NAMES: Record<CardRow, string> = { cpu: 'CPU', fighter: 'FIGHTER', outfit: 'OUTFIT', level: 'LEVEL', team: 'TEAM', damage: 'START %', stock: 'STOCKS' };
+/** A card row: the lobby's, or the player's own NAME (their profile: a scene row on their own locked card, above the rest). */
+type Row = CardRow | 'name';
+const ROW_NAMES: Record<Row, string> = { name: 'NAME', cpu: 'CPU', fighter: 'FIGHTER', outfit: 'OUTFIT', level: 'LEVEL', team: 'TEAM', damage: 'START %', stock: 'STOCKS' };
 
 interface Card {
   header: Phaser.GameObjects.BitmapText;
@@ -99,6 +102,11 @@ export class CharacterSelectScene extends MenuScene {
   /** The device that last sent an event (the footer names its controls). */
   private lastDevice: InputDevice | null = null;
   private now = 0;
+  /** The player profile each slot plays as (null: none), and whether a slot was a joined human last frame. */
+  private profiles: (string | null)[] = [null, null, null, null];
+  private wasHuman = [false, false, false, false];
+  /** A locked player's own rows: the cursor is on NAME (above the lobby's team / handicap rows). */
+  private nameRow = [false, false, false, false];
 
   constructor() {
     super('CharacterSelect');
@@ -112,6 +120,9 @@ export class CharacterSelectScene extends MenuScene {
     this.roster = [];
     this.ownEditAt = [-99, -99, -99, -99];
     this.lastDevice = null;
+    this.profiles = [null, null, null, null];
+    this.wasHuman = [false, false, false, false];
+    this.nameRow = [false, false, false, false];
     // a challenge with a set fighter: the cursor starts (and stays) on them (and there is no RANDOM tile)
     const fixed = this.fixedFighter();
     this.lobby = new Lobby(session.playerCount, CHARACTER_LIST.length, { random: fixed < 0, palettes: (ci) => (CHARACTER_LIST[ci] ? paletteCount(CHARACTER_LIST[ci].id) : 1) });
@@ -422,6 +433,7 @@ export class CharacterSelectScene extends MenuScene {
   protected override tick(time: number): void {
     this.now = time;
     const l = this.lobby;
+    this.syncProfiles();
     const editors = this.editors(time);
     this.cards.forEach((c, i) => {
       const slot = l.slots[i];
@@ -456,7 +468,8 @@ export class CharacterSelectScene extends MenuScene {
       c.outfit.setVisible(filled).setText(random ? (slot.palette < 0 ? 'RANDOM OUTFIT' : 'DEFAULT OUTFIT') : up(lookName(data.id, pal)));
       const dev = slot.kind === 'human' ? (inputManager.allDevices.find((d) => d.id === slot.deviceId)?.label ?? slot.deviceId ?? '') : slot.kind === 'cpu' ? `CPU ${skillName(slot.skill).replace(' ', '')}` : '';
       const teamTag = l.teams ? ` ${TEAM_NAMES[slot.team] ?? ''}` : '';
-      c.header.setText(up(`P${i + 1}${teamTag}`)).setTint(this.cardColor(i));
+      const who = slot.kind === 'human' ? profileById(this.profiles[i])?.name : undefined;
+      c.header.setText(up(`P${i + 1}${who ? ` ${who}` : ''}${teamTag}`)).setTint(this.cardColor(i));
       c.header.setScale(legible(Math.min(c.cu * 2, (c.cw * 0.45) / Math.max(1, textPx(c.header)))));
       // a short device name beside the player tag, as large as the header band allows
       c.device.setText(up(dev.replace('Keyboard (WASD + JKLI)', 'WASD KEYS').replace('Keyboard (Arrows + Numpad)', 'ARROW KEYS').slice(0, 12)));
@@ -542,7 +555,13 @@ export class CharacterSelectScene extends MenuScene {
     const pads = inputManager.padList.length;
     // everyone ready: the message becomes a CONTINUE button (click / tap it, or confirm again / start)
     // (the lobby's "press a button" in the words of the device in use: a tap on touch)
-    const warning = l.warning(pads)?.replace('PRESS A BUTTON TO JOIN', deviceKind(this.lastDevice) === 'touch' ? 'TAP A FIGHTER TO JOIN' : 'PRESS A BUTTON TO JOIN') ?? null;
+    // (arcade with two slots is co-op or a Boss Battle: nobody fills the second slot, a friend may)
+    const coop = session.mode === 'arcade' && session.playerCount === 2;
+    const warning =
+      l
+        .warning(pads)
+        ?.replace('PRESS A BUTTON TO JOIN', deviceKind(this.lastDevice) === 'touch' ? 'TAP A FIGHTER TO JOIN' : 'PRESS A BUTTON TO JOIN')
+        .replace(/1 EMPTY SLOT: CPU WILL FILL/, coop ? 'P2 MAY JOIN FOR CO-OP' : '1 EMPTY SLOT: CPU WILL FILL') ?? null;
     const narrow = this.scale.width < this.scale.height;
     const msg = up(l.ready ? `CONTINUE  >${warning && !narrow ? `   (${warning})` : ''}` : (warning ?? ''));
     if (msg !== this.warn.text) {
@@ -597,9 +616,9 @@ export class CharacterSelectScene extends MenuScene {
       const lr = kind === 'keyboard' ? `${P('left')}/${P('right')}` : kind === 'gamepad' ? 'LEFT/RIGHT' : '';
       const ud = kind === 'keyboard' ? `${P('up')}/${P('down')}` : kind === 'gamepad' ? 'UP/DOWN' : '';
       const open = this.ownOpen(i);
-      if (kind === 'touch') msg = slot.locked ? 'TAP CONTINUE   BACK: CHANGE' : 'TAP A FIGHTER, TAP AGAIN TO LOCK IN';
+      if (kind === 'touch') msg = slot.locked ? `TAP CONTINUE   TAP P${i + 1} BAR: NAME` : 'TAP A FIGHTER, TAP AGAIN TO LOCK IN';
       else if (open) msg = `${ud}: ROW   ${lr}: CHANGE   ${P('special')}: CLOSE`;
-      else if (slot.locked) msg = `${P('attack')}: CONTINUE   ${P('special')}: CHANGE${l.rows(i).length ? `   ${ud}: ${l.teams ? 'TEAM, ' : ''}HANDICAP` : ''}`;
+      else if (slot.locked) msg = `${P('attack')}: CONTINUE   ${P('special')}: CHANGE   ${ud}: NAME${l.rows(i).length ? `, ${l.teams ? 'TEAM, ' : ''}HANDICAP` : ''}`;
       else msg = `${lr}: FIGHTER   ${ud}: OUTFIT   ${P('attack')}: LOCK IN`;
     }
     if (c.keys.text !== up(msg)) c.keys.setText(up(msg));
@@ -625,7 +644,8 @@ export class CharacterSelectScene extends MenuScene {
 
   /** The locked player's own team / handicap rows are open (they touched them in the last few seconds). */
   private ownOpen(i: number, time = this.now): boolean {
-    return time - this.ownEditAt[i] < 4 && this.lobby.slots[i].locked && this.lobby.rows(i).length > 0;
+    // (every human has the NAME row, so a locked player always has rows of their own)
+    return time - this.ownEditAt[i] < 4 && this.lobby.slots[i].locked && this.lobby.slots[i].kind === 'human';
   }
 
   /** Who is setting up which card: card index -> the editing slot (first editor wins). */
@@ -635,7 +655,10 @@ export class CharacterSelectScene extends MenuScene {
     l.active.forEach((s, i) => {
       if (s.kind !== 'human' || !s.deviceId) return;
       const card = l.focusOf(s.deviceId);
-      if (card === i && !this.ownOpen(i, time)) return;
+      if (card === i) {
+        if (this.ownOpen(i, time) && !out.has(card)) out.set(card, i);
+        return;
+      }
       if (l.rowOf(s.deviceId) === null || out.has(card)) return;
       out.set(card, i);
     });
@@ -653,8 +676,10 @@ export class CharacterSelectScene extends MenuScene {
         return;
       }
       const s = l.slots[who];
-      const rows = l.rows(card);
-      const cur = Math.min(s.row, rows.length - 1);
+      const own = who === card;
+      const lobbyRows = l.rows(card);
+      const rows: Row[] = own ? ['name', ...lobbyRows] : lobbyRows;
+      const cur = own && (this.nameRow[who] || !lobbyRows.length) ? 0 : Math.min(s.row, lobbyRows.length - 1) + (own ? 1 : 0);
       const u = c.cu;
       const lines = rows.map((r, k) => {
         const v = this.rowValue(card, r);
@@ -679,11 +704,13 @@ export class CharacterSelectScene extends MenuScene {
     });
   }
 
-  private rowValue(card: number, row: CardRow): string {
+  private rowValue(card: number, row: Row): string {
     const l = this.lobby;
     const s = l.slots[card];
     const data = CHARACTER_LIST[s.character];
     switch (row) {
+      case 'name':
+        return profileById(this.profiles[card])?.name ?? (listProfiles().length ? 'NONE' : 'NONE: ADD IN VAULT');
       case 'cpu':
         return s.kind === 'cpu' ? 'ON' : 'OFF';
       case 'fighter':
@@ -756,6 +783,12 @@ export class CharacterSelectScene extends MenuScene {
     const card = this.cards.findIndex((c) => q.x >= c.cx - c.cw / 2 && q.x <= c.cx + c.cw / 2 && q.y >= c.top && q.y <= c.top + this.cardH * c.cu);
     if (card >= 0) {
       this.lastDevice = dev;
+      // the header band of a joined player's card: their NAME, one step along the list per tap
+      const cc = this.cards[card];
+      if (l.slots[card].kind === 'human' && q.y <= cc.top + 21 * cc.cu) {
+        this.stepProfile(card, 1);
+        return;
+      }
       const mine = l.slotOf(dev.id);
       if (mine < 0 && l.slots[card].kind === 'empty') l.join(dev.id);
       else if (mine === card && l.slots[card].locked && (l.ready || (session.mode !== 'versus' && !this.takesTurns()))) this.proceed();
@@ -835,6 +868,7 @@ export class CharacterSelectScene extends MenuScene {
     const me = slots.find((p) => p.type === 'human' && !p.random);
     if (me) rememberFighter(me.character, me.palette);
     session.players = slots;
+    setActiveProfiles(l.active.map((s, i) => (s.kind === 'human' ? this.profiles[i] : null)));
     if (versus) {
       session.versusLineup = slots;
       const r = session.rules;
@@ -866,16 +900,50 @@ export class CharacterSelectScene extends MenuScene {
     }
   }
 
+  /** Up / down through a locked player's own rows: NAME, then the lobby's (team, handicap), wrapping round. */
+  private moveOwnRow(i: number, dir: 1 | -1): void {
+    const s = this.lobby.slots[i];
+    const n = this.lobby.rows(i).length;
+    if (!n) {
+      this.nameRow[i] = true;
+      return;
+    }
+    if (this.nameRow[i]) {
+      this.nameRow[i] = false;
+      s.row = dir > 0 ? 0 : n - 1;
+    } else if ((dir < 0 && s.row <= 0) || (dir > 0 && s.row >= n - 1)) this.nameRow[i] = true;
+    else s.row += dir;
+  }
+
+  /** Slot i's profile, one step along the list (names other players hold are skipped; NONE is on the cycle). */
+  private stepProfile(i: number, dir: 1 | -1): void {
+    this.profiles[i] = cycleProfile(this.profiles[i], dir, this.profiles.filter((_, k) => k !== i));
+  }
+
+  /** A player who just joined gets the name their slot used last time (if nobody else has it); one who left drops theirs. */
+  private syncProfiles(): void {
+    this.lobby.slots.forEach((s, i) => {
+      const human = s.kind === 'human';
+      if (human && !this.wasHuman[i]) {
+        const last = lastProfileFor(i);
+        this.profiles[i] = last && !this.profiles.some((p, k) => k !== i && p === last) ? last : null;
+        this.nameRow[i] = false;
+      } else if (!human) this.profiles[i] = null;
+      this.wasHuman[i] = human;
+    });
+  }
+
   protected onEvent(e: MenuEvent): void {
     const l = this.lobby;
     const id = e.device.id;
     this.lastDevice = e.device;
     const i = l.slotOf(id);
     const onOther = i >= 0 && l.focusOf(id) !== i;
-    const ownLocked = i >= 0 && !onOther && l.slots[i].locked && l.rows(i).length > 0;
-    /** Locked player's own rows: the first press opens them, later presses edit. */
+    const ownLocked = i >= 0 && !onOther && l.slots[i].locked && l.slots[i].kind === 'human';
+    /** Locked player's own rows: the first press opens them (on NAME), later presses edit. */
     const touchOwn = (): boolean => {
       const open = this.ownOpen(i);
+      if (!open) this.nameRow[i] = true;
       this.ownEditAt[i] = this.now;
       return open;
     };
@@ -885,7 +953,10 @@ export class CharacterSelectScene extends MenuScene {
         const dir = e.action === 'left' ? -1 : 1;
         if (onOther) l.adjust(id, dir);
         else if (ownLocked) {
-          if (touchOwn()) l.adjust(id, dir);
+          if (touchOwn()) {
+            if (this.nameRow[i] || !l.rows(i).length) this.stepProfile(i, dir);
+            else l.adjust(id, dir);
+          }
         } else if (this.fixedFighter() < 0) l.move(id, dir);
         break;
       }
@@ -894,7 +965,7 @@ export class CharacterSelectScene extends MenuScene {
         const dir = e.action === 'down' ? 1 : -1;
         if (onOther) l.moveRow(id, dir);
         else if (ownLocked) {
-          if (touchOwn()) l.moveRow(id, dir);
+          if (touchOwn()) this.moveOwnRow(i, dir);
         } else l.outfit(id, dir); // colour palette for this player's fighter
         break;
       }

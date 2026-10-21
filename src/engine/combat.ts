@@ -25,9 +25,11 @@ interface Candidate {
   move: MoveDef;
   damage: number;
   alive: boolean;
+  /** Connected through the box's inner part (point blank). */
+  inner: boolean;
 }
 
-const pool: Candidate[] = Array.from({ length: MAX_CANDIDATES }, () => ({ atk: null as unknown as Fighter, def: null as unknown as Fighter, hb: null as unknown as HitboxDef, move: null as unknown as MoveDef, damage: 0, alive: false }));
+const pool: Candidate[] = Array.from({ length: MAX_CANDIDATES }, () => ({ atk: null as unknown as Fighter, def: null as unknown as Fighter, hb: null as unknown as HitboxDef, move: null as unknown as MoveDef, damage: 0, alive: false, inner: false }));
 let count = 0;
 
 /** Hitbox rect in world space. Writes into `out` = [x, y, w, h] (top-left). */
@@ -149,6 +151,7 @@ function rebound(f: Fighter, other: Fighter): void {
 export function resolveCombat(world: World): void {
   count = 0;
   const fs = world.fighters;
+  trackMoveStarts(fs);
   resolveClanks(world);
   for (const atk of fs) {
     const m = atk.move;
@@ -156,20 +159,19 @@ export function resolveCombat(world: World): void {
     for (const def of fs) {
       if (def === atk) continue;
       hurtRect(def, rB);
+      let hb0: HitboxDef | null = null;
       for (const hb of m.hitboxes) {
         if (!hitboxActive(atk, m, hb) || !canHit(world, atk, def, hb)) continue;
         hitboxRect(atk, hb, rA);
         if (!overlap(rA, rB)) continue;
-        if (count < MAX_CANDIDATES) {
-          const c = pool[count++];
-          c.atk = atk;
-          c.def = def;
-          c.hb = hb;
-          c.move = m;
-          c.damage = hb.damage * atk.outMul * atk.moveStale * damageCharge(atk, m);
-          c.alive = true;
-        }
+        addCandidate(atk, def, hb, m, false);
+        hb0 = hb;
         break; // first overlapping hitbox in the list has priority
+      }
+      if (hb0 === null) {
+        // point blank: the rival stands inside the attacker, between its body centre and the hitbox
+        const inner = innerBoxOver(atk, m, def, rB);
+        if (inner && canHit(world, atk, def, inner)) addCandidate(atk, def, inner, m, true);
       }
     }
   }
@@ -193,6 +195,93 @@ export function resolveCombat(world: World): void {
     const c = pool[i];
     if (c.alive) applyHit(world, c);
   }
+}
+
+function addCandidate(atk: Fighter, def: Fighter, hb: HitboxDef, m: MoveDef, inner: boolean): void {
+  if (count >= MAX_CANDIDATES) return;
+  const c = pool[count++];
+  c.atk = atk;
+  c.def = def;
+  c.hb = hb;
+  c.move = m;
+  c.damage = hb.damage * atk.outMul * atk.moveStale * damageCharge(atk, m);
+  c.alive = true;
+  c.inner = inner;
+}
+
+/** Move kinds whose hitboxes reach back to the body centre at point blank (not specials, throws or ultimates: they keep their exact shapes). */
+const INNER_KINDS: ReadonlySet<MoveDef['kind']> = new Set<MoveDef['kind']>(['jab', 'tilt', 'smash', 'dashAttack', 'aerial', 'grab']);
+/** A hitbox whose near edge is at most this far from the attacker's centre gets an inner part (disjointed far pokes stay disjointed). */
+export const INNER_MAX_GAP = 22;
+/** A lunging move's inner part also trails behind the centre by the ground it covered since it started, up to this far: the lunge runs through a rival standing inside it and still catches them. */
+export const LUNGE_INNER_BACK = 16;
+const rI = [0, 0, 0, 0];
+
+/** Where each fighter's current move started (x), to know how far a lunge has carried it. */
+const moveStart = new WeakMap<Fighter, { move: MoveDef | null; frame: number; x: number }>();
+
+function trackMoveStarts(fs: readonly Fighter[]): void {
+  for (const f of fs) {
+    let s = moveStart.get(f);
+    if (!s) {
+      s = { move: null, frame: 0, x: f.x };
+      moveStart.set(f, s);
+    }
+    if (f.move !== s.move || f.moveFrame < s.frame) s.x = f.x;
+    s.move = f.move;
+    s.frame = f.moveFrame;
+  }
+}
+
+/** Forward distance the fighter has travelled since its current move started (0 if it went backwards). */
+function lungeDistance(f: Fighter): number {
+  const s = moveStart.get(f);
+  return s && s.move === f.move ? Math.max(0, Math.min(LUNGE_INNER_BACK, (f.x - s.x) * f.facing)) : 0;
+}
+
+/**
+ * Inner part of a melee hitbox: the strip from the attacker's body centre to the box's near edge, at the box's height. Two
+ * bodies standing inside each other would otherwise both swing past (every box starts in front of the body). Writes the rect
+ * into `out`; returns false when the box has no inner part (it already covers the centre, travels, or is far disjointed).
+ */
+export function innerRect(f: Fighter, m: MoveDef, hb: HitboxDef, out: number[]): boolean {
+  if (hb.travel || hb.throw || !INNER_KINDS.has(m.kind)) return false;
+  hitboxRect(f, hb, out);
+  const back = lungeDistance(f);
+  const left = out[0];
+  const right = out[0] + out[2];
+  if (left > f.x) {
+    // box in front of the body (facing right, or a back hit while facing left)
+    if (left - f.x > INNER_MAX_GAP) return false;
+    const from = f.x - (f.facing === 1 ? back : 0);
+    out[0] = from;
+    out[2] = left - from;
+    return true;
+  }
+  if (right < f.x) {
+    if (f.x - right > INNER_MAX_GAP) return false;
+    const to = f.x + (f.facing === -1 ? back : 0);
+    out[0] = right;
+    out[2] = to - right;
+    return true;
+  }
+  return false;
+}
+
+/** Nearest live hitbox of `m` whose inner part overlaps rect `r` (the rival's hurtbox), else null. Writes that inner rect into rA. */
+function innerBoxOver(atk: Fighter, m: MoveDef, def: Fighter, r: number[]): HitboxDef | null {
+  let best: HitboxDef | null = null;
+  let bestGap = Infinity;
+  for (const hb of m.hitboxes) {
+    if (!hitboxActive(atk, m, hb) || !innerRect(atk, m, hb, rI) || !overlap(rI, r)) continue;
+    if (hb.grab && def.grounded !== atk.grounded) continue;
+    const gap = rI[2];
+    if (gap < bestGap) {
+      bestGap = gap;
+      best = hb;
+    }
+  }
+  return best;
 }
 
 function damageCharge(atk: Fighter, m: MoveDef): number {
@@ -251,7 +340,7 @@ function applyHit(world: World, c: Candidate): void {
     return;
   }
 
-  hitboxRect(atk, hb, rA);
+  if (!c.inner || !innerRect(atk, move, hb, rA)) hitboxRect(atk, hb, rA);
   deliverHit(world, { atk, ownerId: atk.id, def, hb, damage: c.damage, facing: atk.facing, originX: atk.x, kbMult, rect: rA });
 }
 

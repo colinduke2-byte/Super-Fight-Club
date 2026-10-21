@@ -52,9 +52,24 @@ export const halcyon: CharacterData = {
   difficulty: 3,
   persona: {
     intro: 'Halcyon kept the sky-gate until the storm took the sky. The only way back up is the Ladder, one bout at a time.',
+    bio: 'Keeper of the sky-gate until the storm took the sky. Halcyon fights on the wind, gathering a gale with every hit and spending it to stay aloft where the ground-bound cannot follow.',
     taunt: 'You fight on the ground. I fight where the wind starts.',
+    // in-match taunt bubbles take turns through these
+    taunts: [
+      'You fight on the ground. I fight where the wind starts.',
+      'Look up. Keep looking up.',
+      'The wind is on my side. It always was.',
+      'Catch me? You cannot even reach me.',
+    ],
     epilogue: 'At the top of the Ladder the roof tore open. Halcyon spread both wings, caught the first real wind in years, and did not look down.',
     victory: 'The sky keeps what it takes.',
+    victories: [
+      'The sky keeps what it takes.',
+      'Clear skies ahead.',
+      'Grounded. Permanently.',
+    ],
+    // against their RIVAL (routes.ts): the line before the fight, and the one after beating them
+    rival: { taunt: 'Rime. The bell was lost to the storm. You are welcome to search the clouds.', victory: 'Go home, Rime. The mountain misses you, and the bell is not here.' },
   },
   stats: {
     weight: 95,

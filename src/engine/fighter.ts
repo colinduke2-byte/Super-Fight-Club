@@ -751,6 +751,11 @@ export class Fighter implements Body {
     return Math.max(tough, t > 0 ? t : -1); // a threshold of 0 means "armored only when a mechanic grants a bonus"
   }
 
+  /** Carried items (the Home-Run Bat): the button(s) whose hold charges the move just started (see items.ts). */
+  setChargeButtons(mask: number): void {
+    this.chargeButton = mask;
+  }
+
   /** Damage multiplier from smash charge for the current move. */
   get chargeFrac(): number {
     const c = this.move?.charge;
@@ -905,7 +910,8 @@ export class Fighter implements Body {
     this.comboHits = inCombo ? this.comboHits + 1 : 1;
     this.comboIdle = 0;
     this.trueComboHits = this.state === 'hitstun' ? this.trueComboHits + 1 : 0;
-    const dealt = hit.damage;
+    // match rules: damage ratio (every hit's damage) and launch rate (every launch; set knockback links stay as they are)
+    const dealt = hit.damage * (world.config.damageRatio ?? 1);
     this.damage += dealt;
     if (hit.attackerId !== undefined) this.lastHitBy = hit.attackerId;
     this.creditClock = -1;
@@ -922,7 +928,7 @@ export class Fighter implements Body {
             damagePercent: this.damage,
             moveWeight: hit.moveWeight,
             targetWeight: this.stats.weight,
-          }) * (hit.kbMult ?? 1) * (1 + SOAK_KB_PER_LEVEL * this.soakLevel);
+          }) * (hit.kbMult ?? 1) * (1 + SOAK_KB_PER_LEVEL * this.soakLevel) * (world.config.launchRate ?? 1);
     // crouch cancel: taking a light hit while crouching on the ground absorbs part of the knockback (not a real launcher)
     const crouchCancel = this.state === 'crouch' && this.grounded && rawKb <= CROUCH_CANCEL_MAX_KB ? CROUCH_CANCEL : 1;
     const kb = crouchCancel * rawKb;
@@ -1592,11 +1598,32 @@ export class Fighter implements Body {
     if (m.kind === 'jab' || m.kind === 'smash') {
       if (inp && Math.abs(inp.stickX) > 0.5 && m.kind === 'smash') this.facing = inp.stickX > 0 ? 1 : -1;
     }
+    this.faceOverlappedRival(m, inp, world);
     this.setState('attack');
     world.emit('moveStart', this, this.x, this.y, 0, 0);
     this.data.behavior?.onMoveStart?.(this, m, world);
     this.attackLogic(inp ?? NEUTRAL, world);
     return true;
+  }
+
+  /**
+   * Point blank: a grounded jab / tilt / smash / grab started with the stick not pushed sideways, while a rival stands inside
+   * this body just behind its centre, turns to face that rival (the swing would otherwise go out the front and send them the wrong way).
+   */
+  private faceOverlappedRival(m: MoveDef, inp: FighterInput | null, world: World): void {
+    if (!this.grounded || (inp && Math.abs(inp.stickX) > 0.5)) return;
+    if (m.kind !== 'jab' && m.kind !== 'tilt' && m.kind !== 'smash' && m.kind !== 'grab') return;
+    let best = Infinity;
+    let dir = 0;
+    for (const o of world.fighters) {
+      if (o === this || o.state === 'ko' || !o.grounded || o.groundPlat !== this.groundPlat || world.shielded(this.id, o.id)) continue;
+      const dx = o.x - this.x;
+      const ad = Math.abs(dx);
+      if (ad >= (this.hw * this.sizeMul + o.hw * o.sizeMul) * 0.5 || ad >= best) continue;
+      best = ad;
+      dir = dx;
+    }
+    if (dir * this.facing < 0) this.facing = dir > 0 ? 1 : -1;
   }
 
   /** Moves entered through cancel routes since the fighter was last in neutral (CANCEL_REPEAT_MAX). */

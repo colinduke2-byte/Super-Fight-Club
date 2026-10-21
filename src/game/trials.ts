@@ -72,6 +72,10 @@ export const TRIALS: Record<string, Trial[]> = {
     { id: 'juggle', name: 'UNDERTOW', steps: ['utilt', 'nair', 'uair'], percent: 20, tip: 'UP TILT, JUMP, NEUTRAL AERIAL, UP AERIAL' },
     { id: 'combo', name: 'RIP CURRENT', steps: ['utilt', 'uair', 'upB'], percent: 40, tip: 'UP TILT, UP AERIAL, UP SPECIAL' },
   ],
+  'overseer-versus': [
+    { id: 'juggle', name: 'CROWN LIFT', steps: ['utilt', 'uair', 'uair'], percent: 20, tip: 'UP TILT, JUMP, UP AERIAL TWICE' },
+    { id: 'combo', name: 'TALON CHAIN', steps: ['dtilt', 'ftilt'], percent: 0, tip: 'DOWN TILT, THEN FORWARD TILT RIGHT AWAY' },
+  ],
   obelisk: [
     { id: 'juggle', name: 'MONOLITH LIFT', steps: ['utilt', 'uair', 'fair'], percent: 20, tip: 'UP TILT, JUMP, UP AERIAL, FORWARD AERIAL' },
     { id: 'combo', name: 'STONEWORK', steps: ['dtilt', 'utilt', 'uair'], percent: 40, tip: 'DOWN TILT, UP TILT, UP AERIAL' },
@@ -94,6 +98,7 @@ export const MECHANIC_TRIALS: Record<string, Trial> = {
   agni: { id: 'flame', name: 'STOKE THE FLAME', teaches: 'FLAME LEVELS', steps: ['utilt', 'uair', 'upB_2'], percent: 15, res: { flame: 50 }, tip: 'FLAME AT 50: TWO HITS PUSH IT TO LEVEL 2, THEN A LEVEL-2 RISING FLARE' },
   gizmo: { id: 'scrap', name: 'OVERCHARGE', teaches: 'SCRAP: THE CAUGHT FIST', steps: ['jab1', 'sideB_hot'], percent: 30, res: { hotFist: 1, scrap: 10 }, tip: 'A CAUGHT ROCKET FIST COMES BACK OVERCHARGED (HERE IT IS READY): JAB, THEN ROCKET FIST' },
   nova: { id: 'element', name: 'COLD FRONT', teaches: 'ELEMENT CYCLE', prep: ['downB'], steps: ['ftilt', 'neutralB_ice'], percent: 30, tip: 'DOWN SPECIAL CYCLES FIRE TO ICE; FORWARD TILT, THEN AN ICE BOLT' },
+  'overseer-versus': { id: 'spires', name: 'JUDGEMENT FROM BELOW', teaches: 'BLADE SPIRES', steps: ['downB'], percent: 20, tip: 'STAND BACK AND DOWN SPECIAL: THE SPIRES ERUPT AHEAD OF YOU, WHERE THE RED MARKS GLOW' },
   obelisk: { id: 'pillar', name: 'ROCK BOTTOM', teaches: 'PILLARS', prep: ['~neutralB'], steps: ['bthrow'], cond: ['pillar'], percent: 20, tip: 'TURN AWAY AND RAISE A SPIRE, THEN GRAB AND BACK THROW THEM THROUGH IT' },
   havoc: { id: 'c4', name: 'BREACH AND CLEAR', teaches: 'C4', prep: ['downB'], trap: 'detonateC4', steps: ['jab1', 'detonateC4'], percent: 20, tip: 'SLAP C4 ON THEM (DOWN SPECIAL UP CLOSE), JAB, THEN DOWN SPECIAL AGAIN TO SET IT OFF' },
   rime: { id: 'freeze', name: 'DEEP FREEZE', teaches: 'SIX-STACK FREEZE', chill: 4, steps: ['dtilt', 'utilt', 'fsmash'], cond: [null, null, 'frozen'], percent: 20, tip: 'FOUR STACKS ON: TWO FROSTY TILTS MAKE SIX AND FREEZE THEM, THEN A FORWARD SMASH' },
