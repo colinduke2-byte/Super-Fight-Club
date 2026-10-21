@@ -112,9 +112,24 @@ export const gizmo: CharacterData = {
   difficulty: 3,
   persona: {
     intro: 'Gizmo wired the arena\'s first brain on a rainy Tuesday. Now the brain will not let anyone leave, and Gizmo feels responsible.',
+    bio: 'The tinkerer who wired the arena\'s first brain, and now feels responsible for everything it does. Gizmo fights with turrets, traps and a backpack full of scrap that becomes whatever the moment needs.',
     taunt: 'One turret. Two turrets. You are outnumbered.',
+    // in-match taunt bubbles take turns through these
+    taunts: [
+      'One turret. Two turrets. You are outnumbered.',
+      'Hold still, I need to calibrate.',
+      'I brought spare parts. Did you?',
+      'That was a beta. This is version two.',
+    ],
     epilogue: 'Gizmo pulls the last cable. The arena sighs and goes quiet. "Okay," he says to nobody. "Version two will have a snooze button."',
     victory: 'Recalibrating... still winning!',
+    victories: [
+      'Recalibrating... still winning!',
+      'Bug fixed. The bug was you.',
+      'Patch notes: you lost.',
+    ],
+    // against their RIVAL (routes.ts): the line before the fight, and the one after beating them
+    rival: { taunt: 'Obelisk! I can explain the arena. Mostly. Please stop growling.', victory: 'See? Zero structural damage. To the cave, anyway.' },
   },
   stats: {
     weight: 88,

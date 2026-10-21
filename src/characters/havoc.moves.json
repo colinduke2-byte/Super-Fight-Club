@@ -566,7 +566,7 @@
      "frame": 18,
      "action": "projectile",
      "id": "rocket",
-     "x": 24,
+     "x": 16,
      "y": -18,
      "vx": 7.4,
      "vy": 0

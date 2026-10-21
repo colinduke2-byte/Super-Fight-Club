@@ -48,9 +48,24 @@ export const obelisk: CharacterData = {
   difficulty: 4,
   persona: {
     intro: 'Obelisk slept under the arena for ten thousand years, until someone built a fighting pit on its roof. It has come up to complain.',
+    bio: 'An ancient crystal golem who slept under the arena for ten thousand years, until someone built a fighting pit on its roof. Obelisk raises pillars, then shatters them over whoever is making the noise.',
     taunt: 'Get out of my cave.',
+    // in-match taunt bubbles take turns through these
+    taunts: [
+      'Get out of my cave.',
+      'Quiet.',
+      'I was here first. By ten thousand years.',
+      'Stone is patient. Stone is also heavy.',
+    ],
     epilogue: 'Obelisk tore the Super Fight Club down to the bedrock and grew a mountain over the hole. It is quiet now. That is how it likes it.',
     victory: 'Stone remembers. You won\'t.',
+    victories: [
+      'Stone remembers. You won\'t.',
+      'Now. Silence.',
+      'Back to sleep. Do not wake me again.',
+    ],
+    // against their RIVAL (routes.ts): the line before the fight, and the one after beating them
+    rival: { taunt: 'Little builder. You put a pit on my roof. Now we talk about the noise.', victory: 'Take your arena down, little builder. Gently.' },
   },
   stats: {
     weight: 100,

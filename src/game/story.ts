@@ -1,10 +1,24 @@
 import { characterById } from '../characters';
 import type { CharacterPersona } from '../engine/types';
-import { DIFFICULTY_NAMES, ENDLESS_CARRY, GAUNTLET_HEAL, GAUNTLET_STOCKS, isCoop, ladderDifficulty, runKind, type LadderFight, type LadderState } from './ladder';
+import { currentFight, DIFFICULTY_NAMES, ENDLESS_CARRY, GAUNTLET_HEAL, GAUNTLET_STOCKS, isCoop, ladderDifficulty, runKind, type LadderFight, type LadderState } from './ladder';
 import { HOME_STAGE, RIVAL } from './routes';
 import { session } from './session';
 
 type Persona = CharacterPersona;
+
+// The lore fields each fighter's `persona` carries beyond the story text (declared here, next to their readers).
+declare module '../engine/types' {
+  interface CharacterPersona {
+    /** Two or three sentences for the fighter profile. */
+    bio?: string;
+    /** In-match taunt lines, rotated (the first is `taunt`). */
+    taunts?: string[];
+    /** Results-screen lines, one picked at random (the first is `victory`). */
+    victories?: string[];
+    /** Lines against their RIVAL (routes.ts): before the fight, and after beating them. */
+    rival?: { taunt: string; victory: string };
+  }
+}
 
 export type StoryArt = 'arena' | 'duel' | 'boss' | 'victory';
 
@@ -66,6 +80,69 @@ function personaOf(id: string): Persona {
   return { ...p, intro: p.intro || OVERSEER_STORY.intro, epilogue: p.epilogue || OVERSEER_STORY.epilogue };
 }
 
+/** One line on how each fighter plays: their signature mechanic (the fighter profile). */
+export const MECHANICS: Record<string, string> = {
+  agni: 'INNER FLAME builds as Agni fights and takes hits, and every special grows stronger as it climbs. The burst and the beam spend it all.',
+  brick: 'HEAT builds from heavy hits given and taken. Hot, Brick hits harder, and armored smashes shrug off a blow mid-swing.',
+  gizmo: 'SCRAP from the damage Gizmo deals buys turrets, upgrades and overclocks. A boomerang Rocket Fist and a grappling hook fill the gaps.',
+  halcyon: 'GALE builds in the air and from landing hits: spend it on the Javelin volley, or ride it for extra speed. Two flaps and a glide.',
+  havoc: 'Explosives for everything: bouncing grenades, a Remote Missile steered with the stick, and C4 planted or slapped on, then set off by remote.',
+  nova: 'Down special cycles FIRE, ICE and LIGHTNING. Hold it to plant a reflecting barrier. Controls space from afar, weak up close.',
+  obelisk: 'Crystal Spire raises amethyst pillars as walls, platforms and shields. Shard Volley and Bedrock Stomp shatter them into flying shards.',
+  rime: 'FROSTBITE: nearly every hit adds a chill stack, and six freeze the rival solid. The lightest and fastest, with two double jumps and a wall cling.',
+  riptide: 'Tidal moves SOAK rivals, and throws wring the soak out for extra damage and launch. An anchor on a chain for reach, jaws for a command grab.',
+  vex: 'BLINK TRAIL: every teleport leaves a marker for three seconds, and special again recalls Vex to it. Snare Mines go off by remote.',
+  overseer: 'The final boss: two phases, a rage that changes every attack, and the Cataclysm at the top of the Ladder.',
+  'overseer-versus': 'Claws, an eye beam and blade spires at a fighter\'s size. Its ultimate is a smaller Cataclysm: eight spires burst from the floor.',
+};
+
+/**
+ * The countdown's intro banner for a run that is not the plain ladder: Endless counts rounds ("ROUND 4"), a Boss Battle is
+ * just that (the arcade's "FIGHT n" heading means nothing there). Anything else is shown as given.
+ */
+export function runHead(head: string, state: LadderState | null = session.mode === 'arcade' ? session.ladder : null): string {
+  if (!state || !head.startsWith('FIGHT ')) return head;
+  const kind = runKind(state);
+  if (kind === 'boss') return 'BOSS BATTLE';
+  const fight = currentFight(state);
+  if (kind === 'endless' && fight) return `ROUND ${fight.index + 1}\n${fight.title.toUpperCase()}`;
+  return head;
+}
+
+/** A fighter's profile bio (falls back to the story intro, then the tagline). */
+export function bioOf(id: string): string {
+  const c = characterById(id);
+  const p = id === 'overseer' ? personaOf(id) : c?.persona;
+  return p?.bio || p?.intro || c?.tagline || '';
+}
+
+/** Every taunt line a fighter has (at least one). */
+export function tauntLines(id: string): string[] {
+  const p = characterById(id)?.persona;
+  const all = p?.taunts?.filter(Boolean) ?? [];
+  return all.length ? all : [p?.taunt || 'COME ON!'];
+}
+
+/** What `id` says to `vs` before a fight: the rival line when `vs` is their RIVAL, else null. */
+export function rivalLine(id: string, vs: string | undefined): string | null {
+  if (!vs || RIVAL[id] !== vs) return null;
+  return characterById(id)?.persona?.rival?.taunt ?? null;
+}
+
+/**
+ * The winner's line on the results screen: the rival-specific one when one of the beaten fighters is their RIVAL,
+ * else one of their victory lines at random (`rand` in [0, 1)).
+ */
+export function victoryLine(id: string, losers: readonly string[] = [], rand: () => number = Math.random): string | null {
+  const p = characterById(id)?.persona;
+  if (!p) return null;
+  const rival = RIVAL[id];
+  if (rival && p.rival?.victory && losers.includes(rival)) return p.rival.victory;
+  const all = p.victories?.filter(Boolean) ?? [];
+  if (!all.length) return p.victory || null;
+  return all[Math.min(all.length - 1, Math.floor(rand() * all.length))];
+}
+
 export function nameOf(id: string): string {
   return id === 'overseer' ? 'The Overseer' : id.charAt(0).toUpperCase() + id.slice(1);
 }
@@ -84,6 +161,7 @@ export const RIVAL_EPILOGUES: Record<string, string> = {
   obelisk: 'Gizmo comes down to the cave with a gift: a very quiet doorbell. Obelisk hates it. It keeps it anyway.',
   rime: 'At the sky-gate Halcyon hands back the bell rope. "The storm took it," Halcyon says. Rime pretends to believe it.',
   riptide: 'Agni sits on the flooded temple steps, warming the water. Riptide floats beside. Neither says it, but it is a truce.',
+  'overseer-versus': 'Gizmo opens the Overseer\'s casing to say sorry. The arena\'s mind boots up, blinks once, and asks for version two.',
   vex: 'Nova finds Vex on the stormspire, counting coins. "The stars said you would be here." Vex grins. "The stars owe me money."',
 };
 
@@ -125,7 +203,10 @@ export function fightCard(state: LadderState, fight: LadderFight): StoryCard {
     return { art: 'duel', title, lines: wrap(line), left: state.player, leftMate: mate, right: opp.character, rightPalette: opp.palette, rivals };
   }
   const mirror = opp.character === state.player;
-  const line = fight.reason ?? (mirror ? 'A copy of you, without the doubt. It fights like you do, and it does not hesitate.' : `${nameOf(opp.character)}: "${personaOf(opp.character).taunt}"`);
+  // the rival fight: what the rival has to say to this fighter in particular (in place of the route's reason)
+  const said = rivalLine(opp.character, state.player);
+  const quote = `${nameOf(opp.character)}: "${said ?? personaOf(opp.character).taunt}"`;
+  const line = said ? quote : (fight.reason ?? (mirror ? 'A copy of you, without the doubt. It fights like you do, and it does not hesitate.' : quote));
   return { art: 'duel', title: fight.kind === 'metal' ? `${title} (METAL)` : fight.rival ? `${title} (RIVAL)` : title, lines: wrap(line), left: state.player, leftMate: mate, right: opp.character, rightPalette: opp.palette };
 }
 

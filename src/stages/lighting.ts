@@ -34,6 +34,8 @@ const THEME_LIGHT: Record<string, StageLight> = {
   dawn: { rim: 0xffe0b0, dir: [0.85, -0.5], strength: 0.25 },
   apex: { rim: 0xc8a8ff, dir: [0, -1], strength: 0.5 },
   stadium: { rim: 0xfff0d8, dir: [0.3, -1], strength: 0.35 },
+  harbour: { rim: 0xffd49a, dir: [0.6, -0.8], strength: 0.45 },
+  rail: { rim: 0x9ae0ff, dir: [-0.5, -0.85], strength: 0.45 },
 };
 
 export function stageLight(bg: StageBackground): StageLight {

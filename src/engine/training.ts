@@ -520,4 +520,7 @@ export const ITEM_NAMES: Record<ItemKind, string> = {
   raygun: 'RAY GUN',
   crate: 'CRATE',
   core: 'ULTIMATE CORE',
+  bat: 'HOME-RUN BAT',
+  mine: 'PROXIMITY MINE',
+  drone: 'ASSIST DRONE',
 };

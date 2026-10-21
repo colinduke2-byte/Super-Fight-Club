@@ -182,6 +182,30 @@ const THEMES: Record<string, MassTheme> = {
     shape: 'hull',
     fog: '#4a2a5e',
   },
+  harbour: {
+    // a timber pier on barnacled pilings: tarred planks, weathered grey wood, sodium lamps, a teal sea-glow below
+    stone: ['#121418', '#1e2228', '#2e333a', '#424850', '#5c626a', '#80868c'],
+    accent: ['#4a2a08', '#8a5414', '#e09030', '#ffc860', '#fff0c0'],
+    alt: ['#0a3a40', '#127078', '#2ad0c8', '#8af8e8', '#e0fff8'],
+    body: 'hull',
+    cap: 'deck',
+    panel: 'window',
+    under: 'reef',
+    shape: 'bridge',
+    fog: '#0c1a2e',
+  },
+  rail: {
+    // a sky-rail carriage roof: dark lacquered steel, lit carriage windows in cyan, magenta running lights, bogies below
+    stone: ['#0e0c1c', '#1a1830', '#28264a', '#3a3864', '#544f84', '#7a74aa'],
+    accent: ['#0e3a48', '#1a7088', '#3ad0e8', '#a0f4ff', '#eaffff'],
+    alt: ['#4a0e40', '#8a1e70', '#e04ab0', '#ff9ad8', '#ffe6f6'],
+    body: 'plate',
+    cap: 'tech',
+    panel: 'window',
+    under: 'machine',
+    shape: 'chamfer',
+    fog: '#1c1440',
+  },
   dawn: {
     stone: ['#8a6a66', '#a88a82', '#c6aa9c', '#dcc6b2', '#eedcc8', '#fff4e4'],
     accent: ['#6a4a1c', '#b08a30', '#e8c050', '#ffe08a', '#fff4c0'],

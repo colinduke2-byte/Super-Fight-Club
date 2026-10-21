@@ -1,4 +1,5 @@
 import { DEFAULT_RULES, type MatchRules } from './session';
+import { MODIFIERS } from './modifiers';
 
 /**
  * Versus rule presets and the saved rules: the last rules used come back next time (localStorage), plus three custom
@@ -65,7 +66,15 @@ export function sanitizeRules(raw: unknown): MatchRules | null {
   if (Array.isArray(r.teamOf)) out.teamOf = r.teamOf.slice(0, 4).map((t) => num(t, 0, 3, 0));
   if (Array.isArray(r.itemsOff)) out.itemsOff = r.itemsOff.filter((k): k is string => typeof k === 'string');
   if (Array.isArray(r.stagePool)) out.stagePool = r.stagePool.filter((k): k is string => typeof k === 'string');
-  // handicaps belong to a lineup, not to a rule set: they are not restored
+  if (r.stageForm === 'battlefield' || r.stageForm === 'plain') out.stageForm = r.stageForm;
+  const ratio = (v: unknown): number | undefined => (typeof v === 'number' && Number.isFinite(v) ? Math.max(0.5, Math.min(2, Math.round(v * 10) / 10)) : undefined);
+  const dr = ratio(r.damageRatio);
+  if (dr !== undefined && dr !== 1) out.damageRatio = dr;
+  const lr = ratio(r.launchRate);
+  if (lr !== undefined && lr !== 1) out.launchRate = lr;
+  if (r.modifier && MODIFIERS.includes(r.modifier)) out.modifier = r.modifier;
+  if (r.bestOf === 3 || r.bestOf === 5) out.bestOf = r.bestOf;
+    // handicaps belong to a lineup, not to a rule set: they are not restored
   return out;
 }
 
@@ -126,7 +135,7 @@ export function applyRules(into: MatchRules, from: MatchRules): void {
 export function presetName(rules: MatchRules, saved: SavedRules): string | null {
   const sig = (r: MatchRules): string => {
     const x = sanitizeRules(r)!;
-    return JSON.stringify([x.mode, x.stocks, x.timeSec, x.staminaHp, x.items, x.hazards, x.stockTimeSec ?? 0, x.suddenDeath !== false, !!x.teamAttack, [...(x.itemsOff ?? [])].sort()]);
+    return JSON.stringify([x.mode, x.stocks, x.timeSec, x.staminaHp, x.items, x.hazards, x.stockTimeSec ?? 0, x.suddenDeath !== false, !!x.teamAttack, [...(x.itemsOff ?? [])].sort(), x.stageForm ?? 'normal', x.damageRatio ?? 1, x.launchRate ?? 1, x.modifier ?? '', x.bestOf ?? 1]);
   };
   const me = sig(rules);
   for (const p of PRESETS) if (sig(p.rules) === me) return p.name;

@@ -51,7 +51,8 @@ export interface RecPolicy {
 interface SimRig {
   w: World;
   dummy: Fighter;
-  ghosts: Map<string, Fighter>;
+  /** Per character data (a match modifier's variant is its own data: its own gravity and jumps). */
+  ghosts: Map<object, Fighter>;
 }
 const rigs = new Map<string, SimRig>();
 const simIn = makeInput();
@@ -59,18 +60,20 @@ const simIn = makeInput();
 const BLOCKED = 99;
 
 function rigFor(world: World, f: Fighter): { rig: SimRig; g: Fighter } {
-  let rig = rigs.get(world.stage.id);
+  // a stage form (battlefield / plain) is laid out differently from the stage it shares an id with
+  const key = `${world.stage.id}:${world.stage.form ?? ''}`;
+  let rig = rigs.get(key);
   if (!rig) {
     const w = new World(world.stage);
     const dummy = new Fighter(1, f.data);
     rig = { w, dummy, ghosts: new Map() };
     w.fighters.push(new Fighter(0, f.data), dummy);
-    rigs.set(world.stage.id, rig);
+    rigs.set(key, rig);
   }
-  let g = rig.ghosts.get(f.data.id);
+  let g = rig.ghosts.get(f.data);
   if (!g) {
     g = new Fighter(0, f.data);
-    rig.ghosts.set(f.data.id, g);
+    rig.ghosts.set(f.data, g);
   }
   rig.w.fighters[0] = g;
   return { rig, g };

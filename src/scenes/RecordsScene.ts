@@ -28,12 +28,14 @@ import {
   type RecordSection,
 } from '../game/records';
 import { exportSave, importSave, readSave, vaultSkippedInSave } from '../game/save';
+import { loadRunRecords } from '../game/runRecords';
+import { DIFFICULTY_NAMES } from '../game/ladder';
 import { footerHint } from '../input/prompts';
 import type { MenuEvent } from '../input/menuInput';
 import { STAGES, STAGE_LIST } from '../stages';
 import { COLORS, MenuList, MenuScene, PANEL, drawPanel, text, textPx, type MenuBackdrop, type MenuItem } from '../ui/menuKit';
 
-const PAGES = ['FIGHTERS', 'ARCADE', 'STATS', 'MATCHUPS', 'RIVALS', 'STAGES', 'HISTORY', 'TRIALS'] as const;
+const PAGES = ['FIGHTERS', 'ARCADE', 'RUNS', 'STATS', 'MATCHUPS', 'RIVALS', 'STAGES', 'HISTORY', 'TRIALS'] as const;
 /** History rows shown at once (older / newer pages through the rest). */
 const HISTORY_ROWS = 12;
 
@@ -168,6 +170,7 @@ export class RecordsScene extends MenuScene {
     const page = PAGES[this.page];
     if (page === 'FIGHTERS') this.fillFighters();
     else if (page === 'ARCADE') this.fillArcade();
+    else if (page === 'RUNS') this.fillRuns();
     else if (page === 'STATS') this.fillStats();
     else if (page === 'MATCHUPS') this.fillMatchups();
     else if (page === 'RIVALS') this.fillRivals();
@@ -224,6 +227,34 @@ export class RecordsScene extends MenuScene {
     });
     this.starCol = head.length - 6;
     this.table(head, lines);
+  }
+
+  /** Endless (most wins, KOs) and Gauntlet (best time) per fighter; Boss Battle's best time per difficulty. */
+  private fillRuns(): void {
+    const runs = loadRunRecords();
+    const bestWins = Math.max(1, ...Object.values(runs.endless).map((e) => e.wins));
+    this.table2(
+      `${'FIGHTER'.padEnd(10)}${'WINS'.padStart(5)}${'KOS'.padStart(5)}${'GAUNTLET'.padStart(9)}${'LEVEL'.padStart(10)}`,
+      CHARACTER_LIST.map((c) => {
+        const e = runs.endless[c.id];
+        const gt = runs.gauntlet[c.id];
+        const level = gt ? (DIFFICULTY_NAMES[gt.difficulty] ?? '') : '-';
+        return {
+          text: `${c.name.replace('The ', '').slice(0, 9).padEnd(10)}${(e ? String(e.wins) : '-').padStart(5)}${(e ? String(e.kos) : '-').padStart(5)}${(gt ? formatSec(gt.sec) : '-').padStart(9)}${level.padStart(10)}`,
+          tint: e || gt ? accentOf(c) : COLORS.dim,
+          bar: e ? e.wins / bestWins : null,
+          color: accentOf(c),
+        };
+      }),
+    );
+    const name = (id: string): string => (CHARACTER_LIST.find((c) => c.id === id)?.name ?? id).replace('The ', '').slice(0, 9);
+    this.table2(
+      `${'BOSS BATTLE'.padEnd(12)}${'BEST'.padStart(7)}  ${'FIGHTER'.padEnd(13)}`,
+      [1, 2, 3, 4].map((d) => {
+        const b = runs.boss[String(d)];
+        return { text: `${(DIFFICULTY_NAMES[d] ?? String(d)).slice(0, 11).padEnd(12)}${(b ? formatSec(b.sec) : '-').padStart(7)}  ${(b ? `${name(b.fighter)}${b.coop ? ' +2P' : ''}` : '-').padEnd(13)}`, tint: b ? COLORS.text : COLORS.dim, color: COLORS.accent };
+      }),
+    );
   }
 
   /** Lifetime totals on the left, matches by fighter and by stage as bar charts. */
@@ -358,6 +389,7 @@ export class RecordsScene extends MenuScene {
   /** The page's tables side by side, each on its own panel, text sized to fit (bars at the right of each row). */
   private layoutTables(g: Phaser.GameObjects.Graphics, w: number, u: number, top: number, bottom: number): void {
     const subs: Record<string, string> = {
+      RUNS: 'ENDLESS WINS AND KOS, GAUNTLET BEST TIME, BOSS BATTLE BEST BY DIFFICULTY',
       RIVALS: `${(CHARACTER_LIST[this.rival()]?.name ?? '').toUpperCase()} AGAINST EACH OPPONENT (FIGHTER ROW: LEFT / RIGHT)`,
       STAGES: 'MATCHES AND WINS BY STAGE (MATCHES WITH A HUMAN PLAYER)',
       HISTORY: `THE LAST ${HISTORY_MAX} MATCHES, NEWEST FIRST`,
@@ -415,9 +447,10 @@ export class RecordsScene extends MenuScene {
     const top = this.sub.y + 8 * u;
     const bottom = this.chal.y - 7 * u;
     const g = this.plate.clear();
-    if (this.page <= 1) this.layoutTable(g, w, u, top, bottom);
-    else if (this.page === 2) this.layoutStats(g, w, u, top, bottom);
-    else if (this.page === 3) this.layoutMatchups(g, w, u, top, bottom);
+    const page = PAGES[this.page];
+    if (page === 'FIGHTERS' || page === 'ARCADE') this.layoutTable(g, w, u, top, bottom);
+    else if (page === 'STATS') this.layoutStats(g, w, u, top, bottom);
+    else if (page === 'MATCHUPS') this.layoutMatchups(g, w, u, top, bottom);
     else this.layoutTables(g, w, u, top, bottom);
   }
 

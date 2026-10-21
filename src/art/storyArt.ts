@@ -125,40 +125,50 @@ export function drawStoryArt(g: Phaser.GameObjects.Graphics, art: StoryArt, ox: 
       break;
     }
     case 'boss': {
-      // the Overseer's chamber in its calm first phase: cold cyan light, the rotating halo of segments that frames its
-      // helm (the boss sprite stands at x 96), a single horizontal eye-slit watching from the dark, motes drifting up
-      bands(p, [0x03060e, 0x060c1c, 0x0a1428, 0x0e1c36, 0x0a1428, 0x04080f]);
+      // the Overseer's chamber in its calm first phase: cold violet light, the crown of blade spires fanned like a throne's
+      // back behind its helm (the boss sprite stands at x 96), one great round eye watching from the dark, motes drifting up
+      bands(p, [0x05030e, 0x0a0619, 0x110a26, 0x170e33, 0x110a26, 0x06040f]);
       const pulse = 0.5 + 0.5 * Math.sin(time * 2.2);
-      // a cold glow behind the helm, in rings that brighten toward the centre
-      const glow = [0x0b1a30, 0x0e2440, 0x113050, 0x153c62];
+      // a violet glow behind the helm, in rings that brighten toward the centre
+      const glow = [0x140c2a, 0x1c1038, 0x251548, 0x2f1b5a];
       glow.forEach((c, i) => circle(p, 96, 40, 40 - i * 8, c));
-      circle(p, 96, 40, 8, pulse > 0.5 ? 0x1c5078 : 0x184668);
-      // the halo: twelve segments turning slowly, a few lit
-      const segs = 12;
-      for (let i = 0; i < segs; i++) {
-        const a = (i / segs) * Math.PI * 2 + time * 0.35;
-        const lit = (i + Math.floor(time * 1.5)) % 4 === 0;
-        for (let k = 0; k < 4; k++) {
-          const r = 27 + k * 0.6;
-          const aa = a + k * 0.05;
-          rect(p, 96 + Math.cos(aa) * r, 40 + Math.sin(aa) * r * 0.55, 2, 1, lit ? 0xbff6ff : 0x2a8fb0, lit ? 0.9 : 0.75);
+      circle(p, 96, 40, 8, pulse > 0.5 ? 0x4a2c86 : 0x3e2474);
+      // the spire crown: seven tall blades fanned behind the shoulders, the tallest in the middle; a light runs up them in turn
+      const spires = 7;
+      for (let i = 0; i < spires; i++) {
+        const t = i / (spires - 1) - 0.5; // -0.5 .. 0.5
+        const ang = -Math.PI / 2 + t * 2.3; // fanned around straight up
+        const len = 30 - Math.abs(t) * 22;
+        const lit = (i + Math.floor(time * 1.5)) % spires === 0;
+        for (let k = 0; k < len; k++) {
+          const r = 10 + k;
+          const w = Math.max(1, Math.round(3 * (1 - k / len)));
+          const x = 96 + Math.cos(ang) * r;
+          const y = 44 + Math.sin(ang) * r;
+          rect(p, x - w / 2, y, w, 1, k > len - 3 ? 0xf2ecff : 0xddd5c6, 0.55 + 0.1 * Math.abs(t));
+          if (lit && k % 2 === 0) rect(p, x, y, 1, 1, 0xb685ff, 0.9);
         }
       }
-      // the eye-slit high in the dark: a thin cyan line that brightens and narrows with the pulse
-      const ew = 18 + Math.round(4 * pulse);
-      rect(p, 34 - ew / 2, 16, ew, 1, 0x4ae4ff, 0.55 + 0.4 * pulse);
-      rect(p, 34 - ew / 4, 16, ew / 2, 1, 0xe8fbff, 0.5 + 0.5 * pulse);
-      rect(p, 34 - ew / 2 - 3, 15, ew + 6, 3, 0x4ae4ff, 0.08 + 0.06 * pulse);
+      // the eye high in the dark: a round violet iris around a white-hot pupil, the ring brightening with the pulse
+      const ex = 34;
+      const ey = 17;
+      circle(p, ex, ey, 7, 0x1a1030);
+      circle(p, ex, ey, 5, pulse > 0.5 ? 0xb685ff : 0x8e5ee0, 0xd8c4ff);
+      circle(p, ex, ey, 2, 0xffffff);
+      for (let a = 0; a < 16; a++) {
+        const aa = (a / 16) * Math.PI * 2 + time * 0.4;
+        rect(p, ex + Math.cos(aa) * 9, ey + Math.sin(aa) * 9, 1, 1, 0xb685ff, 0.15 + 0.25 * pulse);
+      }
       const r = rng(33);
       for (let i = 0; i < 28; i++) {
         const x = r() * CARD_W;
         const y = CARD_H - ((r() * CARD_H + time * (8 + r() * 18)) % CARD_H);
-        rect(p, x, y, 1, 1 + (i % 3 === 0 ? 1 : 0), i % 5 === 0 ? 0xffd46a : 0x7fe8ff, 0.55);
+        rect(p, x, y, 1, 1 + (i % 3 === 0 ? 1 : 0), i % 5 === 0 ? 0xffd46a : 0xc8a8ff, 0.55);
       }
       // the reactor city below, its lights gone cold
-      skyline(p, 8, 84, 0x02040a, 0x4ae4ff, time, 0.5);
+      skyline(p, 8, 84, 0x03020a, 0xb685ff, time, 0.5);
       // gold trim along the chamber floor
-      rect(p, 0, 84, CARD_W, 6, 0x03050c);
+      rect(p, 0, 84, CARD_W, 6, 0x05030c);
       for (let x = 0; x < CARD_W; x += 10) rect(p, x, 84, 5, 1, 0xe2be70, 0.55);
       break;
     }

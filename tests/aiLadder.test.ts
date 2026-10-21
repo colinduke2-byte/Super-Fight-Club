@@ -11,7 +11,8 @@ const MATCHES = 100;
 
 describe('CPU skill ladder', () => {
   it('skill N beats skill N-1 in more than 55% of matches, for N = 2..9', () => {
-    const ids = Object.keys(CHARACTERS).filter((c) => c !== 'overseer');
+    // the original ten-fighter set (the playable Overseer would change the rotation)
+    const ids = Object.keys(CHARACTERS).filter((c) => c !== 'overseer' && c !== 'overseer-versus');
     const stages = competitiveStages(2);
     const rates: string[] = [];
     const fails: string[] = [];

@@ -1,6 +1,7 @@
 import { announcer } from '../../audio/announcer';
 import { sfx } from '../../audio/sfx';
 import { settings } from '../../settings';
+import { runHead } from '../../game/story';
 import type { MatchScene } from '../MatchScene';
 import { hudUnit } from './hudLayout';
 
@@ -21,6 +22,7 @@ export class Countdown {
 
   /** Shows the intro banner (`head`, already upper-cased) and starts the countdown. */
   begin(head: string): void {
+    head = runHead(head);
     const st = this.s.st;
     this.s.hud.banner.setText(head).setVisible(true);
     st.countdown = COUNTDOWN;

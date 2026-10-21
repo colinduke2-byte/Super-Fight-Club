@@ -63,9 +63,24 @@ export const vex: CharacterData = {
   difficulty: 3,
   persona: {
     intro: 'Vex came for the vault beneath the arena. The only door is the Ladder, and the Ladder only opens for winners.',
+    bio: 'A space-pirate rogue who came for the vault under the arena. Vex blinks, baits and vanishes, and always leaves with something that was not theirs.',
     taunt: 'Catch me if you can. You cannot.',
+    // in-match taunt bubbles take turns through these
+    taunts: [
+      'Catch me if you can. You cannot.',
+      'Missed. Want to try again?',
+      'Over here. No, here.',
+      'I already took your wallet.',
+    ],
     epilogue: 'The vault was empty, except for a single note: "Thanks for the distraction." Vex laughs all the way up the stairs.',
     victory: 'Too slow. Again.',
+    victories: [
+      'Too slow. Again.',
+      'Pleasure doing business.',
+      'Thanks for the distraction.',
+    ],
+    // against their RIVAL (routes.ts): the line before the fight, and the one after beating them
+    rival: { taunt: 'Nova! Still mad about the Aether? It was a fair price. For me.', victory: 'No refunds, Nova. Read the stars next time.' },
   },
   stats: {
     weight: 98,

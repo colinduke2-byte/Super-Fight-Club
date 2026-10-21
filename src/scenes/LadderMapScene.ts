@@ -1,6 +1,7 @@
 import Phaser from 'phaser';
 import type { CharacterData } from '../engine/types';
 import { releaseUnusedOutfits } from './outfits';
+import { portraitKey } from '../art/portraits';
 import { animFrameIndex, ensureFightersReady, ensurePalette, fighterTextureKey, paletteReady, portraitCrop, portraitK, requestPalette } from '../art/proceduralFighter';
 import { PIXEL_FONT, up } from '../art/pixelFont';
 import { ensureStageArt } from '../art/stageArt';
@@ -107,12 +108,18 @@ export class LadderMapScene extends MenuScene {
       const stage = STAGES[f.stage];
       const thumb = stage ? this.add.image(0, 0, stageThumb(this, stage, 192, 108)).setOrigin(0.5) : null;
       if (thumb) this.ui.add(thumb);
+      // the rival's bust portrait (in this run's outfit: drawn from the hero art, no sheet needed); the idle frame's crop
+      // for a fighter without hero art
+      const bust = portraitKey(this, opp, outfit ? pal : 0);
       const ready = this.textures.exists(fighterTextureKey(skin));
-      const img = this.add.image(0, 0, ready ? fighterTextureKey(skin) : '__DEFAULT', ready ? animFrameIndex(opp, 'idle', 0) : undefined).setOrigin(0.5, 0.5);
-      if (ready) img.setCrop(...portraitCrop(opp));
-      else img.setVisible(false);
-      if (outfit && skin === opp.id) this.pendingOutfit = { img, data: opp, pal };
-      if (!ready) this.pendingBase.push({ img, data: opp });
+      const img = bust ? this.add.image(0, 0, bust).setOrigin(0.5, 0.5) : this.add.image(0, 0, ready ? fighterTextureKey(skin) : '__DEFAULT', ready ? animFrameIndex(opp, 'idle', 0) : undefined).setOrigin(0.5, 0.5);
+      img.setData('bust', !!bust);
+      if (!bust) {
+        if (ready) img.setCrop(...portraitCrop(opp));
+        else img.setVisible(false);
+        if (outfit && skin === opp.id) this.pendingOutfit = { img, data: opp, pal };
+        if (!ready) this.pendingBase.push({ img, data: opp });
+      }
       img.setData('k', portraitK(opp));
       const num = this.add.bitmapText(0, 0, PIXEL_FONT, String(f.index + 1)).setOrigin(0.5).setTint(0xffffff);
       const lvl = text(this, this.ui, this.nodeLabel(f.index - this.offset), f.kind === 'boss' ? 0xff6a7a : f.rival || f.kind === 'metal' ? COLORS.accent : COLORS.hint).setOrigin(0.5, 0);
@@ -278,8 +285,8 @@ export class LadderMapScene extends MenuScene {
     // the spire and its beacon
     const sy = top - 8 * u;
     g.fillStyle(0x0c0a1e, 0.9).fillTriangle(cx - 10 * u, top + 4 * u, cx + 10 * u, top + 4 * u, cx, sy);
-    g.fillStyle(0x4ae4ff, 0.25).fillCircle(cx, sy, 4 * u);
-    g.fillStyle(0x4ae4ff, 0.9).fillCircle(cx, sy, 1.5 * u);
+    g.fillStyle(0xb685ff, 0.25).fillCircle(cx, sy, 4 * u);
+    g.fillStyle(0xb685ff, 0.9).fillCircle(cx, sy, 1.5 * u);
     // the ground it stands on
     g.fillStyle(0x07060f, 0.7).fillRect(x0, bottom + 12 * u, x1 - x0, 3 * u);
   }
@@ -326,7 +333,7 @@ export class LadderMapScene extends MenuScene {
       const boss = this.fightAt(i).kind === 'boss';
       const done = i < cur;
       const isCur = i === cur;
-      const col = done ? COLORS.good : isCur ? (settings.reduceFlashes || blink(time, 2) ? COLORS.hot : COLORS.title) : boss ? 0x4ae4ff : 0x4a4578;
+      const col = done ? COLORS.good : isCur ? (settings.reduceFlashes || blink(time, 2) ? COLORS.hot : COLORS.title) : boss ? 0xb685ff : 0x4a4578;
       const x = nd.x - nd.w / 2;
       const y = nd.y - nd.h / 2;
       if (!nd.thumb) g.fillStyle(0x0b0a24, 1).fillRect(x, y, nd.w, nd.h);
@@ -334,7 +341,8 @@ export class LadderMapScene extends MenuScene {
       nd.thumb?.setAlpha(done ? 0.55 : 1).setTint(i > cur ? 0x6a6490 : 0xa8a4c8);
       fg.lineStyle(Math.max(2, u), col, 1).strokeRect(x, y, nd.w, nd.h);
       if (isCur) fg.lineStyle(u, col, 0.4).strokeRect(x - 2 * u, y - 2 * u, nd.w + 4 * u, nd.h + 4 * u);
-      nd.img.setPosition(nd.x + nd.w * 0.22, nd.y).setScale(((nd.h * 0.95) / 40) * (nd.img.getData('k') as number)).setAlpha(done ? 0.45 : i > cur ? 0.8 : 1).setTint(i > cur && !boss ? 0x8f8ab8 : 0xffffff);
+      const bustK = nd.img.getData('bust') ? (nd.h * 0.95) / Math.max(1, nd.img.height) : 0;
+      nd.img.setPosition(nd.x + nd.w * 0.22, nd.y).setScale(bustK || ((nd.h * 0.95) / 40) * (nd.img.getData('k') as number)).setAlpha(done ? 0.45 : i > cur ? 0.8 : 1).setTint(i > cur && !boss ? 0x8f8ab8 : 0xffffff);
       const nk = Math.max(u, Math.round(nd.h / 16));
       nd.num.setScale(nk).setPosition(x + 5 * nk, y + 5 * nk).setTint(col);
       fg.fillStyle(0x07060f, 0.75).fillRect(x + u, y + u, 8 * nk, 9 * nk);

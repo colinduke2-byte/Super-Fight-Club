@@ -2,6 +2,8 @@ import type { InputDevice } from '../input/device';
 import type { LadderState } from './ladder';
 import type { CpuLevel } from './lobby';
 import { ITEM_KINDS } from '../engine/items';
+import type { StageForm } from '../engine/types';
+import type { Modifier } from './modifiers';
 
 const ITEM_KIND_IDS: readonly string[] = ITEM_KINDS;
 
@@ -93,6 +95,31 @@ export interface MatchRules {
   stagePool?: string[];
   /** Slots cast in steel (the arcade's METAL fight: see game/metal.ts). Kept with the rules so a replay rebuilds them. */
   metal?: number[];
+  /** Stage form: as designed (absent / 'normal'), BATTLEFIELD or PLAIN (see stages/forms.ts). */
+  stageForm?: StageForm;
+  /** Damage of every hit x this (0.5..2; absent = 1). */
+  damageRatio?: number;
+  /** Knockback of every hit x this (0.5..2; absent = 1). */
+  launchRate?: number;
+  /** A match modifier applied to every fighter (see game/modifiers.ts). */
+  modifier?: Modifier;
+  /** Best-of series length: 1 (absent), 3 or 5; the win tally is kept in `session.series` across rematches. */
+  bestOf?: 1 | 3 | 5;
+}
+
+/** A best-of series in progress: wins per slot, carried across rematches (see tallySeries). */
+export interface SeriesState {
+  bestOf: 3 | 5;
+  /** Who is playing (characters by slot, and the rules' series length): a different lineup starts a new series. */
+  key: string;
+  /** Wins per slot (teams: per slot of the winning team's members as well). */
+  wins: number[];
+  /** Games played (draws included). */
+  games: number;
+  /** The slot (or team, in team battles: -2 - team) that took the series, once decided; -1 while it is running. */
+  champion: number;
+  /** The result last counted (so counting is idempotent). */
+  counted: MatchResult | null;
 }
 
 export interface PlayerResult {
@@ -182,6 +209,8 @@ export interface Session {
   demo?: boolean;
   /** The last versus lineup picked in the lobby (Quick Match too): character select comes back to it. */
   versusLineup?: PlayerSlot[] | null;
+  /** The best-of series being played (versus with `rules.bestOf` 3 or 5), or null. */
+  series?: SeriesState | null;
 }
 
 export const DEFAULT_RULES: MatchRules = { mode: 'stock', stocks: 3, timeSec: 180, teams: false, items: 0, hazards: true, staminaHp: 150 };
@@ -245,3 +274,51 @@ export function newSession(): Session {
 }
 
 export const session: Session = newSession();
+
+/** Wins needed to take a best-of-`n` series. */
+export function winsNeeded(n: number): number {
+  return Math.floor(n / 2) + 1;
+}
+
+function seriesKey(s: Session): string {
+  return `${s.rules.bestOf}|${s.players.map((p) => p.character).join(',')}|${s.rules.teams ? (s.rules.teamOf ?? []).join('') : ''}`;
+}
+
+/**
+ * Count the last versus result into the best-of series (idempotent: a result is counted once). A different lineup or
+ * series length, or a series already decided, starts a fresh one. Returns the series (null when not playing one). The
+ * Results screen calls this to show the tally; the match setup calls it too, so a finished game is always counted before
+ * the next one starts.
+ */
+export function tallySeries(s: Session = session): SeriesState | null {
+  const n = s.rules.bestOf;
+  if (s.mode !== 'versus' || (n !== 3 && n !== 5)) {
+    s.series = null;
+    return null;
+  }
+  const key = seriesKey(s);
+  if (!s.series || s.series.key !== key) s.series = { bestOf: n, key, wins: s.players.map(() => 0), games: 0, champion: -1, counted: s.lastResult };
+  const ser = s.series;
+  const r = s.lastResult;
+  if (r && r !== ser.counted && ser.champion === -1) {
+    ser.counted = r;
+    ser.games++;
+    if (r.winnerTeam >= 0) {
+      for (const p of r.players) if (p.team === r.winnerTeam && ser.wins[p.index] !== undefined) ser.wins[p.index]++;
+    } else if (r.winner >= 0 && ser.wins[r.winner] !== undefined) ser.wins[r.winner]++;
+    const need = winsNeeded(n);
+    const top = ser.wins.findIndex((w) => w >= need);
+    if (top >= 0) ser.champion = r.winnerTeam >= 0 ? -2 - r.winnerTeam : top;
+  }
+  return ser;
+}
+
+/** Before a match starts: count the last result, and begin a new series once the last one was decided. */
+export function seriesBeforeMatch(s: Session = session): SeriesState | null {
+  const ser = tallySeries(s);
+  if (ser && ser.champion !== -1) {
+    s.series = { ...ser, wins: ser.wins.map(() => 0), games: 0, champion: -1, counted: s.lastResult };
+    return s.series;
+  }
+  return ser;
+}

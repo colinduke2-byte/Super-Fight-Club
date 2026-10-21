@@ -242,6 +242,8 @@ export const SURFACES: readonly Surface[] = ['metal', 'stone', 'wood', 'snow', '
 
 /** What each stage's floor is made of, for footsteps (unknown stages walk on stone). */
 export const STAGE_SURFACE: Record<string, Surface> = {
+  harbour: 'wood',
+  express: 'metal',
   classic: 'stone',
   sandbox: 'stone',
   launch: 'stone',

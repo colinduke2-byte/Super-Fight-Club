@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
-import { CHARACTER_LIST, characterById } from '../src/characters';
+import { CHARACTER_LIST, CORE_CHARACTER_LIST, characterById } from '../src/characters';
 import {
   BOSS_BATTLE_STOCKS,
   ENDLESS_CARRY,
@@ -88,7 +88,8 @@ describe('rival routes', () => {
   it('the rival fight is against the fighter\'s rival on the rival\'s home stage', () => {
     for (const c of CHARACTER_LIST) {
       const rival = RIVAL[c.id];
-      expect(RIVAL[rival]).toBe(c.id); // rivals pair up
+      // rivals pair up (the playable Overseer's rival, Gizmo, keeps Obelisk as his own)
+      if (c.id !== 'overseer-versus') expect(RIVAL[rival]).toBe(c.id);
       const st = ROUTES[c.id].find((s) => s.kind === 'rival')!;
       expect(st.foes).toEqual([rival]);
       expect(st.stage).toBe(HOME_STAGE[rival]);
@@ -109,6 +110,8 @@ describe('rival routes', () => {
       expect(l.fights.find((f) => f.kind === 'brawl')!.opponents.length).toBe(3);
       expect(l.fights.find((f) => f.rival)!.stage).toBe(HOME_STAGE[RIVAL[c.id]]);
       const met = new Set(l.fights.flatMap((f) => f.opponents.map((o) => o.character)));
+      // the boss fight is the Overseer itself: that run meets the playable one too
+      if (met.has('overseer')) met.add('overseer-versus');
       for (const o of CHARACTER_LIST) if (o.id !== c.id) expect(met.has(o.id), `${c.id} meets ${o.id}`).toBe(true);
     }
   });
@@ -310,8 +313,8 @@ describe('endless', () => {
 describe('gauntlet', () => {
   it('all ten fighters once, in a random order, each on its home stage', () => {
     const l = buildLadder('agni', seq(0.7, 0.1, 0.4), 2, { kind: 'gauntlet' });
-    expect(l.fights).toHaveLength(CHARACTER_LIST.length);
-    expect(new Set(l.fights.map((f) => f.opponents[0].character)).size).toBe(CHARACTER_LIST.length);
+    expect(l.fights).toHaveLength(CORE_CHARACTER_LIST.length);
+    expect(new Set(l.fights.map((f) => f.opponents[0].character)).size).toBe(CORE_CHARACTER_LIST.length);
     for (const f of l.fights) {
       expect(f.opponents).toHaveLength(1);
       expect(f.opponents[0].stocks).toBe(1);
@@ -339,13 +342,13 @@ describe('gauntlet', () => {
     let out = '';
     while ((out = applyLadderResult(l, win({ stocks: 3 }), [0])) === 'next');
     expect(out).toBe('champion');
-    expect(l.seconds).toBe(60 * CHARACTER_LIST.length);
+    expect(l.seconds).toBe(60 * CORE_CHARACTER_LIST.length);
     expect(l.best?.newBest).toBe(true);
-    expect(loadRunRecords().gauntlet.agni.sec).toBe(60 * CHARACTER_LIST.length);
+    expect(loadRunRecords().gauntlet.agni.sec).toBe(60 * CORE_CHARACTER_LIST.length);
     expect(l.clear).toBeUndefined();
     const slow = buildLadder('agni', seq(0.5), 2, { kind: 'gauntlet' });
     while (applyLadderResult(slow, { ...win({ stocks: 3 }), durationSec: 90 }, [0]) === 'next');
-    expect(slow.best).toEqual({ newBest: false, prev: 600 });
+    expect(slow.best).toEqual({ newBest: false, prev: 60 * CORE_CHARACTER_LIST.length });
     // no continue-as for these runs
     expect(continueLadder(slow, { easier: true })).toBe(false);
   });

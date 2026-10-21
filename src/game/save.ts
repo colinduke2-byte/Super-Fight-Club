@@ -5,6 +5,8 @@ import { RECORDS_VERSION, recordsFrom, recordsSnapshot, replaceRecords, type Rec
 import { favouritesForSave, favouritesFrom, restoreFavourites, vaultCached, type SavedFavourite } from './replayVault';
 import { RULES_KEY, sanitizeRules } from './rulesets';
 import type { MatchRules } from './session';
+import { RUN_RECORDS_KEY, loadRunRecords, type RunRecords } from './runRecords';
+import { PROFILES_KEY, listProfiles, profilesFrom, reloadProfiles, type PlayerProfile } from './profiles';
 
 /** Storage keys of the other progress a save carries (owned by trials.ts and tutorial.ts). */
 export const TRIALS_KEY = 'sfc.trials.v1';
@@ -25,6 +27,35 @@ export interface SaveExtras {
   quickCpu?: number;
   /** Starred replays from the replay vault (metadata, name and share code), newest first, up to SAVE_VAULT_BYTES of codes. */
   vault?: SavedFavourite[];
+  /** Endless, Gauntlet and Boss Battle bests (runRecords.ts). */
+  runRecords?: RunRecords;
+  /** Local player names and their win counts (profiles.ts). */
+  profiles?: PlayerProfile[];
+}
+
+/** Validate run records from a save (the same rules runRecords.ts reads storage with; bad entries are dropped). */
+export function runRecordsFrom(d: unknown): RunRecords {
+  const out: RunRecords = { endless: {}, gauntlet: {}, boss: {} };
+  if (!isObj(d)) return out;
+  const num = (v: unknown): number | null => (typeof v === 'number' && Number.isFinite(v) && v >= 0 ? v : null);
+  const key = (k: string): boolean => /^[a-z0-9_-]{1,40}$/i.test(k);
+  for (const [k, v] of Object.entries(isObj(d.endless) ? d.endless : {})) {
+    if (!key(k) || !isObj(v)) continue;
+    const wins = num(v.wins);
+    const kos = num(v.kos);
+    if (wins !== null && kos !== null) out.endless[k] = { wins: Math.floor(wins), kos: Math.floor(kos) };
+  }
+  for (const [k, v] of Object.entries(isObj(d.gauntlet) ? d.gauntlet : {})) {
+    if (!key(k) || !isObj(v)) continue;
+    const sec = num(v.sec);
+    if (sec !== null) out.gauntlet[k] = { sec, difficulty: Math.max(1, Math.min(4, Math.round(num(v.difficulty) ?? 2))) };
+  }
+  for (const [k, v] of Object.entries(isObj(d.boss) ? d.boss : {})) {
+    if (!/^[1-4]$/.test(k) || !isObj(v)) continue;
+    const sec = num(v.sec);
+    if (sec !== null && typeof v.fighter === 'string' && key(v.fighter)) out.boss[k] = { sec, fighter: v.fighter, ...(v.coop === true ? { coop: true } : {}) };
+  }
+  return out;
 }
 
 /**
@@ -86,6 +117,8 @@ export function extrasFrom(d: unknown): SaveExtras {
   const qc = int(d.quickCpu, 1, 9);
   if (qc !== undefined) out.quickCpu = qc;
   if (Array.isArray(d.vault)) out.vault = favouritesFrom(d.vault);
+  if (isObj(d.runRecords)) out.runRecords = runRecordsFrom(d.runRecords);
+  if (Array.isArray(d.profiles)) out.profiles = profilesFrom(d.profiles);
   return out;
 }
 
@@ -99,6 +132,10 @@ export function currentExtras(): SaveExtras {
   // the vault's favourites as last read (the Records screen refreshes the vault before it shows the save)
   const fav = favouritesForSave(vaultCached());
   if (fav.items.length) x.vault = fav.items;
+  const runs = loadRunRecords();
+  if (Object.keys(runs.endless).length || Object.keys(runs.gauntlet).length || Object.keys(runs.boss).length) x.runRecords = runRecordsFrom(runs);
+  const names = listProfiles();
+  if (names.length) x.profiles = profilesFrom(names);
   return x;
 }
 
@@ -124,6 +161,11 @@ export function applyExtras(x: SaveExtras): void {
   if (x.lastFighter) put(LAST_FIGHTER_KEY, x.lastFighter);
   if (x.arcadeDifficulty !== undefined) put(DIFFICULTY_KEY, String(x.arcadeDifficulty));
   if (x.quickCpu !== undefined) put(QUICK_CPU_KEY, String(x.quickCpu));
+  if (x.runRecords) put(RUN_RECORDS_KEY, x.runRecords);
+  if (x.profiles) {
+    put(PROFILES_KEY, { list: x.profiles, last: [] });
+    reloadProfiles();
+  }
   // the vault is asynchronous storage: its favourites arrive a moment later (and never replace what is there)
   if (x.vault?.length) void restoreFavourites(x.vault).catch(() => undefined);
 }
@@ -182,5 +224,8 @@ export function summarize(r: Records, x?: SaveExtras): string {
   const chal = Object.keys(r.challenges).length;
   const trials = x?.trials ? `, ${x.trials.length} trials` : '';
   const vault = x?.vault?.length ? `, ${x.vault.length} favourite replays` : '';
-  return `${played} versus matches, ${clears} arcade clears, ${chal} challenges cleared, ${Object.keys(r.targets).length} target times${trials}${vault}`;
+  const runs = x?.runRecords ? Object.keys(x.runRecords.endless).length + Object.keys(x.runRecords.gauntlet).length + Object.keys(x.runRecords.boss).length : 0;
+  const runText = runs ? `, ${runs} run records` : '';
+  const names = x?.profiles?.length ? `, ${x.profiles.length} player names` : '';
+  return `${played} versus matches, ${clears} arcade clears, ${chal} challenges cleared, ${Object.keys(r.targets).length} target times${trials}${vault}${runText}${names}`;
 }

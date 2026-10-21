@@ -23,7 +23,8 @@ describe('arcade ladder', () => {
       expect(firsts).not.toContain(c.id);
       // with the brawl, a run meets every other roster fighter
       const met = new Set([0, 1, 2, 4, 5, 6, 7].flatMap((i) => l.fights[i].opponents.map((o) => o.character)));
-      expect(met.size).toBe(Math.min(9, CHARACTER_LIST.length - 1));
+      // (the playable Overseer's run meets all ten; the core fighters meet the other nine and the Overseer as the boss)
+      expect(met.size).toBe(c.id === 'overseer-versus' ? CHARACTER_LIST.length - 1 : 9);
       expect(met.has(c.id)).toBe(false);
     });
   }

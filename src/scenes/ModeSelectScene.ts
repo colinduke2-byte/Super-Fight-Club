@@ -81,6 +81,7 @@ const GROUPS: Group[] = [
     id: 'vault',
     label: 'VAULT',
     items: [
+      { label: 'PROFILES', desc: 'EVERY FIGHTER\'S STORY, STATS, RIVAL AND YOUR RECORD WITH THEM. MAKE PLAYER NAMES HERE.', go: (s) => s.goTo('Profiles') },
       { label: 'RECORDS', desc: 'YOUR WINS, KOS, BEST TIMES AND DISTANCES, FIGHTER BY FIGHTER.', go: (s) => s.goTo('Records') },
       { label: 'REPLAYS', desc: 'YOUR LAST MATCHES AND STARRED FAVOURITES: WATCH, SEEK, SHARE AS CODES.', go: (s) => s.goTo('ReplayVault') },
       { label: 'SOUND TEST', desc: 'EVERY TRACK, SOUND AND ANNOUNCER CALL IN THE GAME.', go: (s) => s.goTo('SoundTest', { back: 'ModeSelect' }) },

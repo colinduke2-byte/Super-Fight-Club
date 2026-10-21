@@ -150,6 +150,17 @@ const vex = course(
   'A ship mast and its yards. Blink across the gaps.',
 );
 
+/** The Overseer: a throne hall of low daises; the eye beam and the spires reach targets across the floor. */
+const overseerCourse = course(
+  'targets-overseer-versus',
+  'Throne Hall',
+  'void',
+  [0x05030c, 0x4a2a6a],
+  [ground(-130, 260), block(-330, 0, 110, 50), block(220, 0, 110, 50), block(-60, -110, 120, 24), ledge(-260, -100, 70), ledge(190, -100, 70)],
+  [t(-110, -18), t(110, -18), t(-290, -18), t(290, -18), t(0, -160), t(-225, -125), t(225, -125), t(-190, -40), t(190, -40), t(0, -18)],
+  'The Overseer\'s hall: low daises and high perches. Sweep the floor with the eye beam, climb for the rest.',
+);
+
 // ---- shared courses ----------------------------------------------------------------------------
 
 /** Shared course II: a taller climb with narrow ledges. */
@@ -186,6 +197,7 @@ export const TARGET_COURSES: TargetCourse[] = [
   { id: brick.id, fighter: 'brick', difficulty: 2, stage: brick },
   { id: halcyon.id, fighter: 'halcyon', difficulty: 2, stage: halcyon },
   { id: vex.id, fighter: 'vex', difficulty: 2, stage: vex },
+  { id: overseerCourse.id, fighter: 'overseer-versus', difficulty: 2, stage: overseerCourse },
   { id: targetsStage.id, fighter: null, difficulty: 1, stage: targetsStage },
   { id: spire.id, fighter: null, difficulty: 2, stage: spire },
   { id: abyss.id, fighter: null, difficulty: 3, stage: abyss },

@@ -294,6 +294,8 @@ export interface Space {
 /** Per stage backdrop (the ambience theme); 'default' is the menus and anything unlisted. */
 export const SPACES: Record<string, Space> = {
   default: { decay: 0.8, wet: 0.1, tone: 5000 },
+  apex: { decay: 0.7, wet: 0.08, tone: 6500 },
+  stadium: { decay: 1.6, wet: 0.18, tone: 4500 },
   skyline: { decay: 0.9, wet: 0.1, tone: 5500 },
   storm: { decay: 1.1, wet: 0.12, tone: 4000 },
   tide: { decay: 0.9, wet: 0.1, tone: 4500 },

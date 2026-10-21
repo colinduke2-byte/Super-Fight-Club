@@ -4,6 +4,8 @@ import { makeInput, type FighterInput } from '../engine/buttons';
 import type { MatchConfig } from '../engine/match';
 import { STAGES } from '../stages';
 import { sandboxStage } from '../stages/sandbox';
+import { targetCourseById } from '../stages/targetCourses';
+import { ruledCharacter, ruledStage } from './modifiers';
 import { MatchTally, MatchTimeline } from './results';
 import { MatchRunner, type RunnerSetup } from './runner';
 import { runnerExtras, type MatchRules } from './session';
@@ -429,12 +431,13 @@ export async function fromShareCode(text: string): Promise<ShareResult> {
 /** Training and Launch Contest config never apply to a replay; this mirrors how the match scene sets up a replay's runner. */
 export function replayRunnerSetup(rep: Replay): RunnerSetup {
   const rules = rep.rules;
-  const base = STAGES[rep.stage] ?? sandboxStage;
-  const stage = rules.hazards === false ? { ...base, hazards: undefined } : base;
+  const base = STAGES[rep.stage] ?? targetCourseById(rep.stage)?.stage ?? sandboxStage;
+  // the same form / hazards / ratio / launch-rate rules the live match was built with
+  const stage = ruledStage(base, rules, true);
   const cfg: MatchConfig = { mode: rules.mode, stocks: rules.stocks, timeLimitSec: rules.timeSec, respawnDelay: 70, staminaHp: rules.staminaHp };
   return {
     stage,
-    characters: rep.players.map((p) => p.character),
+    characters: rep.players.map((p, i) => ruledCharacter(p.character, rules, i)),
     rules: cfg,
     stocks: rep.players.map((p) => p.stocks),
     teams: !!rules.teams,

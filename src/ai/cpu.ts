@@ -3,7 +3,7 @@ import { GRAB_DISTANCE, SHIELD_DROP_FRAMES, type Fighter } from '../engine/fight
 import { avalancheX, hazardPhase } from '../engine/hazards';
 import * as Items from '../engine/items';
 import { hitboxEnd, moveTotal, type MoveDef } from '../engine/moves';
-import type { Ledge, Platform } from '../engine/platform';
+import { pathOffset, type Ledge, type Platform } from '../engine/platform';
 import type { HazardDef } from '../engine/types';
 import type { World } from '../engine/world';
 import { applyHeld, clearInput, type Controller } from '../game/controllers';
@@ -211,6 +211,13 @@ export class CpuController implements Controller {
       this.think(self, world);
     }
 
+    // a Home-Run Bat swing being charged: keep holding until the charge is wanted
+    if (this.batHold > 0) {
+      this.batHold--;
+      if (self.state === 'attack') this.held |= Button.Attack;
+      else this.batHold = 0;
+    }
+    if (self.state !== 'ko') this.guardBlast(self, world);
     // never flick backwards in the first frames of a special: that would B-reverse it away from the target
     if (self.state === 'attack' && self.move?.kind === 'special' && self.moveFrame <= 4 && this.sx * self.facing < 0) this.sx = 0;
     if (Math.abs(this.sx) >= 0.8 && Math.sign(this.sx) === Math.sign(this.lastSx) && Math.abs(this.lastSx) >= 0.8) this.runFrames++;
@@ -319,6 +326,9 @@ export class CpuController implements Controller {
     this.episode = null;
 
     if (!CAN_ACT.has(self.state)) return;
+
+    // a travelling stage's platform about to carry us off
+    if (this.leaveRoute(self, world)) return;
 
     // stage hazards
     if (this.avoidHazards(self, world)) return;
@@ -526,6 +536,49 @@ export class CpuController implements Controller {
   }
 
   // ---- movement helpers ------------------------------------------------------------------------
+  /** Frames left of a charged Home-Run Bat swing (Attack held). */
+  private batHold = 0;
+
+  /**
+   * Never walk, dash or drift out through a side blast zone: on a walk-off stage the ground runs on past it, so the platform
+   * edge clamp never fires there. Near a side blast zone the stick may only point back in (with room to brake from a run).
+   */
+  private guardBlast(self: Fighter, world: World): void {
+    if (self.state === 'hitstun' || self.state === 'grabbed') return; // DI has its own reasons (survival DI points inward anyway)
+    const b = world.blast;
+    const margin = 70 + Math.abs(self.vx) * 10 + (self.data.dash ? self.data.dash.speed * self.data.dash.frames : 0);
+    if (self.x > b.right - margin && this.sx > 0) this.sx = self.x > b.right - margin * 0.6 ? -1 : 0;
+    else if (self.x < b.left + margin && this.sx < 0) this.sx = self.x < b.left + margin * 0.6 ? 1 : 0;
+  }
+
+  /**
+   * Standing on a platform that follows a route (a travelling stage) that is about to carry us off: down below the stage or
+   * out toward a side blast zone. Get off: drop through it / jump, and head for the main platform. True if it acted.
+   */
+  private leaveRoute(self: Fighter, world: World): boolean {
+    const pl = self.groundPlat;
+    const path = pl?.def.path;
+    if (!pl || !self.grounded || !path) return false;
+    const main = this.mainPlatform(world);
+    const now = pathOffset(path, world.tick);
+    const nx = now.dx;
+    const ny = now.dy;
+    const ahead = pathOffset(path, world.tick + 45);
+    const dy = ahead.dy - ny;
+    const dx = ahead.dx - nx;
+    const b = world.blast;
+    const futureX = self.x + dx;
+    const sinking = dy > 8 && pl.y + dy > main.top + 30;
+    const carried = Math.abs(dx) > 8 && (futureX > b.right - 160 || futureX < b.left + 160 || futureX < main.x - 40 || futureX > main.right + 40);
+    if (!sinking && !carried) return false;
+    const toward = Math.sign(main.x + main.w / 2 - self.x) || 1;
+    this.sx = toward;
+    // over the main platform: drop through onto it; otherwise jump back toward it
+    if (self.x > main.x + 10 && self.x < main.right - 10 && pl.y < main.top) this.sy = 1;
+    else if (!this.cooldownBusy('routeJump', 20)) this.held |= Button.Jump;
+    return true;
+  }
+
   private mainPlatform(world: World): Platform {
     let best = world.platforms[0];
     for (const p of world.platforms) if (p.kind === 'solid' && p.w > (best.kind === 'solid' ? best.w : 0)) best = p;
@@ -691,7 +744,7 @@ export class CpuController implements Controller {
     for (const h of hs) {
       if (h.kind === 'avalanche' || hazardPhase(h, world.tick) === 'idle' || !inColumn(h, self)) continue;
       const gap = (h.x - self.x) * dir - h.w / 2 - self.hw;
-      if (gap > -4 && gap < 26) return true;
+      if (gap > -4 && gap < 26 + Math.max(0, self.vx * dir) * 8) return true; // a run still slides after letting go
     }
     return false;
   }
@@ -711,7 +764,9 @@ export class CpuController implements Controller {
         if (ahead > -h.w) due = Math.min(due, Math.max(0, (ahead - h.w / 2) / Math.max(0.1, speed)));
         continue;
       }
-      if (Math.abs(self.x - h.x) >= h.w / 2 + 12 || !inColumn(h, self)) continue;
+      // drifting / sliding toward the column: a move started now still carries us into it
+      const drift = (h.x - self.x) * self.vx > 0 ? Math.abs(self.vx) * 10 : 0;
+      if (Math.abs(self.x - h.x) >= h.w / 2 + 12 + drift || !inColumn(h, self)) continue;
       const p = (world.tick + (h.offset ?? 0)) % h.period;
       const start = h.period - h.active;
       const t = p >= start ? 0 : start - p;
@@ -1159,7 +1214,14 @@ export class CpuController implements Controller {
       case 'bomb':
       case 'sword':
       case 'raygun':
+      case 'mine':
         v = self.heldBomb ? 0 : 30; // one thing in hand at a time
+        break;
+      case 'bat':
+        v = self.heldBomb ? 0 : 38; // a KO threat in hand
+        break;
+      case 'drone':
+        v = 40;
         break;
       case 'crate':
         v = 0; // broken open with attacks, not picked up
@@ -1171,8 +1233,19 @@ export class CpuController implements Controller {
     return v * sense + 20 * (1 - sense);
   }
 
-  /** Step away from a primed (about to explode) crate next to us. */
+  /** Step away from a primed (about to explode) crate next to us; hop over a rival's live mine in our path. */
   private fleeCrate(self: Fighter, world: World): boolean {
+    for (const it of world.items) {
+      if (!Items.mineArmed(it) || it.owner === self.id || world.allied(it.owner, self.id)) continue;
+      const dx = it.x - self.x;
+      if (Math.abs(dx) > 34 || Math.abs(it.y - self.y) > 20) continue;
+      // stepping toward it (or standing on it): jump it, carrying on over
+      if (Math.abs(dx) < 10 || Math.sign(dx) === Math.sign(this.sx || self.facing)) {
+        this.sx = Math.sign(dx) || self.facing;
+        this.held |= Button.Jump;
+        return true;
+      }
+    }
     for (let i = 0; i < world.items.length; i++) {
       const it = world.items[i] as { active: boolean; kind: string; primed?: boolean; x: number; y: number };
       if (!it.active || it.kind !== 'crate' || !it.primed) continue;
@@ -1242,6 +1315,27 @@ export class CpuController implements Controller {
         return true;
       }
       if (Math.abs(dy) < 60 && Math.abs(dx) < 200) {
+        this.sx = Math.sign(dx);
+        this.clampEdge(self);
+        return true;
+      }
+      return false;
+    }
+    if (kind === 'bat') {
+      // the bat on the ground: a charged home-run swing when the rival is open (stunned, landing, lying down) and well
+      // damaged, a quick swing otherwise; in the air it is only a light hit, so keep it for the ground
+      if (!self.grounded) return false;
+      const reach = Items.BAT.reach + 6;
+      if (Math.abs(dy) < 34 && Math.abs(dx) < reach && tgt.invuln === 0) {
+        if (self.facing !== Math.sign(dx)) this.sx = Math.sign(dx) * 0.3;
+        else {
+          this.held = Button.Attack;
+          const open = tgt.state === 'downed' || tgt.state === 'landing' || tgt.state === 'shieldbreak' || tgt.state === 'stunned' || tgt.state === 'frozen' || tgt.hitstun > 20;
+          if (open && tgt.damage > 70 && this.params.smart) this.batHold = 18 + Math.floor(this.rnd() * 20);
+        }
+        return true;
+      }
+      if (Math.abs(dy) < 60 && Math.abs(dx) < 220) {
         this.sx = Math.sign(dx);
         this.clampEdge(self);
         return true;

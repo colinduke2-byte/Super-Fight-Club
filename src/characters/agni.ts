@@ -43,9 +43,24 @@ export const agni: CharacterData = {
   difficulty: 2,
   persona: {
     intro: 'Agni was a festival bonfire once, lit for a forgotten god. The arena asked who would dare to burn, and the flame stood up.',
+    bio: 'A festival bonfire that stood up when the arena asked who would dare to burn. Agni is patient, warm and impossible to put out: every hit, given or taken, feeds the flame.',
     taunt: 'I do not need to win quickly. I only need to burn longer than you.',
+    // in-match taunt bubbles take turns through these
+    taunts: [
+      'I do not need to win quickly. I only need to burn longer than you.',
+      'Feel that? That is me warming up.',
+      'Fan the flames. Go on.',
+      'Every hit you land feeds me.',
+    ],
     epilogue: 'The last light in the Hollow is no longer the arena\'s. Agni cups it in both hands and walks out into the night.',
     victory: 'Still burning. You are not.',
+    victories: [
+      'Still burning. You are not.',
+      'Ash to ash. Mostly yours.',
+      'The festival goes on. Without you.',
+    ],
+    // against their RIVAL (routes.ts): the line before the fight, and the one after beating them
+    rival: { taunt: 'Riptide. Bring all the water you like. I will boil it.', victory: 'Steam rises, shark sinks. Sit by the fire and dry off.' },
   },
   stats: {
     weight: 92,

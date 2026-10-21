@@ -1,4 +1,29 @@
-import type { PlatformDef } from './types';
+import type { PlatformDef, PlatformPath } from './types';
+
+const pathOut = { dx: 0, dy: 0 };
+
+/**
+ * Offset of a keyframed route at `tick` (smoothstep between keys, wrapping from the last key to the first). Pure. Writes into
+ * and returns a shared object: copy the numbers before the next call.
+ */
+export function pathOffset(path: PlatformPath, tick: number): { dx: number; dy: number } {
+  const k = path.keys;
+  const t = ((tick % path.period) + path.period) % path.period;
+  let i = k.length - 1;
+  for (let j = 0; j < k.length; j++) if (k[j].t <= t) i = j;
+  const a = k[i];
+  const b = k[(i + 1) % k.length];
+  const t0 = a.t;
+  let t1 = b.t;
+  let tt = t;
+  if (t1 <= t0) t1 += path.period;
+  if (tt < t0) tt += path.period;
+  const u = t1 > t0 ? Math.min(1, Math.max(0, (tt - t0) / (t1 - t0))) : 0;
+  const e = u * u * (3 - 2 * u);
+  pathOut.dx = a.dx + (b.dx - a.dx) * e;
+  pathOut.dy = a.dy + (b.dy - a.dy) * e;
+  return pathOut;
+}
 
 /** Runtime platform: static or moving. Positions are top-left, previous-tick values kept for carry + interpolation. */
 export class Platform {
@@ -32,11 +57,11 @@ export class Platform {
     this.baseY = def.y;
     this.x = this.prevX = def.x;
     this.y = this.prevY = def.y;
-    if (def.move) this.place(0);
+    if (def.move || def.path) this.place(0);
   }
 
   get moving(): boolean {
-    return !!this.def.move || this.dynamic;
+    return !!this.def.move || !!this.def.path || this.dynamic;
   }
 
   get top(): number {
@@ -54,12 +79,18 @@ export class Platform {
     if (this.dynamic) return; // driven by stepPillars
     this.prevX = this.x;
     this.prevY = this.y;
-    if (this.def.move) this.place(tick);
+    if (this.def.move || this.def.path) this.place(tick);
     this.dx = this.x - this.prevX;
     this.dy = this.y - this.prevY;
   }
 
   private place(tick: number): void {
+    if (this.def.path) {
+      const o = pathOffset(this.def.path, tick);
+      this.x = this.baseX + o.dx;
+      this.y = this.baseY + o.dy;
+      return;
+    }
     const m = this.def.move!;
     const t = tick / m.period + (m.phase ?? 0);
     const off = Math.sin(t * Math.PI * 2) * m.amplitude;

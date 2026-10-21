@@ -15,11 +15,35 @@ export function validateStage(s: StageData): void {
     if (p.w <= 0 || p.h <= 0) fail(`platform ${i} has no size`);
     if (p.ledges && p.kind !== 'solid') fail(`platform ${i}: only solid platforms can have ledges`);
     const amp = p.move?.amplitude ?? 0;
-    const x0 = p.x - (p.move?.axis === 'x' ? amp : 0);
-    const x1 = p.x + p.w + (p.move?.axis === 'x' ? amp : 0);
-    const y0 = p.y - (p.move?.axis === 'y' ? amp : 0);
-    const y1 = p.y + p.h + (p.move?.axis === 'y' ? amp : 0);
-    if (x0 <= b.left || x1 >= b.right || y0 <= b.top || y1 >= b.bottom) fail(`platform ${i} reaches outside the blast zones`);
+    let x0 = p.x - (p.move?.axis === 'x' ? amp : 0);
+    let x1 = p.x + p.w + (p.move?.axis === 'x' ? amp : 0);
+    let y0 = p.y - (p.move?.axis === 'y' ? amp : 0);
+    let y1 = p.y + p.h + (p.move?.axis === 'y' ? amp : 0);
+    if (p.path) {
+      if (p.path.period <= 0 || p.path.keys.length === 0) fail(`platform ${i}: bad route`);
+      for (const k of p.path.keys) {
+        if (k.t < 0 || k.t >= p.path.period) fail(`platform ${i}: route key outside its cycle`);
+        x0 = Math.min(x0, p.x + k.dx);
+        x1 = Math.max(x1, p.x + p.w + k.dx);
+        y0 = Math.min(y0, p.y + k.dy);
+        y1 = Math.max(y1, p.y + p.h + k.dy);
+      }
+    }
+    // walk-off sides: solid ground may run on past the blast zone there (walking out is a KO); a route may park a platform
+    // out of play (it is gone from the fight until it comes back), but must start its cycle in play
+    const wl = !!s.walkOff?.left && p.kind === 'solid';
+    const wr = !!s.walkOff?.right && p.kind === 'solid';
+    if (p.path) {
+      const o = p.path.keys[0];
+      x0 = p.x + o.dx;
+      x1 = x0 + p.w;
+      y0 = p.y + o.dy;
+      y1 = y0 + p.h;
+      if (p.kind === 'solid') fail(`platform ${i}: only pass-through platforms may follow a route`);
+    }
+    if ((x0 <= b.left && !wl) || (x1 >= b.right && !wr) || y0 <= b.top || y1 >= b.bottom) {
+      if (!p.path) fail(`platform ${i} reaches outside the blast zones`);
+    }
     if (p.surface === 'conveyor' && !p.conveyor) fail(`platform ${i}: conveyor surfaces need a conveyor speed`);
     if (p.conveyor && p.surface !== 'conveyor') fail(`platform ${i}: conveyor speed without a conveyor surface`);
     if (p.move && (p.move.period <= 0 || amp <= 0)) fail(`platform ${i}: bad motion`);

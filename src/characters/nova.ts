@@ -73,9 +73,24 @@ export const nova: CharacterData = {
   difficulty: 4,
   persona: {
     intro: 'Nova felt her stolen Aether humming from the arena core, loud as a second heartbeat. She follows the sound.',
+    bio: 'A spell-slinger who heard her stolen Aether humming from the arena\'s core. Nova cycles fire, ice and lightning, and reads the fight a few moves ahead in the stars.',
     taunt: 'The stars said you would come. They laughed.',
+    // in-match taunt bubbles take turns through these
+    taunts: [
+      'The stars said you would come. They laughed.',
+      'Fire, ice or lightning? Trick question.',
+      'Your fortune: bruises.',
+      'I read your future. It is very short.',
+    ],
     epilogue: 'The Aether returns to her staff like a lost bird. The Hollow glows blue for one long minute, and every lamp in the city remembers the sky.',
     victory: 'Written in the stars. Twice.',
+    victories: [
+      'Written in the stars. Twice.',
+      'The cosmos sends its regards.',
+      'As foretold.',
+    ],
+    // against their RIVAL (routes.ts): the line before the fight, and the one after beating them
+    rival: { taunt: 'Vex. You sold what was mine. The stars want it back, with interest.', victory: 'Keep the change, Vex. I took the Aether back. And your hat.' },
   },
   stats: {
     weight: 100,

@@ -4,6 +4,7 @@ import type { Fighter } from '../engine/fighter';
 import type { FighterView } from './FighterView';
 import { drawPortShape, portOfColor } from './menuKit';
 import { settings } from '../settings';
+import { profileLabel } from '../game/profiles';
 
 /**
  * A tag's text. CPUs keep the name their HUD plate shows ('CPU3', not 'C3') so the tag and the plate read as the same
@@ -13,6 +14,7 @@ export function shortTag(label: string): string {
   if (label === 'DUMMY') return 'DUM';
   return label;
 }
+
 
 /** "P1" / "CPU" tags with a pointer above each fighter's head, in their colour, drawn at a constant screen size. */
 export class PlayerTags {
@@ -51,7 +53,8 @@ export class PlayerTags {
       return p >= 0 ? p : i % 4;
     });
     this.texts = labels.map((l, i) => {
-      const t = scene.add.bitmapText(0, 0, PIXEL_FONT, crowded ? shortTag(l) : l).setOrigin(0.5, 1).setTint(colors[i]);
+      const name = profileLabel(l);
+      const t = scene.add.bitmapText(0, 0, PIXEL_FONT, crowded ? shortTag(name) : name).setOrigin(0.5, 1).setTint(colors[i]);
       layer.add(t);
       return t;
     });

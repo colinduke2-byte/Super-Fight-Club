@@ -5,10 +5,10 @@ import type { MatchConfig } from '../../engine/match';
 import type { StageData } from '../../engine/types';
 import { challengeById, challengeRules, type Challenge } from '../../game/challenges';
 import { rulesForSlots } from '../../game/ladder';
-import { metalVariant } from '../../game/metal';
+import { ruledCharacter, ruledStage } from '../../game/modifiers';
 import { recordsReplay, ReplayRecorder, type Replay } from '../../game/replay';
 import type { RunnerSetup } from '../../game/runner';
-import { DEFAULT_RULES, runnerExtras, session, type MatchRules, type PlayerSlot } from '../../game/session';
+import { DEFAULT_RULES, runnerExtras, seriesBeforeMatch, session, type MatchRules, type PlayerSlot } from '../../game/session';
 import { MergedDevice } from '../../input/device';
 import { inputManager } from '../../input/inputManager';
 import { settings } from '../../settings';
@@ -53,13 +53,15 @@ export function resolveMatchSetup(): MatchSetup {
   const rules = rep ? rep.rules : chal ? challengeRules(chal) : session.mode === 'versus' || session.mode === 'training' ? session.rules : arcade ? rulesForSlots(slots) : { ...DEFAULT_RULES };
   const stageId = rep ? rep.stage : session.stage;
   const base = STAGES[stageId] ?? targetCourseById(stageId)?.stage ?? sandboxStage;
-  const stage = rules.hazards === false && (rep || session.mode === 'versus' || chal) ? { ...base, hazards: undefined } : base;
+  // the stage in the rules' form, hazards per the rules (versus, challenges, replays), damage ratio and launch rate
+  const stage = ruledStage(base, rules, !!(rep || session.mode === 'versus' || chal));
+  if (!rep && session.mode === 'versus' && !session.demo) seriesBeforeMatch(session);
   const wantsTargets = !rep && session.mode === 'targets';
   const isTargets = wantsTargets && (stage.targets?.length ?? 0) > 0;
   const cfg: MatchConfig = isTraining || isLaunch ? TRAINING : { mode: rules.mode, stocks: rules.stocks, timeLimitSec: rules.timeSec, respawnDelay: 70, staminaHp: rules.staminaHp };
   const runner: RunnerSetup = {
     stage,
-    characters: slots.map((s, i) => (rules.metal?.includes(i) ? (metalVariant(s.character) ?? s.character) : s.character)),
+    characters: slots.map((s, i) => ruledCharacter(s.character, rules, i)),
     rules: cfg,
     stocks: isTraining ? undefined : slots.map((s) => s.stocks),
     teams: rules.teams && !isTraining && !!(rep || session.mode === 'versus' || chal || arcade),
@@ -100,6 +102,11 @@ export function ensureSession(): void {
   session.rules.teams = q.has('teams');
   session.rules.items = Math.min(2, Math.max(0, Number(q.get('items') ?? 0))) as 0 | 1 | 2;
   session.stage = q.get('stage') ?? 'sandbox';
+  // ?form=battlefield|plain plays a stage form; ?mod=giant|tiny|metal|lowgrav|turbo a match modifier
+  const form = q.get('form');
+  if (form === 'battlefield' || form === 'plain') session.rules.stageForm = form;
+  const mod = q.get('mod');
+  if (mod === 'giant' || mod === 'tiny' || mod === 'metal' || mod === 'lowgrav' || mod === 'turbo') session.rules.modifier = mod;
   if (q.has('stamina')) {
     session.rules.mode = 'stamina'; // ?stamina=<hp> plays a stamina match
     session.rules.staminaHp = Math.max(30, Number(q.get('stamina')) || 150);

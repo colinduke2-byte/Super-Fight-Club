@@ -18,6 +18,7 @@ import { CreditsScene } from './scenes/CreditsScene';
 import { VersusSplashScene } from './scenes/VersusSplashScene';
 import { SoundTestScene } from './scenes/SoundTestScene';
 import { ReplayVaultScene } from './scenes/ReplayVaultScene';
+import { ProfilesScene } from './scenes/ProfilesScene';
 import { session } from './game/session';
 import { loadSettings } from './settings';
 import { initDisplay, renderScale } from './display';
@@ -108,7 +109,7 @@ function boot(): void {
     input: { keyboard: false, gamepad: false, mouse: true, touch: true },
     disableContextMenu: true,
     audio: { noAudio: true }, // all sound is our own Web Audio graph (src/audio): no idle second AudioContext
-    scene: [BootScene, TitleScene, ModeSelectScene, VersusSetupScene, CharacterSelectScene, StageSelectScene, MatchScene, ResultsScene, LadderMapScene, StoryScene, SettingsScene, ControlsScene, RecordsScene, HowToPlayScene, ChallengesScene, CreditsScene, VersusSplashScene, ReplayVaultScene, SoundTestScene],
+    scene: [BootScene, TitleScene, ModeSelectScene, VersusSetupScene, CharacterSelectScene, StageSelectScene, MatchScene, ResultsScene, LadderMapScene, StoryScene, SettingsScene, ControlsScene, RecordsScene, HowToPlayScene, ChallengesScene, CreditsScene, VersusSplashScene, ReplayVaultScene, SoundTestScene, ProfilesScene],
   });
 
   // one exception in a scene must not stop the game loop for good (see errorOverlay.ts)

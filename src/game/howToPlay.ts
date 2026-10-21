@@ -24,6 +24,9 @@ export const ITEM_NAMES: Record<string, string> = {
   raygun: 'RAY GUN',
   crate: 'CRATE',
   core: 'CORE FRAGMENT',
+  bat: 'HOME-RUN BAT',
+  mine: 'PROXIMITY MINE',
+  drone: 'ASSIST DRONE',
 };
 
 const kb = (scheme: KeyboardSchemeId): InputDevice => ({ id: `keyboard:${scheme}`, label: '', kind: 'keyboard', connected: true, scheme, sample: () => undefined }) as InputDevice;

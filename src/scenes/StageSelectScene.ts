@@ -10,11 +10,13 @@ import { footerHint, type MenuVerb } from '../input/prompts';
 
 const FOOTER: readonly (readonly [MenuVerb, string])[] = [
   ['updown', 'MOVE'],
+  ['leftright', 'FORM'],
   ['confirm', 'FIGHT'],
   ['back', 'BACK'],
 ];
 import type { MenuEvent } from '../input/menuInput';
 import { STAGE_LIST } from '../stages';
+import { FORM_NAMES, STAGE_FORMS, stageInForm } from '../stages/forms';
 import { COLORS, MenuList, MenuScene, drawPanel, text, textPx, type MenuBackdrop } from '../ui/menuKit';
 import { stageThumb } from '../ui/stageThumb';
 import { ensureStageArt, stageArtReady } from '../art/stageArt';
@@ -26,12 +28,23 @@ export function randomStage(pool: readonly string[] | undefined, rand: () => num
   return from[Math.min(from.length - 1, Math.floor(rand() * from.length))].id;
 }
 
+const previews = new Map<StageData, StageData>();
+/** A stage form under its own id for the preview (`classic~battlefield`): cached, so the preview texture is reused. */
+function previewOf(stage: StageData): StageData {
+  let p = previews.get(stage);
+  if (!p) {
+    p = { ...stage, id: `${stage.id}~${stage.form}` };
+    previews.set(stage, p);
+  }
+  return p;
+}
+
 const NUMBER_WORDS = ['NO', 'ONE', 'TWO', 'THREE', 'FOUR', 'FIVE', 'SIX', 'SEVEN', 'EIGHT', 'NINE', 'TEN'];
 
 /** Platform counts read from the stage data: the solid ground pieces and the thin pass-through ones. */
 export function platformCounts(stage: StageData): { solid: number; pass: number; moving: number } {
   const solid = stage.platforms.filter((p) => p.kind !== 'pass').length;
-  return { solid, pass: stage.platforms.length - solid, moving: stage.platforms.filter((p) => p.move).length };
+  return { solid, pass: stage.platforms.length - solid, moving: stage.platforms.filter((p) => p.move || p.path).length };
 }
 
 /** A blurb's "three pass-through platforms" corrected to the stage's real count (the tags beside it count from the data too). */
@@ -77,10 +90,12 @@ export class StageSelectScene extends MenuScene {
 
   /** Starts building a stage's art in the background (once per visit). */
   private request(i: number): void {
-    const st = STAGE_LIST[(i + STAGE_LIST.length) % STAGE_LIST.length];
-    if (!st || this.requested.has(st.id) || stageArtReady(this, st)) return;
-    this.requested.add(st.id);
-    void ensureStageArt(this, st.id).catch(() => undefined);
+    const base = STAGE_LIST[(i + STAGE_LIST.length) % STAGE_LIST.length];
+    const st = base && stageInForm(base, session.rules.stageForm);
+    const key = st && `${st.id}:${st.form ?? ''}`;
+    if (!st || !key || this.requested.has(key) || stageArtReady(this, st)) return;
+    this.requested.add(key);
+    void ensureStageArt(this, st).catch(() => undefined);
   }
 
   /** Matches played per stage id (lifetime stats). */
@@ -103,9 +118,16 @@ export class StageSelectScene extends MenuScene {
     if (!palettesReady(this, wants)) ensurePalettesReady(this, wants).catch(() => undefined);
     this.title = this.add.bitmapText(0, 0, PIXEL_FONT, 'CHOOSE A STAGE').setOrigin(0.5).setTint(COLORS.title);
     this.ui.add(this.title);
+    // left / right picks the form (NORMAL, BATTLEFIELD, PLAIN) for every stage: it is a match rule, kept for RANDOM too
+    const form = (d: number) => (): void => {
+      const i = STAGE_FORMS.indexOf(session.rules.stageForm ?? 'normal');
+      const f = STAGE_FORMS[(Math.max(0, i) + d + STAGE_FORMS.length) % STAGE_FORMS.length];
+      session.rules.stageForm = f === 'normal' ? undefined : f;
+    };
+    const formValue = (): string => (session.rules.stageForm && session.rules.stageForm !== 'normal' ? FORM_NAMES[session.rules.stageForm] : '');
     this.list = new MenuList(this, this.ui, [
-      ...STAGE_LIST.map((s) => ({ label: s.name, onConfirm: () => this.pick(s.id, false) })),
-      { label: 'RANDOM', onConfirm: () => this.pick(randomStage(session.rules.stagePool), true) },
+      ...STAGE_LIST.map((s) => ({ label: s.name, value: formValue, onLeft: form(-1), onRight: form(1), onConfirm: () => this.pick(s.id, false) })),
+      { label: 'RANDOM', value: formValue, onLeft: form(-1), onRight: form(1), onConfirm: () => this.pick(randomStage(session.rules.stagePool), true) },
     ]);
     this.requested.clear();
     this.thumb = this.add.image(0, 0, '__WHITE').setOrigin(0, 0).setVisible(false);
@@ -179,7 +201,8 @@ export class StageSelectScene extends MenuScene {
     const g = this.preview;
     g.clear();
     const a = this.area;
-    const stage = STAGE_LIST[this.list.index];
+    const base = STAGE_LIST[this.list.index];
+    const stage = base ? stageInForm(base, session.rules.stageForm) : undefined;
     // the whole screen's backdrop turns into the highlighted stage's world (RANDOM keeps the last one)
     if (stage && stage.background.theme !== this.theme) {
       this.theme = stage.background.theme;
@@ -188,7 +211,8 @@ export class StageSelectScene extends MenuScene {
     // the focused stage's art (and its neighbours') builds in the background; the preview shows once it is there
     if (stage) for (const d of [0, 1, -1]) this.request(this.list.index + d);
     if (stage && stageArtReady(this, stage)) {
-      this.thumb.setTexture(stageThumb(this, stage)).setVisible(true);
+      // a form gets its own preview texture (the preview is cached by stage id); its pieces are the stage's own
+      this.thumb.setTexture(stageThumb(this, stage.form ? previewOf(stage) : stage)).setVisible(true);
       const k = Math.min(a.w / this.thumb.width, a.h / this.thumb.height);
       this.thumb.setScale(k).setPosition(a.x + (a.w - this.thumb.width * k) / 2, a.y + (a.h - this.thumb.height * k) / 2);
     } else {
@@ -202,8 +226,10 @@ export class StageSelectScene extends MenuScene {
       const bw0 = stage.blast.right - stage.blast.left;
       const size = bw0 > 1500 ? 'LARGE' : bw0 > 1150 ? 'MEDIUM' : 'SMALL';
       const pc = platformCounts(stage);
-      const tags = [`SIZE: ${size}`, `GROUND: ${pc.solid}`, `PASS-THROUGH: ${pc.pass}`];
+      const tags = [`FORM: ${FORM_NAMES[stage.form ?? 'normal']}`, `SIZE: ${size}`, `GROUND: ${pc.solid}`, `PASS-THROUGH: ${pc.pass}`];
       if (pc.moving) tags.push(`MOVING: ${pc.moving}`);
+      if (stage.walkOff) tags.push('WALK-OFF');
+      if (stage.phases?.length) tags.push(`TRAVELLING: ${stage.phases.length} LEGS`);
       if (stage.hazards?.length) {
         const h = stage.hazards[0];
         tags.push(`HAZARD: ${h.kind === 'bolt' ? 'LIGHTNING' : h.kind === 'stalactite' ? 'STALACTITES' : h.kind === 'avalanche' ? 'AVALANCHES' : h.style === 'water' ? 'WATER SPOUTS' : 'GEYSER'}`);

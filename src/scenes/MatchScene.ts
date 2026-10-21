@@ -1,4 +1,5 @@
 import Phaser from 'phaser';
+import { profileLabel } from '../game/profiles';
 import { ALT_LOOKS, assignPalettes } from '../art/palettes';
 import { ensureStageArt, stageArtReady } from '../art/stageArt';
 import { PIXEL_FONT, up } from '../art/pixelFont';
@@ -406,7 +407,7 @@ export class MatchScene extends Phaser.Scene {
     // with several CPUs each gets its port number so stacked tags and HUDs can be told apart
     const kind = (i: number): 'human' | 'cpu' => (rep ? (rep.players[i]?.type ?? 'cpu') : this.slots[i].type === 'human' ? 'human' : 'cpu');
     const cpus = this.slots.filter((s, i) => kind(i) === 'cpu' && !s.boss).length;
-    this.labels = this.slots.map((s, i) => (s.boss ? 'BOSS' : this.isTraining ? (i === 0 ? 'YOU' : 'DUMMY') : kind(i) === 'cpu' ? (cpus > 1 ? `CPU${i + 1}` : 'CPU') : `P${i + 1}`));
+    this.labels = this.slots.map((s, i) => (s.boss ? 'BOSS' : this.isTraining ? (i === 0 ? 'YOU' : 'DUMMY') : kind(i) === 'cpu' ? (cpus > 1 ? `CPU${i + 1}` : 'CPU') : profileLabel(`P${i + 1}`)));
     this.tags = new PlayerTags(this, this.uiLayer, this.fighters, this.views, this.labels, tagColors);
     this.bubblesSay = new TauntBubbles(this, this.uiLayer, this.fighters, this.views);
     this.cutIn = new UltCutIn(this, this.uiLayer);

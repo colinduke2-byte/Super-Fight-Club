@@ -74,9 +74,24 @@ export const havoc: CharacterData = {
   difficulty: 4,
   persona: {
     intro: 'Havoc was sent in to shut the arena down quietly. Quiet is not really his style.',
+    bio: 'A demolitions soldier sent in to shut the arena down quietly. Havoc plants charges, steers rockets and blows things up on command, which is the only kind of quiet Havoc knows.',
     taunt: 'Fire in the hole. That means you.',
+    // in-match taunt bubbles take turns through these
+    taunts: [
+      'Fire in the hole. That means you.',
+      'Danger close. You, specifically.',
+      'I brought enough for everyone.',
+      'Duck. Too late.',
+    ],
     epilogue: 'Havoc radios in: "Arena neutralised." Behind him the Hollow lights up like a festival. Mission accomplished, loudly.',
     victory: 'Mission complete. Collateral: you.',
+    victories: [
+      'Mission complete. Collateral: you.',
+      'Target neutralised. Loudly.',
+      'Area secured. Mostly on fire.',
+    ],
+    // against their RIVAL (routes.ts): the line before the fight, and the one after beating them
+    rival: { taunt: 'Brick. Orders say that gate comes down. Nothing personal. Mostly.', victory: 'Gate\'s open, Brick. No hard feelings. Some craters.' },
   },
   stats: {
     weight: 99,

@@ -22,10 +22,12 @@ type Job = { key: string; task: Task };
 
 function jobs(stage: StageData): Job[] {
   const theme = stage.background.theme;
+  // a stage form previewed under its own id (`classic~battlefield`, for its own preview texture) shares the stage's pieces
+  const id = stage.id.split('~')[0];
   return stage.platforms.map((p, index) =>
     p.kind === 'solid'
-      ? { key: `mass:${stage.id}:${index}:${p.w}x${p.h}`, task: { kind: 'mass', args: [theme, p.w, p.h, index + 1, isSeated(p, stage.platforms)] } }
-      : { key: `plat:${stage.id}:${index}:${p.w}x${p.h}:${p.move ? 'm' : 'p'}`, task: { kind: 'plat', args: [theme, p.w, p.h, !!p.move, index + 1] } },
+      ? { key: `mass:${id}:${index}:${p.w}x${p.h}`, task: { kind: 'mass', args: [theme, p.w, p.h, index + 1, isSeated(p, stage.platforms)] } }
+      : { key: `plat:${id}:${index}:${p.w}x${p.h}:${p.move || p.path ? 'm' : 'p'}`, task: { kind: 'plat', args: [theme, p.w, p.h, !!(p.move || p.path), index + 1] } },
   );
 }
 

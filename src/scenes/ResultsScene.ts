@@ -9,9 +9,10 @@ import { DIFFICULTY_NAMES, ENDLESS_CARRY, RUN_NAMES, continueLadder, currentFigh
 import { rerollRandomPicks } from '../game/quick';
 import { bodyHalf, getLastTimeline, podiumShrink, podiumSpots } from '../game/results';
 import { ResultsGraph } from '../ui/ResultsGraph';
-import { creditsLine, endingCards, gameOverCard } from '../game/story';
+import { creditsLine, endingCards, gameOverCard, victoryLine } from '../game/story';
+import { activeProfileName, noteProfileResult } from '../game/profiles';
 import { activeTurns, restartTurns, standings, turnLabel } from '../game/turns';
-import { session, teamName } from '../game/session';
+import { session, tallySeries, teamName } from '../game/session';
 import type { CharacterData } from '../engine/types';
 import { OVERSEER_PHASE2_SKIN, requestOverseerPhase2 } from '../ui/BossCinematic';
 import { STAGES } from '../stages';
@@ -132,9 +133,15 @@ export class ResultsScene extends MenuScene {
     const r = session.lastResult;
     const arcade = session.mode === 'arcade' && !!session.ladder;
     const winner = r ? r.winner : -1;
-    // same names as the in-match tags: P1, CPU (numbered by port when there are several)
+    // same names as the in-match tags: P1 (or the profile name picked on character select), CPU (numbered by port when there are several)
     const cpus = r ? r.players.filter((p) => p.type === 'cpu').length : 0;
-    const nameOf = (p: { type: string; index: number }): string => (p.type === 'cpu' ? (cpus > 1 ? `CPU${p.index + 1}` : 'CPU') : `P${p.index + 1}`);
+    const nameOf = (p: { type: string; index: number }): string => (p.type === 'cpu' ? (cpus > 1 ? `CPU${p.index + 1}` : 'CPU') : (activeProfileName(p.index) ?? `P${p.index + 1}`));
+    // named players' win counts (versus and arcade fights; once per result)
+    if (r && !session.demo && (session.mode === 'versus' || session.mode === 'arcade')) {
+      const humans = r.players.filter((p) => p.type === 'human').map((p) => p.index);
+      const won = r.players.filter((p) => (r.winnerTeam >= 0 ? p.team === r.winnerTeam : p.index === r.winner)).map((p) => p.index);
+      noteProfileResult(r, humans, won);
+    }
     const wp0 = r && winner >= 0 ? r.players.find((p) => p.index === winner) : undefined;
     let label = !r ? 'MATCH OVER' : winner < 0 ? 'DRAW' : r.winnerTeam >= 0 ? `TEAM ${teamName(r.winnerTeam)} WINS` : `${wp0 ? nameOf(wp0) : `P${winner + 1}`} WINS`;
     // arcade: record the fight and decide what comes next
@@ -211,7 +218,9 @@ export class ResultsScene extends MenuScene {
       this.champHalf = bodyHalf(wc) * podiumShrink(wc);
       if (this.endedEnraged(wp)) this.enragedSkin(this.champ, wc, true);
       this.champName = text(this, this.ui, wc.name.replace('The ', '').toUpperCase(), this.champColor).setOrigin(0.5);
-      if (wc.persona?.victory) this.champLine = text(this, this.ui, up(`"${wc.persona.victory}"`), COLORS.dim).setOrigin(0.5);
+      // one of their victory lines (the one saved for their rival when the rival is among the beaten)
+      const said = victoryLine(wc.id, r ? r.players.filter((p) => p !== wp).map((p) => p.character) : []);
+      if (said) this.champLine = text(this, this.ui, up(`"${said}"`), COLORS.dim).setOrigin(0.5);
     }
     if (lr) {
       const m = (v: number | null): string => (v !== null && v > 0 ? `${v.toFixed(1)} M` : '--');
@@ -242,7 +251,7 @@ export class ResultsScene extends MenuScene {
       const sorted = [...r.players].sort((a, b) => a.placement - b.placement);
       for (const p of sorted) {
         const name = (characterById(p.character)?.name ?? p.character).replace('The ', '');
-        const who = `${p.placement}. ${nameOf(p)}`;
+        const who = `${p.placement}. ${nameOf(p).slice(0, 6)}`;
         const line = `${who.padEnd(9)} ${name.slice(0, 10).padEnd(10)} ${String(p.kos).padStart(3)}  ${String(p.falls).padStart(5)}  ${String(Math.round(p.damageDealt)).padStart(6)}  ${String(p.bestCombo ?? 0).padStart(5)}  ${String(timed ? p.kos - p.falls : p.stocks).padStart(6)}`;
         this.rows.push(text(this, this.ui, line, p.index === winner ? COLORS.hot : COLORS.p[p.team >= 0 ? p.team : p.index % 4]));
       }
@@ -295,6 +304,17 @@ export class ResultsScene extends MenuScene {
           this.awardTexts.push(text(this, this.ui, `${a.title.padEnd(15)}${a.detail}`, COLORS.p[port]));
           this.awardPorts.push(port);
         }
+      }
+      // a best-of series: the tally so far, and who took it once it is decided (counting is idempotent)
+      const series = tallySeries(session);
+      if (series) {
+        if (!this.awardHead) this.awardHead = text(this, this.ui, 'SERIES', COLORS.title);
+        const who = (slot: number): string => {
+          const p = r.players.find((q) => q.index === slot);
+          return p ? nameOf(p) : `P${slot + 1}`;
+        };
+        note(`BEST OF ${series.bestOf}  GAME ${series.games}   ${series.wins.map((n, i) => `${who(i)} ${n}`).join('  ')}`, COLORS.hint);
+        if (series.champion !== -1) note(`${series.champion <= -2 ? `TEAM ${teamName(-2 - series.champion)}` : who(series.champion)} WINS THE SERIES`, COLORS.good);
       }
     }
     const items: MenuItem[] = [];

@@ -64,6 +64,9 @@ interface AttackView {
 }
 
 /** Renders one Fighter: interpolates between sim ticks so 120/144 Hz displays animate smoothly. */
+/** Sim ticks a pummel shows the grab's first frame for, so each pummel reads as a jab. */
+const PUMMEL_FLASH = 5;
+
 export class FighterView {
   readonly sprite: Phaser.GameObjects.Sprite;
   private lastAnim = '';
@@ -198,6 +201,9 @@ export class FighterView {
   /** What the fighter carries (set by the match scene each frame): only a bomb is drawn here; EntityViews draws the sword and ray gun. */
   heldKind: string | null = null;
 
+  /** Sim ticks left of the pummel flash (see update). */
+  private pummelFlash = 0;
+
   update(alpha: number, tick: number): void {
     const f = this.fighter;
     const a = f.snapped ? 1 : alpha;
@@ -243,9 +249,13 @@ export class FighterView {
     if (snapTo !== null) this.y = snapTo;
 
     const posed = f.state === 'attack' || f.state === 'holding';
+    // a pummel (the grabber's hitlag starting while it holds someone): the grab's reach-in frame flashes for a few ticks
+    if (f.state === 'holding' && f.hitlag > 0 && this.lastHitlag === 0) this.pummelFlash = PUMMEL_FLASH;
+    else if (f.state !== 'holding') this.pummelFlash = 0;
+    else if (this.pummelFlash > 0) this.pummelFlash = Math.max(0, this.pummelFlash - dt);
     if (posed) {
       // attack poses are driven by the move phase (wind-up / active / recovery), not by a timer
-      const frame = f.state === 'holding' ? 1 : f.attackPhase;
+      const frame = f.state === 'holding' ? (this.pummelFlash > 0 ? 0 : 1) : f.attackPhase;
       if (f.anim !== this.poseAnim || frame !== this.poseFrame) {
         s.anims.stop();
         s.setFrame(animFrameIndex(f.data, f.anim, frame));

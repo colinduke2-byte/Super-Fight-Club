@@ -7,6 +7,8 @@ import { characterById } from '../characters';
 import type { CharacterData } from '../engine/types';
 import { lastInput } from '../input/prompts';
 import { session } from '../game/session';
+import { rivalLine } from '../game/story';
+import { activeProfileName } from '../game/profiles';
 import type { MenuEvent } from '../input/menuInput';
 import { settings } from '../settings';
 import { STAGES } from '../stages';
@@ -40,6 +42,8 @@ export class VersusSplashScene extends MenuScene {
   private vs!: Phaser.GameObjects.BitmapText;
   private stageName!: Phaser.GameObjects.BitmapText;
   private fightNo!: Phaser.GameObjects.BitmapText;
+  /** The rival's line to the player when the main rival is their RIVAL (null otherwise). */
+  private quote: Phaser.GameObjects.BitmapText | null = null;
   /** "PRESS ANY BUTTON TO SKIP" (or TAP) in the corner. */
   private skip!: Phaser.GameObjects.BitmapText;
   private done = false;
@@ -70,7 +74,11 @@ export class VersusSplashScene extends MenuScene {
     this.sides = [];
     const players = session.players;
     const human = players.find((p) => p.type === 'human') ?? players[0];
-    const rivals = players.filter((p) => p !== human);
+    // the player's side: everyone on slot 0's team (a co-op partner, a team fight's ally); the rest are the rivals
+    const side = players[0]?.team;
+    const friend = (p: (typeof players)[number]): boolean => p !== human && side !== undefined && p.team === side;
+    const mates = players.filter(friend);
+    const rivals = players.filter((p) => p !== human && !friend(p));
     const add = (slot: (typeof players)[number] | undefined, dir: -1 | 1, rank: number): void => {
       const c = slot ? characterById(slot.character) : undefined;
       if (!slot || !c) return;
@@ -81,15 +89,21 @@ export class VersusSplashScene extends MenuScene {
       this.strikePose(sprite, c, skin);
       if (rank > 0) sprite.setTint(0xb8b0d8);
       const port = slot.index % 4;
-      const color = slot.boss ? 0x4ae4ff : COLORS.p[port];
-      const name = text(this, this.ui, c.name.replace('The ', '').toUpperCase(), color).setOrigin(dir === -1 ? 0 : 1, 0.5);
+      const color = slot.boss ? 0xb685ff : COLORS.p[port];
+      // a named player shows their name with the fighter's
+      const who = slot.type === 'human' ? activeProfileName(slot.index) : null;
+      const name = text(this, this.ui, `${who ? `${who}: ` : ''}${c.name.replace('The ', '')}`.toUpperCase(), color).setOrigin(dir === -1 ? 0 : 1, 0.5);
       this.sides.push({ sprite, name, k: uiTexK(c), color, port, dir, rank });
     };
     // the rivals' back-up fighters first, so the main ones draw over them
     rivals.slice(1).forEach((r, i) => add(r, 1, i + 1));
     add(rivals[0], 1, 0);
+    mates.forEach((m, i) => add(m, -1, i + 1));
     add(human, -1, 0);
     for (const s of this.sides) this.ui.add([s.sprite, s.name]);
+    // their RIVAL has something to say
+    const line = rivals[0] && human ? rivalLine(rivals[0].character, human.character) : null;
+    this.quote = line ? text(this, this.ui, up(`"${line}"`), COLORS.text).setOrigin(0.5).setCenterAlign() : null;
     if (players.some((p) => p.boss)) announcer.bossWarning();
     this.vs = this.add.bitmapText(0, 0, PIXEL_FONT, 'VS').setOrigin(0.5).setTint(COLORS.hot);
     this.stageName = text(this, this.ui, up(stage?.name ?? ''), COLORS.text).setOrigin(0.5);
@@ -159,7 +173,7 @@ export class VersusSplashScene extends MenuScene {
     for (const sd of this.sides) {
       const k = this.ease(time, sd.dir === -1 ? 0.05 : 0.12, 0.35);
       const back = sd.rank > 0;
-      const baseX = sd.dir === -1 ? w * 0.25 : w * (back ? 0.86 - (sd.rank - 1) * 0.1 : 0.72);
+      const baseX = sd.dir === -1 ? w * (back ? 0.12 + (sd.rank - 1) * 0.1 : 0.25) : w * (back ? 0.86 - (sd.rank - 1) * 0.1 : 0.72);
       const x = baseX + sd.dir * (1 - k) * w * 0.4;
       const y = back ? floor - 14 * s : floor;
       sd.sprite.setScale(s * (back ? 0.72 : 1) * sd.k).setPosition(x, y);
@@ -182,6 +196,14 @@ export class VersusSplashScene extends MenuScene {
     const ve = this.ease(time, 0.25, 0.25);
     this.vs.setScale(u * 8 * (1 + (1 - ve) * 1.5)).setAlpha(ve).setPosition(mid, h * 0.45);
     this.fightNo.setAlpha(this.ease(time, 0.2, 0.3));
+    if (this.quote) {
+      // under the fight's title, on its own dark band (clear of the VS and the fighters)
+      const q = this.quote;
+      const qa = this.ease(time, 0.45, 0.3);
+      const qk = Math.min(u * 1.2, (w * 0.8) / Math.max(1, textPx(q)));
+      q.setScale(qk).setPosition(mid, this.fightNo.y + this.fightNo.displayHeight / 2 + 8 * u + (7 * qk) / 2).setAlpha(qa);
+      g.fillStyle(0x0a0820, 0.8 * qa).fillRect(mid - q.displayWidth / 2 - 6 * u, q.y - q.displayHeight / 2 - 3 * u, q.displayWidth + 12 * u, q.displayHeight + 6 * u);
+    }
     this.stageName.setAlpha(this.ease(time, 0.35, 0.3));
     g.fillStyle(0x0a0820, 0.8 * this.stageName.alpha).fillRect(w / 2 - this.stageName.displayWidth / 2 - 8 * u, this.stageName.y - this.stageName.displayHeight / 2 - 4 * u, this.stageName.displayWidth + 16 * u, this.stageName.displayHeight + 8 * u);
     this.skip.setAlpha(this.ease(time, 0.5, 0.3) * 0.85);

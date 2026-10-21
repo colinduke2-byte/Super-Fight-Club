@@ -1,0 +1,2652 @@
+{
+ "projectiles": {
+  "quake": {
+   "w": 10,
+   "h": 12,
+   "life": 22,
+   "pierce": true,
+   "hit": {
+    "x": 0,
+    "y": 0,
+    "w": 1,
+    "h": 1,
+    "damage": 4,
+    "angle": 65,
+    "base": 30,
+    "scaling": 0.45,
+    "hitlag": 1.1,
+    "fx": "heavy",
+    "dir": "away"
+   },
+   "look": {
+    "shape": "bolt",
+    "color": "#ff9a6a",
+    "size": 0.9
+   }
+  },
+  "orb": {
+   "w": 8,
+   "h": 8,
+   "gravity": 0.02,
+   "life": 70,
+   "health": 1,
+   "hit": {
+    "x": 0,
+    "y": 0,
+    "w": 1,
+    "h": 1,
+    "damage": 3.5,
+    "angle": 40,
+    "base": 24,
+    "scaling": 0.35,
+    "hitlag": 1,
+    "fx": "blast"
+   },
+   "look": {
+    "shape": "orb",
+    "color": "#6ae8ff",
+    "size": 0.85
+   }
+  },
+  "beam": {
+   "w": 60,
+   "h": 11,
+   "life": 18,
+   "pierce": true,
+   "hit": {
+    "x": 0,
+    "y": 0,
+    "w": 1,
+    "h": 1,
+    "damage": 9,
+    "angle": 32,
+    "base": 40,
+    "scaling": 0.62,
+    "hitlag": 1.2,
+    "fx": "blast",
+    "rehit": 40
+   },
+   "look": {
+    "shape": "beam",
+    "color": "#6ae8ff"
+   }
+  },
+  "spire": {
+   "w": 14,
+   "h": 56,
+   "life": 14,
+   "pierce": true,
+   "hit": {
+    "x": 0,
+    "y": 0,
+    "w": 1,
+    "h": 1,
+    "damage": 9,
+    "angle": 84,
+    "base": 40,
+    "scaling": 0.7,
+    "hitlag": 1.15,
+    "fx": "heavy",
+    "rehit": 40
+   },
+   "look": {
+    "shape": "beam",
+    "color": "#b685ff"
+   }
+  },
+  "pillar": {
+   "w": 24,
+   "h": 82,
+   "life": 18,
+   "pierce": true,
+   "hit": {
+    "x": 0,
+    "y": 0,
+    "w": 1,
+    "h": 1,
+    "damage": 18,
+    "angle": 82,
+    "base": 80,
+    "scaling": 1,
+    "hitlag": 1.3,
+    "fx": "heavy"
+   },
+   "look": {
+    "shape": "beam",
+    "color": "#ff7a30"
+   }
+  }
+ },
+ "deployables": {
+  "warn": {
+   "w": 7,
+   "h": 7,
+   "health": 999,
+   "limit": 8,
+   "life": 34,
+   "look": {
+    "shape": "marker",
+    "color": "#ff4a4a"
+   }
+  }
+ },
+ "moves": {
+  "jab1": {
+   "name": "Claw Swipe",
+   "kind": "jab",
+   "anim": "jab",
+   "startup": 5,
+   "active": 2,
+   "recovery": 10,
+   "next": {
+    "id": "jab2",
+    "from": 6,
+    "to": 12,
+    "at": 12
+   },
+   "cancels": [
+    {
+     "button": "attack",
+     "into": "ftilt",
+     "from": 6,
+     "dir": "forward"
+    }
+   ],
+   "hitboxes": [
+    {
+     "x": 22,
+     "y": -20,
+     "w": 30,
+     "h": 18,
+     "damage": 3.5,
+     "angle": 361,
+     "base": 12,
+     "scaling": 0.2,
+     "minHitstun": 20,
+     "setKb": 16,
+     "fx": "punch"
+    }
+   ],
+   "pose": {
+    "t": "custom",
+    "keys": [
+     [
+      -4,
+      2,
+      [
+       -6,
+       -40
+      ],
+      [
+       -6,
+       -8
+      ],
+      [
+       8,
+       0
+      ],
+      [
+       -10,
+       0
+      ]
+     ],
+     [
+      6,
+      4,
+      [
+       28,
+       -22
+      ],
+      [
+       -10,
+       -6
+      ],
+      [
+       16,
+       0
+      ],
+      [
+       -12,
+       0
+      ]
+     ],
+     [
+      2,
+      2,
+      [
+       14,
+       -10
+      ],
+      [
+       -6,
+       -4
+      ],
+      [
+       10,
+       0
+      ],
+      [
+       -10,
+       0
+      ]
+     ]
+    ]
+   },
+   "view": {
+    "arc": "curve",
+    "stretch": 1.04
+   }
+  },
+  "jab2": {
+   "name": "Twin Rake",
+   "kind": "jab",
+   "anim": "jabB",
+   "startup": 6,
+   "active": 3,
+   "recovery": 17,
+   "cancels": [
+    {
+     "button": "smash",
+     "into": "fsmash",
+     "from": 8
+    },
+    {
+     "button": "grab",
+     "into": "grab",
+     "from": 8
+    }
+   ],
+   "motion": [
+    {
+     "frame": 4,
+     "vx": 1
+    }
+   ],
+   "hitboxes": [
+    {
+     "x": 24,
+     "y": -20,
+     "w": 34,
+     "h": 22,
+     "damage": 5,
+     "angle": 35,
+     "base": 52,
+     "scaling": 0.5,
+     "hitlag": 1.2,
+     "fx": "heavy"
+    }
+   ],
+   "pose": {
+    "t": "custom",
+    "keys": [
+     [
+      -4,
+      2,
+      [
+       -6,
+       -40
+      ],
+      [
+       -6,
+       -8
+      ],
+      [
+       8,
+       0
+      ],
+      [
+       -10,
+       0
+      ]
+     ],
+     [
+      6,
+      4,
+      [
+       28,
+       -22
+      ],
+      [
+       -10,
+       -6
+      ],
+      [
+       16,
+       0
+      ],
+      [
+       -12,
+       0
+      ]
+     ],
+     [
+      2,
+      2,
+      [
+       14,
+       -10
+      ],
+      [
+       -6,
+       -4
+      ],
+      [
+       10,
+       0
+      ],
+      [
+       -10,
+       0
+      ]
+     ]
+    ]
+   },
+   "view": {
+    "arc": "curve"
+   }
+  },
+  "ftilt": {
+   "name": "Talon Lash",
+   "kind": "tilt",
+   "anim": "jab",
+   "startup": 8,
+   "active": 3,
+   "recovery": 16,
+   "cancels": [
+    {
+     "button": "jump",
+     "into": "@jump",
+     "from": 7
+    }
+   ],
+   "hitboxes": [
+    {
+     "x": 28,
+     "y": -20,
+     "w": 38,
+     "h": 18,
+     "damage": 9,
+     "angle": 40,
+     "base": 34,
+     "scaling": 0.7,
+     "hitlag": 1.1,
+     "fx": "punch"
+    }
+   ],
+   "pose": {
+    "t": "custom",
+    "keys": [
+     [
+      -4,
+      2,
+      [
+       -6,
+       -40
+      ],
+      [
+       -6,
+       -8
+      ],
+      [
+       8,
+       0
+      ],
+      [
+       -10,
+       0
+      ]
+     ],
+     [
+      6,
+      4,
+      [
+       28,
+       -22
+      ],
+      [
+       -10,
+       -6
+      ],
+      [
+       16,
+       0
+      ],
+      [
+       -12,
+       0
+      ]
+     ],
+     [
+      2,
+      2,
+      [
+       14,
+       -10
+      ],
+      [
+       -6,
+       -4
+      ],
+      [
+       10,
+       0
+      ],
+      [
+       -10,
+       0
+      ]
+     ]
+    ]
+   },
+   "view": {
+    "arc": "curve",
+    "stretch": 1.04
+   }
+  },
+  "utilt": {
+   "name": "Crown Sweep",
+   "kind": "tilt",
+   "anim": "smashU",
+   "startup": 8,
+   "active": 4,
+   "recovery": 15,
+   "cancels": [
+    {
+     "button": "jump",
+     "into": "@jump",
+     "from": 6
+    },
+    {
+     "button": "smash",
+     "into": "usmash",
+     "from": 7
+    }
+   ],
+   "hitboxes": [
+    {
+     "x": 4,
+     "y": -38,
+     "w": 42,
+     "h": 28,
+     "damage": 7.5,
+     "angle": 85,
+     "base": 32,
+     "scaling": 0.66,
+     "dir": "away",
+     "fx": "punch"
+    }
+   ],
+   "pose": {
+    "t": "custom",
+    "keys": [
+     [
+      -2,
+      8,
+      [
+       0,
+       -6
+      ],
+      [
+       -6,
+       -10
+      ],
+      [
+       10,
+       0
+      ],
+      [
+       -10,
+       0
+      ],
+      0,
+      0.1
+     ],
+     [
+      -4,
+      0,
+      [
+       6,
+       -80
+      ],
+      [
+       -8,
+       -20
+      ],
+      [
+       8,
+       0
+      ],
+      [
+       -8,
+       0
+      ],
+      0,
+      0.35
+     ],
+     [
+      -2,
+      0,
+      [
+       6,
+       -50
+      ],
+      [
+       -6,
+       -12
+      ],
+      [
+       6,
+       0
+      ],
+      [
+       -6,
+       0
+      ]
+     ]
+    ]
+   },
+   "view": {
+    "arc": "curve"
+   }
+  },
+  "dtilt": {
+   "name": "Low Rake",
+   "kind": "tilt",
+   "anim": "sweep",
+   "startup": 8,
+   "active": 3,
+   "recovery": 13,
+   "cancels": [
+    {
+     "button": "jump",
+     "into": "@jump",
+     "from": 6
+    },
+    {
+     "button": "attack",
+     "into": "ftilt",
+     "from": 6,
+     "dir": "forward"
+    }
+   ],
+   "hitboxes": [
+    {
+     "x": 28,
+     "y": -4,
+     "w": 40,
+     "h": 10,
+     "damage": 7,
+     "angle": 72,
+     "base": 26,
+     "scaling": 0.5,
+     "fx": "punch"
+    }
+   ],
+   "pose": {
+    "t": "custom",
+    "keys": [
+     [
+      0,
+      0,
+      [
+       4,
+       -60
+      ],
+      [
+       -4,
+       -60
+      ],
+      [
+       10,
+       8
+      ],
+      [
+       -10,
+       0
+      ],
+      0,
+      0.2
+     ],
+     [
+      2,
+      10,
+      [
+       20,
+       10
+      ],
+      [
+       -14,
+       10
+      ],
+      [
+       16,
+       0
+      ],
+      [
+       -16,
+       0
+      ],
+      0,
+      0.55
+     ],
+     [
+      0,
+      8,
+      [
+       12,
+       4
+      ],
+      [
+       -10,
+       4
+      ],
+      [
+       14,
+       0
+      ],
+      [
+       -14,
+       0
+      ]
+     ]
+    ]
+   },
+   "view": {
+    "arc": "none"
+   }
+  },
+  "dashAttack": {
+   "name": "Warden Rush",
+   "kind": "dashAttack",
+   "anim": "shoulder",
+   "startup": 8,
+   "active": 8,
+   "recovery": 20,
+   "motion": [
+    {
+     "frame": 3,
+     "vx": 3
+    }
+   ],
+   "cancels": [
+    {
+     "button": "grab",
+     "into": "grab",
+     "from": 10
+    }
+   ],
+   "hitboxes": [
+    {
+     "x": 22,
+     "y": -18,
+     "w": 32,
+     "h": 28,
+     "damage": 10,
+     "angle": 45,
+     "base": 40,
+     "scaling": 0.78,
+     "hitlag": 1.1,
+     "fx": "heavy"
+    }
+   ],
+   "pose": {
+    "t": "custom",
+    "keys": [
+     [
+      -8,
+      0,
+      [
+       -4,
+       -68
+      ],
+      [
+       6,
+       -62
+      ],
+      [
+       6,
+       0
+      ],
+      [
+       -12,
+       0
+      ],
+      0,
+      0.2
+     ],
+     [
+      10,
+      8,
+      [
+       30,
+       -14
+      ],
+      [
+       26,
+       -8
+      ],
+      [
+       20,
+       0
+      ],
+      [
+       -14,
+       0
+      ],
+      0,
+      0.45
+     ],
+     [
+      6,
+      6,
+      [
+       22,
+       -4
+      ],
+      [
+       16,
+       -2
+      ],
+      [
+       16,
+       0
+      ],
+      [
+       -12,
+       0
+      ],
+      0,
+      0.1
+     ]
+    ]
+   },
+   "view": {
+    "arc": "none",
+    "ghosts": true
+   }
+  },
+  "fsmash": {
+   "name": "Overhead Slam",
+   "kind": "smash",
+   "anim": "smashF",
+   "startup": 19,
+   "active": 4,
+   "recovery": 32,
+   "charge": {
+    "frame": 3,
+    "max": 60,
+    "damageMult": 1.4,
+    "kbMult": 1.2
+   },
+   "armor": {
+    "from": 5,
+    "to": 17,
+    "threshold": 10
+   },
+   "events": [
+    {
+     "frame": 20,
+     "action": "fx",
+     "name": "slam"
+    }
+   ],
+   "hitboxes": [
+    {
+     "x": 32,
+     "y": -14,
+     "w": 46,
+     "h": 34,
+     "damage": 15,
+     "angle": 40,
+     "base": 46,
+     "scaling": 0.9,
+     "hitlag": 1.4,
+     "fx": "heavy",
+     "dir": "facing"
+    }
+   ],
+   "pose": {
+    "t": "custom",
+    "keys": [
+     [
+      -8,
+      0,
+      [
+       -4,
+       -68
+      ],
+      [
+       6,
+       -62
+      ],
+      [
+       6,
+       0
+      ],
+      [
+       -12,
+       0
+      ],
+      0,
+      0.2
+     ],
+     [
+      10,
+      8,
+      [
+       30,
+       -14
+      ],
+      [
+       26,
+       -8
+      ],
+      [
+       20,
+       0
+      ],
+      [
+       -14,
+       0
+      ],
+      0,
+      0.45
+     ],
+     [
+      6,
+      6,
+      [
+       22,
+       -4
+      ],
+      [
+       16,
+       -2
+      ],
+      [
+       16,
+       0
+      ],
+      [
+       -12,
+       0
+      ],
+      0,
+      0.1
+     ]
+    ]
+   },
+   "view": {
+    "stretch": 1.06,
+    "squash": 0.94,
+    "arc": "curve",
+    "ghosts": true
+   }
+  },
+  "usmash": {
+   "name": "Skyfist",
+   "kind": "smash",
+   "anim": "smashU",
+   "startup": 14,
+   "active": 5,
+   "recovery": 28,
+   "charge": {
+    "frame": 2,
+    "max": 60,
+    "damageMult": 1.4,
+    "kbMult": 1.2
+   },
+   "hitboxes": [
+    {
+     "x": 4,
+     "y": -36,
+     "w": 40,
+     "h": 50,
+     "damage": 13,
+     "angle": 88,
+     "base": 42,
+     "scaling": 0.84,
+     "hitlag": 1.2,
+     "fx": "heavy"
+    }
+   ],
+   "pose": {
+    "t": "custom",
+    "keys": [
+     [
+      -2,
+      8,
+      [
+       0,
+       -6
+      ],
+      [
+       -6,
+       -10
+      ],
+      [
+       10,
+       0
+      ],
+      [
+       -10,
+       0
+      ],
+      0,
+      0.1
+     ],
+     [
+      -4,
+      0,
+      [
+       6,
+       -80
+      ],
+      [
+       -8,
+       -20
+      ],
+      [
+       8,
+       0
+      ],
+      [
+       -8,
+       0
+      ],
+      0,
+      0.35
+     ],
+     [
+      -2,
+      0,
+      [
+       6,
+       -50
+      ],
+      [
+       -6,
+       -12
+      ],
+      [
+       6,
+       0
+      ],
+      [
+       -6,
+       0
+      ]
+     ]
+    ]
+   },
+   "view": {
+    "stretch": 1.05,
+    "arc": "curve"
+   }
+  },
+  "dsmash": {
+   "name": "Quake",
+   "kind": "smash",
+   "anim": "smashD",
+   "startup": 14,
+   "active": 4,
+   "recovery": 30,
+   "charge": {
+    "frame": 1,
+    "max": 60,
+    "damageMult": 1.4,
+    "kbMult": 1.2
+   },
+   "events": [
+    {
+     "frame": 15,
+     "action": "fx",
+     "name": "stomp"
+    },
+    {
+     "frame": 15,
+     "action": "projectile",
+     "id": "quake",
+     "x": 30,
+     "y": -6,
+     "vx": 3,
+     "vy": 0
+    },
+    {
+     "frame": 15,
+     "action": "projectile",
+     "id": "quake",
+     "x": -30,
+     "y": -6,
+     "vx": -3,
+     "vy": 0
+    }
+   ],
+   "hitboxes": [
+    {
+     "x": 0,
+     "y": -6,
+     "w": 58,
+     "h": 16,
+     "damage": 11,
+     "angle": 35,
+     "base": 40,
+     "scaling": 0.84,
+     "hitlag": 1.2,
+     "dir": "away",
+     "fx": "heavy"
+    }
+   ],
+   "pose": {
+    "t": "custom",
+    "keys": [
+     [
+      0,
+      0,
+      [
+       4,
+       -60
+      ],
+      [
+       -4,
+       -60
+      ],
+      [
+       10,
+       8
+      ],
+      [
+       -10,
+       0
+      ],
+      0,
+      0.2
+     ],
+     [
+      2,
+      10,
+      [
+       20,
+       10
+      ],
+      [
+       -14,
+       10
+      ],
+      [
+       16,
+       0
+      ],
+      [
+       -16,
+       0
+      ],
+      0,
+      0.55
+     ],
+     [
+      0,
+      8,
+      [
+       12,
+       4
+      ],
+      [
+       -10,
+       4
+      ],
+      [
+       14,
+       0
+      ],
+      [
+       -14,
+       0
+      ]
+     ]
+    ]
+   },
+   "view": {
+    "squash": 0.9,
+    "arc": "none"
+   }
+  },
+  "nair": {
+   "name": "Spin Crush",
+   "kind": "aerial",
+   "anim": "aerialN",
+   "startup": 6,
+   "active": 16,
+   "recovery": 14,
+   "landingLag": 10,
+   "autocancel": [
+    [
+     1,
+     3
+    ],
+    [
+     28,
+     36
+    ]
+   ],
+   "cancels": [
+    {
+     "button": "attack",
+     "into": "fair",
+     "from": 8,
+     "dir": "forward",
+     "air": true
+    },
+    {
+     "button": "attack",
+     "into": "uair",
+     "from": 8,
+     "dir": "up",
+     "air": true
+    }
+   ],
+   "hitboxes": [
+    {
+     "x": 0,
+     "y": -18,
+     "w": 52,
+     "h": 38,
+     "damage": 9,
+     "angle": 50,
+     "base": 36,
+     "scaling": 0.8,
+     "hitlag": 1.1,
+     "window": [
+      1,
+      5
+     ],
+     "dir": "away"
+    },
+    {
+     "x": 0,
+     "y": -18,
+     "w": 52,
+     "h": 38,
+     "damage": 5,
+     "angle": 60,
+     "base": 22,
+     "scaling": 0.5,
+     "window": [
+      6,
+      16
+     ],
+     "dir": "away"
+    }
+   ],
+   "pose": {
+    "t": "custom",
+    "keys": [
+     [
+      -4,
+      4,
+      [
+       -6,
+       -30
+      ],
+      [
+       8,
+       -34
+      ],
+      [
+       8,
+       6
+      ],
+      [
+       -8,
+       4
+      ]
+     ],
+     [
+      2,
+      2,
+      [
+       28,
+       -30
+      ],
+      [
+       -26,
+       -30
+      ],
+      [
+       10,
+       8
+      ],
+      [
+       -10,
+       8
+      ],
+      0,
+      0.3
+     ],
+     [
+      0,
+      2,
+      [
+       10,
+       -16
+      ],
+      [
+       -10,
+       -16
+      ],
+      [
+       8,
+       6
+      ],
+      [
+       -8,
+       4
+      ]
+     ]
+    ]
+   },
+   "view": {
+    "arc": "ring"
+   }
+  },
+  "fair": {
+   "name": "Talon Dive",
+   "kind": "aerial",
+   "anim": "aerialF",
+   "startup": 11,
+   "active": 3,
+   "recovery": 18,
+   "landingLag": 13,
+   "autocancel": [
+    [
+     1,
+     4
+    ],
+    [
+     30,
+     32
+    ]
+   ],
+   "hitboxes": [
+    {
+     "x": 26,
+     "y": -12,
+     "w": 32,
+     "h": 30,
+     "damage": 12,
+     "angle": 45,
+     "base": 36,
+     "scaling": 0.85,
+     "hitlag": 1.25,
+     "fx": "heavy"
+    }
+   ],
+   "pose": {
+    "t": "overhead",
+    "hand": "both",
+    "from": [
+     -6,
+     -50
+    ],
+    "reach": 32,
+    "h": 12,
+    "lean": 8
+   },
+   "view": {
+    "arc": "curve",
+    "stretch": 1.05
+   }
+  },
+  "bair": {
+   "name": "Backhand",
+   "kind": "aerial",
+   "anim": "aerialB",
+   "startup": 8,
+   "active": 3,
+   "recovery": 14,
+   "landingLag": 10,
+   "autocancel": [
+    [
+     1,
+     4
+    ],
+    [
+     22,
+     25
+    ]
+   ],
+   "hitboxes": [
+    {
+     "x": -24,
+     "y": -18,
+     "w": 30,
+     "h": 24,
+     "damage": 11,
+     "angle": 140,
+     "base": 38,
+     "scaling": 0.9,
+     "hitlag": 1.15,
+     "fx": "heavy"
+    }
+   ],
+   "pose": {
+    "t": "elbow",
+    "hand": "back",
+    "reach": 30,
+    "h": -22
+   },
+   "view": {
+    "arc": "curve"
+   }
+  },
+  "uair": {
+   "name": "Crown Spike",
+   "kind": "aerial",
+   "anim": "aerialU",
+   "startup": 7,
+   "active": 4,
+   "recovery": 14,
+   "landingLag": 9,
+   "autocancel": [
+    [
+     1,
+     3
+    ],
+    [
+     22,
+     25
+    ]
+   ],
+   "hitboxes": [
+    {
+     "x": 2,
+     "y": -44,
+     "w": 36,
+     "h": 30,
+     "damage": 9,
+     "angle": 85,
+     "base": 36,
+     "scaling": 0.78,
+     "fx": "punch"
+    }
+   ],
+   "pose": {
+    "t": "custom",
+    "keys": [
+     [
+      -2,
+      8,
+      [
+       0,
+       -6
+      ],
+      [
+       -6,
+       -10
+      ],
+      [
+       10,
+       0
+      ],
+      [
+       -10,
+       0
+      ],
+      0,
+      0.1
+     ],
+     [
+      -4,
+      0,
+      [
+       6,
+       -80
+      ],
+      [
+       -8,
+       -20
+      ],
+      [
+       8,
+       0
+      ],
+      [
+       -8,
+       0
+      ],
+      0,
+      0.35
+     ],
+     [
+      -2,
+      0,
+      [
+       6,
+       -50
+      ],
+      [
+       -6,
+       -12
+      ],
+      [
+       6,
+       0
+      ],
+      [
+       -6,
+       0
+      ]
+     ]
+    ]
+   },
+   "view": {
+    "arc": "curve"
+   }
+  },
+  "dair": {
+   "name": "Talon Stomp",
+   "kind": "aerial",
+   "anim": "aerialD",
+   "startup": 14,
+   "active": 4,
+   "recovery": 18,
+   "landingLag": 14,
+   "autocancel": [
+    [
+     1,
+     4
+    ]
+   ],
+   "hitboxes": [
+    {
+     "x": 0,
+     "y": 4,
+     "w": 26,
+     "h": 20,
+     "damage": 10,
+     "angle": 280,
+     "base": 28,
+     "scaling": 0.6,
+     "hitlag": 1.2,
+     "fx": "meteor"
+    }
+   ],
+   "pose": {
+    "t": "stomp",
+    "reach": 10,
+    "lift": 18
+   },
+   "view": {
+    "arc": "none"
+   }
+  },
+  "grab": {
+   "name": "Seize",
+   "kind": "grab",
+   "anim": "grab",
+   "startup": 7,
+   "active": 2,
+   "recovery": 26,
+   "hitboxes": [
+    {
+     "x": 22,
+     "y": -20,
+     "w": 26,
+     "h": 22,
+     "damage": 0,
+     "angle": 0,
+     "base": 0,
+     "scaling": 0,
+     "grab": true,
+     "unblockable": true
+    }
+   ]
+  },
+  "fthrow": {
+   "name": "Cast Out",
+   "kind": "throw",
+   "anim": "throwF",
+   "pose": {
+    "t": "custom",
+    "keys": [
+     [
+      -4,
+      2,
+      [
+       -6,
+       -40
+      ],
+      [
+       -6,
+       -8
+      ],
+      [
+       8,
+       0
+      ],
+      [
+       -10,
+       0
+      ]
+     ],
+     [
+      6,
+      4,
+      [
+       28,
+       -22
+      ],
+      [
+       -10,
+       -6
+      ],
+      [
+       16,
+       0
+      ],
+      [
+       -12,
+       0
+      ]
+     ],
+     [
+      2,
+      2,
+      [
+       14,
+       -10
+      ],
+      [
+       -6,
+       -4
+      ],
+      [
+       10,
+       0
+      ],
+      [
+       -10,
+       0
+      ]
+     ]
+    ]
+   },
+   "throwDir": "forward",
+   "startup": 8,
+   "active": 1,
+   "recovery": 18,
+   "hitboxes": [
+    {
+     "x": 18,
+     "y": -18,
+     "w": 40,
+     "h": 34,
+     "damage": 7,
+     "angle": 45,
+     "base": 50,
+     "scaling": 0.53,
+     "throw": true,
+     "fx": "heavy"
+    }
+   ]
+  },
+  "bthrow": {
+   "name": "Judgement",
+   "kind": "throw",
+   "anim": "throwB",
+   "pose": {
+    "t": "custom",
+    "keys": [
+     [
+      -4,
+      4,
+      [
+       -6,
+       -30
+      ],
+      [
+       8,
+       -34
+      ],
+      [
+       8,
+       6
+      ],
+      [
+       -8,
+       4
+      ]
+     ],
+     [
+      2,
+      2,
+      [
+       28,
+       -30
+      ],
+      [
+       -26,
+       -30
+      ],
+      [
+       10,
+       8
+      ],
+      [
+       -10,
+       8
+      ],
+      0,
+      0.3
+     ],
+     [
+      0,
+      2,
+      [
+       10,
+       -16
+      ],
+      [
+       -10,
+       -16
+      ],
+      [
+       8,
+       6
+      ],
+      [
+       -8,
+       4
+      ]
+     ]
+    ]
+   },
+   "throwDir": "back",
+   "startup": 10,
+   "active": 1,
+   "recovery": 20,
+   "hitboxes": [
+    {
+     "x": 18,
+     "y": -18,
+     "w": 40,
+     "h": 34,
+     "damage": 7.5,
+     "angle": 140,
+     "base": 46,
+     "scaling": 0.68,
+     "throw": true,
+     "fx": "heavy"
+    }
+   ]
+  },
+  "uthrow": {
+   "name": "Ascend",
+   "kind": "throw",
+   "anim": "throwU",
+   "pose": {
+    "t": "custom",
+    "keys": [
+     [
+      -2,
+      8,
+      [
+       0,
+       -6
+      ],
+      [
+       -6,
+       -10
+      ],
+      [
+       10,
+       0
+      ],
+      [
+       -10,
+       0
+      ],
+      0,
+      0.1
+     ],
+     [
+      -4,
+      0,
+      [
+       6,
+       -80
+      ],
+      [
+       -8,
+       -20
+      ],
+      [
+       8,
+       0
+      ],
+      [
+       -8,
+       0
+      ],
+      0,
+      0.35
+     ],
+     [
+      -2,
+      0,
+      [
+       6,
+       -50
+      ],
+      [
+       -6,
+       -12
+      ],
+      [
+       6,
+       0
+      ],
+      [
+       -6,
+       0
+      ]
+     ]
+    ]
+   },
+   "throwDir": "up",
+   "startup": 9,
+   "active": 1,
+   "recovery": 20,
+   "hitboxes": [
+    {
+     "x": 18,
+     "y": -18,
+     "w": 40,
+     "h": 34,
+     "damage": 6,
+     "angle": 85,
+     "base": 48,
+     "scaling": 0.53,
+     "throw": true,
+     "fx": "heavy"
+    }
+   ]
+  },
+  "dthrow": {
+   "name": "Crush Underfoot",
+   "kind": "throw",
+   "anim": "throwD",
+   "pose": {
+    "t": "custom",
+    "keys": [
+     [
+      0,
+      0,
+      [
+       4,
+       -60
+      ],
+      [
+       -4,
+       -60
+      ],
+      [
+       10,
+       8
+      ],
+      [
+       -10,
+       0
+      ],
+      0,
+      0.2
+     ],
+     [
+      2,
+      10,
+      [
+       20,
+       10
+      ],
+      [
+       -14,
+       10
+      ],
+      [
+       16,
+       0
+      ],
+      [
+       -16,
+       0
+      ],
+      0,
+      0.55
+     ],
+     [
+      0,
+      8,
+      [
+       12,
+       4
+      ],
+      [
+       -10,
+       4
+      ],
+      [
+       14,
+       0
+      ],
+      [
+       -14,
+       0
+      ]
+     ]
+    ]
+   },
+   "throwDir": "down",
+   "startup": 8,
+   "active": 1,
+   "recovery": 22,
+   "hitboxes": [
+    {
+     "x": 18,
+     "y": -18,
+     "w": 40,
+     "h": 34,
+     "damage": 5.5,
+     "angle": 100,
+     "base": 45,
+     "scaling": 0.3,
+     "throw": true,
+     "fx": "heavy"
+    }
+   ]
+  },
+  "neutralB": {
+   "name": "Orb Volley",
+   "kind": "special",
+   "anim": "castF",
+   "startup": 18,
+   "active": 1,
+   "recovery": 22,
+   "events": [
+    {
+     "frame": 16,
+     "action": "fx",
+     "name": "cast"
+    },
+    {
+     "frame": 16,
+     "action": "projectile",
+     "id": "orb",
+     "x": 24,
+     "y": -26,
+     "vx": 3.2,
+     "vy": -1
+    },
+    {
+     "frame": 16,
+     "action": "projectile",
+     "id": "orb",
+     "x": 24,
+     "y": -24,
+     "vx": 3.6,
+     "vy": 0
+    },
+    {
+     "frame": 16,
+     "action": "projectile",
+     "id": "orb",
+     "x": 24,
+     "y": -22,
+     "vx": 3.2,
+     "vy": 1
+    }
+   ],
+   "hitboxes": [],
+   "pose": {
+    "t": "custom",
+    "keys": [
+     [
+      -4,
+      2,
+      [
+       -4,
+       -36
+      ],
+      [
+       -8,
+       -30
+      ],
+      [
+       8,
+       0
+      ],
+      [
+       -10,
+       0
+      ],
+      0,
+      0.5
+     ],
+     [
+      6,
+      4,
+      [
+       26,
+       -36
+      ],
+      [
+       10,
+       -30
+      ],
+      [
+       14,
+       0
+      ],
+      [
+       -12,
+       0
+      ],
+      0,
+      1
+     ],
+     [
+      2,
+      2,
+      [
+       16,
+       -24
+      ],
+      [
+       -4,
+       -16
+      ],
+      [
+       10,
+       0
+      ],
+      [
+       -10,
+       0
+      ],
+      0,
+      0.3
+     ]
+    ]
+   },
+   "view": {
+    "arc": "none"
+   }
+  },
+  "sideB": {
+   "name": "Eye Beam",
+   "kind": "special",
+   "anim": "castF",
+   "startup": 18,
+   "active": 1,
+   "recovery": 22,
+   "events": [
+    {
+     "frame": 16,
+     "action": "fx",
+     "name": "beam"
+    },
+    {
+     "frame": 16,
+     "action": "projectile",
+     "id": "beam",
+     "x": 38,
+     "y": -26,
+     "vx": 7,
+     "vy": 0
+    }
+   ],
+   "hitboxes": [],
+   "pose": {
+    "t": "custom",
+    "keys": [
+     [
+      -8,
+      6,
+      [
+       -10,
+       -20
+      ],
+      [
+       -14,
+       -20
+      ],
+      [
+       14,
+       0
+      ],
+      [
+       -14,
+       0
+      ],
+      0,
+      0.6
+     ],
+     [
+      4,
+      8,
+      [
+       -6,
+       -8
+      ],
+      [
+       -16,
+       -10
+      ],
+      [
+       18,
+       0
+      ],
+      [
+       -16,
+       0
+      ],
+      0,
+      1
+     ],
+     [
+      0,
+      4,
+      [
+       4,
+       -10
+      ],
+      [
+       -8,
+       -6
+      ],
+      [
+       12,
+       0
+      ],
+      [
+       -12,
+       0
+      ],
+      0,
+      0.4
+     ]
+    ]
+   },
+   "view": {
+    "arc": "none",
+    "squash": 0.96
+   }
+  },
+  "downB": {
+   "name": "Blade Spires",
+   "kind": "special",
+   "anim": "castD",
+   "startup": 20,
+   "active": 1,
+   "recovery": 24,
+   "events": [
+    {
+     "frame": 2,
+     "action": "fx",
+     "name": "place"
+    },
+    {
+     "frame": 3,
+     "action": "deploy",
+     "id": "warn",
+     "x": 40,
+     "y": -2
+    },
+    {
+     "frame": 5,
+     "action": "deploy",
+     "id": "warn",
+     "x": 80,
+     "y": -2
+    },
+    {
+     "frame": 20,
+     "action": "projectile",
+     "id": "spire",
+     "x": 40,
+     "y": -28,
+     "vx": 0,
+     "vy": 0
+    },
+    {
+     "frame": 20,
+     "action": "projectile",
+     "id": "spire",
+     "x": 80,
+     "y": -28,
+     "vx": 0,
+     "vy": 0
+    }
+   ],
+   "hitboxes": [],
+   "pose": {
+    "t": "custom",
+    "keys": [
+     [
+      0,
+      2,
+      [
+       6,
+       -50
+      ],
+      [
+       -6,
+       -50
+      ],
+      [
+       8,
+       0
+      ],
+      [
+       -8,
+       0
+      ],
+      0,
+      0.4
+     ],
+     [
+      0,
+      8,
+      [
+       26,
+       -4
+      ],
+      [
+       -22,
+       -4
+      ],
+      [
+       12,
+       0
+      ],
+      [
+       -12,
+       0
+      ],
+      0,
+      0.8
+     ],
+     [
+      0,
+      4,
+      [
+       14,
+       -4
+      ],
+      [
+       -10,
+       -4
+      ],
+      [
+       8,
+       0
+      ],
+      [
+       -8,
+       0
+      ],
+      0,
+      0.2
+     ]
+    ]
+   },
+   "view": {
+    "arc": "none"
+   }
+  },
+  "upB": {
+   "name": "Ascension",
+   "kind": "special",
+   "anim": "castU",
+   "startup": 6,
+   "active": 20,
+   "recovery": 18,
+   "helpless": true,
+   "noLedge": 8,
+   "gravityScale": 0.5,
+   "motion": [
+    {
+     "frame": 6,
+     "vy": -11,
+     "vx": 3.4
+    },
+    {
+     "frame": 18,
+     "vy": -5,
+     "vx": 2.6
+    }
+   ],
+   "events": [
+    {
+     "frame": 6,
+     "action": "fx",
+     "name": "cast"
+    },
+    {
+     "frame": 14,
+     "action": "ledgeSnap",
+     "range": 90
+    }
+   ],
+   "hitboxes": [
+    {
+     "x": 0,
+     "y": -22,
+     "w": 40,
+     "h": 40,
+     "damage": 8,
+     "angle": 80,
+     "base": 44,
+     "scaling": 0.7,
+     "window": [
+      1,
+      8
+     ],
+     "dir": "away",
+     "fx": "heavy"
+    }
+   ],
+   "pose": {
+    "t": "custom",
+    "keys": [
+     [
+      -2,
+      8,
+      [
+       -4,
+       -8
+      ],
+      [
+       -8,
+       -8
+      ],
+      [
+       10,
+       0
+      ],
+      [
+       -10,
+       0
+      ]
+     ],
+     [
+      4,
+      0,
+      [
+       8,
+       -70
+      ],
+      [
+       -2,
+       -66
+      ],
+      [
+       6,
+       10
+      ],
+      [
+       -8,
+       6
+      ],
+      0,
+      0.3
+     ],
+     [
+      8,
+      8,
+      [
+       24,
+       10
+      ],
+      [
+       12,
+       10
+      ],
+      [
+       12,
+       0
+      ],
+      [
+       -12,
+       0
+      ],
+      0,
+      0.5
+     ]
+    ]
+   },
+   "view": {
+    "arc": "none",
+    "ghosts": true
+   }
+  },
+  "ultimate": {
+   "name": "Cataclysm",
+   "kind": "ultimate",
+   "anim": "raid",
+   "startup": 50,
+   "active": 1,
+   "recovery": 36,
+   "armor": {
+    "from": 1,
+    "to": 50
+   },
+   "events": [
+    {
+     "frame": 2,
+     "action": "fx",
+     "name": "overload"
+    },
+    {
+     "frame": 12,
+     "action": "deploy",
+     "id": "warn",
+     "x": -125,
+     "y": -2
+    },
+    {
+     "frame": 14,
+     "action": "deploy",
+     "id": "warn",
+     "x": -90,
+     "y": -2
+    },
+    {
+     "frame": 16,
+     "action": "deploy",
+     "id": "warn",
+     "x": -55,
+     "y": -2
+    },
+    {
+     "frame": 18,
+     "action": "deploy",
+     "id": "warn",
+     "x": -20,
+     "y": -2
+    },
+    {
+     "frame": 20,
+     "action": "deploy",
+     "id": "warn",
+     "x": 20,
+     "y": -2
+    },
+    {
+     "frame": 22,
+     "action": "deploy",
+     "id": "warn",
+     "x": 55,
+     "y": -2
+    },
+    {
+     "frame": 24,
+     "action": "deploy",
+     "id": "warn",
+     "x": 90,
+     "y": -2
+    },
+    {
+     "frame": 26,
+     "action": "deploy",
+     "id": "warn",
+     "x": 125,
+     "y": -2
+    },
+    {
+     "frame": 48,
+     "action": "projectile",
+     "id": "pillar",
+     "x": -125,
+     "y": -41,
+     "vx": 0,
+     "vy": 0
+    },
+    {
+     "frame": 48,
+     "action": "projectile",
+     "id": "pillar",
+     "x": -90,
+     "y": -41,
+     "vx": 0,
+     "vy": 0
+    },
+    {
+     "frame": 48,
+     "action": "projectile",
+     "id": "pillar",
+     "x": -55,
+     "y": -41,
+     "vx": 0,
+     "vy": 0
+    },
+    {
+     "frame": 48,
+     "action": "projectile",
+     "id": "pillar",
+     "x": -20,
+     "y": -41,
+     "vx": 0,
+     "vy": 0
+    },
+    {
+     "frame": 48,
+     "action": "projectile",
+     "id": "pillar",
+     "x": 20,
+     "y": -41,
+     "vx": 0,
+     "vy": 0
+    },
+    {
+     "frame": 48,
+     "action": "projectile",
+     "id": "pillar",
+     "x": 55,
+     "y": -41,
+     "vx": 0,
+     "vy": 0
+    },
+    {
+     "frame": 48,
+     "action": "projectile",
+     "id": "pillar",
+     "x": 90,
+     "y": -41,
+     "vx": 0,
+     "vy": 0
+    },
+    {
+     "frame": 48,
+     "action": "projectile",
+     "id": "pillar",
+     "x": 125,
+     "y": -41,
+     "vx": 0,
+     "vy": 0
+    },
+    {
+     "frame": 48,
+     "action": "fx",
+     "name": "beam"
+    }
+   ],
+   "hitboxes": [],
+   "pose": {
+    "t": "custom",
+    "keys": [
+     [
+      -2,
+      6,
+      [
+       0,
+       -30
+      ],
+      [
+       -6,
+       -30
+      ],
+      [
+       10,
+       0
+      ],
+      [
+       -10,
+       0
+      ],
+      0,
+      0.6
+     ],
+     [
+      -6,
+      0,
+      [
+       10,
+       -76
+      ],
+      [
+       -12,
+       -74
+      ],
+      [
+       12,
+       0
+      ],
+      [
+       -12,
+       0
+      ],
+      0,
+      1
+     ],
+     [
+      0,
+      10,
+      [
+       24,
+       8
+      ],
+      [
+       -20,
+       8
+      ],
+      [
+       14,
+       0
+      ],
+      [
+       -14,
+       0
+      ],
+      0,
+      1
+     ]
+    ]
+   },
+   "view": {
+    "arc": "none",
+    "squash": 0.94
+   }
+  },
+  "taunt": {
+   "name": "Taunt",
+   "kind": "jab",
+   "anim": "idle",
+   "startup": 8,
+   "active": 1,
+   "recovery": 58,
+   "hidden": true,
+   "events": [
+    {
+     "frame": 9,
+     "action": "fx",
+     "name": "taunt"
+    }
+   ],
+   "pose": {
+    "t": "custom",
+    "keys": [
+     [
+      -2,
+      0,
+      [
+       16,
+       -30
+      ],
+      [
+       -4,
+       -6
+      ],
+      [
+       6,
+       0
+      ],
+      [
+       -6,
+       0
+      ],
+      0,
+      0.4
+     ],
+     [
+      -4,
+      0,
+      [
+       10,
+       -52
+      ],
+      [
+       -6,
+       -8
+      ],
+      [
+       6,
+       0
+      ],
+      [
+       -6,
+       0
+      ],
+      0,
+      0.85
+     ],
+     [
+      -2,
+      0,
+      [
+       18,
+       -36
+      ],
+      [
+       -4,
+       -4
+      ],
+      [
+       6,
+       0
+      ],
+      [
+       -6,
+       0
+      ],
+      0,
+      0.4
+     ]
+    ]
+   },
+   "view": {
+    "arc": "none"
+   },
+   "hitboxes": []
+  }
+ }
+}

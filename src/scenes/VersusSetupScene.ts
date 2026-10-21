@@ -7,6 +7,8 @@ import { CELL_METER, CORE_METER, ITEM_KINDS } from '../engine/items';
 import { ITEM_NAMES } from '../game/howToPlay';
 import { footerHint } from '../input/prompts';
 import { STAGE_LIST } from '../stages';
+import { FORM_NAMES, STAGE_FORMS } from '../stages/forms';
+import { MODIFIERS, MODIFIER_HINTS, MODIFIER_NAMES } from '../game/modifiers';
 import { COLORS, MenuList, MenuScene, drawPanel, text, textPx, type MenuBackdrop, type MenuItem } from '../ui/menuKit';
 
 /** The saved rules are applied once per run (on the first visit). */
@@ -22,6 +24,9 @@ const ITEM_HINTS: Record<string, string> = {
   raygun: 'Seven straight laser shots.',
   crate: 'Break it open for items (some explode).',
   core: `Rare: +${CORE_METER} ultimate meter.`,
+  bat: 'Home-Run Bat: hold Attack to charge a huge swing.',
+  mine: 'Thrown: arms after a moment, blows when a rival steps on it.',
+  drone: 'Hovers by you and shoots the nearest rival for 8 seconds.',
 };
 
 /** Team layouts the TEAMS row cycles through, per player count. */
@@ -47,6 +52,16 @@ function inPool(r: MatchRules, id: string): boolean {
 
 const clamp = (v: number, lo: number, hi: number): number => Math.max(lo, Math.min(hi, v));
 
+/** The MORE RULES row's value: what differs from the standard (or STANDARD). */
+function moreSummary(r: MatchRules): string {
+  const parts: string[] = [];
+  if (r.stageForm && r.stageForm !== 'normal') parts.push(FORM_NAMES[r.stageForm]);
+  if ((r.damageRatio ?? 1) !== 1 || (r.launchRate ?? 1) !== 1) parts.push('RATIOS');
+  if (r.modifier) parts.push(MODIFIER_NAMES[r.modifier]);
+  if ((r.bestOf ?? 1) > 1) parts.push(`BO${r.bestOf}`);
+  return parts.length ? parts.slice(0, 2).join(' ') + (parts.length > 2 ? ' +' : '') : 'STANDARD';
+}
+
 /** Versus rules: number of players, stocks or timed, then on to character select. */
 export class VersusSetupScene extends MenuScene {
   private list!: MenuList;
@@ -68,7 +83,7 @@ export class VersusSetupScene extends MenuScene {
   }
 
   /** Which page of rows is showing: the rules, the presets, the item switches or the RANDOM stage pool. */
-  private page: 'main' | 'presets' | 'items' | 'stages' = 'main';
+  private page: 'main' | 'presets' | 'items' | 'stages' | 'more' = 'main';
   private saved: SavedRules = loadSavedRules();
 
   protected build(): void {
@@ -173,6 +188,7 @@ export class VersusSetupScene extends MenuScene {
       { label: 'ITEM SWITCH', hint: 'Turn single items on or off.', value: () => (r.items ? onCount(ITEM_KINDS, r.itemsOff) : '-'), enabled: () => r.items > 0, onConfirm: () => this.showPage('items'), onRight: () => this.showPage('items') },
       { label: 'STAGE HAZARDS', hint: 'Geysers, lightning and water spouts. Off is the plain stage.', value: () => (r.hazards ? 'ON' : 'OFF'), onLeft: () => (r.hazards = !r.hazards), onRight: () => (r.hazards = !r.hazards), onConfirm: () => (r.hazards = !r.hazards) },
       { label: 'RANDOM STAGES', hint: 'The stages RANDOM can pick.', value: () => `${STAGE_LIST.filter((st) => inPool(r, st.id)).length} / ${STAGE_LIST.length}`, onConfirm: () => this.showPage('stages'), onRight: () => this.showPage('stages') },
+      { label: 'MORE RULES', hint: 'Stage form, damage ratio, launch rate, modifiers and best-of series.', value: () => moreSummary(r), onConfirm: () => this.showPage('more'), onRight: () => this.showPage('more') },
       { label: 'CHOOSE FIGHTERS', hint: 'On to the lobby.', onConfirm: () => this.next() },
       { label: 'BACK', onConfirm: () => this.go('ModeSelect') },
     ];
@@ -241,16 +257,47 @@ export class VersusSetupScene extends MenuScene {
     ];
   }
 
+  private moreItems(): MenuItem[] {
+    const r = session.rules;
+    const step = (get: () => number, set: (v: number) => void, d: number) => (): void => set(clamp(Math.round((get() + d) * 10) / 10, 0.5, 2));
+    const formIdx = (): number => Math.max(0, STAGE_FORMS.indexOf(r.stageForm ?? 'normal'));
+    const setForm = (d: number) => (): void => {
+      const f = STAGE_FORMS[(formIdx() + d + STAGE_FORMS.length) % STAGE_FORMS.length];
+      r.stageForm = f === 'normal' ? undefined : f;
+    };
+    const modIdx = (): number => (r.modifier ? MODIFIERS.indexOf(r.modifier) + 1 : 0);
+    const setMod = (d: number) => (): void => {
+      const k = (modIdx() + d + MODIFIERS.length + 1) % (MODIFIERS.length + 1);
+      r.modifier = k === 0 ? undefined : MODIFIERS[k - 1];
+    };
+    const BEST = [1, 3, 5] as const;
+    const setBest = (d: number) => (): void => {
+      const k = (BEST.indexOf(r.bestOf ?? 1) + d + BEST.length) % BEST.length;
+      r.bestOf = BEST[k] === 1 ? undefined : BEST[k];
+    };
+    const ratio = (v: number | undefined): string => `X${(v ?? 1).toFixed(1)}`;
+    const setDr = (v: number): void => void (r.damageRatio = v === 1 ? undefined : v);
+    const setLr = (v: number): void => void (r.launchRate = v === 1 ? undefined : v);
+    return [
+      { label: 'STAGE FORM', hint: 'NORMAL as designed, BATTLEFIELD (three platforms) or PLAIN (one platform). No hazards in either.', value: () => FORM_NAMES[STAGE_FORMS[formIdx()]], onLeft: setForm(-1), onRight: setForm(1), onConfirm: setForm(1) },
+      { label: 'DAMAGE RATIO', hint: 'Every hit deals this much damage.', value: () => ratio(r.damageRatio), onLeft: step(() => r.damageRatio ?? 1, setDr, -0.1), onRight: step(() => r.damageRatio ?? 1, setDr, 0.1) },
+      { label: 'LAUNCH RATE', hint: 'Every hit launches this much harder.', value: () => ratio(r.launchRate), onLeft: step(() => r.launchRate ?? 1, setLr, -0.1), onRight: step(() => r.launchRate ?? 1, setLr, 0.1) },
+      { label: 'MODIFIER', hint: () => (r.modifier ? MODIFIER_HINTS[r.modifier] : 'A twist for everyone in the match.'), value: () => (r.modifier ? MODIFIER_NAMES[r.modifier] : 'OFF'), onLeft: setMod(-1), onRight: setMod(1), onConfirm: setMod(1) },
+      { label: 'SERIES', hint: 'Best of 3 or 5: wins carry over from rematch to rematch.', value: () => ((r.bestOf ?? 1) === 1 ? 'SINGLE' : `BEST OF ${r.bestOf}`), onLeft: setBest(-1), onRight: setBest(1), onConfirm: setBest(1) },
+      { label: 'DONE', onConfirm: () => this.showPage('main', 13) },
+    ];
+  }
+
   private savedFlash = -1;
   private savedAt = 0;
   private now = 0;
 
-  private showPage(page: 'main' | 'presets' | 'items' | 'stages', index = 0): void {
+  private showPage(page: 'main' | 'presets' | 'items' | 'stages' | 'more', index = 0): void {
     this.page = page;
-    this.list.items = page === 'main' ? this.mainItems() : page === 'presets' ? this.presetItems() : page === 'items' ? this.itemItems() : this.stageItems();
+    this.list.items = page === 'main' ? this.mainItems() : page === 'presets' ? this.presetItems() : page === 'items' ? this.itemItems() : page === 'more' ? this.moreItems() : this.stageItems();
     this.list.rebuild();
     this.list.index = index;
-    this.title.setText(page === 'main' ? 'VERSUS SETUP' : page === 'presets' ? 'RULE PRESETS' : page === 'items' ? 'ITEM SWITCH' : 'RANDOM STAGES');
+    this.title.setText(page === 'main' ? 'VERSUS SETUP' : page === 'presets' ? 'RULE PRESETS' : page === 'items' ? 'ITEM SWITCH' : page === 'more' ? 'MORE RULES' : 'RANDOM STAGES');
     this.layoutUi(this.scale.width, this.scale.height, this.u);
   }
 
@@ -336,6 +383,6 @@ export class VersusSetupScene extends MenuScene {
     if (this.list.handle(e)) return;
     if (e.action !== 'back') return;
     if (this.page === 'main') this.go('ModeSelect');
-    else this.showPage('main', this.page === 'presets' ? 0 : this.page === 'items' ? 10 : 12);
+    else this.showPage('main', this.page === 'presets' ? 0 : this.page === 'items' ? 10 : this.page === 'more' ? 13 : 12);
   }
 }

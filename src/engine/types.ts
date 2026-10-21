@@ -35,6 +35,24 @@ export interface PlatformDef {
   /** Ground feel: 'ice' = slippery, 'sticky' = high friction, 'conveyor' = carries fighters (`conveyor` px/frame), 'bouncy' = launched fighters rebound harder. */
   surface?: 'normal' | 'ice' | 'sticky' | 'conveyor' | 'bouncy';
   conveyor?: number;
+  /**
+   * Keyframed route (travelling stages): offsets from (x, y) at frames of a looping cycle, eased between keys. Position is a
+   * pure function of the tick, like `move`. Keys are sorted by `t` (0 <= t < period); the cycle wraps from the last to the first.
+   */
+  path?: PlatformPath;
+}
+
+export interface PlatformPath {
+  period: number;
+  keys: { t: number; dx: number; dy: number }[];
+}
+
+/** A travelling stage's legs: what the scenery is during frames [from, next leg's from) of the stage's route cycle. */
+export interface StagePhase {
+  from: number;
+  name: string;
+  /** Backdrop scroll speed multiplier during this leg (the view eases between legs). */
+  scroll?: number;
 }
 
 export interface BlastZones {
@@ -50,7 +68,7 @@ export interface StageBackground {
   /** Parallax layer ids understood by the stage renderer. */
   layers: string[];
   /** Look of the parallax backdrop and tiles (palette + tints); see `BACKDROPS` in the UI layer. */
-  theme?: 'skyline' | 'void' | 'reactor' | 'storm' | 'dawn' | 'temple' | 'tide' | 'cavern' | 'frost' | 'airship';
+  theme?: 'skyline' | 'void' | 'reactor' | 'storm' | 'dawn' | 'temple' | 'tide' | 'cavern' | 'frost' | 'airship' | 'harbour' | 'rail';
 }
 
 /** A stage hazard. Phase is a pure function of the sim tick, so it is deterministic and needs no state. */
@@ -99,7 +117,18 @@ export interface StageData {
   blurb?: string;
   /** Target Smash course: positions of the targets to break. */
   targets?: { x: number; y: number }[];
+  /** Travelling stages: the legs of the route (a cycle of `route` frames), shown by the backdrop and the HUD. */
+  phases?: StagePhase[];
+  route?: number;
+  /** Walk-off sides: the ground runs out past the blast zone there (no ledge, no recovery: walking out is a KO). */
+  walkOff?: { left?: boolean; right?: boolean };
+  /** Match rules carried in by the match setup (game/modifiers.ts ruledStage): damage ratio and launch rate (World.config). */
+  ruleScale?: { damage: number; launch: number };
+  /** Stage form this data was built as (see stages/forms.ts); absent = the stage as designed. */
+  form?: StageForm;
 }
+
+export type StageForm = 'normal' | 'battlefield' | 'plain';
 
 export interface CharacterStats {
   /** Heavier = launched less. Typical 70..130. */

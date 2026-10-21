@@ -45,9 +45,22 @@ export const overseer: CharacterData = {
   tagline: 'The arena AI. It has been waiting for you.',
   persona: {
     intro: '',
+    bio: 'The arena\'s mind given a body: the warden of the Super Fight Club. It has counted every fight in the Hollow and waits at the Apex for the one challenger worth its full attention.',
     taunt: 'Challenger. The arena has counted every blow you threw, and has decided that you are surplus.',
+    // in-match taunt bubbles take turns through these
+    taunts: [
+      'Challenger. The arena has counted every blow you threw, and has decided that you are surplus.',
+      'Compliance is optional. Defeat is not.',
+      'Your record is noted.',
+      'Recalculating your odds. They are zero.',
+    ],
     epilogue: '',
     victory: 'Surplus removed.',
+    victories: [
+      'Surplus removed.',
+      'The arena endures.',
+      'Next challenger.',
+    ],
   },
   stats: {
     weight: 300,

@@ -331,6 +331,19 @@ CHARACTER_AI.havoc = {
   slap: { slot: 'downB', reach: 26 },
 };
 
+// The playable Overseer: a heavy zoner. The Eye Beam and Orb Volley at range; the Blade Spires erupt 40 and 80 px ahead of it,
+// so they are chosen like a close-range move from their reach (the spender hook with no cost: `enrage` is always 0 >= 0);
+// Ascension to recover; its smaller Cataclysm erupts around it, so it is fired with the rival close.
+CHARACTER_AI['overseer-versus'] = {
+  ...GENERIC,
+  ranged: ['sideB'],
+  spender: { slot: 'downB', key: 'enrage', min: 0 },
+  finishers: ['fsmash', 'usmash', 'dsmash', 'bair'],
+  recovery: { slot: 'upB', up: 100, out: 60, aim: 'fixed' },
+  ultimateRange: 130,
+  spacing: 46,
+};
+
 export function aiFor(id: string): CharacterAi {
   return CHARACTER_AI[id] ?? GENERIC;
 }

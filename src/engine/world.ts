@@ -84,16 +84,28 @@ export interface WorldConfig {
   itemsOff?: number;
   /** Team attack: teammates' attacks hit each other (CPUs still never target a teammate). */
   teamAttack?: boolean;
+  /** Match rules: damage dealt by every hit, x this (0.5..2, default 1). */
+  damageRatio?: number;
+  /** Match rules: knockback of every hit, x this (0.5..2, default 1). */
+  launchRate?: number;
 }
 
 /** Holds the stage and fighters and advances them one fixed tick at a time. Deterministic. */
-/** Max soft-push per tick (world units) for overlapping grounded fighters. */
+/** Soft-push per tick (world units) for barely overlapping grounded fighters; it grows with the overlap up to SOFT_PUSH_MAX. */
 export const SOFT_PUSH = 0.4;
+/** Extra push per unit of overlap, and the cap: two bodies stacked on the same spot part in a few frames, a dash still runs through. */
+export const SOFT_PUSH_DEPTH = 0.05;
+export const SOFT_PUSH_MAX = 1;
 
-/** Only fighters going about their business (not attacking, hit, grabbing or dodging) are nudged. */
-const PUSH_STATES = new Set<Fighter['state']>(['idle', 'run', 'dash', 'crouch', 'landing', 'shield', 'jumpsquat']);
+/** Fighters standing, moving, shielding or attacking on the ground are nudged (not hit, grabbed, dodging or rolling: cross-ups stay). */
+const PUSH_STATES = new Set<Fighter['state']>(['idle', 'run', 'dash', 'crouch', 'landing', 'shield', 'jumpsquat', 'attack']);
 function pushable(f: Fighter): boolean {
-  return f.grounded && f.hitlag === 0 && PUSH_STATES.has(f.state);
+  return f.grounded && f.hitlag === 0 && PUSH_STATES.has(f.state) && !(f.state === 'attack' && f.move?.kind === 'throw');
+}
+
+/** A fighter running / dashing into the other passes straight through (cross-ups): the pair is not pushed apart meanwhile. */
+function runsThrough(f: Fighter, dxToOther: number): boolean {
+  return (f.state === 'run' || f.state === 'dash') && f.vx * dxToOther > 0 && Math.abs(f.vx) > 1.4;
 }
 
 export class World {
@@ -133,11 +145,17 @@ export class World {
       // no ledge where another solid block sits on the corner (a tier flush with the edge): climbing up would land inside it
       for (const side of [-1, 1] as const) {
         const cx = side === -1 ? p.x : p.right;
+        // walk-off ground runs on past the blast zone: that end has no ledge (nobody can get there and live)
+        if (cx <= stage.blast.left || cx >= stage.blast.right) continue;
         const covered = this.platforms.some((q) => q !== p && q.kind === 'solid' && Math.abs(q.bottom - p.top) < 1 && cx >= q.x - 12 && cx <= q.right + 12);
         if (!covered) this.ledges.push(new Ledge(p, side));
       }
     }
     for (const t of stage.targets ?? []) this.targets.push({ x: t.x, y: t.y, alive: true });
+    if (stage.ruleScale) {
+      this.config.damageRatio = stage.ruleScale.damage;
+      this.config.launchRate = stage.ruleScale.launch;
+    }
   }
 
   /** True when both fighters are on the same team (team battles): no friendly fire. */
@@ -153,7 +171,7 @@ export class World {
   }
 
   /**
-   * Grounded fighters standing inside each other drift apart (at most SOFT_PUSH per tick each), so bodies stay readable and
+   * Grounded fighters standing inside each other drift apart (SOFT_PUSH..SOFT_PUSH_MAX per tick each), so bodies stay readable and
    * nobody hides inside an opponent. Never pushes anyone off their platform; frozen (hit-stop), grabbed and ledge states are left alone.
    */
   private softPush(): void {
@@ -167,9 +185,9 @@ export class World {
         const reach = (a.hw * a.sizeMul + b.hw * b.sizeMul) * 0.8;
         const dx = b.x - a.x;
         const overlap = reach - Math.abs(dx);
-        if (overlap <= 0) continue;
+        if (overlap <= 0 || runsThrough(a, dx) || runsThrough(b, -dx)) continue;
         const dir = dx > 0 ? 1 : dx < 0 ? -1 : a.facing; // exactly stacked: split along the first fighter's facing
-        const step = Math.min(overlap / 2, SOFT_PUSH);
+        const step = Math.min(overlap / 2, SOFT_PUSH_MAX, SOFT_PUSH + SOFT_PUSH_DEPTH * overlap);
         const p = a.groundPlat;
         a.x = Math.max(p.x + 1, Math.min(p.right - 1, a.x - dir * step));
         b.x = Math.max(p.x + 1, Math.min(p.right - 1, b.x + dir * step));

@@ -10,6 +10,7 @@ import { rime } from './rime';
 import { havoc } from './havoc';
 import { vex } from './vex';
 import { overseer } from './overseer';
+import { overseerVersus } from './overseerVersus';
 import { makeProtoBase } from './proto';
 
 /** Registry. Adding a character = one data file + one export here (+ a sprite sheet, optionally). */
@@ -24,10 +25,14 @@ export const CHARACTERS: Record<string, CharacterData> = {
   [obelisk.id]: obelisk,
   [rime.id]: rime,
   [havoc.id]: havoc,
+  // the playable Overseer (the boss's art at fighter scale) comes last, after the ten
+  [overseerVersus.id]: overseerVersus,
 };
 export const CHARACTER_LIST: CharacterData[] = Object.values(CHARACTERS);
+/** The ten core fighters (the roster without the playable Overseer): the Gauntlet's lineup. */
+export const CORE_CHARACTER_LIST: CharacterData[] = CHARACTER_LIST.filter((c) => c.id !== overseerVersus.id);
 
-/** Non-roster fighters (never in character select): the Arcade Ladder boss. */
+/** Non-roster fighters (never in character select): the Arcade Ladder boss (its playable form is `overseer-versus`). */
 export const BOSSES: Record<string, CharacterData> = { [overseer.id]: overseer };
 
 /** Roster, boss and dev fighters by id. */
