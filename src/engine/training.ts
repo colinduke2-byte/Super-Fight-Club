@@ -1,4 +1,5 @@
 import type { FighterInput } from './buttons';
+import { CRATE, ITEM_KINDS, type ItemKind } from './items';
 import type { Fighter } from './fighter';
 import { hitboxFrames, moveTotal, type MoveDef } from './moves';
 import { hitstunFrames } from './knockback';
@@ -471,3 +472,52 @@ export function restoreFighter(f: Fighter, s: SavedFighter, world: World): void 
   f.helpless = false;
   f.snapped = true;
 }
+
+/**
+ * Training: drops an item of `kind` at (x, y) into the world's item pool (the oldest live one makes way when the pool is
+ * full). Returns false if the kind is unknown. Uses the same reset a natural spawn does, so the item behaves normally.
+ */
+export function spawnItem(world: World, kind: ItemKind, x: number, y: number): boolean {
+  if (!ITEM_KINDS.includes(kind)) return false;
+  const items = world.items;
+  let slot = items.find((it) => !it.active);
+  if (!slot) slot = items.reduce((a, b) => (b.age > a.age ? b : a), items[0]);
+  if (!slot) return false;
+  Object.assign(slot, {
+    active: true,
+    kind,
+    thrown: false,
+    owner: -1,
+    vx: 0,
+    vy: 0,
+    spin: 0,
+    fuse: 0,
+    knockedBy: -1,
+    knockGrace: 0,
+    knockCd: 0,
+    pickDelay: 0,
+    age: 0,
+    resting: false,
+    hp: kind === 'crate' ? CRATE.hp : 0,
+    volatile: false,
+    primed: false,
+    spent: false,
+    x,
+    y,
+  });
+  world.emit('itemSpawn', world.fighters[0], x, y, ITEM_KINDS.indexOf(kind), 0);
+  return true;
+}
+
+/** Display names of the item kinds (training menu). */
+export const ITEM_NAMES: Record<ItemKind, string> = {
+  heal: 'HEALING ORB',
+  cell: 'METER CELL',
+  boost: 'SPEED BOOST',
+  bomb: 'SHOCK BOMB',
+  aegis: 'AEGIS',
+  sword: 'BEAM SWORD',
+  raygun: 'RAY GUN',
+  crate: 'CRATE',
+  core: 'ULTIMATE CORE',
+};

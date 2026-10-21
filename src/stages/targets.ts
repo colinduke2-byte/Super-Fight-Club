@@ -36,6 +36,6 @@ export const targetsStage: StageData = {
     { x: 100, y: -4 },
   ],
   background: { topColor: 0x061424, bottomColor: 0x2a6e8a, layers: ['stars'], theme: 'void' },
-  music: 'ring',
+  music: 'targets',
   blurb: 'Break all ten targets as fast as you can.',
 };

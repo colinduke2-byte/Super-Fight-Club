@@ -4,6 +4,8 @@ import { CHARACTERS } from '../../characters';
 import type { MatchConfig } from '../../engine/match';
 import type { StageData } from '../../engine/types';
 import { challengeById, challengeRules, type Challenge } from '../../game/challenges';
+import { rulesForSlots } from '../../game/ladder';
+import { metalVariant } from '../../game/metal';
 import { recordsReplay, ReplayRecorder, type Replay } from '../../game/replay';
 import type { RunnerSetup } from '../../game/runner';
 import { DEFAULT_RULES, runnerExtras, session, type MatchRules, type PlayerSlot } from '../../game/session';
@@ -12,6 +14,7 @@ import { inputManager } from '../../input/inputManager';
 import { settings } from '../../settings';
 import { STAGES } from '../../stages';
 import { sandboxStage } from '../../stages/sandbox';
+import { targetCourseById } from '../../stages/targetCourses';
 
 /** Training and Launch Contest: no stocks, falls just respawn. */
 export const TRAINING: MatchConfig = { mode: 'training', stocks: 3, timeLimitSec: 0, respawnDelay: 70 };
@@ -45,18 +48,21 @@ export function resolveMatchSetup(): MatchSetup {
   const isLaunch = !rep && session.mode === 'launch' && slots.length === 2;
   const chal = !rep && session.mode === 'challenge' ? challengeById(session.challenge) : undefined;
   // versus rules (timed, stamina...) belong to versus: arcade and the single-player modes always play standard stocks
-  const rules = rep ? rep.rules : chal ? challengeRules(chal) : session.mode === 'versus' || session.mode === 'training' ? session.rules : { ...DEFAULT_RULES };
-  const base = STAGES[rep ? rep.stage : session.stage] ?? sandboxStage;
+  // (ladder fights: standard stocks plus what the fight sets up: teams, carried-over damage, a metal rival)
+  const arcade = !rep && session.mode === 'arcade' && !!session.ladder;
+  const rules = rep ? rep.rules : chal ? challengeRules(chal) : session.mode === 'versus' || session.mode === 'training' ? session.rules : arcade ? rulesForSlots(slots) : { ...DEFAULT_RULES };
+  const stageId = rep ? rep.stage : session.stage;
+  const base = STAGES[stageId] ?? targetCourseById(stageId)?.stage ?? sandboxStage;
   const stage = rules.hazards === false && (rep || session.mode === 'versus' || chal) ? { ...base, hazards: undefined } : base;
   const wantsTargets = !rep && session.mode === 'targets';
   const isTargets = wantsTargets && (stage.targets?.length ?? 0) > 0;
   const cfg: MatchConfig = isTraining || isLaunch ? TRAINING : { mode: rules.mode, stocks: rules.stocks, timeLimitSec: rules.timeSec, respawnDelay: 70, staminaHp: rules.staminaHp };
   const runner: RunnerSetup = {
     stage,
-    characters: slots.map((s) => s.character),
+    characters: slots.map((s, i) => (rules.metal?.includes(i) ? (metalVariant(s.character) ?? s.character) : s.character)),
     rules: cfg,
     stocks: isTraining ? undefined : slots.map((s) => s.stocks),
-    teams: rules.teams && !isTraining && !!(rep || session.mode === 'versus' || chal),
+    teams: rules.teams && !isTraining && !!(rep || session.mode === 'versus' || chal || arcade),
     itemRate: isTraining || isTargets || isLaunch || (!rep && session.mode === 'arcade') ? 0 : rules.items,
     launch: isLaunch,
     targets: wantsTargets,

@@ -2,6 +2,8 @@ import Phaser from 'phaser';
 import { animFrameIndex, ensurePalette, ensurePalettesReady, fighterAnimKey, fighterTextureKey, paletteReady, palettesReady, portraitCrop, portraitK, releasePalettes, requestPalette, skinKey } from '../art/proceduralFighter';
 import { ALT_LOOKS, assignPalettes, lookName, paletteCount } from '../art/palettes';
 import { PIXEL_FONT } from '../art/pixelFont';
+import { announcer } from '../audio/announcer';
+import { portraitKey } from '../art/portraits';
 import { skinsInUse } from './outfits';
 import { CHARACTER_LIST } from '../characters';
 import { Lobby, skillName, skillOfLevel, type CardRow } from '../game/lobby';
@@ -11,12 +13,14 @@ import { footerHint, promptFor, type MenuVerb } from '../input/prompts';
 import { deviceKind } from '../game/tutorial';
 import type { InputDevice } from '../input/device';
 import { buildLadder } from '../game/ladder';
-import { launchSlots } from '../game/launch';
+import { beginTurns } from '../game/turns';
 import { challengeById, challengeSlots } from '../game/challenges';
 import { introCards } from '../game/story';
 import { session, type PlayerSlot } from '../game/session';
+import { settings } from '../settings';
 import { inputManager } from '../input/inputManager';
 import type { MenuEvent } from '../input/menuInput';
+import { fastShapes } from '../ui/fastShapes';
 import { COLORS, MenuScene, PANEL, drawPanel, pointerDevice, pointerXY, tapMin, text, textPx, type MenuBackdrop } from '../ui/menuKit';
 
 /** Team colour names (team index = player colour index). */
@@ -125,7 +129,7 @@ export class CharacterSelectScene extends MenuScene {
     const title = session.mode === 'versus' ? 'CHOOSE YOUR FIGHTERS' : session.mode === 'arcade' ? 'CHOOSE YOUR CHAMPION' : session.mode === 'targets' ? 'TARGET SMASH' : session.mode === 'launch' ? 'LAUNCH CONTEST' : session.mode === 'challenge' ? `CHALLENGE: ${challengeById(session.challenge)?.title ?? ''}` : 'TRAINING: CHOOSE A FIGHTER';
     this.title = this.add.bitmapText(0, 0, PIXEL_FONT, title).setOrigin(0.5).setTint(COLORS.title);
     this.ui.add(this.title);
-    this.cardG = this.add.graphics();
+    this.cardG = fastShapes(this.add.graphics());
     this.rosterG = this.add.graphics();
     this.ui.add([this.cardG, this.rosterG]);
 
@@ -176,7 +180,10 @@ export class CharacterSelectScene extends MenuScene {
         return p;
       });
     CHARACTER_LIST.forEach((c) => {
-      const img = this.add.image(0, 0, fighterTextureKey(c.id), animFrameIndex(c, 'idle', 0)).setOrigin(0.5, 0.5).setCrop(...portraitCrop(c));
+      // the fighter's bust portrait (the idle frame's crop for one without hero art)
+      const bust = portraitKey(this, c);
+      const img = bust ? this.add.image(0, 0, bust).setOrigin(0.5, 0.5) : this.add.image(0, 0, fighterTextureKey(c.id), animFrameIndex(c, 'idle', 0)).setOrigin(0.5, 0.5).setCrop(...portraitCrop(c));
+      img.setData('bust', !!bust);
       img.setData('k', portraitK(c));
       img.setData('crop', portraitCrop(c));
       const name = text(this, this.ui, c.name, COLORS.text).setOrigin(0.5, 0);
@@ -227,7 +234,12 @@ export class CharacterSelectScene extends MenuScene {
     this.rosterPlate = { x: w / 2 - (rn * rw) / 2 - 2 * ru, y: stripTop, w: rn * rw + 4 * ru, h: pipY + 4 * ru - stripTop, u: ru };
     this.roster.forEach((r, i) => {
       const cx = w / 2 + (i - (rn - 1) / 2) * rw;
-      if (r.img) {
+      if (r.img?.getData('bust')) {
+        // the bust fills the tile's portrait well
+        const side = Math.min(portH, rw - 6 * ru);
+        r.img.setScale(side / r.img.width).setPosition(cx, portBottom - portH / 2);
+        r.img.setData('home', [cx, portBottom - portH / 2, side / r.img.width]);
+      } else if (r.img) {
         const sc = ru * 1.35 * (r.img.getData('k') as number);
         // centre the cropped portrait (not the whole frame) over the name
         const cr = r.img.getData('crop') as [number, number, number, number];
@@ -294,12 +306,43 @@ export class CharacterSelectScene extends MenuScene {
       drawPanel(g, x0, c.top, c.cw, H, u, slot.kind === 'empty' ? 0.7 : 0.92);
       g.fillStyle(col, slot.kind === 'empty' ? 0.1 : 0.22).fillRect(x0 + u, c.top + u, c.cw - 2 * u, 20 * u);
       g.fillStyle(col, slot.kind === 'empty' ? 0.4 : 1).fillRect(x0 + u, c.top + 20 * u, c.cw - 2 * u, u);
-      if (slot.kind === 'empty') return;
-      // the fighter stands on a lit disc in the player's colour
-      g.fillStyle(col, 0.1).fillEllipse(c.cx, c.top + 58 * u, c.cw * 0.8, 66 * u);
-      g.fillStyle(col, 0.06).fillEllipse(c.cx, c.top + 58 * u, c.cw * 0.55, 46 * u);
-      g.fillStyle(col, 0.35).fillEllipse(c.cx, c.top + 92 * u, c.cw * 0.5, 6 * u);
-      g.fillStyle(col, 0.7).fillRect(c.cx - c.cw * 0.2, c.top + 92 * u, c.cw * 0.4, Math.max(1, u / 2));
+      // the header band's diagonal hatching
+      for (let hx = x0 + 4 * u; hx < x0 + c.cw - 8 * u; hx += 6 * u) g.fillStyle(col, slot.kind === 'empty' ? 0.04 : 0.1).fillTriangle(hx, c.top + 20 * u, hx + 3 * u, c.top + 20 * u, hx + 9 * u, c.top + u);
+      const floor = c.top + 92 * u;
+      if (slot.kind === 'empty') {
+        // a slot waiting for someone: corner brackets round the empty stage, its light still off
+        const bx = c.cx - c.cw * 0.36;
+        const bw = c.cw * 0.72;
+        const by = c.top + 26 * u;
+        const bh = floor - by;
+        const L = 6 * u;
+        g.fillStyle(col, 0.35);
+        for (const [x, y, sx, sy] of [[bx, by, 1, 1], [bx + bw, by, -1, 1], [bx, by + bh, 1, -1], [bx + bw, by + bh, -1, -1]] as const) {
+          g.fillRect(sx > 0 ? x : x - L, sy > 0 ? y : y - u, L, u);
+          g.fillRect(sx > 0 ? x : x - u, sy > 0 ? y : y - L, u, L);
+        }
+        return;
+      }
+      // the fighter stands in a spotlight falling from the header onto a lit hexagonal pad in the player's colour
+      const beamTop = c.top + 21 * u;
+      g.fillStyle(col, 0.08).fillTriangle(c.cx - 8 * u, beamTop, c.cx + 8 * u, beamTop, c.cx + c.cw * 0.34, floor);
+      g.fillStyle(col, 0.08).fillTriangle(c.cx - 8 * u, beamTop, c.cx - c.cw * 0.34, floor, c.cx + c.cw * 0.34, floor);
+      g.fillStyle(col, 0.06).fillTriangle(c.cx - 4 * u, beamTop, c.cx + 4 * u, beamTop, c.cx + c.cw * 0.2, floor);
+      g.fillStyle(col, 0.06).fillTriangle(c.cx - 4 * u, beamTop, c.cx - c.cw * 0.2, floor, c.cx + c.cw * 0.2, floor);
+      const pw = c.cw * 0.3;
+      const ph = 4 * u;
+      const hex = [
+        new Phaser.Math.Vector2(c.cx - pw, floor),
+        new Phaser.Math.Vector2(c.cx - pw * 0.6, floor - ph),
+        new Phaser.Math.Vector2(c.cx + pw * 0.6, floor - ph),
+        new Phaser.Math.Vector2(c.cx + pw, floor),
+        new Phaser.Math.Vector2(c.cx + pw * 0.6, floor + ph),
+        new Phaser.Math.Vector2(c.cx - pw * 0.6, floor + ph),
+      ];
+      g.fillStyle(0x05040e, 0.6).fillPoints(hex, true);
+      g.fillStyle(col, 0.3).fillPoints(hex, true);
+      g.lineStyle(Math.max(1, u / 2), col, 0.9).strokePoints(hex, true);
+      g.fillStyle(0xffffff, 0.5).fillRect(c.cx - pw * 0.5, floor - ph + Math.max(1, u / 2), pw, Math.max(1, u / 2));
       // divider above the stat bars
       g.fillStyle(PANEL.border, 1).fillRect(x0 + 6 * u, c.top + (this.compact ? 146 - TAG_H : 146) * u, c.cw - 12 * u, Math.max(1, u / 2));
       if (slot.kind === 'human') {
@@ -310,11 +353,20 @@ export class CharacterSelectScene extends MenuScene {
     });
   }
 
+  private hoverT = 0;
+
   /** The roster on its own strip, with a frame in each player's colour around the fighter they are on. */
   private drawRoster(): void {
     const g = this.rosterG.clear();
     const p = this.rosterPlate;
     drawPanel(g, p.x, p.y, p.w, p.h, p.u, 0.72);
+    // each tile is a dark well with a lighter top edge, so the busts sit in frames along the strip
+    for (const r of this.roster) {
+      const b = r.box;
+      if (!b.w) continue;
+      g.fillStyle(0x05040e, 0.55).fillRect(b.x + p.u, b.y + p.u, b.w - 2 * p.u, b.h - 2 * p.u);
+      g.fillStyle(0xffffff, 0.06).fillRect(b.x + p.u, b.y + p.u, b.w - 2 * p.u, Math.max(1, p.u / 2));
+    }
     const active = this.lobby.active;
     const byFighter = new Map<number, number[]>();
     active.forEach((s, k) => {
@@ -330,6 +382,16 @@ export class CharacterSelectScene extends MenuScene {
         const inset = depth * 2 * p.u;
         g.fillStyle(COLORS.p[k], 0.12).fillRect(b.x + inset, b.y + inset, b.w - 2 * inset, b.h - 2 * inset);
         g.lineStyle(p.u, COLORS.p[k], 1).strokeRect(b.x + inset, b.y + inset, b.w - 2 * inset, b.h - 2 * inset);
+        if (depth === 0 && !settings.reduceMotion) {
+          // a glint sweeps across the hovered tile every couple of seconds
+          const ph = (this.hoverT * 0.6 + ci * 0.13) % 1;
+          if (ph < 0.4) {
+            const gx = b.x + (ph / 0.4) * (b.w + b.h * 0.4) - b.h * 0.4;
+            const pts = [new Phaser.Math.Vector2(Math.max(b.x, gx), b.y + b.h), new Phaser.Math.Vector2(Math.min(b.x + b.w, Math.max(b.x, gx + b.h * 0.4)), b.y), new Phaser.Math.Vector2(Math.min(b.x + b.w, Math.max(b.x, gx + b.h * 0.4 + 5 * p.u)), b.y), new Phaser.Math.Vector2(Math.min(b.x + b.w, Math.max(b.x, gx + 5 * p.u)), b.y + b.h)];
+            // (on the overlay above the busts: drawEdit cleared it earlier this frame)
+            this.editG.fillStyle(0xffffff, 0.14).fillPoints(pts, true);
+          }
+        }
       });
     }
   }
@@ -364,8 +426,10 @@ export class CharacterSelectScene extends MenuScene {
     this.cards.forEach((c, i) => {
       const slot = l.slots[i];
       const random = l.isRandom(slot);
-      const data = CHARACTER_LIST[random ? 0 : slot.character] ?? CHARACTER_LIST[0];
       const filled = slot.kind !== 'empty';
+      // an empty card's silhouette cycles through the roster: who will it be?
+      const cyc = filled ? 0 : Math.floor(time / 1.8 + i * 0.37) + i * 3;
+      const data = (filled ? CHARACTER_LIST[random ? 0 : slot.character] : CHARACTER_LIST[cyc % CHARACTER_LIST.length]) ?? CHARACTER_LIST[0];
       const fighter = filled && !random;
       const pal = fighter ? Math.max(0, slot.palette) % paletteCount(data.id) : 0;
       // outfits are built off the main thread: until one is ready the card shows the fighter's default look, and the next
@@ -400,8 +464,11 @@ export class CharacterSelectScene extends MenuScene {
       c.device.setScale(legible(Math.min(c.cu * 1.2, room / Math.max(1, textPx(c.device)))));
       c.outfit.setScale(legible(Math.min(c.cu, (c.cw * 0.92) / Math.max(1, textPx(c.outfit)))));
       // an empty card shows a dark fighter silhouette waiting to be claimed
-      c.sprite.setVisible(fighter || !filled).setAlpha(!filled ? 0.55 + 0.1 * Math.sin(time * 2) : slot.kind === 'cpu' ? 0.85 : 1);
-      if (!filled) c.sprite.setTintFill(0x2a2650);
+      // (fading out and back in as it changes)
+      const ph = (time / 1.8 + i * 0.37) % 1;
+      const swap = settings.reduceMotion ? 1 : Math.max(0, Math.min(1, ph / 0.15, (1 - ph) / 0.15));
+      c.sprite.setVisible(fighter || !filled).setAlpha(!filled ? 0.7 * swap : slot.kind === 'cpu' ? 0.85 : 1);
+      if (!filled) c.sprite.setTintFill(0x302a5c);
       else if (c.sprite.tintFill) c.sprite.clearTint();
       c.q.setVisible(filled && random).setAlpha(0.6 + 0.4 * Math.abs(Math.sin(time * 2.5)));
       c.name.setText(filled ? (random ? 'RANDOM' : up(data.name)) : '');
@@ -458,7 +525,18 @@ export class CharacterSelectScene extends MenuScene {
       const pickedBy = l.active.map((s, k) => (s.kind !== 'empty' && s.character === i ? k : -1));
       r.pips.forEach((p, k) => p.setVisible(pickedBy[k] >= 0));
       (r.img ?? r.q)?.setAlpha(pickedBy.some((k) => k >= 0) ? 1 : 0.7);
+      // the tile under a player's cursor comes alive: the bust leans in and breathes (still once they lock in)
+      const home = r.img?.getData('home') as [number, number, number] | undefined;
+      if (r.img && home) {
+        const hover = l.active.some((sl) => sl.kind === 'human' && sl.character === i);
+        const locked = hover && l.active.some((sl) => sl.kind === 'human' && sl.character === i && sl.locked);
+        const live = hover && !locked && !settings.reduceMotion;
+        const k = hover ? 1.08 + (live ? 0.03 * Math.sin(time * 4) : 0) : 1;
+        r.img.setScale(home[2] * k).setPosition(home[0], home[1] - (hover ? 2 * this.rosterPlate.u : 0) + (live ? Math.round(Math.sin(time * 2) * this.rosterPlate.u) : 0));
+        r.img.setTint(hover || !pickedBy.some((k2) => k2 >= 0) ? 0xffffff : 0xd8d4f0);
+      }
     });
+    this.hoverT = time;
     this.drawCards(time);
     this.drawRoster();
     const pads = inputManager.padList.length;
@@ -680,7 +758,7 @@ export class CharacterSelectScene extends MenuScene {
       this.lastDevice = dev;
       const mine = l.slotOf(dev.id);
       if (mine < 0 && l.slots[card].kind === 'empty') l.join(dev.id);
-      else if (mine === card && l.slots[card].locked && (l.ready || session.mode !== 'versus')) this.proceed();
+      else if (mine === card && l.slots[card].locked && (l.ready || (session.mode !== 'versus' && !this.takesTurns()))) this.proceed();
       return;
     }
     const tile = this.roster.findIndex((r) => q.x >= r.box.x && q.x <= r.box.x + r.box.w && q.y >= r.box.y && q.y <= r.box.y + r.box.h);
@@ -690,7 +768,7 @@ export class CharacterSelectScene extends MenuScene {
     const s = l.slots[l.slotOf(dev.id)];
     l.focusHome(dev.id);
     if (s.locked) return;
-    if (this.fixedFighter() >= 0 || s.character === tile) l.confirm(dev.id);
+    if (this.fixedFighter() >= 0 || s.character === tile) this.confirmAndCall(dev.id);
     else {
       s.character = tile;
       s.palette = 0;
@@ -716,6 +794,23 @@ export class CharacterSelectScene extends MenuScene {
 
   private deviceById(id: string | null) {
     return inputManager.allDevices.find((d) => d.id === id) ?? null;
+  }
+
+  /** Lock a player in; the announcer calls the name of each fighter that just locked (RANDOM is not called). */
+  private confirmAndCall(id: string): void {
+    const l = this.lobby;
+    const was = l.slots.map((s) => s.locked);
+    l.confirm(id);
+    l.slots.forEach((s, i) => {
+      if (!s.locked || was[i] || l.isRandom(s)) return;
+      const c = CHARACTER_LIST[s.character];
+      if (c) announcer.fighterName(c.name.toUpperCase());
+    });
+  }
+
+  /** Target Smash / Launch Contest with room for more than one player: everyone who joined locks in, then they take turns. */
+  private takesTurns(): boolean {
+    return (session.mode === 'launch' || session.mode === 'targets') && session.playerCount > 1;
   }
 
   private proceed(): void {
@@ -760,13 +855,9 @@ export class CharacterSelectScene extends MenuScene {
       session.stage = ch.stage;
       session.players = challengeSlots(ch, slots[0]);
       this.go('Match');
-    } else if (session.mode === 'launch') {
-      session.stage = 'launch';
-      session.players = launchSlots(slots[0]);
-      this.go('Match');
-    } else if (session.mode === 'targets') {
-      session.stage = 'targets';
-      session.players = [slots[0]];
+    } else if (session.mode === 'launch' || session.mode === 'targets') {
+      // one player: a normal run; several: they take turns (see game/turns)
+      beginTurns(session.mode, slots);
       this.go('Match');
     } else {
       session.stage = 'sandbox';
@@ -812,8 +903,8 @@ export class CharacterSelectScene extends MenuScene {
           l.focusNext(id); // on to the next CPU card (or back to your own)
           break;
         }
-        if (i >= 0 && l.slots[i].locked && (l.ready || session.mode !== 'versus')) this.proceed();
-        else l.confirm(id);
+        if (i >= 0 && l.slots[i].locked && (l.ready || (session.mode !== 'versus' && !this.takesTurns()))) this.proceed();
+        else this.confirmAndCall(id);
         break;
       }
       case 'back': {

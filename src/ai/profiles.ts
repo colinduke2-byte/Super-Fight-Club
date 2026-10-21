@@ -1,4 +1,5 @@
 /** Difficulty tuning and per-character knowledge for the CPU. */
+import { ventPower } from '../characters/brickHeat';
 
 /** The three lobby levels (Easy / Normal / Hard). They map onto the 1-9 skill scale: 1 -> 1, 2 -> 5, 3 -> 9. */
 export type CpuLevel = 1 | 2 | 3;
@@ -97,7 +98,7 @@ function lerpParams(a: LevelParams, b: LevelParams, t: number, skill: number): L
 }
 
 /** Parameters of every skill 1..9 (index 0 unused). */
-export const SKILLS: readonly LevelParams[] = [ANCHORS[1], ...[1, 2, 3, 4, 5, 6, 7, 8, 9].map((s) => (s === 1 || s === 5 || s === 9 ? ANCHORS[s] : s < 5 ? lerpParams(ANCHORS[1], ANCHORS[5], (s - 1) / 4, s) : lerpParams(ANCHORS[5], ANCHORS[9], Math.pow((s - 5) / 4, 0.6), s)))];
+export const SKILLS: readonly LevelParams[] = [ANCHORS[1], ...[1, 2, 3, 4, 5, 6, 7, 8, 9].map((s) => (s === 1 || s === 5 || s === 9 ? ANCHORS[s] : s < 5 ? lerpParams(ANCHORS[1], ANCHORS[5], (s - 1) / 4, s) : lerpParams(ANCHORS[5], ANCHORS[9], Math.pow((s - 5) / 4, 0.9), s)))];
 
 /** The skill a lobby level plays at. */
 export function skillForLevel(level: CpuLevel): CpuSkill {
@@ -163,7 +164,7 @@ export interface CharacterAi {
    * A special that cashes in a resource (Brick's Vent at Heat >= `min`, Agni's Flare Burst at flame level >= `min`): used as a
    * close-range move from its hitboxes once the resource is there. The move's own `requires` gate is honoured too.
    */
-  spender?: { slot: string; key: string; min: number };
+  spender?: { slot: string; key: string; min: number; scale?: (v: number) => { damageMult: number; kbMult: number } };
   /** A buff special that upgrades our deployables (Gizmo's Overclock): pressed when one is near and `key` >= `min`. */
   buff?: { slot: string; key: string; min: number; deployable: string; range: number };
   /** A diving special (Halcyon's Falcon Dive): fired from the air onto a rival below, only over solid stage. */
@@ -190,12 +191,15 @@ export const CHARACTER_AI: Record<string, CharacterAi> = {
   brick: {
     ...GENERIC,
     closers: ['neutralB'],
+    // the Charge Shoulder (held for its charge) carries ~110 px: from further out it stops short and eats the end lag
+    closerRange: [50, 170],
     finishers: ['fsmash', 'usmash', 'fair', 'uair'],
     holds: { neutralB: 26 },
     bank: { slot: 'neutralB', key: 'punch', frames: 50 },
     oos: 'upB',
     commandGrab: 'sideB',
-    spender: { slot: 'downB', key: 'heat', min: 50 },
+    // Vent's burst grows with the Heat it spends (see brickHeat.ventPower): the CPU values it by the Heat it has
+    spender: { slot: 'downB', key: 'heat', min: 50, scale: ventPower },
     grabBonus: 3,
     recovery: { slot: 'upB', up: 90, out: 70, aim: 'fixed' },
     ultimateRange: 60,
@@ -205,6 +209,8 @@ export const CHARACTER_AI: Record<string, CharacterAi> = {
     ...GENERIC,
     closers: ['neutralB'],
     aimed: ['neutralB'],
+    // Blink Strike warps ~62 px and its slash reaches ~48 px past that: fired from further out it only whiffs
+    closerRange: [45, 115],
     setups: ['downB'],
     finishers: ['usmash', 'fsmash', 'fair', 'uair'],
     recovery: { slot: 'upB', up: 110, out: 110, aim: 'stick8' },

@@ -11,6 +11,7 @@ import { sfx } from '../audio/sfx';
 import { COLORS, MenuScene, blink, text, textPx, type MenuBackdrop } from '../ui/menuKit';
 import { settings } from '../settings';
 import { PIXEL_FONT } from '../art/pixelFont';
+import { fastShapes } from '../ui/fastShapes';
 
 /** Title screen: logo, the roster standing under spotlights with nameplates, "press any button". */
 /** Seconds of idle title screen before the demo match starts. */
@@ -46,6 +47,10 @@ export class TitleScene extends MenuScene {
   /** Next scene time a fighter in the lineup strikes a pose, and which one is posing. */
   private nextPose = 3;
   private flash!: Phaser.GameObjects.Rectangle;
+  /** The logo's crest: a slanted plate behind FIGHT CLUB, a gold tab under SUPER and a slow burst of light behind both. */
+  private crest!: Phaser.GameObjects.Graphics;
+  /** The lineup's stage deck: a lit floor with perspective lines and the spotlights' pools (drawn on layout). */
+  private deck!: Phaser.GameObjects.Graphics;
   /** Buttons each pad (by index) had down last frame: any fresh press, mapped or not, starts the game. */
   private readonly padPrev = new Map<number, number>();
   /** The title has no BACK: every key, button, click and tap is a "press". */
@@ -67,9 +72,11 @@ export class TitleScene extends MenuScene {
     this.baseY = [];
     sfx.arm();
     inputManager.init();
+    this.deck = fastShapes(this.add.graphics());
     this.stage = this.add.graphics();
     this.rules = this.add.graphics();
-    this.ui.add([this.stage, this.rules]);
+    this.crest = fastShapes(this.add.graphics());
+    this.ui.add([this.deck, this.stage, this.rules, this.crest]);
     const logo = (str: string, tint: number): Phaser.GameObjects.BitmapText => this.add.bitmapText(0, 0, PIXEL_FONT, str).setOrigin(0.5).setTint(tint);
     this.logo2Shadow = logo('FIGHT CLUB', 0x2a0818);
     this.logo2Outline = [0, 1, 2, 3].map(() => logo('FIGHT CLUB', 0x14040c));
@@ -275,8 +282,81 @@ export class TitleScene extends MenuScene {
     }
     st.fillStyle(0xffffff, 0.12);
     for (let r = 0; r < rows; r++) st.fillRect(margin, floorOf(r), w - margin * 2, u * 0.5);
+    // the deck each row stands on: a dark stage floor running back from its front lip, with perspective lines converging
+    // on the logo and a bright lip, so the lineup stands on a stage rather than a line
+    const dk = this.deck.clear();
+    for (let r = 0; r < rows; r++) {
+      const fy = floorOf(r);
+      const depth = Math.min(plateH + 6 * u, 14 * u);
+      const inset = Math.min(w * 0.06, 24 * u);
+      const pts = [new Phaser.Math.Vector2(margin + inset, fy - depth * 0.35), new Phaser.Math.Vector2(w - margin - inset, fy - depth * 0.35), new Phaser.Math.Vector2(w - margin, fy + depth), new Phaser.Math.Vector2(margin, fy + depth)];
+      dk.fillStyle(0x0a0820, 0.55).fillPoints(pts, true);
+      const lines = 9;
+      for (let k = 0; k <= lines; k++) {
+        const t = k / lines;
+        const xb = margin + (w - 2 * margin) * t;
+        const xt = margin + inset + (w - 2 * (margin + inset)) * t;
+        dk.lineStyle(Math.max(1, u * 0.5), 0x6a5ad0, 0.12).lineBetween(xt, fy - depth * 0.35, xb, fy + depth);
+      }
+      dk.fillStyle(0xffd46a, 0.35).fillRect(margin, fy + depth - u, w - margin * 2, u);
+      dk.fillStyle(0xffffff, 0.06).fillRect(margin, fy + depth, w - margin * 2, 2 * u);
+    }
     this.logoY = { l1: this.logo1.y, l2: this.logo2.y, sub: this.sub.y };
     this.flash.setSize(w, h);
+  }
+
+  /**
+   * The logo treatment: a burst of light turning slowly behind the logo, a slanted dark plate with lit edges and notched
+   * ends behind FIGHT CLUB, and a gold tab under SUPER. Drawn every frame from the logo's current size (it slams in).
+   */
+  private drawCrest(time: number, e1: number, e2: number): void {
+    const g = this.crest.clear();
+    const u = this.u;
+    const L = this.logo2;
+    const lw = L.displayWidth;
+    const lh = L.displayHeight;
+    if (lw <= 0) return;
+    const cx = L.x;
+    const cy = L.y;
+    // the burst: long thin wedges round the logo's centre
+    const spin = settings.reduceMotion ? 0 : time * 0.05;
+    const R = Math.max(lw * 0.75, this.scale.height * 0.4);
+    for (let i = 0; i < 18; i++) {
+      const a0 = spin + (i / 18) * Math.PI * 2;
+      const a1 = a0 + 0.06;
+      g.fillStyle(i % 2 ? 0xff6a8a : 0xffd46a, 0.035 * e2).fillTriangle(cx, cy, cx + Math.cos(a0) * R, cy + Math.sin(a0) * R * 0.55, cx + Math.cos(a1) * R, cy + Math.sin(a1) * R * 0.55);
+    }
+    // the plate behind FIGHT CLUB: a parallelogram leaning forward, its ends notched like a blade
+    const pad = Math.max(6 * u, lh * 0.35);
+    const sw0 = this.scale.width;
+    const x0 = Math.max(2 * u, cx - lw / 2 - pad);
+    const y0 = cy - lh / 2 - pad * 0.45;
+    const y1 = cy + lh / 2 + pad * 0.45;
+    const lean = (y1 - y0) * 0.35;
+    // (kept inside the screen on a narrow window: the plate's lean and notch stay visible)
+    const x1 = Math.min(sw0 - 2 * u - lean, cx + lw / 2 + pad);
+    const notch = (y1 - y0) * 0.22;
+    const plate = [
+      new Phaser.Math.Vector2(x0 + lean, y0),
+      new Phaser.Math.Vector2(x1 + lean, y0),
+      new Phaser.Math.Vector2(x1 + lean * 0.5 - notch, (y0 + y1) / 2),
+      new Phaser.Math.Vector2(x1, y1),
+      new Phaser.Math.Vector2(x0, y1),
+      new Phaser.Math.Vector2(x0 + lean * 0.5 + notch, (y0 + y1) / 2),
+    ];
+    g.fillStyle(0x14040c, 0.78 * e2).fillPoints(plate, true);
+    g.lineStyle(Math.max(1, u), 0xff6a8a, 0.85 * e2).lineBetween(plate[0].x, y0, plate[1].x, y0);
+    g.lineStyle(Math.max(1, u), 0xffd46a, 0.8 * e2).lineBetween(plate[4].x, y1, plate[3].x, y1);
+    g.lineStyle(Math.max(1, u * 0.5), 0xff6a8a, 0.4 * e2).strokePoints(plate, true);
+    // the gold tab under SUPER, overlapping the plate's top edge
+    const S = this.logo1;
+    const sw = S.displayWidth + 10 * u;
+    const sh = S.displayHeight + 4 * u;
+    const sx = S.x - sw / 2;
+    const sy = S.y - sh / 2;
+    const tl = sh * 0.4;
+    g.fillStyle(0x2a1a08, 0.85 * e1).fillPoints([new Phaser.Math.Vector2(sx + tl, sy), new Phaser.Math.Vector2(sx + sw + tl, sy), new Phaser.Math.Vector2(sx + sw, sy + sh), new Phaser.Math.Vector2(sx, sy + sh)], true);
+    g.fillStyle(0xffd46a, 0.9 * e1).fillRect(sx, sy + sh - Math.max(1, u * 0.75), sw, Math.max(1, u * 0.75));
   }
 
   /** Every copy of FIGHT CLUB (they scale together). */
@@ -333,6 +413,7 @@ export class TitleScene extends MenuScene {
     this.logo2.setData('slam', slam);
     for (const l of this.logo2Layers()) l.setScale(sc2 * slam).setAlpha(l === this.logo2Glow ? l.alpha : e2);
     this.placeLogo2(this.logoY.l2, sc2 * slam);
+    this.drawCrest(time, e1, e2);
     const e3 = this.ease(time, 0.45, 0.35);
     this.sub.setAlpha(e3).setY(this.logoY.sub + (1 - e3) * 6 * u);
     this.rules.setAlpha(e3);

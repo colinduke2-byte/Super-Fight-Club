@@ -31,6 +31,27 @@ function mix(a: number, b: number, t: number): number {
  * - burst sparks are streaks aligned to their velocity with air drag (fast and long at first, slowing to motes)
  * - rings are a crisp leading edge with a soft trailing glow and a second white echo inside
  */
+/** Landing / skid dust by stage theme: [shade, light] for the solid stage and (where it differs) its pass-through platforms. */
+interface DustSet {
+  solid: [number, number];
+  pass?: [number, number];
+}
+const DUST_DEFAULT: DustSet = { solid: [0xa9a0d8, 0xcfc8e8] };
+const DUST: Record<string, DustSet> = {
+  skyline: { solid: [0x9a94b8, 0xcac4e0] }, // weathered metal and stone
+  void: { solid: [0x6aa8c0, 0xb4e0ee] }, // the ring's tech plating
+  reactor: { solid: [0x7a5e50, 0xb8987c] }, // soot and ash
+  storm: { solid: [0x7e8ea4, 0xb8c4d4], pass: [0xc8d8ec, 0xf0f6ff] }, // slate grit; cloud wisps off the cloud platforms
+  temple: { solid: [0x7c8e5a, 0xc0cc94], pass: [0x8a8a6a, 0xc8c4a0] }, // grass and earth; mossy stone
+  tide: { solid: [0x7e6a52, 0xbca88a], pass: [0x7e6a52, 0xbca88a] }, // wet planks and grit
+  cavern: { solid: [0x7a6a8c, 0xbcaed0] }, // crystal-flecked rock
+  frost: { solid: [0xc4d4ea, 0xf6faff], pass: [0xb8c8de, 0xf0f6ff] }, // powder snow
+  airship: { solid: [0x8e7052, 0xd0b896], pass: [0x8e7052, 0xd0b896] }, // timber deck
+  dawn: { solid: [0xbcac94, 0xece0cc], pass: [0x9a7650, 0xd4b484] }, // marble dust; wooden bridges
+  apex: { solid: [0xb0a8bc, 0xeae4f0], pass: [0x9a90b0, 0xd8d0e8] }, // ivory dust off the dais
+  stadium: { solid: [0xa85444, 0xd89a88] }, // track rubber
+};
+
 export class Effects {
   private readonly sprites: Phaser.GameObjects.Image[] = [];
   private readonly vx = new Float32Array(POOL);
@@ -65,8 +86,11 @@ export class Effects {
   private readonly ringTex: string;
   private readonly bigRing: boolean;
   private nextRing = 0;
+  /** The scene, read by `dustColours` for its stage. */
+  private readonly scene: Phaser.Scene;
 
   constructor(scene: Phaser.Scene, layer: Phaser.GameObjects.Layer) {
+    this.scene = scene;
     const has = (k: string): boolean => scene.textures.exists(k);
     const tex = (k: string, fallback: string): string => (has(k) ? k : fallback);
     // rings and blooms sit under the particles; the stars and impact shapes on top
@@ -160,13 +184,28 @@ export class Effects {
     }
   }
 
-  /** Dust kicked up at the feet. */
+  /** Dust kicked up at the feet, in the colour of the surface underfoot (see `dustColours`). */
   dust(x: number, y: number, count: number, dir: number): void {
     const n = Math.max(1, Math.round(count * this.quality));
+    const [dark, light] = this.dustColours(x, y);
     for (let k = 0; k < n; k++) {
       const side = k % 2 === 0 ? -1 : 1;
-      this.emit(x + side * 3, y - 1, side * (12 + Math.random() * 22) + dir * 14, -(6 + Math.random() * 14), 0.3 + Math.random() * 0.25, k % 3 === 0 ? 0xa9a0d8 : 0xcfc8e8, 2 + (k % 2), 30);
+      this.emit(x + side * 3, y - 1, side * (12 + Math.random() * 22) + dir * 14, -(6 + Math.random() * 14), 0.3 + Math.random() * 0.25, k % 3 === 0 ? dark : light, 2 + (k % 2), 30);
     }
+  }
+
+  /**
+   * Dust colours (shade, light) for a point on the stage: the platform whose top is right there picks its theme's solid or
+   * pass-through surface (snow, grass, planks, ivory, track rubber, cloud...); anywhere else, the stage theme's solid one.
+   */
+  private dustColours(x: number, y: number): [number, number] {
+    const stage = (this.scene as { world?: { stage?: { background?: { theme?: string }; platforms?: ReadonlyArray<{ x: number; y: number; w: number; kind: string }> } } }).world?.stage;
+    const theme = stage?.background?.theme ?? '';
+    const set = DUST[theme] ?? DUST_DEFAULT;
+    if (set.pass && stage?.platforms) {
+      for (const p of stage.platforms) if (p.kind !== 'solid' && Math.abs(p.y - y) < 4 && x >= p.x - 2 && x <= p.x + p.w + 2) return set.pass;
+    }
+    return set.solid;
   }
 
   /** Impact flash: bloom + eight-point star (+ a jagged burst when heavy) that pops white-hot and cools. `power` ~ 0.5..6. */

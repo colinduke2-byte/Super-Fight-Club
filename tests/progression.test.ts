@@ -1,4 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
+import { targetCourseById } from '../src/stages/targetCourses';
 import { BossController } from '../src/ai/boss';
 import { CpuController } from '../src/ai/cpu';
 import { characterById, CHARACTER_LIST } from '../src/characters';
@@ -299,7 +300,8 @@ describe('challenges', () => {
     expect(weightLine('brick', 'obelisk')).toContain(brick > obelisk ? 'Brick outweighs Obelisk' : 'Obelisk outweighs Brick');
     expect(challengeById('warden')!.stage).toBe('apex');
     expect(STAGES.apex).toBeTruthy();
-    for (const c of CHALLENGES) expect(STAGES[c.stage], c.id).toBeTruthy();
+    // (Target Smash challenges are on a target course)
+    for (const c of CHALLENGES) expect(STAGES[c.stage] ?? targetCourseById(c.stage)?.stage, c.id).toBeTruthy();
   });
 
   it('the run result says which goals were met and what improved', () => {

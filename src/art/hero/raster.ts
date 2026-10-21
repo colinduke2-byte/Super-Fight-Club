@@ -136,8 +136,13 @@ export class Raster {
     });
   }
 
-  /** A copy rotated 90 degrees counter-clockwise (head to the left), moved so its lowest pixel sits on row `baseY` and its middle on column `midX`. */
-  lyingDown(baseY: number, midX: number): Raster {
+  /**
+   * A copy rotated 90 degrees counter-clockwise (head to the left), moved so its lowest pixel sits on row `baseY` and its
+   * middle on column `midX`. With `backX` (the back of the torso in the upright drawing) the back rests on that row instead,
+   * so whatever stuck out behind the body (a tail, a trailing arm, wings, shards) lies along the floor rather than
+   * propping the body up off it at a slant.
+   */
+  lyingDown(baseY: number, midX: number, backX?: number): Raster {
     const W = this.w;
     const H = this.h;
     const out = new Raster(W, H);
@@ -158,7 +163,7 @@ export class Raster {
       }
     }
     const dx = Math.round(midX - (minX + maxX) / 2);
-    const dy = baseY - maxY;
+    const dy = backX === undefined ? baseY - maxY : Math.max(baseY - maxY, baseY - nyOf(Math.round(backX)));
     for (let y = 0; y < H; y++) {
       for (let x = 0; x < W; x++) {
         const i = y * W + x;

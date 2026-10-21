@@ -105,7 +105,7 @@ export const simStats = { calls: 0, frames: 0 };
 /**
  * Fly `pol` from the fighter's current state on a private copy of the stage. Returns the frames it takes to stand on a
  * platform or hang on a ledge, or -1 if it falls / runs out of time. Ledges a rival hangs on can be taken by a ledge
- * trump (a grab, not a ledge snap or a tether); ones an ally or a climber holds are blocked.
+ * trump (an air grab, a ledge snap or a tether all trump); ones an ally or a climber holds are blocked.
  */
 export function simulateRecovery(f: Fighter, world: World, l: Ledge, pol: RecPolicy, maxT = 110, landIn = 10, from?: Partial<Fighter>, log?: string[]): number {
   const { rig, g } = rigFor(world, f);
@@ -116,8 +116,8 @@ export function simulateRecovery(f: Fighter, world: World, l: Ledge, pol: RecPol
     const o = rl.occupant;
     const of = o >= 0 ? world.fighters[o] : null;
     let occ = o === -1 || o === f.id ? -1 : of && of.state === 'ledge' && !world.allied(f.id, o) ? 1 : BLOCKED;
-    // a rival recovering right next to a free ledge may well take it first: plan as if it hangs there (a trump still works,
-    // a ledge snap or a tether does not)
+    // a rival recovering right next to a free ledge may well take it first: plan as if it hangs there (a trump by a grab,
+    // a ledge snap or a tether still works)
     if (occ === -1) {
       for (const r of world.fighters) {
         if (r === f || r.grounded || r.state === 'ko' || r.state === 'ledge' || world.allied(f.id, r.id)) continue;

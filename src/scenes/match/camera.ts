@@ -14,9 +14,17 @@ export interface CameraFrame {
  * The world camera: follows the living fighters (and Target Smash targets, and the Launch Contest bag in flight), pushes in
  * for ultimates, snaps to crisp pixel zooms, and applies shake / heavy-hit punch.
  */
+/** Sim ticks at the start of a match during which the camera frames the whole stage (its platforms) as well as the fighters. */
+const OPENING_TICKS = 150;
+/** Headroom kept above a platform's top while framing it (a fighter standing on it). */
+const PLATFORM_HEADROOM = 34;
+
 export class MatchCamera {
   readonly cam = new MultiTargetCamera({ ...DEFAULT_CAMERA, bounds: { x: 0, y: 0, w: 1, h: 1 } });
   private readonly targets: CamPoint[] = [];
+  /** Platform points framed at the start of the match (empty in modes that frame something else). */
+  private readonly opening: CamPoint[] = [];
+  private ticks = 0;
   /** World rectangle the world camera shows this frame (see `frame`). */
   readonly view = new Phaser.Geom.Rectangle();
   /** The ultimate dim: over the backdrop and the stage, under the fighters, effects and cinematic staging. */
@@ -25,7 +33,12 @@ export class MatchCamera {
   constructor(private readonly s: MatchScene) {
     const bz = s.runner.stage.blast;
     this.cam.cfg = { ...DEFAULT_CAMERA, bounds: { x: bz.left, y: bz.top, w: bz.right - bz.left, h: bz.bottom - bz.top } };
-    for (let i = 0; i < s.fighters.length + s.world.targets.length; i++) this.targets.push({ x: 0, y: 0 });
+    // the opening shot shows the whole stage, so high platforms are not cut off before anyone has moved (not in the Launch
+    // Contest, whose runway runs far off to the side, or Target Smash, which frames its targets)
+    if (!s.runner.launch && !s.world.targets.length) {
+      for (const p of s.runner.stage.platforms) this.opening.push({ x: p.x, y: p.y - PLATFORM_HEADROOM }, { x: p.x + p.w, y: p.y - PLATFORM_HEADROOM });
+    }
+    for (let i = 0; i < s.fighters.length + s.world.targets.length + this.opening.length; i++) this.targets.push({ x: 0, y: 0 });
     this.cam.snap();
   }
 
@@ -54,6 +67,13 @@ export class MatchCamera {
       const c = this.targets[n++];
       c.x = t.x;
       c.y = t.y;
+    }
+    if (this.ticks++ < OPENING_TICKS) {
+      for (const p of this.opening) {
+        const c = this.targets[n++];
+        c.x = p.x;
+        c.y = p.y;
+      }
     }
     this.cam.step(this.targets, n, s.worldCam.width, s.worldCam.height);
   }

@@ -162,6 +162,101 @@ export class MatchTally {
   }
 }
 
+/** The slice of a fighter the timeline samples. */
+export interface TimelineFighter {
+  id: number;
+  damage: number;
+  state: string;
+}
+
+/** A KO on the timeline: when, who fell, who sent them (-1: a self-destruct or the stage). */
+export interface TimelineKo {
+  t: number;
+  victim: number;
+  by: number;
+}
+
+/** What a finished match's graphs are drawn from (see MatchTimeline). */
+export interface TimelineData {
+  /** Ticks between samples. */
+  every: number;
+  /** Per fighter: damage (%) at each sample. */
+  damage: number[][];
+  /** Per fighter: stocks left at each sample. */
+  stocks: number[][];
+  kos: TimelineKo[];
+  /** Ticks the match ran. */
+  ticks: number;
+}
+
+/** Samples kept at most; a longer match halves its sampling rate (every other sample dropped) to stay under it. */
+const TIMELINE_MAX = 1200;
+
+/**
+ * The match as it unfolded, for the results graphs: each fighter's damage and stocks a few times a second and every KO, counted
+ * from world events and the tick (it reads the runner, never the scene). Feed `onEvent` every world event and call `step` once
+ * per simulated tick.
+ */
+export class MatchTimeline {
+  every = 15;
+  readonly damage: number[][];
+  readonly stocks: number[][];
+  readonly kos: TimelineKo[] = [];
+  ticks = 0;
+
+  constructor(n: number) {
+    this.damage = Array.from({ length: n }, () => []);
+    this.stocks = Array.from({ length: n }, () => []);
+  }
+
+  /** The first sample (tick 0), before anyone moves. */
+  start(fighters: readonly TimelineFighter[], scores: readonly { stocks: number }[]): void {
+    if (this.damage[0]?.length) return;
+    this.sample(fighters, scores);
+  }
+
+  onEvent(type: string, f: TimelineFighter | null | undefined, extra: number, tick: number): void {
+    if (type !== 'ko' || !f || f.id < 0 || f.id >= this.damage.length) return;
+    this.kos.push({ t: tick, victim: f.id, by: extra >= 0 && extra < this.damage.length && extra !== f.id ? extra : -1 });
+  }
+
+  step(fighters: readonly TimelineFighter[], scores: readonly { stocks: number }[], tick: number): void {
+    this.ticks = tick;
+    if (tick % this.every !== 0) return;
+    this.sample(fighters, scores);
+    if ((this.damage[0]?.length ?? 0) > TIMELINE_MAX) {
+      this.every *= 2;
+      for (const a of [...this.damage, ...this.stocks]) {
+        const kept = a.filter((_, i) => i % 2 === 0);
+        a.length = 0;
+        a.push(...kept);
+      }
+    }
+  }
+
+  private sample(fighters: readonly TimelineFighter[], scores: readonly { stocks: number }[]): void {
+    for (let i = 0; i < this.damage.length; i++) {
+      const f = fighters[i];
+      this.damage[i].push(f && f.state !== 'ko' ? Math.round(f.damage) : 0);
+      this.stocks[i].push(Math.max(0, scores[i]?.stocks ?? 0));
+    }
+  }
+
+  /** A plain copy for the results screen. */
+  data(): TimelineData {
+    return { every: this.every, damage: this.damage.map((a) => [...a]), stocks: this.stocks.map((a) => [...a]), kos: this.kos.map((k) => ({ ...k })), ticks: this.ticks };
+  }
+}
+
+/** The last live match's timeline (set when it ends; the results screen draws its graphs from it). Replays do not change it. */
+let lastTimeline: TimelineData | null = null;
+export function setLastTimeline(t: TimelineData | null): void {
+  lastTimeline = t;
+}
+export function getLastTimeline(): TimelineData | null {
+  return lastTimeline;
+}
+
 /**
  * Half the width a fighter takes on the podium, in podium units (s = 1, the winner at full size): from its body width,
  * with room for arms, wings and cloaks. A regular fighter is about 13; the Overseer about twice that.

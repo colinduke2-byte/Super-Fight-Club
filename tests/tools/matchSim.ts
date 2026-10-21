@@ -76,6 +76,12 @@ export interface MatchResult {
   kos: KoRecord[];
   /** Ultimates started per fighter. */
   ults: number[];
+  /** Moves started per fighter, by move id. */
+  moveCounts: Record<string, number>[];
+  /** Hits landed per fighter, by the hitter's move id at the time. */
+  hitCounts: Record<string, number>[];
+  /** Damage dealt per fighter (to rivals). */
+  dealt: number[];
 }
 
 /** Stages offered in Stage Select (competitive rotation). */
@@ -131,6 +137,9 @@ export function playMatch(chars: string[], stage: string, level: CpuLevel | CpuL
   const lastHitUlt = fs.map(() => false);
   const lastHitMove = fs.map(() => '');
   const ults = fs.map(() => 0);
+  const moveCounts: Record<string, number>[] = fs.map(() => ({}));
+  const hitCounts: Record<string, number>[] = fs.map(() => ({}));
+  const dealt = fs.map(() => 0);
   const kos: KoRecord[] = [];
   const b = world.blast;
   const lv = Array.isArray(level) ? level : chars.map(() => level);
@@ -143,7 +152,13 @@ export function playMatch(chars: string[], stage: string, level: CpuLevel | CpuL
       const mv = cine ?? (atk && atk !== f ? atk.move : null);
       lastHitMove[f.id] = mv?.id ?? '';
       lastHitUlt[f.id] = mv?.kind === 'ultimate';
+      if (atk && atk !== f && type === 'hit') {
+        const id = cine?.id ?? (f.lastHitMove || 'trap');
+        hitCounts[atk.id][id] = (hitCounts[atk.id][id] ?? 0) + 1;
+        dealt[atk.id] += extra;
+      }
     }
+    if (type === 'moveStart' && f.move) moveCounts[f.id][f.move.id] = (moveCounts[f.id][f.move.id] ?? 0) + 1;
     if (type === 'trump') tr[f.id].trumpedAt = tick;
     if (type === 'moveStart' && f.move?.kind === 'ultimate') ults[f.id]++;
     if (type === 'moveStart' && f.move && !f.grounded && /^upB/.test(f.move.id)) tr[f.id].upBUsed = true;
@@ -222,5 +237,5 @@ export function playMatch(chars: string[], stage: string, level: CpuLevel | CpuL
     t.prevVy = f.vy;
     t.prevLedgeFrames = f.ledgeFrames;
   }
-  return { chars, stage, winner: match.over ? match.winner : -1, ticks: tick, kos, ults };
+  return { chars, stage, winner: match.over ? match.winner : -1, ticks: tick, kos, ults, moveCounts, hitCounts, dealt };
 }

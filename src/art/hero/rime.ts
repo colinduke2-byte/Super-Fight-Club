@@ -1,5 +1,5 @@
 import type { PlaceholderLook } from '../../engine/types';
-import { col, mix, mul, type Raster, type RGB, type V2 } from './raster';
+import { col, mix, mul, Raster, type RGB, type V2 } from './raster';
 import { drape, solveLimb, type Skel } from './skeleton';
 
 /**
@@ -315,31 +315,51 @@ export function drawRime(r: Raster, k: Skel, look: PlaceholderLook): void {
     // white hair spilling out at the back
     r.poly(P.frost, [[hx - 2, hy + 2], [hx + 6, hy + 4], [hx + 2, hy + 12], [hx - 8 - sw(4, 1.5), hy + 9]]);
     r.seg(P.wrapL, hx + 3, hy + 4, hx - 5 - sw(4, 1.5), hy + 9, 1, 1);
-    // the kasa: a wide shallow cone with a frosted crown, a dark under-brim and icicles
-    const bx0 = hx - 18;
-    const bx1 = hx + hs + 19;
-    const by = hy + 1;
-    const peakX = (bx0 + bx1) / 2 + 2;
-    const peakY = hy - 12;
-    r.poly(P.ink, [[bx0, by + 1], [bx1, by + 1], [bx1 - 4, by + 4], [bx0 + 4, by + 4]]); // under-brim shadow
-    r.poly(P.hat, [[bx0, by], [peakX - 4, peakY + 1], [peakX + 4, peakY + 1], [bx1, by]]);
-    r.poly(P.frost, [[peakX - 9, peakY + 6], [peakX - 4, peakY + 1], [peakX + 4, peakY + 1], [peakX + 10, peakY + 7], [peakX + 4, peakY + 8], [peakX - 3, peakY + 9]]);
-    r.ellipse(P.ice, peakX, peakY, 3, 2.5); // an ice finial
-    r.ellipse(P.glow, peakX, peakY - 1, 1.2, 1.2);
-    // woven bands
-    r.inlay(P.hat, P.hatD, (set) => {
-      for (let i = 0; i < 2; i++) {
-        const t = 0.45 + i * 0.28;
-        const yy = peakY + (by - peakY) * t;
-        const half = ((bx1 - bx0) / 2) * t;
-        for (let x = -half; x <= half; x += 1) set(peakX + x, yy);
+    // the kasa: a wide shallow cone with a frosted crown, a dark under-brim and icicles. Knocked flat, it has come off and
+    // lies on the floor past the head, crown up (drawn here turned a quarter so the body's own turn sets it down flat)
+    const kasa = (r: Raster): { px: number; py: number } => {
+      const bx0 = hx - 18;
+      const bx1 = hx + hs + 19;
+      const by = hy + 1;
+      const peakX = (bx0 + bx1) / 2 + 2;
+      const peakY = hy - 12;
+      r.poly(P.ink, [[bx0, by + 1], [bx1, by + 1], [bx1 - 4, by + 4], [bx0 + 4, by + 4]]); // under-brim shadow
+      r.poly(P.hat, [[bx0, by], [peakX - 4, peakY + 1], [peakX + 4, peakY + 1], [bx1, by]]);
+      r.poly(P.frost, [[peakX - 9, peakY + 6], [peakX - 4, peakY + 1], [peakX + 4, peakY + 1], [peakX + 10, peakY + 7], [peakX + 4, peakY + 8], [peakX - 3, peakY + 9]]);
+      r.ellipse(P.ice, peakX, peakY, 3, 2.5); // an ice finial
+      r.ellipse(P.glow, peakX, peakY - 1, 1.2, 1.2);
+      // woven bands
+      r.inlay(P.hat, P.hatD, (set) => {
+        for (let i = 0; i < 2; i++) {
+          const t = 0.45 + i * 0.28;
+          const yy = peakY + (by - peakY) * t;
+          const half = ((bx1 - bx0) / 2) * t;
+          for (let x = -half; x <= half; x += 1) set(peakX + x, yy);
+        }
+      });
+      // icicles along the brim (they sway a touch)
+      for (let i = 0; i < 5; i++) {
+        const ix = bx0 + 4 + i * ((bx1 - bx0 - 8) / 4);
+        const len = 2 + ((i * 3) % 3);
+        r.poly(P.ice, [[ix - 1.6, by + 1], [ix + 1.6, by + 1], [ix + sw(i, 0.4), by + 1 + len]]);
       }
-    });
-    // icicles along the brim (they sway a touch)
-    for (let i = 0; i < 5; i++) {
-      const ix = bx0 + 4 + i * ((bx1 - bx0 - 8) / 4);
-      const len = 2 + ((i * 3) % 3);
-      r.poly(P.ice, [[ix - 1.6, by + 1], [ix + 1.6, by + 1], [ix + sw(i, 0.4), by + 1 + len]]);
+      return { px: peakX, py: by };
+    };
+    if (!k.pose.laid) kasa(r);
+    else {
+      const t = new Raster(r.w, r.h);
+      const { px, py } = kasa(t);
+      const ax = k.torso.x + 4;
+      const ay = hy - 30;
+      for (let y = 0; y < t.h; y++)
+        for (let x = 0; x < t.w; x++) {
+          const id = t.id[y * t.w + x];
+          if (!id) continue;
+          // a quarter turn clockwise about the brim's middle: the crown points forward, the brim stands along the back line
+          const nx = Math.round(ax - (y - py));
+          const ny = Math.round(ay + (x - px));
+          if (nx >= 0 && ny >= 0 && nx < r.w && ny < r.h) r.id[ny * r.w + nx] = id;
+        }
     }
   }
 

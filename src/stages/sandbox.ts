@@ -22,5 +22,5 @@ export const sandboxStage: StageData = {
     { x: 20, y: -4 },
   ],
   background: { topColor: 0x0b0a24, bottomColor: 0x3a1f5c, layers: ['stars', 'ruins'], theme: 'skyline' },
-  music: 'classic',
+  music: 'training',
 };

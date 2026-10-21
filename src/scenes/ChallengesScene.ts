@@ -2,11 +2,21 @@ import Phaser from 'phaser';
 import { PIXEL_FONT, up } from '../art/pixelFont';
 import { animFrameIndex, fighterTextureKey, portraitCrop, portraitK } from '../art/proceduralFighter';
 import { characterById } from '../characters';
-import { CHALLENGES, TIER_COLORS, TIER_NAMES, challengeById, goalText, recordChallengeResult, type Challenge } from '../game/challenges';
+import { CHALLENGES, TIER_COLORS, TIER_NAMES, armSpecialChallenge, challengeById, clearText, goalText, recordChallengeResult, type Challenge } from '../game/challenges';
+import { launchSlots } from '../game/launch';
+import { endTurns } from '../game/turns';
+import { targetCourseById } from '../stages/targetCourses';
+import type { InputDevice } from '../input/device';
+import { inputManager } from '../input/inputManager';
 import { challengeBests, clearedChallenges, formatSec, type ChallengeBest } from '../game/records';
 import type { MatchResult } from '../game/session';
 import { session } from '../game/session';
 import { STAGES } from '../stages';
+
+/** A challenge's stage: a Stage Select stage, or a Target Smash course. */
+function stageOf(id: string) {
+  return STAGES[id] ?? targetCourseById(id)?.stage;
+}
 import type { MenuEvent } from '../input/menuInput';
 import { COLORS, MenuList, MenuScene, drawPanel, pointerXY, tapMin, text, textPx, type MenuBackdrop } from '../ui/menuKit';
 import { stageThumb } from '../ui/stageThumb';
@@ -14,6 +24,8 @@ import { ensureStageArt, stageArtReady } from '../art/stageArt';
 
 /** A challenge's difficulty, 1-5: its foes' levels (a boss counts as 4), plus one for a crowd. */
 export function challengeDifficulty(c: Challenge): number {
+  if (c.kind === 'targets') return 1 + (targetCourseById(c.stage)?.difficulty ?? 1);
+  if (c.kind === 'launch') return 2;
   const lv = c.foes.map((f) => (f.boss ? 4 : f.level));
   const top = Math.max(1, ...lv);
   const crowd = c.foes.length > 2 ? 1 : 0;
@@ -173,6 +185,23 @@ export class ChallengesScene extends MenuScene {
   }
 
   private start(id: string): void {
+    const c = challengeById(id);
+    endTurns();
+    // Target Smash and Launch Contest challenges (a fixed fighter): straight into the run, on the device that chose it
+    if (c && (c.kind === 'targets' || c.kind === 'launch') && c.you) {
+      armSpecialChallenge(id);
+      session.challenge = id;
+      session.playerCount = 1;
+      session.ladder = null;
+      const device = this.lastDevice ?? inputManager.keyboards[0] ?? null;
+      const me = { index: 0, type: 'human' as const, device, character: c.you, cpuLevel: 1 as const };
+      session.mode = c.kind;
+      session.stage = c.stage;
+      session.players = c.kind === 'launch' ? launchSlots(me) : [me];
+      this.go('Match');
+      return;
+    }
+    armSpecialChallenge(null);
     session.mode = 'challenge';
     session.challenge = id;
     session.playerCount = 1;
@@ -210,7 +239,7 @@ export class ChallengesScene extends MenuScene {
     if (!k || !c) return;
     const u = this.u;
     drawPanel(g, k.x, k.y, k.w, k.h, u, 0.9);
-    const stage = STAGES[c.stage];
+    const stage = stageOf(c.stage);
     const pad = 5 * u;
     let y = k.y + pad;
     const tw = k.w - pad * 2;
@@ -218,7 +247,7 @@ export class ChallengesScene extends MenuScene {
       // built in the background: the card is drawn again once the art is there
       this.thumb.setVisible(false);
       const v = this.visitId;
-      void ensureStageArt(this, stage.id)
+      void ensureStageArt(this, stage)
         .then(() => {
           if (this.isVisit(v) && CHALLENGES[this.sel]?.id === c.id) this.shown = '';
         })
@@ -335,16 +364,16 @@ export class ChallengesScene extends MenuScene {
       for (const m of this.medals) m.setText('');
       return;
     }
-    const foes = c.foes.map((f) => `${(characterById(f.character)?.name ?? f.character).toUpperCase()}${f.boss ? '' : ` (${['', 'EASY', 'NORMAL', 'HARD'][f.level]})`}`).join(', ');
+    const foes = c.kind === 'targets' ? 'TEN TARGETS' : c.kind === 'launch' ? 'THE STANDARD DUMMY' : c.foes.map((f) => `${(characterById(f.character)?.name ?? f.character).toUpperCase()}${f.boss ? '' : ` (${['', 'EASY', 'NORMAL', 'HARD'][f.level]})`}`).join(', ');
     const who = c.you ? `AS ${(characterById(c.you)?.name ?? c.you).toUpperCase()}` : 'ANY FIGHTER';
     const ally = c.ally ? `   WITH ${(characterById(c.ally.character)?.name ?? '').toUpperCase()}` : '';
     const by = this.cleared[c.id] ? `   CLEARED WITH ${(characterById(this.cleared[c.id])?.name ?? '').toUpperCase()}` : '';
     this.brief.setText(up(c.brief));
     const best = this.bests[c.id];
     const fast = best?.sec ? `   BEST ${formatSec(best.sec)}` : '';
-    this.setup.setText(up(`${who}${ally}   VS ${foes}   ON ${(STAGES[c.stage]?.name ?? c.stage).toUpperCase()}${by}${fast}`));
+    this.setup.setText(up(`${who}${ally}   VS ${foes}   ON ${(stageOf(c.stage)?.name ?? c.stage).toUpperCase()}${by}${fast}`));
     const tier = best?.tier ?? (this.cleared[c.id] ? 1 : 0);
-    const goals = ['CLEAR', goalText(c.silver), `${goalText(c.silver)} + ${goalText(c.gold)}`];
+    const goals = [clearText(c), goalText(c.silver), `${goalText(c.silver)} + ${goalText(c.gold)}`];
     this.medals.forEach((m, i) => m.setText(up(`${TIER_NAMES[i + 1]}: ${goals[i]}`)).setTint(tier > i ? TIER_COLORS[i + 1] : COLORS.dim));
     // the brief, its setup line and the medal row sit centred in the space between the list and the controls hint
     this.brief.setScale(Math.min(u * 1.3, (w * 0.94) / Math.max(1, textPx(this.brief))));
@@ -370,7 +399,11 @@ export class ChallengesScene extends MenuScene {
     });
   }
 
+  /** The device of the last menu press (a practice-mode challenge starts on it). */
+  private lastDevice: InputDevice | null = null;
+
   protected onEvent(e: MenuEvent): void {
+    this.lastDevice = e.device ?? this.lastDevice;
     const n = CHALLENGES.length;
     const back = this.list.index === this.rows;
     // keys and the wheel scroll the window; a click on a row's value still goes to the list

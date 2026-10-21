@@ -67,13 +67,32 @@ export interface Records {
   /** Arcade Ladder clears per fighter. */
   arcade: Record<string, ArcadeRecord>;
   stats: LifetimeStats;
+  /** The last HISTORY_MAX finished matches, newest first. */
+  history: HistoryEntry[];
 }
+
+/** One finished match in the history. */
+export interface HistoryEntry {
+  /** When it ended (ms since 1970). */
+  date: number;
+  /** versus, arcade, challenge, targets, launch... */
+  mode: string;
+  stage: string;
+  fighters: { character: string; type: 'human' | 'cpu'; placement: number }[];
+  /** One line: "P1 WINS", "DRAW", "CLEAR 0:42.10"... */
+  result: string;
+  /** Match length in seconds. */
+  sec: number;
+}
+
+/** Matches the history keeps. */
+export const HISTORY_MAX = 50;
 
 /** Version of the saved shape. v1: no version field; v2: same fields + version; v3 adds chalBest, arcade, stats. */
 export const RECORDS_VERSION = 3;
 
 const emptyStats = (): LifetimeStats => ({ matches: 0, playSec: 0, kos: 0, falls: 0, damage: 0, bestCombo: 0, bestComboBy: '', ultimateKos: 0, stages: {}, stageWins: {}, matchups: {} });
-export const emptyRecords = (): Records => ({ targets: {}, fighters: {}, launch: {}, challenges: {}, chalBest: {}, arcade: {}, stats: emptyStats() });
+export const emptyRecords = (): Records => ({ targets: {}, fighters: {}, launch: {}, challenges: {}, chalBest: {}, arcade: {}, stats: emptyStats(), history: [] });
 const empty = emptyRecords;
 
 const isObj = (v: unknown): v is Record<string, unknown> => !!v && typeof v === 'object' && !Array.isArray(v);
@@ -162,7 +181,27 @@ export function recordsFrom(d: unknown): Records {
     }
   }
   r.stats = parseStats(d.stats);
+  r.history = parseHistory(d.history);
   return r;
+}
+
+const SHORT = /^[A-Za-z0-9 _.:%+\-!/()']{0,40}$/;
+
+function parseHistory(v: unknown): HistoryEntry[] {
+  if (!Array.isArray(v)) return [];
+  const out: HistoryEntry[] = [];
+  for (const h of v) {
+    if (out.length >= HISTORY_MAX) break;
+    if (!isObj(h) || !Array.isArray(h.fighters) || typeof h.mode !== 'string' || !okId(h.mode) || typeof h.stage !== 'string' || !okId(h.stage)) continue;
+    const fighters = h.fighters
+      .filter(isObj)
+      .slice(0, 8)
+      .filter((f) => typeof f.character === 'string' && okId(f.character))
+      .map((f) => ({ character: f.character as string, type: f.type === 'human' ? ('human' as const) : ('cpu' as const), placement: Math.min(8, count(f.placement)) }));
+    if (!fighters.length) continue;
+    out.push({ date: amount(h.date), mode: h.mode, stage: h.stage, fighters, result: typeof h.result === 'string' && SHORT.test(h.result) ? h.result : '', sec: amount(h.sec) });
+  }
+  return out;
 }
 
 /** The parsed records, kept between calls; dropped when another tab writes them (storage event) or on reset. */
@@ -351,6 +390,36 @@ export function recordMatch(character: string, won: boolean, kos: number, falls:
   save(r);
 }
 
+/** Add a finished match to the history (newest first; the oldest past HISTORY_MAX drops off). */
+export function recordHistory(e: HistoryEntry): void {
+  const clean = parseHistory([e]);
+  if (!clean.length) return;
+  const r = loadForWrite();
+  r.history = [clean[0], ...r.history].slice(0, HISTORY_MAX);
+  save(r);
+}
+
+/** The match history, newest first. */
+export function matchHistory(): HistoryEntry[] {
+  return load().history.map((h) => ({ ...h, fighters: h.fighters.map((f) => ({ ...f })) }));
+}
+
+/** Per stage: matches played with a human and how many a human won (win rate = wins / played). */
+export function stageWinRates(): { stage: string; played: number; wins: number }[] {
+  const s = load().stats;
+  return Object.entries(s.stages)
+    .map(([stage, played]) => ({ stage, played, wins: Math.min(played, s.stageWins[stage] ?? 0) }))
+    .sort((a, b) => b.played - a.played);
+}
+
+/** One fighter's head-to-head record against every opponent it has met (most played first). */
+export function fighterMatchups(character: string): { opponent: string; w: number; l: number }[] {
+  const row = load().stats.matchups[character] ?? {};
+  return Object.entries(row)
+    .map(([opponent, m]) => ({ opponent, w: m.w, l: m.l }))
+    .sort((a, b) => b.w + b.l - (a.w + a.l));
+}
+
 /** Every fighter's lifetime record (missing fighters have played nothing). */
 export function fighterRecords(): Record<string, FighterRecord> {
   return Object.fromEntries(Object.entries(load().fighters).map(([k, f]) => [k, { ...f }]));
@@ -516,7 +585,7 @@ export function arcadeRecords(): Record<string, ArcadeRecord> {
 // ---- resets --------------------------------------------------------------------------------------------------------
 
 /** The parts of the save that can be reset on their own (Records > SAVE DATA). */
-export type RecordSection = 'fighters' | 'arcade' | 'challenges' | 'targets' | 'launch' | 'stats';
+export type RecordSection = 'fighters' | 'arcade' | 'challenges' | 'targets' | 'launch' | 'stats' | 'history';
 export const RECORD_SECTIONS: { id: RecordSection; label: string }[] = [
   { id: 'fighters', label: 'Versus records' },
   { id: 'arcade', label: 'Arcade clears' },
@@ -524,6 +593,7 @@ export const RECORD_SECTIONS: { id: RecordSection; label: string }[] = [
   { id: 'targets', label: 'Target Smash times' },
   { id: 'launch', label: 'Launch Contest distances' },
   { id: 'stats', label: 'Lifetime stats and matchups' },
+  { id: 'history', label: 'Match history' },
 ];
 
 /** Forget one section. */
@@ -533,6 +603,7 @@ export function resetRecordSection(section: RecordSection): void {
     r.challenges = {};
     r.chalBest = {};
   } else if (section === 'stats') r.stats = emptyStats();
+  else if (section === 'history') r.history = [];
   else r[section] = {};
   save(r);
 }

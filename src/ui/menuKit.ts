@@ -12,6 +12,7 @@ import type { MenuPad } from '../input/touch';
 import { settings } from '../settings';
 import { layoutUnit, TAP_MIN_CSS, viewport } from '../display';
 import { BackgroundView } from './BackgroundView';
+import { MenuBackdropFx, familyFor, ownsLook, type MenuFamily } from './menuBackdrops';
 
 /**
  * Render (canvas) pixels per UI art pixel for a canvas `h` tall (and `w` wide: the current window's width when omitted).
@@ -559,13 +560,15 @@ export class MenuList {
   }
 }
 
-/** Per-screen dressing of the shared menu backdrop, so each screen has its own look without new art. */
+/** Per-screen dressing of the menu backdrop (see menuBackdrops.ts for the family each screen belongs to). */
 export interface MenuBackdrop {
+  /** The backdrop family (title, lobby, arcade, vault, settings, stage); omitted: the screen's entry in MENU_FAMILIES. */
+  family?: MenuFamily;
   /** Centre of the ringed planet as fractions of the screen, plus a size multiplier; null hides it. Omitted: the default spot. */
   planet?: { x: number; y: number; k?: number } | null;
-  /** Colour multiplied over the backdrop: a gentle cast per screen (0xffffff = none). */
+  /** Colour multiplied over the backdrop: a gentle cast per screen (0xffffff = none). Families with skies of their own ignore it. */
   tint?: number;
-  /** A dark arena: the sky dimmed, a lit floor and spotlights sweeping down onto it (character select). */
+  /** A dark arena: the sky dimmed, a lit floor and spotlights sweeping down onto it (the same as family 'lobby'). */
   arena?: boolean;
 }
 
@@ -612,8 +615,8 @@ export abstract class MenuScene extends Phaser.Scene {
   /** Footer texts rebuilt from the live bindings whenever the last-used device changes. */
   private boundFooters: { t: Phaser.GameObjects.BitmapText; entries: readonly (readonly [MenuVerb, string])[]; extra?: () => string }[] = [];
   private footSerial = -1;
-  /** Arena dressing (spotlights + floor), drawn over the backdrop when the look asks for it. */
-  private arenaG: Phaser.GameObjects.Graphics | null = null;
+  /** The backdrop family's own dressing (arena, blueprint...: see menuBackdrops). */
+  private menuFx!: MenuBackdropFx;
   /**
    * The touch controls shown on this screen for a touch player: 'none' where everything is tapped directly, 'buttons'
    * (OK / BACK / START), 'full' (with a d-pad). 'auto': none on screens with menu lists or tap-anywhere, else full.
@@ -676,8 +679,14 @@ export abstract class MenuScene extends Phaser.Scene {
     this.planet = (this.bgLayer.list.find((o) => o instanceof Phaser.GameObjects.Image && o.texture.key === 'bg-planet') as Phaser.GameObjects.Image | undefined) ?? null;
     this.shade = this.add.graphics();
     this.bgLayer.add(this.shade);
-    this.arenaG = this.add.graphics();
-    this.bgLayer.add(this.arenaG);
+    // the family is known before the screen builds (a screen showing a stage's world sets that theme itself in build)
+    let asked: MenuBackdrop = {};
+    try {
+      asked = { ...(DEFAULT_LOOKS[this.scene.key] ?? {}), ...this.backdrop(w, h) };
+    } catch {
+      /* a screen whose look depends on what it builds: its family comes from the table */
+    }
+    this.menuFx = new MenuBackdropFx(this, this.bgLayer, this.bg, familyFor(this.scene.key, asked.family ?? (asked.arena ? 'lobby' : undefined)));
     this.footPlate = this.add.graphics();
     this.ui.add(this.footPlate);
     this.boundFooters = [];
@@ -718,9 +727,9 @@ export abstract class MenuScene extends Phaser.Scene {
 
   override update(_t: number, _d: number): void {
     const time = (performance.now() - this.time0) / 1000;
-    this.bg.update(time * 6, Math.sin(time * 0.2) * 10, 3, time);
+    if (!this.menuFx.covers) this.bg.update(time * 6, Math.sin(time * 0.2) * 10, 3, time);
     this.placePlanet(time);
-    if (this.look.arena) this.drawArena(time);
+    this.menuFx.update(time);
     // the controls hints follow the device in use (a pad's buttons once a pad is touched, the keys after a key press)
     if (this.boundFooters.length && promptSerial() !== this.footSerial) {
       this.footSerial = promptSerial();
@@ -843,32 +852,6 @@ export abstract class MenuScene extends Phaser.Scene {
     }
   }
 
-  /** Spotlights sweeping down onto a lit arena floor (MenuBackdrop.arena). */
-  private drawArena(time: number): void {
-    const g = this.arenaG;
-    if (!g) return;
-    const w = this.scale.width;
-    const h = this.scale.height;
-    const u = this.u;
-    g.clear();
-    // the sky sinks into the dark; the floor is a lit stage with rim lights
-    g.fillStyle(0x05040c, 0.55).fillRect(0, 0, w, h);
-    const fy = h * 0.8;
-    g.fillStyle(0x0d0a1e, 0.92).fillRect(0, fy, w, h - fy);
-    g.fillStyle(0x6a5ad0, 0.35).fillRect(0, fy, w, u);
-    for (let x = (time * 20 * (settings.reduceMotion ? 0 : 1)) % (24 * u) - 24 * u; x < w; x += 24 * u) g.fillStyle(0xffd46a, 0.25).fillRect(x, fy + 3 * u, 8 * u, u);
-    const beams = 4;
-    for (let i = 0; i < beams; i++) {
-      const sx = w * ((i + 0.5) / beams);
-      const sway = settings.reduceMotion ? 0 : Math.sin(time * 0.6 + i * 1.7) * w * 0.08;
-      const tx = sx + sway;
-      const col = [0x7fe8ff, 0xffd46a, 0xff6a8a, 0x9a8aff][i % 4];
-      g.fillStyle(col, 0.06).fillTriangle(sx - 3 * u, 0, sx + 3 * u, 0, tx + w * 0.09, fy);
-      g.fillStyle(col, 0.06).fillTriangle(sx - 3 * u, 0, tx - w * 0.09, fy, tx + w * 0.09, fy);
-      g.fillStyle(col, 0.16).fillEllipse(tx, fy + 2 * u, w * 0.2, 9 * u);
-    }
-  }
-
   /** MenuLists the scene created (they register themselves), so a tap on a row is not also a tap on the screen. */
   readonly lists: MenuList[] = [];
 
@@ -905,9 +888,12 @@ export abstract class MenuScene extends Phaser.Scene {
 
   private relayout(w: number, h: number): void {
     this.u = hudUnit(h, w);
-    this.bg.resize(w, h);
+    // (a family that covers the backdrop with its own sky never builds the backdrop's full-screen gradient)
+    if (!this.menuFx.covers) this.bg.resize(w, h);
     this.look = { ...(DEFAULT_LOOKS[this.scene.key] ?? {}), ...this.backdrop(w, h) };
-    if (!this.look.arena) this.arenaG?.clear();
+    // a family with a sky of its own keeps it: no planet spot or colour cast meant for the city skyline
+    if (ownsLook(this.menuFx.family)) this.look = { planet: null };
+    this.menuFx.resize(w, h, this.u);
     this.drawShade(w, h);
     this.layoutUi(w, h, this.u);
     this.placeChip();

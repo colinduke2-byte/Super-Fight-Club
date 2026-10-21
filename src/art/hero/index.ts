@@ -44,7 +44,8 @@ export function renderHeroImage(W: number, H: number, look: PlaceholderLook, pos
   const stand: HeroPose = lying ? { ...posed, bob: 0, crouch: 0, lean: 0, laid: true, grav: posed.grav ?? [-1, 0] } : posed;
   const k = skeleton(look, stand, W, H, phase);
   DRAWERS[look.build.helmet]?.(r, k, look);
-  if (lying) r = r.lyingDown(H - 4, W / 2 - 5 * (H / 64));
+  // (the boss keeps its own lying placement)
+  if (lying) r = r.lyingDown(H - 4, W / 2 - 5 * (H / 64), look.build.helmet === 'monolith' ? undefined : k.torso.x + 2);
   const img = new ImageData(W, H);
   r.shade(img.data);
   return img;

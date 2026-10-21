@@ -70,16 +70,18 @@ export const overseer: CharacterData = {
   sprite: {
     frameSize: 320,
     pixelScale: 0.25,
-    portrait: [84, 96, 128],
+    portrait: [76, 64, 128],
     animations: standardAnimations(['castF', 'castU', 'castD', 'raid']),
     placeholder: {
       art: 'hi',
       skin: '#ff6a7a',
-      armor: '#79769e',
-      armorDark: '#2e2a48',
-      accent: '#4ae4ff',
+      // ivory plate over an obsidian frame, one cold violet light (phase 2 turns it red-hot)
+      armor: '#ddd5c6',
+      armorDark: '#221d2e',
+      accent: '#b685ff',
       outline: '#08060e',
-      build: { shoulderW: 34, torsoH: 22, legH: 16, headSize: 13, armLen: 17, helmet: 'monolith' },
+      // a towering build, not a fighter's: small head, long torso, legs and arms (the drawer is in art/hero/overseer.ts)
+      build: { shoulderW: 30, torsoH: 26, legH: 20, headSize: 8, armLen: 22, helmet: 'monolith' },
       weapon: 'piston',
       extras: ['cloak', 'bracer'],
     },
@@ -93,18 +95,29 @@ export const overseer: CharacterData = {
 };
 
 applyMovePoses(overseer);
+// the results podium and the boss's own transitions: a defeat kneel, a victory with its held end pose, landing, getting up
+// and a stun (kept to 17 frames so the sheet stays inside 12 x 11 cells)
+Object.assign(overseer.sprite.animations, {
+  land: { frames: 2, fps: 20, loop: false },
+  getup: { frames: 3, fps: 10, loop: false },
+  dizzy: { frames: 4, fps: 6, loop: true },
+  victory: { frames: 4, fps: 8, loop: false },
+  victoryHold: { frames: 2, fps: 3, loop: true },
+  lose: { frames: 2, fps: 2, loop: true },
+});
 
 /** Texture / animation id of the enraged sheet (phase 2). */
 export const OVERSEER_PHASE2_SKIN = 'overseer~rage';
 
 /**
- * The phase-2 look as its own character data (same moves and frame layout, its own sheet id): the accent turns red-hot
- * and the drawer's `outfit 1` lights the vents and seams, cracks the chest plate, widens the eye-slit and spins the
- * halo twice as fast. Build it like an outfit (`buildSheetPixels(sheetSpec(overseerPhase2))` + `registerPixels`) and
+ * The phase-2 look as its own character data (same moves and frame layout, its own sheet id): the light turns red-hot, the
+ * ivory scorches, and the drawer's `outfit 1` transforms the body: the mask splits and loses its jaw, the eye turns to a
+ * slit with a second ring, the spire crown shatters over a ring of embers, the robe hangs loose on fire, energy blades burn
+ * along the forearms and shell shards orbit it. Build it like an outfit (`buildSheetPixels(sheetSpec(overseerPhase2))` + `registerPixels`) and
  * show it by giving the boss's FighterView the skin `OVERSEER_PHASE2_SKIN` (see ui/BossCinematic.ts).
  */
 export const overseerPhase2: CharacterData = {
   ...overseer,
   id: OVERSEER_PHASE2_SKIN,
-  sprite: { ...overseer.sprite, placeholder: { ...overseer.sprite.placeholder, accent: '#ff4a2a', outfit: 1 } },
+  sprite: { ...overseer.sprite, placeholder: { ...overseer.sprite.placeholder, armor: '#9c8e86', armorDark: '#1c0c10', accent: '#ff4a2a', outfit: 1 } },
 };

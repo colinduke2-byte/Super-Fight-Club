@@ -79,7 +79,7 @@ export const havoc: CharacterData = {
     victory: 'Mission complete. Collateral: you.',
   },
   stats: {
-    weight: 96,
+    weight: 99,
     runSpeed: 2.35,
     airSpeed: 1.8,
     groundAccel: 0.3,

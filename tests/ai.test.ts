@@ -12,11 +12,11 @@ import { Match } from '../src/engine/match';
 import { World } from '../src/engine/world';
 import { STAGES } from '../src/stages';
 
-function arena(chars: string[], stage = 'classic'): { world: World; fighters: Fighter[]; match: Match; place: (f: Fighter, air?: boolean) => void } {
+function arena(chars: string[], stage = 'classic', stocks = 3): { world: World; fighters: Fighter[]; match: Match; place: (f: Fighter, air?: boolean) => void } {
   const world = new World(STAGES[stage]);
   const fighters = chars.map((c, i) => new Fighter(i, CHARACTERS[c]));
   fighters.forEach((f) => world.addFighter(f));
-  const match = new Match(world, { mode: 'stock', stocks: 3, timeLimitSec: 0, respawnDelay: 70 });
+  const match = new Match(world, { mode: 'stock', stocks, timeLimitSec: 0, respawnDelay: 70 });
   const sp = STAGES[stage].spawns;
   const place = (f: Fighter, air = false): void => f.spawn(sp[f.id].x, sp[f.id].y - (air ? 130 : 1), sp[f.id].x <= 0 ? 1 : -1);
   fighters.forEach((f) => place(f));
@@ -254,8 +254,8 @@ describe('CPU targeting (free-for-all)', () => {
 });
 
 describe('CPU matches', () => {
-  function play(chars: string[], levels: CpuLevel[], stage = 'classic', ticks = 14400): { match: Match; world: World; hash: number } {
-    const { world, fighters, match } = arena(chars, stage);
+  function play(chars: string[], levels: CpuLevel[], stage = 'classic', ticks = 14400, stocks = 3): { match: Match; world: World; hash: number } {
+    const { world, fighters, match } = arena(chars, stage, stocks);
     const cpus = levels.map((l, i) => new CpuController(l, i + 1));
     const ins = fighters.map(() => makeInput());
     for (let t = 0; t < ticks && !match.over; t++) {
@@ -277,11 +277,13 @@ describe('CPU matches', () => {
   });
 
   it('every character can finish a match against every other (no stuck CPU)', () => {
+    // one-stock matches: a stuck CPU never scores (or never dies) whatever the stock count, and every pairing still has to
+    // land a KO within the time limit (the 3-stock round robins live in tests/tools/matchSimReport.test.ts and the ladder)
     const ids = Object.keys(CHARACTERS);
     for (const a of ids) {
       for (const b of ids) {
         if (a >= b) continue;
-        const r = play([a, b], [3, 3]);
+        const r = play([a, b], [3, 3], 'classic', 7200, 1);
         expect(r.match.over, `${a} v ${b}`).toBe(true);
       }
     }

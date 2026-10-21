@@ -51,6 +51,12 @@ export interface PlayerSlot {
   /** Lobby: the fighter (and `randomOutfit`: the outfit) was rolled from RANDOM; going back to the lobby shows RANDOM again. */
   random?: boolean;
   randomOutfit?: boolean;
+  /** Ladder fights: this slot's team (team fights and co-op; the human side is team 0). See ladder.rulesForSlots. */
+  team?: number;
+  /** Ladder fights: cast in the arena's steel (the METAL fight). */
+  metal?: boolean;
+  /** Ladder fights: damage carried over from the last fight (Endless, Gauntlet). */
+  startDamage?: number;
 }
 
 /** Per-slot handicap: starting damage and extra (or fewer) stocks. */
@@ -85,6 +91,8 @@ export interface MatchRules {
   handicap?: Handicap[];
   /** Stage ids RANDOM picks from (absent / empty = every stage). */
   stagePool?: string[];
+  /** Slots cast in steel (the arcade's METAL fight: see game/metal.ts). Kept with the rules so a replay rebuilds them. */
+  metal?: number[];
 }
 
 export interface PlayerResult {
@@ -152,6 +160,10 @@ export interface Session {
   lastResult: MatchResult | null;
   /** The human slot of the running arcade ladder (kept across fights). */
   arcadeHuman: PlayerSlot | null;
+  /** Co-op runs: the second human's slot (kept across fights; null: playing solo). */
+  arcadePartner?: PlayerSlot | null;
+  /** Each slot's damage when the last match ended (Endless and Gauntlet carry the player's over). */
+  endDamage?: number[];
   /** Arcade ladder progress. */
   ladder: LadderState | null;
   /** The last finished versus match, as inputs (Results offers to watch it). */

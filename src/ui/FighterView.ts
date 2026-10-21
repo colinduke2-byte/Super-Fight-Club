@@ -9,6 +9,7 @@ import { fighterTrailColor } from '../fx/runner';
 import { applyMechSkin } from './mechSkin';
 import { RimLight } from './RimLight';
 import { fastShapes } from './fastShapes';
+import { settings } from '../settings';
 
 /** Pixels the body is drawn left of the frame centre in the procedural sprite sheet (see proceduralFighter). */
 const BODY_SHIFT = 5;
@@ -132,6 +133,8 @@ export class FighterView {
    * them standing on the floor in their idle instead of hovering in the fall pose.
    */
   spawnSnap = false;
+  /** Invincibility (respawn, match start): a pulsing outline round the body at full opacity, instead of a see-through blink. */
+  private readonly outline: Phaser.GameObjects.Sprite[] = [];
   /** Stage rim light on the body's lit edge (drawn behind it; follows the body by itself). */
   private rim: RimLight | null = null;
 
@@ -156,6 +159,12 @@ export class FighterView {
       layer.add(g);
     }
     this.rim = new RimLight(scene, layer, this.sprite, key);
+    // invincibility outline: four flat copies of the body just behind it, nudged out a little each way
+    for (let i = 0; i < 4; i++) {
+      const o = scene.add.sprite(0, 0, key, 0).setVisible(false);
+      this.outline.push(o);
+      layer.add(o);
+    }
     layer.add(this.sprite);
     this.glow = scene.add.sprite(0, 0, key, 0).setBlendMode(Phaser.BlendModes.ADD).setVisible(false);
     layer.add(this.glow);
@@ -325,7 +334,8 @@ export class FighterView {
     // invincibility blink (dodges stay translucent), smash-charge glow
     const dodging = f.state === 'spotdodge' || f.state === 'roll' || f.state === 'airdodge';
     const aegis = f.aegisFrames > 0 && f.invuln > 0;
-    s.setAlpha(dodging ? 0.4 : f.invuln > 0 && !aegis && !this.introHold && (tick >> 2) % 2 === 0 ? 0.45 : 1);
+    s.setAlpha(dodging ? 0.4 : 1);
+    const shielded = f.invuln > 0 && !aegis && !this.introHold && !dodging && s.visible;
     // multiply tints only for cold effects (they should darken); bright effects glow additively over the body
     const st = f.status;
     let glowCol = -1;
@@ -368,6 +378,12 @@ export class FighterView {
       glowCol = 0xffc890;
       glowA = 0.12 + 0.1 * Math.sin(tick * 0.25);
     }
+    if (shielded && glowCol < 0) {
+      // a soft shimmer over the body to go with the outline (the outline itself is placed after the sprite settles, below)
+      glowCol = 0xffffff;
+      glowA = settings.reduceFlashes ? 0.08 : 0.06 + 0.06 * (0.5 + 0.5 * Math.sin(tick * 0.18));
+    }
+    this.drawOutline(shielded, tick);
     const g = this.glow;
     if (glowCol >= 0 && s.visible) {
       g.setTexture(s.texture.key, s.frame.name)
@@ -412,6 +428,34 @@ export class FighterView {
       this.drawIce(f, tick, this.freezeMax > 0 ? 1 - st2.freeze / this.freezeMax : 0);
     } else this.freezeMax = 0;
     if (f.state === 'stunned' || f.state === 'shieldbreak') this.drawDizzy(f, tick);
+  }
+
+  /**
+   * The invincibility outline: four flat copies (white warmed by the player's colour) one step out on each side, behind
+   * the body, pulsing gently (under 2 Hz; steady with REDUCE FLASHES). The body stays fully opaque on any stage.
+   */
+  private drawOutline(on: boolean, tick: number): void {
+    const s = this.sprite;
+    if (!on) {
+      if (this.outline[0]?.visible) for (const o of this.outline) o.setVisible(false);
+      return;
+    }
+    const col = mixColor(0xffffff, this.color, 0.35);
+    const a = settings.reduceFlashes ? 0.75 : 0.55 + 0.4 * (0.5 + 0.5 * Math.sin(tick * 0.18));
+    // one world unit is a couple of screen pixels at play zoom: a crisp line that reads at any camera distance
+    const d = 0.9 * Math.max(1, this.fighter.sizeMul);
+    const off = [[d, 0], [-d, 0], [0, d], [0, -d]];
+    this.outline.forEach((o, i) => {
+      o.setTexture(s.texture.key, s.frame.name)
+        .setOrigin(s.originX, s.originY)
+        .setPosition(s.x + off[i][0], s.y + off[i][1])
+        .setFlipX(s.flipX)
+        .setScale(s.scaleX, s.scaleY)
+        .setRotation(s.rotation)
+        .setTintFill(col)
+        .setAlpha(a)
+        .setVisible(true);
+    });
   }
 
   /** The floor to stand the fighter on while `spawnSnap` holds (null = stop snapping: it landed, jumped or moved). */
@@ -750,6 +794,7 @@ export class FighterView {
 
   destroy(): void {
     this.rim?.destroy();
+    for (const o of this.outline) o.destroy();
     this.sprite.destroy();
     this.shadow.destroy();
     for (const g of this.smear) g.destroy();

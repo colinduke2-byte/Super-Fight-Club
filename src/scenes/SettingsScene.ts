@@ -28,7 +28,7 @@ const TABS: { id: SettingsTab; label: string }[] = [
 ];
 /** The settings each tab's RESET TO DEFAULTS puts back. */
 const TAB_KEYS: Record<SettingsTab, (keyof Settings)[]> = {
-  audio: ['masterVolume', 'sfxVolume', 'musicVolume', 'announcer', 'ambience'],
+  audio: ['masterVolume', 'sfxVolume', 'musicVolume', 'announcer', 'ambience', ...(['voices'] as unknown as (keyof Settings)[])],
   video: ['renderQuality', 'particleQuality', 'autoQuality', 'showPerf', 'screenShake', 'killCam'],
   gameplay: ['tapJump', 'tapJumpKeyboard', 'smashMode', 'deadzone', 'rumble', 'touchSize', 'touchOpacity', 'touchLeftHanded', 'touchStickX', 'touchStickY', 'touchBtnX', 'touchBtnY'],
   access: ['playerPalette', 'portShapes', 'uiScale', 'reduceMotion', 'reduceFlashes'],
@@ -82,7 +82,7 @@ export class SettingsScene extends MenuScene {
     this.list.index = Math.min(lastRow[this.tab] ?? 0, this.list.items.length - 1);
     this.desc = text(this, this.ui, '', COLORS.accent).setOrigin(0.5);
     this.hint = text(this, this.ui, '', COLORS.dim).setOrigin(0.5);
-    this.bindFooter(this.hint, [['updown', 'MOVE'], ['leftright', 'CHANGE'], ['alt', 'NEXT TAB'], ['back', 'BACK']]);
+    this.bindFooter(this.hint, [['updown', 'MOVE'], ['leftright', 'CHANGE'], ['alt', 'NEXT SECTION'], ['back', 'BACK']]);
     this.input.on(Phaser.Input.Events.POINTER_DOWN, (p: Phaser.Input.Pointer) => {
       const q = pointerXY(this, p);
       const i = this.tabBoxes.findIndex((b) => q.x >= b.x && q.x <= b.x + b.w && q.y >= b.y - this.u * 2 && q.y <= b.y + b.h + this.u * 2);
@@ -128,14 +128,6 @@ export class SettingsScene extends MenuScene {
       saveSettings();
     };
     const sw = (key: Parameters<typeof toggle>[0], label: string, hint: string): MenuItem => ({ label, hint, value: () => onOff(settings[key]), onLeft: toggle(key), onRight: toggle(key), onConfirm: toggle(key) });
-    const tabRow: MenuItem = {
-      label: 'SECTION',
-      hint: 'Left / right (or the tabs above) switch between the sections.',
-      value: () => TABS.find((t) => t.id === this.tab)!.label,
-      onLeft: () => this.stepTab(-1),
-      onRight: () => this.stepTab(1),
-      onConfirm: () => this.stepTab(1),
-    };
     const reset: MenuItem = {
       label: () => (this.resetArmed ? 'PRESS AGAIN TO RESET' : 'RESET TO DEFAULTS'),
       hint: () => `Put every ${TABS.find((t) => t.id === this.tab)!.label} setting back to its default.`,
@@ -163,6 +155,14 @@ export class SettingsScene extends MenuScene {
           { label: 'MUSIC VOLUME', hint: 'Stage and menu music.', value: () => pct(settings.musicVolume), onLeft: step('musicVolume', -0.05, 0, 1), onRight: step('musicVolume', 0.05, 0, 1) },
           sw('announcer', 'ANNOUNCER', 'A voice calls the countdown, the end of the match and the winner.'),
           sw('ambience', 'AMBIENCE', 'Background sounds under the music on each stage: surf, rain, the hum of the reactor.'),
+          {
+            // (read defensively: the setting is new, on by default)
+            label: 'FIGHTER VOICES', hint: 'Grunts, shouts and KO cries from the fighters.',
+            value: () => onOff((settings as unknown as { voices?: boolean }).voices !== false),
+            onLeft: () => this.toggleVoices(),
+            onRight: () => this.toggleVoices(),
+            onConfirm: () => this.toggleVoices(),
+          },
         ];
         break;
       case 'video':
@@ -249,7 +249,13 @@ export class SettingsScene extends MenuScene {
         break;
       }
     }
-    return [tabRow, ...rows, reset, backRow];
+    return [...rows, reset, backRow];
+  }
+
+  private toggleVoices(): void {
+    const st = settings as unknown as { voices?: boolean };
+    st.voices = st.voices === false;
+    saveSettings();
   }
 
   /** TEXT SIZE changed: lay the screen out again at the new unit. */
@@ -299,7 +305,7 @@ export class SettingsScene extends MenuScene {
     const listTop = ty - 5 * u + tabH + 12 * u;
     // the list stops above the footer (description + controls hint) with a clear gap
     const footTop = this.placeFooter(this.hint, this.desc);
-    this.list.layout(w / 2, listTop, u, 200, footTop - 8 * u);
+    this.list.layout(w / 2, listTop, u, 214, footTop - 8 * u);
   }
 
   private drawTabs(): void {
@@ -357,6 +363,12 @@ export class SettingsScene extends MenuScene {
       return;
     }
     if (this.list.handle(e)) return;
+    // the tabs alone switch sections: left / right on a row that has no value to change (RESET, BACK, CONTROLS...) moves
+    // between them too, so a pad or keyboard never needs the tab key to get around
+    if (e.action === 'left' || e.action === 'right') {
+      this.stepTab(e.action === 'left' ? -1 : 1);
+      return;
+    }
     if (e.action === 'back') this.leave();
   }
 }

@@ -1,4 +1,5 @@
 import { settings } from '../settings';
+import { footsteps } from './footsteps';
 import { sfx, unit } from './sfx';
 
 /** A continuous noise or drone layer under a stage's music. */
@@ -141,6 +142,7 @@ export class Ambience {
 
   /** Fade the beds out (a hard stop of a running noise loop clicks) and free them. */
   stop(): void {
+    footsteps.detach(); // the match is over (or the scene is going): no footsteps until the next one attaches
     const out = this.out;
     const ctx = this.outCtx;
     const live = this.live;
@@ -177,6 +179,8 @@ export class Ambience {
   }
 
   update(): void {
+    // the match's footsteps ride on this per-frame call (see Footsteps)
+    footsteps.update();
     const scape = SCAPES[this.theme];
     const ctx = sfx.context;
     const noise = sfx.noiseBuffer;

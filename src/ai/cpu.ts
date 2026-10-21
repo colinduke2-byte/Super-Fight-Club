@@ -117,6 +117,8 @@ export class CpuController implements Controller {
   private trapDist = 0;
   private trapLedgeRef: Ledge | null = null;
 
+  /** Recall out of the Blink Strike that just whiffed (rolled once per strike). */
+  private recallOut = false;
   private lastDamageSum = 0;
   /** The target was punishable last frame (so an opening triggers one immediate decision, not one per frame). */
   private sawOpening = false;
@@ -390,7 +392,19 @@ export class CpuController implements Controller {
       if (p) p.holdFrames = 0;
     }
     // hit and run (Vex, Rime): a move that whiffed is followed by backing off out of the rival's punish range
-    if (aiFor(self.data.id).style === 'hitandrun' && self.grounded && !self.moveHit && self.moveFrame === moveTotal(m) - 2) this.retreat = Math.round(moveTotal(m) * 0.5);
+    const ai = aiFor(self.data.id);
+    if (ai.style === 'hitandrun' && self.grounded && !self.moveHit && self.moveFrame === moveTotal(m) - 2) this.retreat = Math.round(moveTotal(m) * 0.5);
+    // Blink, bait and vanish (Vex): a Blink Strike that whiffed next to the rival warps back to its marker (the recall is
+    // invulnerable on arrival); one that hit is cancelled into the follow-up below
+    const rc = ai.recall;
+    if (rc && tgt && m.id === rc.slot && !self.moveHit && self.moveFrame >= moveTotal(m) - 4 && this.mode !== 'recover' && Math.abs(tgt.x - self.x) < 80 && world.findDeployables(self.id, rc.marker).length > 0) {
+      if (self.moveFrame === moveTotal(m) - 4) this.recallOut = this.rnd() < 0.3 + 0.6 * this.q;
+      if (this.recallOut) {
+        this.held |= Button.Special;
+        this.sx = 0;
+        this.sy = 0;
+      }
+    }
     // a hit that put the target in hitstun: follow it up (chase it, decide every frame) for a moment after this move
     if (self.moveHit && tgt && tgt.state === 'hitstun' && world.tick >= this.comboUntil - 5 && this.rnd() < this.params.combo * 0.25) {
       this.comboUntil = world.tick + (moveTotal(m) - self.moveFrame) + Math.min(40, tgt.hitstun + 10);
@@ -755,8 +769,13 @@ export class CpuController implements Controller {
     const dash = self.data.dash;
     const runOut = dash && self.groundPlat ? dash.speed * dash.frames * 0.9 : 0;
     const roomAway = self.groundPlat ? (away > 0 ? self.groundPlat.right - self.x : self.x - self.groundPlat.x) : 0;
-    if (p.smart && dash && self.dashCd === 0 && th.eta >= 1 && th.eta <= 9 && roomAway > runOut + 12 && this.rnd() < 0.85) {
-      this.startPlan(world, 'dash', 0, 0, 0, { pressFrames: 1, sx2: away, sy2: 0, stickFrames: 3 });
+    // a close melee attacker: dash through it instead (the invincible frames cover the hit) and end up behind its end lag
+    const atk = th.owner >= 0 ? world.fighters[th.owner] : null;
+    const roomThrough = self.groundPlat ? (away > 0 ? self.x - self.groundPlat.x : self.groundPlat.right - self.x) : 0;
+    const through = !!atk && !th.proj && !th.grab && th.eta >= 2 && th.eta <= 6 && Math.abs(atk.x - self.x) < 46 && roomThrough > runOut + 24 && this.rnd() < 0.3 + 0.4 * this.q;
+    if (p.smart && dash && self.dashCd === 0 && th.eta >= 1 && th.eta <= 9 && (through || roomAway > runOut + 12) && this.rnd() < 0.85) {
+      if (through) this.punishUntil = world.tick + 30;
+      this.startPlan(world, 'dash', 0, 0, 0, { pressFrames: 1, sx2: through ? -away : away, sy2: 0, stickFrames: 3 });
       this.runPlan(self, world);
       return true;
     }
@@ -1343,6 +1362,10 @@ export class CpuController implements Controller {
     // one goes by a rough "big percent = use a finisher" rule
     const killZone = Math.min(1, Math.max(0, (tgt.damage - 50) / 90));
     const finisher = ai.finishers.includes(m.id) ? 1 : 0;
+    // a resource spender whose power grows with what it spends (Brick's Vent): value it at today's power
+    const sp = ai.spender;
+    const pw = sp?.scale && m.slot === sp.slot ? sp.scale(self.res[sp.key] ?? 0) : null;
+    if (pw && m.kb) m = this.scaledMove(m, pw.damageMult, pw.kbMult);
     const guess = (m.power * 0.07 * killZone + finisher * killZone * 6) * (1 - p.killConfirm);
     let kill = 0;
     if (p.killConfirm > 0 && m.kb && tgt.damage > 30) {
@@ -1356,9 +1379,23 @@ export class CpuController implements Controller {
     if (m.charge) s *= 0.9;
     s /= 1 + 0.45 * this.useCount[m.index]; // staleness: recently used moves lose appeal, so the CPU mixes things up
     if (m.kind === 'grab') s = (shielding ? 12 : 3 + (tgt.state === 'run' ? 0 : 1)) + (ai.grabBonus ?? 0);
+    // a soaked rival (Riptide's tide moves): the throws wring the soak out for extra damage and launch
+    if (m.kind === 'grab' && ai.grabBonus && tgt.status.soak > 0) s += 2 * tgt.soakLevel;
     // a command grab beats shields outright, and its slam hits hard
     if (m.cmdGrab) s = (shielding ? 16 : 4) + (ai.grabBonus ?? 0) + kill;
     return s + this.rnd() * 1.5;
+  }
+
+  private readonly scaled: AiMove = { id: '', index: 0, kind: 'special', startup: 0, active: 0, total: 0, dmg: 0, maxHit: 0, power: 0, minX: 0, maxX: 0, minY: 0, maxY: 0, charge: false, proj: false, travel: 0, travelHit: 0, kb: null, landingLag: 0 };
+  private readonly scaledKb: NonNullable<AiMove['kb']> = { base: 0, scaling: 0, angle: 0, damage: 0 };
+  /** A copy of `m` (reused) with its damage and knockback multiplied (knockback is linear in base and scaling). */
+  private scaledMove(m: AiMove, dmg: number, kb: number): AiMove {
+    const o = Object.assign(this.scaled, m);
+    o.kb = Object.assign(this.scaledKb, m.kb, { base: m.kb!.base * kb, scaling: m.kb!.scaling * kb, damage: m.kb!.damage * dmg });
+    o.dmg = m.dmg * dmg;
+    o.maxHit = m.maxHit * dmg;
+    o.power = m.power * kb;
+    return o;
   }
 
   /** Frames until the fighter lands on the surface below it at its current fall (Infinity over a pit). */
@@ -1532,7 +1569,7 @@ export class CpuController implements Controller {
         }
       }
       if (best) {
-        this.execMove(self, world, best, tgt, dir, shielding || tgtVulnerable);
+        this.execMove(self, world, best, tgt, dir, shielding || tgtVulnerable, tgtVulnerable ? window : 0);
         return true;
       }
     }
@@ -1617,7 +1654,8 @@ export class CpuController implements Controller {
     return true;
   }
 
-  private execMove(self: Fighter, world: World, m: AiMove, tgt: Fighter, dir: number, safe: boolean): void {
+  /** `window`: frames the target stays punishable (a charged smash must still land inside it); 0 = no limit. */
+  private execMove(self: Fighter, world: World, m: AiMove, tgt: Fighter, dir: number, safe: boolean, window = 0): void {
     this.useCount[m.index]++;
     if (m.proj) this.shotReady[m.index] = world.tick + SHOT_GAP;
     const p = this.params;
@@ -1638,6 +1676,7 @@ export class CpuController implements Controller {
     let hold = 0;
     if (m.charge) {
       hold = safe ? Math.round(10 + 40 * p.charge * this.rnd()) : Math.round(14 * p.charge * this.rnd());
+      if (window > 0) hold = Math.max(0, Math.min(hold, window - m.startup - m.active));
     }
     if (m.kind === 'jab' && !p.smart) sy = 0;
     if (mi.tilt) {
@@ -1806,7 +1845,11 @@ export class CpuController implements Controller {
         }
       }
       for (const slot of ai.closers) {
+        // with a Blink marker out, the slot is the recall (a warp back, not the strike): only a recall when it is wanted
+        if (ai.recall?.slot === slot && world.findDeployables(self.id, ai.recall.marker).length > 0) continue;
         const lunge = travel(this.slotMove(self, slot), attackDecel(self.data));
+        // a lunge starts the way we face: turned away from the rival it would carry us the wrong way (off the stage, too)
+        if (lunge > 0 && self.grounded && self.facing !== dir) continue;
         if (self.grounded ? this.lungesOff(self, lunge, dir) : this.airLungesOff(self, world, lunge, dir)) continue;
         const [near, far] = ai.closerRange ?? CLOSER_RANGE;
         if (dist > near && dist < far && usable(slot) && this.rnd() < (p.smart ? 0.4 : 0.12) && !this.cooldownBusy(`c${slot}`, 90)) {
@@ -2148,6 +2191,11 @@ export function punishWindow(t: Fighter): number {
       return Math.max(1, (t.lagFrames || 2) - t.stateFrame);
     case 'shieldbreak':
       return 120;
+    // frozen solid (Rime's Frostbite, an ice shot) or stunned (lightning): a free hit for whoever gets there first
+    case 'frozen':
+      return Math.max(0, t.status.freeze);
+    case 'stunned':
+      return Math.max(0, t.status.stun);
     case 'downed':
       return t.stateFrame < 6 ? 12 : 4;
     case 'roll':

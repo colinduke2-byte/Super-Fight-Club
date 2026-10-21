@@ -144,13 +144,16 @@ export class MatchHud {
     if (!b.visible || !b.text) return;
     const w = this.s.scale.width;
     const u = hudUnit(this.s.scale.height);
-    const bw = Math.min(w, b.displayWidth + 28 * u);
-    const bh = b.displayHeight + 10 * u;
+    // the countdown's smaller banner (READY? 3 2 1 GO!) gets a slim, light plate sized to it: the fighters below stay in view
+    const small = st.bannerBase < u * 4 - 0.01;
+    const bw = Math.min(w, b.displayWidth + (small ? 14 : 28) * u);
+    const bh = b.displayHeight + (small ? 6 : 10) * u;
     const x = b.x - bw / 2;
     const y = b.y - bh / 2;
     // a soft-edged band: a wide faint layer, the plate itself, and hairlines in the banner's colour
-    g.fillStyle(0x07061a, 0.3).fillRect(x - 10 * u, y - 2 * u, bw + 20 * u, bh + 4 * u);
-    g.fillStyle(0x07061a, 0.6).fillRect(x, y, bw, bh);
+    if (!small) g.fillStyle(0x07061a, 0.3).fillRect(x - 10 * u, y - 2 * u, bw + 20 * u, bh + 4 * u);
+    else g.fillStyle(0x07061a, 0.14).fillRect(x - 6 * u, y, bw + 12 * u, bh);
+    g.fillStyle(0x07061a, small ? 0.3 : 0.6).fillRect(x, y, bw, bh);
     const line = Math.max(1, Math.round(u * 0.5));
     g.fillStyle(b.tintTopLeft, 0.55).fillRect(x, y, bw, line).fillRect(x, y + bh - line, bw, line);
   }

@@ -1,10 +1,10 @@
 {
- "sound": "mech",
- "slash": "volt",
+ "sound": "overseer",
+ "slash": "arcane",
  "trail": {
   "from": "res:enrage",
   "colors": [
-   "#7ae8ff",
+   "#cbb0ff",
    "#ff6a3a"
   ]
  },
@@ -17,7 +17,7 @@
     "color": {
      "from": "res:enrage",
      "colors": [
-      "#4ae4ff",
+      "#b685ff",
       "#ff4a2a"
      ]
     },
@@ -30,7 +30,7 @@
     "color": {
      "from": "res:enrage",
      "colors": [
-      "#2a7aff",
+      "#6a3aff",
       "#ff2a10"
      ]
     },
@@ -44,7 +44,7 @@
     "color": {
      "from": "res:enrage",
      "colors": [
-      "#c8f8ff",
+      "#efe4ff",
       "#ffb070"
      ]
     }
@@ -61,7 +61,7 @@
     "color": {
      "from": "res:enrage",
      "colors": [
-      "#4ae4ff",
+      "#b685ff",
       "#ff4a2a"
      ]
     },
@@ -175,7 +175,7 @@
     "color": {
      "from": "res:enrage",
      "colors": [
-      "#c8f8ff",
+      "#efe4ff",
       "#ffb070"
      ]
     }
@@ -188,7 +188,7 @@
     "color": {
      "from": "res:enrage",
      "colors": [
-      "#4ae4ff",
+      "#b685ff",
       "#ff4a2a"
      ]
     },
@@ -226,7 +226,7 @@
     "color": {
      "from": "res:enrage",
      "colors": [
-      "#c8f8ff",
+      "#efe4ff",
       "#ffb070"
      ]
     }
@@ -238,7 +238,7 @@
     "color": {
      "from": "res:enrage",
      "colors": [
-      "#4ae4ff",
+      "#b685ff",
       "#ff4a2a"
      ]
     },
@@ -272,7 +272,7 @@
     "color": {
      "from": "res:enrage",
      "colors": [
-      "#c8f8ff",
+      "#efe4ff",
       "#ffb070"
      ]
     }
@@ -285,7 +285,7 @@
     "color": {
      "from": "res:enrage",
      "colors": [
-      "#4ae4ff",
+      "#b685ff",
       "#ff4a2a"
      ]
     },
@@ -301,7 +301,7 @@
     "color": {
      "from": "res:enrage",
      "colors": [
-      "#c8f8ff",
+      "#efe4ff",
       "#ffb070"
      ]
     }
@@ -314,7 +314,7 @@
     "color": {
      "from": "res:enrage",
      "colors": [
-      "#4ae4ff",
+      "#b685ff",
       "#ff4a2a"
      ]
     },
@@ -333,7 +333,7 @@
     "color": {
      "from": "res:enrage",
      "colors": [
-      "#4ae4ff",
+      "#b685ff",
       "#ff4a2a"
      ]
     },
@@ -351,7 +351,7 @@
     "color": {
      "from": "res:enrage",
      "colors": [
-      "#c8f8ff",
+      "#efe4ff",
       "#ffb070"
      ]
     }
@@ -365,7 +365,7 @@
     "color": {
      "from": "res:enrage",
      "colors": [
-      "#c8f8ff",
+      "#efe4ff",
       "#ffb070"
      ]
     }
@@ -377,7 +377,7 @@
     "color": {
      "from": "res:enrage",
      "colors": [
-      "#4ae4ff",
+      "#b685ff",
       "#ff4a2a"
      ]
     },
@@ -390,7 +390,7 @@
     "color": {
      "from": "res:enrage",
      "colors": [
-      "#2a7aff",
+      "#6a3aff",
       "#ff2a10"
      ]
     },
@@ -408,7 +408,7 @@
     "color": {
      "from": "res:enrage",
      "colors": [
-      "#4ae4ff",
+      "#b685ff",
       "#ff4a2a"
      ]
     },
@@ -500,7 +500,7 @@
      "color": {
       "from": "res:enrage",
       "colors": [
-       "#4ae4ff",
+       "#b685ff",
        "#ff4a2a"
       ]
      },
@@ -532,7 +532,7 @@
      "color": {
       "from": "res:enrage",
       "colors": [
-       "#2a7aff",
+       "#6a3aff",
        "#ff2a10"
       ]
      },
@@ -558,7 +558,7 @@
      "color": {
       "from": "res:enrage",
       "colors": [
-       "#4ae4ff",
+       "#b685ff",
        "#ff4a2a"
       ]
      },

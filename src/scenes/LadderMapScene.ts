@@ -5,9 +5,10 @@ import { animFrameIndex, ensureFightersReady, ensurePalette, fighterTextureKey, 
 import { PIXEL_FONT, up } from '../art/pixelFont';
 import { ensureStageArt } from '../art/stageArt';
 import { characterById } from '../characters';
-import { ARCADE_DIFFICULTIES, DIFFICULTY_NAMES, canPickDifficulty, currentFight, fightSkill, ladderDifficulty, rememberDifficulty, setLadderDifficulty, slotsForFight, type LadderOpponent, type LadderState } from '../game/ladder';
+import { ARCADE_DIFFICULTIES, DIFFICULTY_NAMES, RUN_NAMES, canPickDifficulty, currentFight, foesFor, isCoop, ladderDifficulty, rememberDifficulty, runKind, setLadderDifficulty, skillFor, slotsForFight, type LadderFight, type LadderOpponent, type LadderState } from '../game/ladder';
 import { session } from '../game/session';
 import { fightCard, nameOf } from '../game/story';
+import { formatSec } from '../game/records';
 import { skillParams } from '../ai/profiles';
 import type { MenuEvent } from '../input/menuInput';
 import { settings } from '../settings';
@@ -49,6 +50,12 @@ export class LadderMapScene extends MenuScene {
   private waiting: { g: Phaser.GameObjects.Graphics; t: Phaser.GameObjects.BitmapText } | null = null;
   /** Side layout (tower left, details right) or stacked (narrow windows: details under a shorter tower). */
   private wide = true;
+  /** Index of the fight the first node shows (Endless shows only its last few rounds). */
+  private offset = 0;
+  /** The fight a node shows. */
+  private fightAt(i: number): LadderFight {
+    return this.ladder.fights[this.offset + i];
+  }
 
   constructor() {
     super('LadderMap');
@@ -70,15 +77,26 @@ export class LadderMapScene extends MenuScene {
     }
     // the rivals already beaten (or lost to) no longer need their outfit sheets: only the next one is built
     releaseUnusedOutfits(this);
+    const l0 = session.ladder;
+    // co-op: the second human who joined on character select plays the run too (no second player: it runs solo)
+    if (l0.coop && l0.partner === undefined) {
+      const mate = session.players.find((p) => p.type === 'human' && p.index === 1 && p !== session.arcadeHuman);
+      session.arcadePartner = mate ? { ...mate } : null;
+      l0.partner = mate ? mate.character : null;
+    } else if (!l0.coop) session.arcadePartner = null;
+    // Endless keeps climbing: the tower shows its last few rounds
+    this.offset = runKind(l0) === 'endless' ? Math.max(0, l0.index - 4) : 0;
     // the boss's sheet builds in the background while the player climbs
     const boss = characterById(BOSS_ID);
     if (boss) void ensureFightersReady(this, [boss]);
-    this.title = this.add.bitmapText(0, 0, PIXEL_FONT, 'ARCADE LADDER').setOrigin(0.5).setTint(COLORS.title);
+    const kind = runKind(this.ladder);
+    const heading = kind === 'arcade' ? (isCoop(this.ladder) ? 'CO-OP ARCADE' : 'ARCADE LADDER') : `${RUN_NAMES[kind]}${isCoop(this.ladder) ? ' CO-OP' : ''}`;
+    this.title = this.add.bitmapText(0, 0, PIXEL_FONT, heading).setOrigin(0.5).setTint(COLORS.title);
     this.ui.add(this.title);
     this.tower = this.add.graphics();
     this.path = this.add.graphics();
     this.ui.add([this.tower, this.path]);
-    this.ladder.fights.forEach((f) => {
+    this.ladder.fights.slice(this.offset).forEach((f) => {
       const opp = characterById(f.opponents[0].character)!;
       // the next rival shows the outfit it wears this run (only that one is built: each look is a full sprite sheet)
       const pal = f.index === this.ladder.index ? (f.opponents[0].palette ?? 0) : 0;
@@ -97,7 +115,7 @@ export class LadderMapScene extends MenuScene {
       if (!ready) this.pendingBase.push({ img, data: opp });
       img.setData('k', portraitK(opp));
       const num = this.add.bitmapText(0, 0, PIXEL_FONT, String(f.index + 1)).setOrigin(0.5).setTint(0xffffff);
-      const lvl = text(this, this.ui, this.nodeLabel(f.index), f.kind === 'boss' ? 0xff6a7a : COLORS.hint).setOrigin(0.5, 0);
+      const lvl = text(this, this.ui, this.nodeLabel(f.index - this.offset), f.kind === 'boss' ? 0xff6a7a : f.rival || f.kind === 'metal' ? COLORS.accent : COLORS.hint).setOrigin(0.5, 0);
       this.ui.add([img, num]);
       this.nodes.push({ img, thumb, num, lvl, x: 0, y: 0, w: 0, h: 0 });
     });
@@ -120,7 +138,7 @@ export class LadderMapScene extends MenuScene {
       }
     };
     this.list = new MenuList(this, this.ui, [
-      ...(pick ? [{ label: 'DIFFICULTY', value: () => DIFFICULTY_NAMES[ladderDifficulty(this.ladder)], onLeft: () => cycle(-1), onRight: () => cycle(1), onConfirm: () => cycle(1), hint: 'CPU SKILL CLIMBS FIGHT BY FIGHT. HARDER SCORES MORE.' }] : []),
+      ...(pick ? [{ label: 'DIFFICULTY', value: () => DIFFICULTY_NAMES[ladderDifficulty(this.ladder)], onLeft: () => cycle(-1), onRight: () => cycle(1), onConfirm: () => cycle(1), hint: kind === 'boss' ? 'HOW MANY STOCKS YOU AND THE OVERSEER GET.' : kind === 'arcade' ? 'CPU SKILL CLIMBS FIGHT BY FIGHT. HARDER SCORES MORE.' : 'HOW SHARP THE CPUS START, AND HOW FAST THEY CLIMB.' }] : []),
       { label: 'FIGHT', onConfirm: () => void this.fight() },
       { label: 'QUIT', onConfirm: () => this.go('ModeSelect') },
     ]);
@@ -129,17 +147,22 @@ export class LadderMapScene extends MenuScene {
     this.bindFooter(this.hint, [['updown', 'MOVE'], ['confirm', 'SELECT'], ['back', 'QUIT']]);
   }
 
-  /** Under a node: the rival's CPU skill name at this run's difficulty, the number of foes in a brawl, or BOSS. */
+  /** Under a node: BOSS, RIVAL, METAL, a team fight (2 VS 2), the number of foes, or the rival's CPU skill name. */
   private nodeLabel(i: number): string {
     const l = this.ladder;
-    const f = l.fights[i];
+    const f = this.fightAt(i);
     if (f.kind === 'boss') return 'BOSS';
-    if (f.opponents.length > 1) return `${f.opponents.length} FOES`;
-    return skillParams(this.skillOf(f.index, f.opponents[0], 0)).name;
+    if (f.rival) return 'RIVAL';
+    if (f.kind === 'metal') return 'METAL';
+    const foes = foesFor(l, f);
+    const mine = isCoop(l) || f.ally ? 2 : 1;
+    if (f.kind === 'team' || (isCoop(l) && foes.length > 1)) return `${mine} VS ${foes.length}`;
+    if (foes.length > 1) return `${foes.length} FOES`;
+    return skillParams(this.skillOf(f.index, foes[0], 0)).name;
   }
 
   private skillOf(fight: number, o: LadderOpponent, rank: number): number {
-    return o.skill ?? fightSkill(ladderDifficulty(this.ladder), fight, rank);
+    return o.skill ?? skillFor(this.ladder, fight, rank);
   }
 
   private async fight(): Promise<void> {
@@ -163,12 +186,13 @@ export class LadderMapScene extends MenuScene {
       this.waiting = null;
     }
     session.mode = 'arcade';
-    session.players = slotsForFight(l, session.arcadeHuman!);
+    session.players = slotsForFight(l, session.arcadeHuman!, session.arcadePartner ?? null);
     session.stage = f.stage;
     // the stage's art builds in the background during the fight card and the VS splash (the match waits for it if needed)
     void ensureStageArt(this, f.stage);
     // the fight card, then the two-second VS splash, then the fight
-    this.go('Story', { cards: [fightCard(l, f)], next: 'VersusSplash', nextData: { next: 'Match', title: `FIGHT ${f.index + 1} OF ${l.fights.length}: ${f.title}` } });
+    const card = fightCard(l, f);
+    this.go('Story', { cards: [card], next: 'VersusSplash', nextData: { next: 'Match', title: card.title } });
   }
 
   private layoutWaiting(): void {
@@ -200,12 +224,12 @@ export class LadderMapScene extends MenuScene {
     const colL = tx0 + (tx1 - tx0) * 0.27;
     const colR = tx0 + (tx1 - tx0) * 0.73;
     this.nodes.forEach((nd, i) => {
-      const boss = i === n - 1;
+      const boss = this.fightAt(i)?.kind === 'boss';
       const k = boss ? 1.25 : 1;
       nd.w = nw * k;
       nd.h = nh * k;
-      nd.x = boss ? (colL + colR) / 2 : i % 2 === 0 ? colL : colR;
-      nd.y = bottom - i * step - (boss ? 0 : 0) - 4 * u;
+      nd.x = boss || n === 1 ? (colL + colR) / 2 : i % 2 === 0 ? colL : colR;
+      nd.y = n === 1 ? (top + bottom) / 2 : bottom - i * step - 4 * u;
       if (boss) nd.y = Math.max(top + nd.h / 2, nd.y);
       nd.thumb?.setDisplaySize(nd.w, nd.h).setPosition(nd.x, nd.y);
       nd.lvl.setPosition(nd.x, nd.y + nd.h / 2 + 2 * u);
@@ -283,7 +307,7 @@ export class LadderMapScene extends MenuScene {
     });
     if (!this.list) return;
     const l = this.ladder;
-    const cur = l.index;
+    const cur = l.index - this.offset;
     const g = this.path;
     g.clear();
     const fg = this.front.clear();
@@ -299,7 +323,7 @@ export class LadderMapScene extends MenuScene {
       }
     }
     this.nodes.forEach((nd, i) => {
-      const boss = l.fights[i].kind === 'boss';
+      const boss = this.fightAt(i).kind === 'boss';
       const done = i < cur;
       const isCur = i === cur;
       const col = done ? COLORS.good : isCur ? (settings.reduceFlashes || blink(time, 2) ? COLORS.hot : COLORS.title) : boss ? 0x4ae4ff : 0x4a4578;
@@ -317,13 +341,14 @@ export class LadderMapScene extends MenuScene {
       nd.lvl.setAlpha(done ? 0.5 : 1);
     });
     const f = currentFight(l);
-    const opps = f.opponents.map((o, k) => `${nameOf(o.character)}${o.boss ? '' : ` (LV ${this.skillOf(f.index, o, k)})`}`).join(' + ');
+    const opps = foesFor(l, f).map((o, k) => `${nameOf(o.character)}${o.metal ? ' (METAL)' : ''}${o.boss ? '' : ` (LV ${this.skillOf(f.index, o, k)})`}`).join(' + ');
+    const ally = !isCoop(l) && f.ally ? `WITH ${nameOf(f.ally.character)}  ` : '';
     this.info.setText(up(`${f.title}`));
-    this.sub.setText(up(`VS ${opps}   ${STAGES[f.stage]?.name ?? ''}`));
+    this.sub.setText(up(`${ally}VS ${opps}   ${STAGES[f.stage]?.name ?? ''}`));
     const cw = this.wide ? this.scale.width * 0.4 : this.scale.width * 0.88;
     this.sub.setScale(Math.min(this.u * 1.4, cw / Math.max(1, textPx(this.sub))));
     this.info.setScale(Math.min(this.u * 2, cw / Math.max(1, textPx(this.info))));
-    this.cont.setText(up(`FIGHT ${f.index + 1} OF ${l.fights.length}   ${DIFFICULTY_NAMES[ladderDifficulty(l)]}   CONTINUES LEFT: ${l.continuesLeft}`));
+    this.cont.setText(up(this.progressLine(l, f)));
     this.cont.setScale(Math.min(this.u * 1.2, cw / Math.max(1, textPx(this.cont))));
     // the next fight's details on one plate, so they read over the lit skyline
     const pw = Math.max(this.info.displayWidth, this.sub.displayWidth, this.cont.displayWidth) + 24 * u;
@@ -331,6 +356,22 @@ export class LadderMapScene extends MenuScene {
     const bot = this.cont.y + this.cont.displayHeight / 2 + 7 * u;
     drawPanel(g, this.info.x - pw / 2, top, pw, bot - top, u, 0.88);
     this.list.update(time);
+  }
+
+  /** The progress line under the next fight: where the run stands, by kind of run. */
+  private progressLine(l: LadderState, f: LadderFight): string {
+    const d = DIFFICULTY_NAMES[ladderDifficulty(l)];
+    const carry = f.playerDamage ? `   START AT ${f.playerDamage}%` : '';
+    switch (runKind(l)) {
+      case 'endless':
+        return `ROUND ${f.index + 1}   ${d}   KOS ${l.kos}   ONE STOCK${carry}`;
+      case 'gauntlet':
+        return `FIGHT ${f.index + 1} OF ${l.fights.length}   ${d}   STOCKS ${l.stocksLeft ?? f.playerStocks}${carry}   TIME ${formatSec(l.seconds)}`;
+      case 'boss':
+        return `${d}   YOUR STOCKS ${f.playerStocks}   ITS STOCKS ${foesFor(l, f)[0]?.stocks ?? 0}`;
+      default:
+        return `FIGHT ${f.index + 1} OF ${l.fights.length}   ${d}   CONTINUES LEFT: ${l.continuesLeft}`;
+    }
   }
 
   protected onEvent(e: MenuEvent): void {

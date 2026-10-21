@@ -41,6 +41,8 @@ export interface Settings {
   uiScale: number;
   /** Calmer menus: no gliding cursor, value pops, intro slides, confetti or swaying lights. Defaults to the OS setting. */
   reduceMotion: boolean;
+  /** Fighter voice grunts (attack shouts, hurt grunts, KO cries, taunt laughs). */
+  voices: boolean;
   /** On-screen touch controls: size multiplier of the buttons and stick (0.75..1.5). */
   touchSize: number;
   /** On-screen touch controls: opacity of the idle buttons (0.2..1). */
@@ -84,6 +86,7 @@ export const DEFAULT_SETTINGS: Settings = {
   portShapes: true,
   uiScale: 1,
   reduceMotion: osPrefersReducedMotion(),
+  voices: true,
   touchSize: 1,
   touchOpacity: 0.6,
   touchLeftHanded: false,

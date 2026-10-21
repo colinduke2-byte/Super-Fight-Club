@@ -6,7 +6,7 @@ import type { CharacterData } from '../engine/types';
 export const BOSS_KO_REF = 170;
 
 /** Bar colours per phase: calm machine cyan, then enraged red. */
-const PHASE_COL = [0x4ae4ff, 0xff4a2a];
+const PHASE_COL = [0xb685ff, 0xff4a2a];
 const PHASE_HOT = [0xc8f8ff, 0xffb070];
 const ROMAN = ['I', 'II', 'III', 'IV', 'V'];
 

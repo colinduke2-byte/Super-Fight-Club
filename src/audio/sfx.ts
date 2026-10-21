@@ -3,11 +3,112 @@ import type { SoundStyle } from '../engine/fxTypes';
 import type { SoundName } from './soundMap';
 
 /**
- * Sonic flavour of a fighter. The engine's `SoundStyle` plus flavours the synth already knows but no fighter data selects
- * yet ('ice' for Rime, who shares 'blade' with Vex; 'military' for Havoc, who shares 'heavy' with Brick).
+ * Sonic flavour of a fighter: the engine's `SoundStyle` plus 'overseer', the boss's own heavy, metallic and ominous set
+ * (picked from fx data: the style 'overseer', or a mechanical colossus; see audio/matchCalls.ts styleOf).
  */
-export type AudioStyle = SoundStyle | 'ice' | 'military';
-export const AUDIO_STYLES: readonly AudioStyle[] = ['plain', 'heavy', 'blade', 'arcane', 'mech', 'fire', 'wind', 'water', 'stone', 'ice', 'military'];
+export type AudioStyle = SoundStyle | 'overseer';
+export const AUDIO_STYLES: readonly AudioStyle[] = ['plain', 'heavy', 'blade', 'arcane', 'mech', 'fire', 'wind', 'water', 'stone', 'ice', 'military', 'overseer'];
+
+/** A fighter's (or the announcer's) synthetic voice: pitch, vocal-tract size, breathiness, roughness and a robot ring. */
+export interface VoiceProfile {
+  /** Speaking pitch (Hz). */
+  f0: number;
+  /** Vocal tract length relative to an adult's: larger lowers the formants (a bigger body), smaller raises them. */
+  tract: number;
+  /** Breath noise mixed into the voice (0..1). */
+  breath: number;
+  /** Growl: a fast pitch wobble (fraction of the pitch); 0 for a clean voice. */
+  growl: number;
+  /** Ring-modulator frequency (Hz) for a robot voice; 0 for none. */
+  ring: number;
+}
+
+/** Each fighter flavour's voice: Brick's barrel chest, Nova's bright voice, Gizmo's chirpy circuits, the Overseer's machine. */
+export const VOICES: Record<AudioStyle | 'announcer', VoiceProfile> = {
+  plain: { f0: 150, tract: 1, breath: 0.15, growl: 0, ring: 0 },
+  heavy: { f0: 96, tract: 1.16, breath: 0.1, growl: 0.025, ring: 0 },
+  blade: { f0: 176, tract: 0.94, breath: 0.22, growl: 0, ring: 0 },
+  arcane: { f0: 236, tract: 0.86, breath: 0.25, growl: 0, ring: 0 },
+  mech: { f0: 210, tract: 0.9, breath: 0, growl: 0, ring: 92 },
+  fire: { f0: 134, tract: 1.04, breath: 0.2, growl: 0.02, ring: 0 },
+  wind: { f0: 196, tract: 0.92, breath: 0.4, growl: 0, ring: 0 },
+  water: { f0: 152, tract: 1, breath: 0.22, growl: 0, ring: 0 },
+  stone: { f0: 70, tract: 1.3, breath: 0.08, growl: 0.04, ring: 0 },
+  ice: { f0: 214, tract: 0.9, breath: 0.32, growl: 0, ring: 0 },
+  military: { f0: 118, tract: 1.08, breath: 0.12, growl: 0.012, ring: 0 },
+  overseer: { f0: 55, tract: 1.42, breath: 0.04, growl: 0.03, ring: 37 },
+  announcer: { f0: 96, tract: 1.1, breath: 0.06, growl: 0.006, ring: 0 },
+};
+
+/** Vowel formants (Hz: F1, F2, F3) for an adult voice; 'm' is a hummed nasal and 'r' the r-colour. */
+const VOWELS = {
+  a: [730, 1090, 2440],
+  e: [530, 1840, 2480],
+  ey: [420, 2020, 2600],
+  i: [280, 2250, 2950],
+  o: [570, 840, 2410],
+  u: [320, 870, 2240],
+  uh: [560, 1190, 2390],
+  ae: [660, 1720, 2410],
+  m: [260, 1000, 2200],
+  r: [460, 1200, 1600],
+} as const;
+type Vowel = keyof typeof VOWELS;
+
+/**
+ * A spoken word or grunt for the formant voice: points in time (s) with the vowel being shaped, the loudness (0..1) and the
+ * pitch (times the voice's own), glided between; consonant bursts of filtered noise; and where it ends.
+ */
+interface Word {
+  parts: [t: number, v: Vowel, amp: number, pitch: number][];
+  bursts?: [t: number, f: number, dur: number, vol: number][];
+  end: number;
+}
+
+const WORDS: Record<string, Word> = {
+  // "ready?": an r, a short e, the d, and a long rising ee
+  ready: {
+    parts: [[0, 'r', 0.35, 0.95], [0.07, 'e', 1, 1], [0.18, 'e', 0.9, 1], [0.22, 'uh', 0.12, 1], [0.26, 'i', 0.95, 1.06], [0.52, 'i', 0.7, 1.32]],
+    bursts: [[0.215, 3800, 0.022, 0.5]],
+    end: 0.62,
+  },
+  // "go!": a g burst and a long falling oh-oo
+  go: {
+    parts: [[0, 'uh', 0.2, 1.15], [0.04, 'o', 1, 1.18], [0.3, 'o', 0.95, 1.05], [0.46, 'u', 0.55, 0.85]],
+    bursts: [[0, 1600, 0.035, 0.7]],
+    end: 0.58,
+  },
+  // "game!": g, a long ay gliding to ee, closing on a hummed m
+  game: {
+    parts: [[0, 'uh', 0.2, 1.1], [0.04, 'ey', 1, 1.12], [0.24, 'ey', 0.95, 1.05], [0.32, 'i', 0.8, 1], [0.36, 'm', 0.45, 0.95], [0.5, 'm', 0.3, 0.9]],
+    bursts: [[0, 1700, 0.035, 0.7]],
+    end: 0.6,
+  },
+  // "time!": a t burst, ah gliding to ee, a hummed m
+  time: {
+    parts: [[0, 'a', 0.3, 1.1], [0.05, 'a', 1, 1.12], [0.24, 'a', 0.9, 1.05], [0.34, 'i', 0.75, 1], [0.38, 'm', 0.45, 0.94], [0.5, 'm', 0.28, 0.9]],
+    bursts: [[0, 4200, 0.03, 0.8]],
+    end: 0.6,
+  },
+  // "K.O.!": kay, a breath of a gap, then a long oh
+  ko: {
+    parts: [[0, 'ey', 0.3, 1.15], [0.05, 'ey', 1, 1.18], [0.18, 'i', 0.85, 1.12], [0.24, 'uh', 0.2, 1.05], [0.29, 'o', 1, 1.1], [0.55, 'o', 0.9, 0.98], [0.68, 'u', 0.5, 0.85]],
+    bursts: [[0, 2600, 0.04, 0.8]],
+    end: 0.8,
+  },
+  // grunts: a sharp "hyah!" on a big swing
+  attack: { parts: [[0, 'uh', 0.25, 1.2], [0.03, 'a', 1, 1.25], [0.12, 'a', 0.85, 1.05], [0.2, 'uh', 0.3, 0.85]], bursts: [[0, 1300, 0.04, 0.45]], end: 0.26 },
+  // "uhh!": the air knocked out on a heavy hit
+  hurt: { parts: [[0, 'uh', 1, 1.15], [0.07, 'uh', 0.8, 1], [0.16, 'o', 0.35, 0.8]], end: 0.22 },
+  // "whoaaa...": sent flying off the screen, the pitch and the voice falling away
+  koCry: { parts: [[0, 'u', 0.4, 1.25], [0.06, 'o', 1, 1.35], [0.35, 'a', 0.85, 1.2], [0.7, 'a', 0.45, 0.85], [0.95, 'uh', 0.15, 0.6]], end: 1.05 },
+  // "ha-ha!": a short laugh
+  laugh: {
+    parts: [[0, 'a', 0.2, 1.1], [0.03, 'a', 1, 1.15], [0.11, 'a', 0.6, 1.05], [0.15, 'uh', 0.08, 1], [0.21, 'a', 0.95, 1.08], [0.3, 'a', 0.55, 0.95], [0.36, 'uh', 0.1, 0.9]],
+    bursts: [[0, 1200, 0.03, 0.35], [0.18, 1200, 0.03, 0.3]],
+    end: 0.4,
+  },
+};
 
 /** Concurrent sounds (not nodes) across the whole mix; a sound is one recipe, a handful of oscillators / noise bursts. */
 const MAX_SOUNDS = 24;
@@ -18,9 +119,9 @@ const MIN_GAP = 0.028;
 /** Repeats inside this window are attenuated so rapid multi-hits do not build up. */
 const STACK_WINDOW = 0.1;
 /** Sounds that always get a voice, stealing the oldest ordinary one if the mix is full. */
-const PRIORITY: ReadonlySet<SoundName> = new Set<SoundName>(['ko', 'shieldBreak', 'parry', 'charge', 'ultimate', 'ready', 'go', 'roar', 'thunder', 'avalanche']);
+const PRIORITY: ReadonlySet<SoundName> = new Set<SoundName>(['ko', 'shieldBreak', 'parry', 'charge', 'ultimate', 'ready', 'go', 'roar', 'thunder', 'avalanche', 'callReady', 'callGo', 'callGame', 'callTime', 'callKo']);
 /** Random pitch spread (fraction) per sound so repeats are not machine-gun identical; musical cues stay in tune. */
-const NO_VARY: ReadonlySet<SoundName> = new Set<SoundName>(['ding', 'menuMove', 'menuOk', 'menuBack', 'freeze', 'ready', 'pickup', 'go', 'ultimate', 'taunt', 'coreGet']);
+const NO_VARY: ReadonlySet<SoundName> = new Set<SoundName>(['ding', 'menuMove', 'menuOk', 'menuBack', 'freeze', 'ready', 'pickup', 'go', 'ultimate', 'taunt', 'coreGet', 'callReady', 'callGo', 'callGame', 'callTime', 'callKo']);
 const VARY = 0.06;
 
 /**
@@ -88,6 +189,17 @@ export const LOUDNESS_TARGET: Record<SoundName, number> = {
   taunt: -26,
   glint: -27,
   crowd: -27,
+  // fighter voices: tasteful, under the hits they ride on (a KO cry under the KO itself)
+  voxAttack: -27,
+  voxHurt: -27,
+  voxKo: -24,
+  voxTaunt: -27,
+  // the announcer's fallback voice: as present as a heavy hit
+  callReady: -20,
+  callGo: -19,
+  callGame: -19,
+  callTime: -19,
+  callKo: -19,
   // items
   swordSwing: -28,
   swordHit: -23,
@@ -115,6 +227,7 @@ export const SOUND_SPAN: Partial<Record<SoundName, number>> = {
   geyser: 1.6,
   waterSpout: 1.4,
   stalactite: 1.3,
+  voxKo: 1.3,
 };
 
 /**
@@ -130,6 +243,7 @@ export const LEVEL_DB: Record<SoundName, number> = {
   taunt: 8, roar: 1.4, thunder: 0, avalanche: -0.7, geyser: -2.0, waterSpout: 2.7, stalactite: -0.8,
   stepMetal: 1.5, stepStone: 1.7, stepWood: -2.8, stepSnow: 5.5, stepGrass: -5.1, stepCrystal: 1.8, crowd: 7.9,
   glint: 4.1, swordSwing: 6.1, swordHit: 3.6, rayShot: 3.4, crateBreak: 4.9, crateBoom: 4.6, coreGet: 2.3,
+  voxAttack: -6.4, voxHurt: -5.1, voxKo: -8.8, voxTaunt: -7.1, callReady: -4.5, callGo: -2.9, callGame: -2.4, callTime: -1.5, callKo: -2.9,
 };
 
 /** Extra trim (dB) for a style's swing / hits so every fighter lands at the same loudness (on top of LEVEL_DB). */
@@ -142,6 +256,13 @@ export const STYLE_DB: Partial<Record<string, number>> = {
   'swing:military': -3.9, 'swing:stone': -10.3, 'swing:water': -3.1, 'swing:wind': -5.8,
   'taunt:heavy': -10.9, 'taunt:blade': -3.5, 'taunt:arcane': -6.7, 'taunt:mech': 1.6, 'taunt:fire': 3.2,
   'taunt:wind': -4.0, 'taunt:water': 2.9, 'taunt:stone': -7.9, 'taunt:ice': -6.0, 'taunt:military': -3.4,
+  // the Overseer's own set
+  'swing:overseer': -9.5, 'hit:overseer': -6.6, 'hitHeavy:overseer': -1.1, 'taunt:overseer': -2.0,
+  // fighter voices
+  'voxAttack:heavy': 1.2, 'voxAttack:blade': -0.4, 'voxAttack:arcane': -1.0, 'voxAttack:mech': -3.7, 'voxAttack:fire': 0.6, 'voxAttack:wind': 0.3, 'voxAttack:water': 0.2, 'voxAttack:stone': 2.0, 'voxAttack:ice': 0.0, 'voxAttack:military': 0.6, 'voxAttack:overseer': 0.9,
+  'voxHurt:heavy': 0.9, 'voxHurt:blade': -0.2, 'voxHurt:arcane': -0.7, 'voxHurt:mech': -5.7, 'voxHurt:fire': 0.1, 'voxHurt:wind': -0.4, 'voxHurt:water': 0.4, 'voxHurt:stone': 1.8, 'voxHurt:ice': -0.6, 'voxHurt:military': 0.5, 'voxHurt:overseer': 0.4,
+  'voxKo:heavy': 1.2, 'voxKo:blade': -0.1, 'voxKo:arcane': -0.6, 'voxKo:mech': -3.7, 'voxKo:fire': 0.8, 'voxKo:wind': 1.0, 'voxKo:water': 0.3, 'voxKo:stone': 2.1, 'voxKo:ice': 0.2, 'voxKo:military': 0.8, 'voxKo:overseer': 1.4,
+  'voxTaunt:heavy': 1.0, 'voxTaunt:blade': -0.4, 'voxTaunt:arcane': -0.5, 'voxTaunt:mech': -1.6, 'voxTaunt:fire': 0.4, 'voxTaunt:wind': 0.1, 'voxTaunt:water': 0.4, 'voxTaunt:stone': 1.9, 'voxTaunt:ice': -0.1, 'voxTaunt:military': 0.6, 'voxTaunt:overseer': 0.7,
 };
 
 /** Sounds that dip the music and ambience for a moment ([gain, hold seconds]) so the big hits punch through. */
@@ -156,6 +277,12 @@ const DUCK: Partial<Record<SoundName, [number, number]>> = {
   thunder: [0.65, 0.8],
   avalanche: [0.65, 1.0],
   geyser: [0.75, 0.5],
+  // the announcer's fallback voice dips the music like the speech voice does
+  callReady: [0.6, 0.6],
+  callGo: [0.6, 0.5],
+  callGame: [0.6, 0.6],
+  callTime: [0.6, 0.6],
+  callKo: [0.6, 0.8],
 };
 
 /** A room for the effects: reverb tail length (s), wet level and the tail's brightness (Hz). */
@@ -505,6 +632,8 @@ export class Sfx {
     if (!ctx || !this.master) return;
     // the crowd is optional (a menu setting; read defensively, on by default)
     if (name === 'crowd' && (settings as unknown as { crowd?: unknown }).crowd === false) return;
+    // fighter voices are optional too (a menu setting, on by default)
+    if (name.startsWith('vox') && (settings as unknown as { voices?: unknown }).voices === false) return;
     const vol = this.syncVolume();
     if (vol <= 0) return;
     const now = ctx.currentTime;
@@ -751,6 +880,13 @@ export class Sfx {
         this.crackle(d, 5, 0.09, 0.22 * k, 0.02, 1800);
         this.ring(d, 1250, 0.08, 0.05 * k, 0.05, [1, 1.53, 2.92]);
         break;
+      case 'overseer':
+        // the Overseer: a hydraulic heave, a groaning servo deep in the chassis and the ring of a huge steel limb
+        this.noiseBurst(d, 'lowpass', 700, 180, 0.26, 0.3 * k, 0, { attack: 0.06, drive: true });
+        this.tone(d, 'sawtooth', 62, 118, 0.24, 0.07 * k, 0, { attack: 0.05, vib: [23, 0.03] });
+        this.noiseBurst(d, 'highpass', 3200, 1800, 0.14, 0.07 * k, 0.08, { attack: 0.03 });
+        this.ring(d, 310, 0.3, 0.06 * k, 0.03);
+        break;
       default:
         // an airy whoosh that swells in and sweeps up, with a low push of air under it
         this.noiseBurst(d, 'bandpass', 700, 1900, 0.13, 0.36 * k, 0, { attack: 0.03 });
@@ -814,6 +950,13 @@ export class Sfx {
         this.crackle(d, 4, 0.06, 0.14 * k, 0.005, 6000);
         this.ring(d, 2349, 0.3 * h, 0.08 * k, 0.01, GLASS);
         break;
+      case 'overseer':
+        // an anvil blow from a war machine: a low struck-steel ring, a sub thud and a buzzing overload
+        this.ring(d, 196, 0.5 * h, 0.24 * k, 0);
+        this.tone(d, 'sine', 62, 28, 0.3 * h, 0.55 * k, 0, { glide: 0.5, attack: 0.006 });
+        this.noiseBurst(d, 'lowpass', 2000, 150, 0.16 * h, 0.3 * k, 0, { drive: true });
+        this.tone(d, 'sawtooth', 55, 50, 0.22, 0.06 * k, 0.02, { fm: [1.41, 3] });
+        break;
       case 'military':
         // a gunstock smack: a sharp report, a hard body thump and a metallic rattle
         this.noiseBurst(d, 'highpass', 1800, 900, 0.03, 0.5 * k, 0, { attack: 0.0008, drive: true });
@@ -835,6 +978,13 @@ export class Sfx {
         break;
       case 'military':
         this.crackle(d, 2, 0.04, 0.06 * k, 0.01, 2400);
+        break;
+      case 'overseer':
+        // a heavy steel foot: a deep clank
+        if (landing) {
+          this.tone(d, 'sine', 60, 34, 0.16, 0.3 * k, 0, { glide: 0.5 });
+          this.ring(d, 180, 0.18, 0.06 * k, 0);
+        }
         break;
       case 'mech':
         this.tone(d, 'square', landing ? 300 : 260, landing ? 160 : 520, 0.06, 0.025 * k, 0, { attack: 0.006 });
@@ -915,6 +1065,14 @@ export class Sfx {
         [3520, 2960, 2637, 2217].forEach((f, i) => this.ring(d, f, 0.3, 0.06 * k, i * 0.07, GLASS));
         this.noiseBurst(d, 'highpass', 6000, 8000, 0.35, 0.08 * k, 0, { attack: 0.06 });
         break;
+      case 'overseer':
+        // the Overseer: a low tritone drone of detuned saws, then a slow mechanical laugh of three pulses
+        this.tone(d, 'sawtooth', 55, 52, 0.75, 0.07 * k, 0, { attack: 0.15, vib: [5, 0.02] });
+        this.tone(d, 'sawtooth', 77.8, 74, 0.75, 0.05 * k, 0, { attack: 0.15 });
+        this.noiseBurst(d, 'lowpass', 300, 600, 0.6, 0.18 * k, 0, { attack: 0.2 });
+        for (let i = 0; i < 3; i++) this.tone(d, 'square', 98 - i * 6, 90 - i * 6, 0.1, 0.07 * k, 0.32 + i * 0.13, { fm: [0.5, 2] });
+        this.ring(d, 147, 0.4, 0.05 * k, 0.32);
+        break;
       case 'military':
         // Havoc: a rifle bolt worked, click-clack
         this.click(d, 0.25 * k, 0, 2500);
@@ -930,6 +1088,100 @@ export class Sfx {
         this.tone(d, 'sine', 220, 330, 0.12, 0.18 * k, 0.12);
         break;
     }
+  }
+
+  /**
+   * Formant voice: a buzzing glottal source (sawtooth, plus breath noise) shaped by three resonances that glide from vowel to
+   * vowel, with consonant bursts of filtered noise. A growl wobbles the pitch; a robot voice is half ring-modulated.
+   */
+  private vox(d: AudioNode, w: Word, p: VoiceProfile, vol: number, delay = 0): void {
+    const ctx = this.ctx!;
+    const t0 = ctx.currentTime + delay;
+    const end = t0 + w.end;
+    const f0 = p.f0 * this.pv;
+    // the voice's output: straight through, or a robot's mix of dry and ring-modulated
+    const out = ctx.createGain();
+    out.gain.value = 1;
+    const chain: AudioNode[] = [out];
+    if (p.ring > 0) {
+      const dry = ctx.createGain();
+      dry.gain.value = 0.55;
+      const rm = ctx.createGain();
+      rm.gain.value = 0;
+      const lfo = ctx.createOscillator();
+      lfo.frequency.value = p.ring;
+      const depth = ctx.createGain();
+      depth.gain.value = 0.9;
+      lfo.connect(depth).connect(rm.gain);
+      out.connect(dry).connect(d);
+      out.connect(rm).connect(d);
+      chain.push(dry, rm);
+      lfo.start(t0);
+      this.track(lfo, end + 0.03, [depth]);
+    } else out.connect(d);
+    // three formant filters in parallel, their centres gliding with the vowels
+    const bank = ctx.createGain();
+    bank.gain.value = 1;
+    chain.push(bank);
+    const fgain = [1, 0.55, 0.28];
+    const q = [6, 9, 11];
+    for (let f = 0; f < 3; f++) {
+      const flt = ctx.createBiquadFilter();
+      flt.type = 'bandpass';
+      flt.Q.value = q[f];
+      const fq = (v: Vowel): number => Math.min(ctx.sampleRate * 0.4, VOWELS[v][f] / p.tract);
+      flt.frequency.setValueAtTime(fq(w.parts[0][1]), t0);
+      for (const [t, v] of w.parts) flt.frequency.linearRampToValueAtTime(fq(v), t0 + t);
+      const g = ctx.createGain();
+      g.gain.value = fgain[f] * 3.2;
+      bank.connect(flt).connect(g).connect(out);
+      chain.push(flt, g);
+    }
+    // loudness and pitch contours
+    const env = (g: GainNode, k: number): void => {
+      g.gain.setValueAtTime(0.0001, t0);
+      for (const [t, , a] of w.parts) g.gain.linearRampToValueAtTime(Math.max(0.0002, a * k), t0 + Math.max(0.006, t));
+      g.gain.exponentialRampToValueAtTime(0.0001, end);
+    };
+    const src = ctx.createOscillator();
+    src.type = p.ring > 0 ? 'square' : 'sawtooth';
+    src.frequency.setValueAtTime(f0 * w.parts[0][3], t0);
+    for (const [t, , , pitch] of w.parts) src.frequency.linearRampToValueAtTime(f0 * pitch, t0 + t);
+    const voiced = ctx.createGain();
+    env(voiced, vol * (1 - p.breath * 0.6));
+    src.connect(voiced).connect(bank);
+    if (p.growl > 0) {
+      const lfo = ctx.createOscillator();
+      lfo.frequency.value = 33;
+      const lg = ctx.createGain();
+      lg.gain.value = f0 * p.growl;
+      lfo.connect(lg).connect(src.frequency);
+      lfo.start(t0);
+      this.track(lfo, end + 0.02, [lg]);
+    }
+    src.start(t0);
+    this.track(src, end + 0.02, [voiced]);
+    if (p.breath > 0 && this.noise) {
+      const n = ctx.createBufferSource();
+      n.buffer = this.noise;
+      n.loop = true;
+      const hp = ctx.createBiquadFilter();
+      hp.type = 'highpass';
+      hp.frequency.value = 500;
+      const bg = ctx.createGain();
+      env(bg, vol * p.breath * 0.9);
+      n.connect(hp).connect(bg).connect(bank);
+      n.start(t0, Math.random() * 1.5);
+      this.track(n, end + 0.02, [hp, bg]);
+    }
+    for (const [t, f, dur, v] of w.bursts ?? []) this.noiseBurst(d, 'bandpass', f, f * 0.8, dur, v * vol, delay + t, { attack: 0.002, q: 1.4 });
+    // the shared nodes go once the last source has stopped (they outlive every source above by a few ms)
+    const keep = ctx.createConstantSource ? ctx.createConstantSource() : ctx.createOscillator();
+    const silent = ctx.createGain();
+    silent.gain.value = 0;
+    keep.connect(silent).connect(out);
+    keep.start(t0);
+    this.track(keep, end + 0.06, [silent, ...chain]);
   }
 
   private recipe(name: SoundName, k: number, d: AudioNode, style: AudioStyle = 'plain'): void {
@@ -1372,6 +1624,33 @@ export class Sfx {
         this.crackle(d, 12, 0.5, 0.18 * k, 0.02, 2000);
         for (let i = 0; i < 4; i++) this.tone(d, 'triangle', 250 + Math.random() * 200, 200, 0.07, 0.1 * k, 0.2 + i * 0.1 + Math.random() * 0.05);
         this.tone(d, 'sine', 140, 50, 0.25, 0.35 * k, 0, { glide: 0.5 });
+        break;
+      case 'voxAttack':
+        this.vox(d, WORDS.attack, VOICES[style], 0.5 * k);
+        break;
+      case 'voxHurt':
+        this.vox(d, WORDS.hurt, VOICES[style], 0.5 * k);
+        break;
+      case 'voxKo':
+        this.vox(d, WORDS.koCry, VOICES[style], 0.5 * k);
+        break;
+      case 'voxTaunt':
+        this.vox(d, WORDS.laugh, VOICES[style], 0.5 * k);
+        break;
+      case 'callReady':
+        this.vox(d, WORDS.ready, VOICES.announcer, 0.5);
+        break;
+      case 'callGo':
+        this.vox(d, WORDS.go, VOICES.announcer, 0.5);
+        break;
+      case 'callGame':
+        this.vox(d, WORDS.game, VOICES.announcer, 0.5);
+        break;
+      case 'callTime':
+        this.vox(d, WORDS.time, VOICES.announcer, 0.5);
+        break;
+      case 'callKo':
+        this.vox(d, WORDS.ko, VOICES.announcer, 0.5);
         break;
       case 'coreGet':
         // a core fragment: power surging in, a rising FM sweep that resolves on a bright chord

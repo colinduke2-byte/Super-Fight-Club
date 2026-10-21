@@ -1,9 +1,12 @@
 import Phaser from 'phaser';
 import { announcer } from '../audio/announcer';
-import { hazardSounds, hitLayer, soundsFor } from '../audio/soundMap';
+import { footsteps, type StepSource } from '../audio/footsteps';
+import { footstepFor, hazardSounds, hitLayer, soundsFor } from '../audio/soundMap';
 import { heldState } from '../engine/items';
 import { sfx } from '../audio/sfx';
 import type { Fighter } from '../engine/fighter';
+import type { Match } from '../engine/match';
+import { flawlessWin, koEndsMatch, styleOf } from '../audio/matchCalls';
 import type { World, WorldEventType } from '../engine/world';
 import { playRecipe, runOps, type FxContext } from '../fx/runner';
 import type { Effects } from '../ui/Effects';
@@ -37,9 +40,20 @@ export interface WorldEventHost {
   finale?(f: Fighter, hitX: number, hitY: number, replay: () => void): boolean;
   /** The boss has entered its second phase (an `fx` event tagged `bossPhase2`). */
   bossPhase2?(f: Fighter): void;
+  /**
+   * The match's rules state (stocks, eliminations), or null where KOs are not called (training, Target Smash, Launch
+   * Contest). Without it the announcer stays out of KOs.
+   */
+  match?(): Match | null;
 }
 
-/** Turns simulation events into particles, camera kicks, sounds and rumble. Presentation only. */
+/** KOs within this long of each other are one multi-KO call ("Double K.O.!"). */
+const MULTI_KO_MS = 1200;
+/** Per fighter, the least time between two grunts of one kind (ms): voices punctuate, they never chatter. */
+const GRUNT_GAP = { voxAttack: 2200, voxHurt: 1600, voxKo: 0, voxTaunt: 600 } as const;
+/** Damage from which a hit draws a hurt grunt. */
+const HURT_DAMAGE = 14;
+
 export class WorldEventFx {
   /** Where each fighter was last struck (world space; NaN = never): the game-winning KO punches in there. */
   private readonly hitX: number[] = [];
@@ -47,7 +61,43 @@ export class WorldEventFx {
   /** Set while a KO the host held back (the game-winning one) is being played. */
   private replaying = false;
 
-  constructor(private readonly host: WorldEventHost) {}
+  /** Recent KO times (ms) for multi-KO calls, and each fighter's last grunt of each kind. */
+  private kos: number[] = [];
+  private readonly grunts = new Map<string, number>();
+  private readonly steps: StepSource;
+
+  constructor(private readonly host: WorldEventHost) {
+    // footsteps follow the fighters every frame (driven from the ambience update the match already calls)
+    this.steps = { fighters: host.world.fighters, stageId: host.world.stage.id, tick: () => host.world.tick, pan: (x) => host.pan(x) };
+    footsteps.attach(this.steps);
+    announcer.warm();
+  }
+
+  /** A fighter's grunt, if they have not made that sound too recently. */
+  private grunt(name: keyof typeof GRUNT_GAP, f: Fighter, x: number, intensity = 0.85): void {
+    const now = performance.now();
+    const key = `${name}:${f.id}`;
+    if (now - (this.grunts.get(key) ?? -1e9) < GRUNT_GAP[name]) return;
+    this.grunts.set(key, now);
+    sfx.play(name, intensity, this.host.pan(x), styleOf(f));
+  }
+
+  /** The announcer's KO calls: K.O. (or a multi-KO), "Last stock!", and "Perfect!" after a flawless win. */
+  private callKo(f: Fighter): void {
+    const m = this.host.match?.();
+    if (!m || m.training) return;
+    const now = performance.now();
+    this.kos = this.kos.filter((t) => now - t < MULTI_KO_MS);
+    this.kos.push(now);
+    if (koEndsMatch(m, this.host.world.fighters, f)) {
+      // GAME! follows straight away: no KO call over it, but a flawless winner gets "Perfect!" after it
+      if (flawlessWin(m, this.host.world.fighters) && typeof window !== 'undefined') window.setTimeout(() => announcer.perfect(), 400);
+      return;
+    }
+    announcer.ko(this.kos.length);
+    const sc = m.scores[f.id];
+    if (sc && !sc.eliminated && m.cfg.mode === 'stock' && sc.stocks === 1 && m.cfg.stocks > 1) announcer.lastStock();
+  }
 
   /** Where fighter `id` was last hit, or null. */
   lastHit(id: number): { x: number; y: number } | null {
@@ -78,18 +128,27 @@ export class WorldEventFx {
     const cues = soundsFor(type, mag, extra, tag);
     const pan = this.host.pan(x);
     // sound flavour: swings use the mover's style, hits use the attacker's
-    let style = f.data.fx?.sound ?? 'plain';
-    if (type === 'hit') style = this.host.world.fighters[f.lastHitBy]?.data.fx?.sound ?? 'plain';
+    let style = styleOf(f);
+    if (type === 'hit') style = styleOf(this.host.world.fighters[f.lastHitBy]);
     if (type === 'moveStart') {
       const kind = f.move?.kind;
       const loud = kind === 'smash' ? 0.7 : kind === 'ultimate' ? 0.8 : kind === 'aerial' || kind === 'dashAttack' ? 0.45 : kind === 'tilt' ? 0.35 : kind === 'jab' ? 0.22 : 0.4;
       sfx.play('swing', loud, pan, style);
+      // a shout on the big swings (not every one: a voice that punctuates, not a voice that chatters)
+      if (kind === 'ultimate' || (kind === 'smash' && Math.random() < 0.5)) this.grunt('voxAttack', f, x);
     } else {
       // projectiles from a held ray gun get their own shot
       const ray = type === 'projectile' && heldState(this.host.world, f.id).kind === 'raygun';
       for (const c of cues) sfx.play(ray && c.name === 'shoot' ? 'rayShot' : c.name, c.intensity, pan, style);
     }
+    if (type === 'fx' && tag === 'taunt') this.grunt('voxTaunt', f, x, 0.8);
+    if (type === 'land' && mag > 3) {
+      // the floor answers a landing: the stage's surface under the generic thud
+      const step = footstepFor(this.host.world.stage.id, 8, (f.stats.weight || 100) / 100);
+      sfx.play(step.name, Math.min(0.9, step.intensity + 0.1), pan);
+    }
     if (type === 'hit') {
+      if (extra >= HURT_DAMAGE && f.state !== 'ko') this.grunt('voxHurt', f, x, Math.min(1, 0.6 + extra / 40));
       const layer = hitLayer(f.lastHitFx, mag, extra);
       if (layer) sfx.play(layer.name, layer.intensity, pan);
       // (lastHitBy is -1 for a hit nobody owns: a stage hazard, a stray item)
@@ -457,6 +516,8 @@ export class WorldEventFx {
         this.host.rumble(f, 1, 0.6, 300);
         this.host.koFx(f, extra);
         this.host.slow(0.35, 40);
+        this.grunt('voxKo', f, kx, 0.9);
+        this.callKo(f);
         break;
       }
       default:

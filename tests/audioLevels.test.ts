@@ -8,7 +8,7 @@ import { SR, audibleSpan, bandProfile, measureSound } from './audioMeasure';
 
 /** Styles fighters actually use (plain is only the fallback). */
 const FIGHTER_STYLES = AUDIO_STYLES.filter((s) => s !== 'plain');
-const STYLED: SoundName[] = ['swing', 'hit', 'hitHeavy', 'taunt'];
+const STYLED: SoundName[] = ['swing', 'hit', 'hitHeavy', 'taunt', 'voxAttack', 'voxHurt', 'voxKo', 'voxTaunt'];
 /** Rendering every sound is slow on a loaded machine: generous timeouts so only a real failure fails. */
 const SLOW = { timeout: 120000 };
 
@@ -88,7 +88,7 @@ describe('sound effect levels (rendered)', () => {
 
   it('each fighter flavour has its own colour: no two styles sound alike on a swing, a hit or a taunt', SLOW, () => {
     const min: Record<string, number> = { swing: 4, hit: 3.5, hitHeavy: 1.5, taunt: 3 };
-    for (const name of STYLED) {
+    for (const name of Object.keys(min) as SoundName[]) {
       const xs = FIGHTER_STYLES.map((st) => measureSound(name, st).x);
       for (let i = 0; i < xs.length; i++)
         for (let j = i + 1; j < xs.length; j++) {

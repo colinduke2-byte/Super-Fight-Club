@@ -13,6 +13,8 @@ import {
   DUMMY_BEHAVIOURS,
   InputRecording,
   isActionable,
+  ITEM_NAMES,
+  spawnItem,
   RECORD_MAX,
   restoreFighter,
   saveFighter,
@@ -29,6 +31,12 @@ import { applyHeld, clearInput, type Controller } from '../../game/controllers';
 import type { CpuLevel } from '../../game/lobby';
 import { session } from '../../game/session';
 import { clearedTrials, markTrialCleared, trialsFor, TrialChecker, type Trial } from '../../game/trials';
+import { ChallengeTracker } from '../../game/challenges';
+import { ITEM_KINDS, type ItemKind } from '../../engine/items';
+import { applyTrialSetup, defaultDummy, TrialRun } from '../../game/trialDemo';
+import { TRIAL_PLANS } from '../../game/trialPlans';
+import { ensurePalette } from '../../art/proceduralFighter';
+import { FighterView } from '../../ui/FighterView';
 import { deviceKind, LESSONS, markTutorialDone, takePendingTutorial, tutorialReturnScene, TutorialRunner } from '../../game/tutorial';
 import type { KeyboardSchemeId } from '../../input/actions';
 import type { InputDevice } from '../../input/device';
@@ -241,8 +249,22 @@ export class TrainingTools {
   private lessonSerial = -1;
   private finishTimer = -1;
   private trialDoneShown = false;
+  /** Item the SPAWN ITEM row drops, and the fighter the SECOND DUMMY row adds ('' = none). */
+  private pickItem: ItemKind = 'bomb';
+  private pickDummy2 = '';
+  /** The second dummy (2-dummy practice): its stance controller and reaction memo. */
+  private readonly stance2: StanceDummy;
+  private cpu2: CpuController | null = null;
+  private reactMemo2 = { randDi: 'none' as DiOption, randTech: 'none' as (typeof TECH_OPTIONS)[number], wasHit: false };
+  /** A trial demo playing (a ghost run of the trial's proved plan), its views and how long its last frame holds. */
+  private demo: { run: TrialRun; views: FighterView[]; layer: Phaser.GameObjects.Layer; hold: number } | null = null;
+  private demoPick = 0;
+
+  /** Challenge matches: counts specials and hazard KOs for the challenge's clear rule and goals. */
+  readonly chalTracker: ChallengeTracker | null;
 
   constructor(private readonly s: MatchScene) {
+    this.chalTracker = s.setup.chal && !s.replay ? new ChallengeTracker(s.setup.chal) : null;
     this.runner = s.isTraining ? new TrainingRunner(s.world, s.fighters[0], s.fighters[1]) : null;
     this.launchPreview = s.isTraining ? new LaunchPreview(s, s.worldLayer) : null;
     this.combo = s.isTraining ? new ComboTracker(s.fighters[0], s.fighters[1]) : null;
@@ -252,7 +274,10 @@ export class TrainingTools {
     helpDevice = s.isTraining ? (s.slots.find((p) => p.type === 'human')?.device ?? null) : null;
     this.tutorial = tut ? new TutorialRunner(s.world, s.fighters[0], s.fighters[1]) : null;
     this.stance = new StanceDummy(this.opts);
+    this.stance2 = new StanceDummy(this.opts);
+    this.pickDummy2 = s.isTraining && s.slots[2] ? s.slots[2].character : '';
     if (!s.isTraining) return;
+    s.events.once('shutdown', () => this.endDemo(false));
     // the menu gets its own top layer (seen only by the UI camera) so it draws over the HUD plates and help text
     const menuLayer = s.add.layer();
     s.cameras.main.ignore(menuLayer);
@@ -323,6 +348,7 @@ export class TrainingTools {
   private helpShown = false;
 
   onEvent(type: WorldEventType, f: Fighter, x: number, y: number, mag: number, extra: number): void {
+    this.chalTracker?.onEvent(type, f, this.s.world);
     this.runner?.onEvent(type, f, x, y, mag, extra);
     if (type === 'hit' && this.launchPreview) this.launchPreview.show(f, this.s.world);
     this.combo?.onEvent(type, f, extra);
@@ -413,7 +439,9 @@ export class TrainingTools {
         s.hud.showToast('Positions saved');
       }),
       { ...this.row('RESTORE POSITIONS', undefined, undefined, 'PUT BOTH FIGHTERS BACK WHERE THEY WERE SAVED', () => this.restore(true)), enabled: () => !!this.saved },
-      this.row('COMBO TRIALS', () => `${this.clearedCount()}/${trialsFor(s.fighters[0].data.id).length}`, undefined, 'THREE COMBOS TO LEARN FOR YOUR FIGHTER', () => this.menu?.push(this.trialsPage())),
+      this.row('SPAWN ITEM', () => ITEM_NAMES[this.pickItem], (d) => (this.pickItem = cycle(ITEM_KINDS, this.pickItem, d)), 'LEFT / RIGHT: CHOOSE AN ITEM. CONFIRM DROPS IT IN FRONT OF YOU', () => this.dropItem()),
+      this.row('SECOND DUMMY', () => (this.pickDummy2 ? name(this.pickDummy2) : 'OFF'), (d) => (this.pickDummy2 = cycle(['', ...ids], this.pickDummy2, d)), 'A SECOND DUMMY TO PRACTISE AGAINST TWO: CHOOSE, THEN CONFIRM TO LOAD (OFF REMOVES IT)', () => this.reload()),
+      this.row('COMBO TRIALS', () => `${this.clearedCount()}/${trialsFor(s.fighters[0].data.id).length}`, undefined, "COMBOS TO LEARN FOR YOUR FIGHTER, AND ONE FOR ITS OWN MECHANIC. EACH HAS A DEMO", () => this.menu?.push(this.trialsPage())),
       { ...this.row('QUIT TRIAL', undefined, undefined, 'STOP THE CURRENT TRIAL', () => this.endTrial()), enabled: () => !!this.trial },
       this.row('YOUR FIGHTER', () => name(this.pickChar), (d) => (this.pickChar = cycle(ids, this.pickChar, d)), 'CHOOSE, THEN PRESS CONFIRM TO LOAD', () => this.reload()),
       this.row('DUMMY FIGHTER', () => name(this.pickDummy), (d) => (this.pickDummy = cycle(ids, this.pickDummy, d)), 'ANY FIGHTER CAN BE THE DUMMY: CHOOSE, THEN CONFIRM TO LOAD', () => this.reload()),
@@ -439,12 +467,22 @@ export class TrainingTools {
   private trialsPage(): TrainingMenuPage {
     const f = this.s.fighters[0];
     const done = clearedTrials();
-    const items: MenuItem[] = trialsFor(f.data.id).map((t, i) => ({
+    const list = trialsFor(f.data.id);
+    const items: MenuItem[] = list.map((t, i) => ({
       label: `${i + 1}. ${t.name}`,
-      value: () => (done.has(`${f.data.id}:${t.id}`) ? 'CLEARED' : ''),
-      hint: `${this.stepsText(t)}\n${t.tip}`,
+      value: () => (done.has(`${f.data.id}:${t.id}`) ? 'CLEARED' : t.teaches ? 'MECHANIC' : ''),
+      hint: `${t.teaches ? `TEACHES ${t.teaches}\n` : ''}${this.stepsText(t)}\n${t.tip}`,
       onConfirm: () => this.startTrial(t),
     }));
+    this.demoPick = Math.min(this.demoPick, list.length - 1);
+    items.push({
+      label: 'WATCH DEMO',
+      value: () => list[this.demoPick]?.name ?? '',
+      hint: 'LEFT / RIGHT: CHOOSE A TRIAL. CONFIRM: A GHOST PERFORMS IT',
+      onLeft: () => (this.demoPick = (this.demoPick + list.length - 1) % list.length),
+      onRight: () => (this.demoPick = (this.demoPick + 1) % list.length),
+      onConfirm: () => this.startDemo(list[this.demoPick]),
+    });
     return { title: `${f.data.name.toUpperCase()} TRIALS`, items };
   }
 
@@ -488,6 +526,7 @@ export class TrainingTools {
   private startTrial(t: Trial): void {
     const s = this.s;
     this.trial = new TrialChecker(t, s.fighters[0], s.fighters[1]);
+    this.trial.world = s.world;
     this.trialDoneShown = false;
     this.opts.behaviour = 'stand';
     this.opts.lockPercent = true;
@@ -504,6 +543,69 @@ export class TrainingTools {
     this.menu?.refresh(this.mainPage());
   }
 
+  /** SPAWN ITEM: drops the chosen item a little in front of the player. */
+  private dropItem(): void {
+    const s = this.s;
+    const p = s.fighters[0];
+    if (spawnItem(s.world, this.pickItem, p.x + p.facing * 24, p.y - p.h - 30)) s.hud.showToast(`${ITEM_NAMES[this.pickItem].toLowerCase()} dropped`);
+    this.closeMenu();
+  }
+
+  /**
+   * WATCH DEMO: the trial's proved plan (the run the trial solver found) plays as a see-through ghost of the player and a
+   * dummy, in its own world, while the practice freezes. It ends by itself (or when the menu opens again).
+   */
+  private startDemo(t: Trial | undefined): void {
+    const s = this.s;
+    const me = s.fighters[0].data.id;
+    const plan = t && TRIAL_PLANS[`${me}:${t.id}`];
+    if (!t || !plan) {
+      s.hud.showToast('No demo for this trial');
+      return;
+    }
+    this.endDemo(false);
+    // against the training dummy when the plan clears on it, else on the dummy it was proved against
+    const own = s.fighters[1].data.id;
+    const dummyId = own !== me && new TrialRun(me, t, plan, own).run() ? own : defaultDummy(me);
+    const run = new TrialRun(me, t, plan, dummyId);
+    const layer = s.add.layer().setAlpha(0.6);
+    s.cameras.main.ignore(layer);
+    s.uiCam.ignore(layer);
+    const dSkin = dummyId === own ? s.skins[1] : ensurePalette(s, CHARACTERS[dummyId], 0);
+    const views = [new FighterView(s, layer, run.player, 0x9fe8ff, s.skins[0]), new FighterView(s, layer, run.dummy, 0xffc8a0, dSkin)];
+    for (const v of views) v.platforms = run.world.platforms;
+    this.demo = { run, views, layer, hold: 50 };
+    this.closeMenu();
+    s.st.stepMode = true; // the practice holds still while the ghost shows the way
+    s.hud.showToast(`Demo: ${t.name}`);
+  }
+
+  private endDemo(resume = true): void {
+    const d = this.demo;
+    if (!d) return;
+    this.demo = null;
+    for (const v of d.views) v.destroy();
+    d.layer.destroy();
+    if (resume) this.applySpeed();
+  }
+
+  /** Per frame while a demo plays: one ghost tick (60 Hz displays; faster ones repeat a frame now and then). */
+  private updateDemo(): void {
+    const d = this.demo;
+    if (!d) return;
+    if (this.menuOpen) {
+      this.endDemo(false);
+      return;
+    }
+    this.s.st.stepMode = true;
+    if (!d.run.done && !d.run.failed) d.run.step();
+    else if (--d.hold <= 0) {
+      this.endDemo();
+      return;
+    }
+    for (const v of d.views) v.update(1, d.run.world.tick);
+  }
+
   private setPercent(v: number): void {
     const d = this.s.fighters[1];
     d.damage = v;
@@ -515,6 +617,9 @@ export class TrainingTools {
     const sl = session.players;
     if (sl[0]) sl[0].character = this.pickChar;
     if (sl[1]) sl[1].character = this.pickDummy;
+    // the second dummy: a third slot (or none)
+    sl.length = Math.min(sl.length, 2);
+    if (this.pickDummy2) sl.push({ index: 2, type: 'cpu', device: null, character: this.pickDummy2, cpuLevel: 1 });
     session.stage = this.pickStage;
     this.trial = null;
     s.scene.restart();
@@ -563,6 +668,17 @@ export class TrainingTools {
       this.cpu = null;
       s.ctl.controllers[1] = this.stance;
     }
+    // the second dummy does what the first does (a CPU of its own; recordings play on the first dummy only)
+    if (s.fighters[2]) {
+      if (o.behaviour === 'cpu') {
+        const lv = (o.cpuLevel <= 3 ? 1 : o.cpuLevel <= 6 ? 2 : 3) as CpuLevel;
+        this.cpu2 = new CpuController(lv, 10, o.cpuLevel);
+        s.ctl.controllers[2] = this.cpu2;
+      } else {
+        this.cpu2 = null;
+        s.ctl.controllers[2] = this.stance2;
+      }
+    }
     if (o.behaviour === 'record' && startRecord) {
       this.recording.clear();
       this.recordingNow = true;
@@ -601,6 +717,7 @@ export class TrainingTools {
     const s = this.s;
     const st = s.st;
     const [p, d] = s.fighters;
+    this.chalTracker?.beforeStep(s.world);
     if (this.swallow > 0) {
       const i0 = inputs[0];
       if (i0.held === 0 || --this.swallow === 0) this.swallow = 0;
@@ -620,7 +737,10 @@ export class TrainingTools {
       this.trial?.reset();
       this.combo?.reset();
       this.recording.rewind();
-      if (this.trial) d.damage = this.trial.trial.percent;
+      if (this.trial) {
+        d.damage = this.trial.trial.percent;
+        applyTrialSetup(this.trial.trial, p, d);
+      }
     }
     if (st.pendingHitDummy) {
       st.pendingHitDummy = false;
@@ -654,6 +774,11 @@ export class TrainingTools {
     if (o.behaviour === 'playback') this.recording.play(di);
     if (o.behaviour !== 'cpu') applyDummyReactions(d, p, o, this.s.world, di, this.rnd, this.reactMemo);
     if (o.lockPercent && d.comboHits === 0 && isActionable(d) && d.damage !== o.percent) d.damage = o.percent;
+    const d2 = this.s.fighters[2];
+    if (d2 && inputs[2]) {
+      if (o.behaviour !== 'cpu') applyDummyReactions(d2, p, o, this.s.world, inputs[2], this.rnd, this.reactMemo2);
+      if (o.lockPercent && d2.comboHits === 0 && isActionable(d2) && d2.damage !== o.percent) d2.damage = o.percent;
+    }
   }
 
   private tutorialTick(inputs: FighterInput[]): void {
@@ -809,6 +934,7 @@ export class TrainingTools {
   /** Per frame: the launch preview fade, the menu (input + drawing) and the gamepad menu button. */
   update(): void {
     this.launchPreview?.update();
+    this.updateDemo();
     const m = this.menu;
     if (!m) return;
     const s = this.s;

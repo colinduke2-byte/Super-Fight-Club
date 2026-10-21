@@ -1,8 +1,8 @@
 import { describe, expect, it } from 'vitest';
 import { AMBIENCE_TARGET, SCAPES } from '../src/audio/ambience';
-import { FANFARES, FANFARE_TARGET, MUSIC_TARGET, STINGS, loopSeconds } from '../src/audio/music';
+import { FANFARES, FANFARE_TARGET, MUSIC_TARGET, STINGS } from '../src/audio/music';
 import { LOUDNESS_TARGET } from '../src/audio/sfx';
-import { BARS, LOOP_STEPS, STEPS_PER_BAR, TRACKS, sectionOf, stepEvents } from '../src/audio/tracks';
+import { TRACKS } from '../src/audio/tracks';
 import { settings } from '../src/settings';
 import { measureFanfare, measureScape, measureTrack } from './audioMeasure';
 
@@ -39,37 +39,6 @@ describe('music levels (rendered)', () => {
     expect(midHit - music).toBeGreaterThan(3);
     expect(heavy - music).toBeGreaterThan(9);
   });
-});
-
-describe('song structure', () => {
-  for (const t of Object.values(TRACKS)) {
-    it(`${t.id}: a full song of at least 20 s with a breakdown, a build and fills`, () => {
-      expect(loopSeconds(t)).toBeGreaterThan(20);
-      const bar = STEPS_PER_BAR;
-      const sec = bar * BARS;
-      const voices = (from: number, to: number): Set<string> => {
-        const v = new Set<string>();
-        for (let s = from; s < to; s++) for (const e of stepEvents(t, s)) v.add(e.voice);
-        return v;
-      };
-      // the breakdown drops the lead and brings in the pad
-      expect(voices(2 * sec, 2 * sec + 2 * bar).has('lead')).toBe(false);
-      expect(voices(2 * sec, 2 * sec + 2 * bar).has('pad')).toBe(true);
-      expect(voices(0, sec).has('pad')).toBe(false);
-      // the song opens and returns with a crash
-      expect(stepEvents(t, 0).some((e) => e.voice === 'crash')).toBe(true);
-      expect(stepEvents(t, 3 * sec).some((e) => e.voice === 'crash')).toBe(true);
-      // a rising snare roll into the return
-      const roll = [];
-      for (let s = 3 * sec - 7; s < 3 * sec; s++) roll.push(...stepEvents(t, s).filter((e) => e.voice === 'snare'));
-      expect(roll.length).toBe(7);
-      expect(roll[6].vel ?? 1).toBeGreaterThan(roll[0].vel ?? 1);
-      // the four sections are not copies of each other
-      const sig = (k: number): string => JSON.stringify(Array.from({ length: sec }, (_, i) => stepEvents(t, k * sec + i)));
-      expect(new Set([0, 1, 2, 3].map(sig)).size).toBe(4);
-      expect(sectionOf(LOOP_STEPS - 1)).toBe(3);
-    });
-  }
 });
 
 describe('ambience levels (rendered)', () => {

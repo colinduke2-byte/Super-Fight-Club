@@ -2,6 +2,7 @@ import { CHARACTER_LIST } from '../characters';
 import { DIFFICULTY_KEY } from './ladder';
 import { LAST_FIGHTER_KEY, QUICK_CPU_KEY } from './quick';
 import { RECORDS_VERSION, recordsFrom, recordsSnapshot, replaceRecords, type Records } from './records';
+import { favouritesForSave, favouritesFrom, restoreFavourites, vaultCached, type SavedFavourite } from './replayVault';
 import { RULES_KEY, sanitizeRules } from './rulesets';
 import type { MatchRules } from './session';
 
@@ -22,6 +23,8 @@ export interface SaveExtras {
   /** The arcade difficulty and Quick Match CPU skill last used. */
   arcadeDifficulty?: number;
   quickCpu?: number;
+  /** Starred replays from the replay vault (metadata, name and share code), newest first, up to SAVE_VAULT_BYTES of codes. */
+  vault?: SavedFavourite[];
 }
 
 /**
@@ -82,6 +85,7 @@ export function extrasFrom(d: unknown): SaveExtras {
   if (ad !== undefined) out.arcadeDifficulty = ad;
   const qc = int(d.quickCpu, 1, 9);
   if (qc !== undefined) out.quickCpu = qc;
+  if (Array.isArray(d.vault)) out.vault = favouritesFrom(d.vault);
   return out;
 }
 
@@ -91,7 +95,16 @@ export function currentExtras(): SaveExtras {
     const v = readJson(k);
     return typeof v === 'number' ? v : typeof v === 'string' ? Number(v) : undefined;
   };
-  return extrasFrom({ trials: readJson(TRIALS_KEY), tutorial: readJson(TUTORIAL_KEY), rules: readJson(RULES_KEY), lastFighter: readJson(LAST_FIGHTER_KEY), arcadeDifficulty: n(DIFFICULTY_KEY), quickCpu: n(QUICK_CPU_KEY) });
+  const x = extrasFrom({ trials: readJson(TRIALS_KEY), tutorial: readJson(TUTORIAL_KEY), rules: readJson(RULES_KEY), lastFighter: readJson(LAST_FIGHTER_KEY), arcadeDifficulty: n(DIFFICULTY_KEY), quickCpu: n(QUICK_CPU_KEY) });
+  // the vault's favourites as last read (the Records screen refreshes the vault before it shows the save)
+  const fav = favouritesForSave(vaultCached());
+  if (fav.items.length) x.vault = fav.items;
+  return x;
+}
+
+/** Favourites a save export leaves out for size (see SAVE_VAULT_BYTES). */
+export function vaultSkippedInSave(): number {
+  return favouritesForSave(vaultCached()).skipped;
 }
 
 /** Write the extras a save carries into storage (parts it does not carry stay as they are). */
@@ -111,6 +124,8 @@ export function applyExtras(x: SaveExtras): void {
   if (x.lastFighter) put(LAST_FIGHTER_KEY, x.lastFighter);
   if (x.arcadeDifficulty !== undefined) put(DIFFICULTY_KEY, String(x.arcadeDifficulty));
   if (x.quickCpu !== undefined) put(QUICK_CPU_KEY, String(x.quickCpu));
+  // the vault is asynchronous storage: its favourites arrive a moment later (and never replace what is there)
+  if (x.vault?.length) void restoreFavourites(x.vault).catch(() => undefined);
 }
 
 /** The current records and the rest of the saved progress as save text (pretty enough to read, compact enough to paste). */
@@ -166,5 +181,6 @@ export function summarize(r: Records, x?: SaveExtras): string {
   const clears = Object.values(r.arcade).reduce((n, a) => n + a.clears, 0);
   const chal = Object.keys(r.challenges).length;
   const trials = x?.trials ? `, ${x.trials.length} trials` : '';
-  return `${played} versus matches, ${clears} arcade clears, ${chal} challenges cleared, ${Object.keys(r.targets).length} target times${trials}`;
+  const vault = x?.vault?.length ? `, ${x.vault.length} favourite replays` : '';
+  return `${played} versus matches, ${clears} arcade clears, ${chal} challenges cleared, ${Object.keys(r.targets).length} target times${trials}${vault}`;
 }

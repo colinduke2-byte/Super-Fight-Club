@@ -1,5 +1,5 @@
 import Phaser from 'phaser';
-import { COVE_LAMP, GROUND_LAYERS, INDUSTRY_VENTS, ensureGroundTextures } from '../art/stageTextures';
+import { COVE_LAMP, GROUND_LAYERS, INDUSTRY_VENTS, STADIUM_LAMPS, ensureGroundTextures } from '../art/stageTextures';
 import { settings } from '../settings';
 import { addCanvasTexture, context2d, holdTexture, polygonPixels } from '../art/canvasTexture';
 
@@ -43,7 +43,18 @@ export interface Backdrop {
   nearHaze?: { drop: number; alpha: number; farDrop?: number; farAlpha?: number };
 }
 
-export type Extra = 'rain' | 'flash' | 'sun' | 'birds' | 'godrays' | 'shooting' | 'clouds' | 'embers' | 'glow' | 'lightning' | 'beams' | 'grid' | 'motes' | 'aurora' | 'airships' | 'moon' | 'beacon' | 'ceiling' | 'drips' | 'snow' | 'smoke' | 'shafts' | 'fireflies' | 'searchlights' | 'traffic' | 'datastream' | 'wisps' | 'petals' | 'flare' | 'wind';
+export type Extra = 'rain' | 'flash' | 'sun' | 'birds' | 'godrays' | 'shooting' | 'clouds' | 'embers' | 'glow' | 'lightning' | 'beams' | 'grid' | 'motes' | 'aurora' | 'airships' | 'moon' | 'beacon' | 'ceiling' | 'drips' | 'snow' | 'smoke' | 'shafts' | 'fireflies' | 'searchlights' | 'traffic' | 'datastream' | 'wisps' | 'petals' | 'flare' | 'wind' | 'crown' | 'ascend' | 'floodlights' | 'flashbulbs';
+
+/**
+ * The boss arena's phase (0 calm, 1 enraged) and how far into the change it is: set every frame by ui/BossCinematic, read
+ * by the Apex backdrop's crown, sky and rising light. Reset to 0 when no boss is on screen.
+ */
+let arenaPhase = 0;
+let arenaShift = 0;
+export function setArenaPhase(phase: number, sinceChange = 999): void {
+  arenaPhase = phase;
+  arenaShift = sinceChange;
+}
 
 /** Horizontal parallax of the three ground layers (the near skyline is 0.26, so the far floor stays planted under it). */
 const GROUND_PARALLAX = [0.26, 0.34, 0.45];
@@ -187,6 +198,38 @@ export const BACKDROPS: Record<string, Backdrop> = {
     scroll: 26,
     extras: ['sun', 'clouds', 'wisps', 'birds', 'flash', 'wind', 'flare'],
   },
+  apex: {
+    // the top of the world: a violet-black sky over a sea of cloud far below, the Overseer's citadel spires, and the vast
+    // shadow of its spire crown and eye behind the arena (the 'crown' extra), all of which burn red in phase 2
+    sky: ['#04020a', '#0a0616', '#120a24', '#1c1036', '#2c1a4c', '#4a2c6a', '#8a6aa6'],
+    planet: false,
+    nebula: 0xb685ff,
+    far: 0xd8d0ec,
+    near: 0xc0b4d8,
+    tiles: 0xf0e8ff,
+    farTex: 'bg-citadel-far',
+    nearTex: 'bg-citadel-near',
+    nearHaze: { drop: 60, alpha: 0.85, farDrop: 40, farAlpha: 0.8 },
+    bankTex: 'bg-cloudsea',
+    bankTint: 0x8a7ab8,
+    glowCol: [0x2a1450, 0x9a5cf0],
+    glowAlpha: 0.18,
+    extras: ['crown', 'glow', 'ascend', 'shooting'],
+  },
+  stadium: {
+    // the Launch Contest: a floodlit stadium at dusk, the city beyond the stands, camera flashes in the crowd
+    sky: ['#0a0a24', '#141638', '#22204a', '#3a2a5a', '#5a3a62', '#8a4a5a', '#c86a50'],
+    planet: false,
+    nebula: 0xffffff,
+    far: 0xc8a8b8,
+    near: 0xffffff,
+    tiles: 0xffffff,
+    farTex: 'bg-ruins-far',
+    nearTex: 'bg-stands-near',
+    nearHaze: { drop: 20, alpha: 1 },
+    nebulaOn: false,
+    extras: ['floodlights', 'flashbulbs', 'shooting'],
+  },
   reactor: {
     sky: ['#120404', '#240808', '#3a0e0a', '#5a1a0c', '#8a2c0c', '#c0501a', '#f08a30'],
     planet: false,
@@ -222,6 +265,88 @@ const DISC_TEX = 'bg-disc-100';
 const DISC_SIZE = 1024;
 const ELL_TEX = 'bg-ellipse-32';
 const ELL_SIZE = 512;
+
+/**
+ * The moon and sun discs: the same hard-edged 100-gon as DISC_TEX (its alpha, from polygonPixels), shaded inside. The moon
+ * is lit from the upper left with limb darkening and a soft terminator, grey maria and a few craters with lit rims (grey
+ * levels, tinted by the caller); the sun is limb-darkened from a white-gold centre to an orange rim, with granulation.
+ */
+const MOON_TEX = 'bg-moon-256';
+const MOON_SIZE = 256;
+const SUN_TEX = 'bg-sun-256';
+const SUN_SIZE = 256;
+function bodyPixels(size: number, kind: 'moon' | 'sun'): Uint8ClampedArray {
+  const d = polygonPixels(size, 100);
+  const r = size / 2;
+  const blob = (x: number, y: number, cx: number, cy: number, rr: number): number => {
+    const q = Math.hypot(x - cx, y - cy) / rr;
+    return q < 1 ? 1 - q * q : 0;
+  };
+  const craters: [number, number, number][] = [
+    [-0.38, 0.32, 0.13],
+    [0.12, 0.52, 0.09],
+    [0.42, -0.1, 0.08],
+    [-0.1, -0.5, 0.06],
+    [0.3, 0.3, 0.05],
+    [-0.55, -0.15, 0.05],
+  ];
+  for (let y = 0; y < size; y++) {
+    for (let x = 0; x < size; x++) {
+      const o = (y * size + x) * 4;
+      if (!d[o + 3]) continue;
+      const nx = (x + 0.5 - r) / r;
+      const ny = (y + 0.5 - r) / r;
+      const nz = Math.sqrt(Math.max(0, 1 - nx * nx - ny * ny));
+      // coarse noise from the hash, by 8px cells, bilinear
+      const cell = (u: number, v: number): number => hash(((u * 73856093) ^ (v * 19349663)) + (kind === 'sun' ? 7 : 3));
+      const fx = x / 8;
+      const fy = y / 8;
+      const ix = Math.floor(fx);
+      const iy = Math.floor(fy);
+      const tx = fx - ix;
+      const ty = fy - iy;
+      const nz8 = cell(ix, iy) * (1 - tx) * (1 - ty) + cell(ix + 1, iy) * tx * (1 - ty) + cell(ix, iy + 1) * (1 - tx) * ty + cell(ix + 1, iy + 1) * tx * ty;
+      let R0: number;
+      let G0: number;
+      let B0: number;
+      if (kind === 'moon') {
+        const lam = Math.max(0, -0.55 * nx - 0.4 * ny + 0.73 * nz);
+        let v = 0.18 + 0.82 * Math.pow(lam, 0.6);
+        // maria: broad soft darker patches
+        const mare = Math.min(1, blob(nx, ny, -0.25, -0.1, 0.42) * 0.9 + blob(nx, ny, 0.2, 0.15, 0.3) * 0.8 + blob(nx, ny, -0.05, 0.4, 0.22) * 0.7);
+        v *= 1 - mare * 0.28 - (nz8 - 0.5) * 0.08;
+        for (const [cx, cy, cr] of craters) {
+          const q = Math.hypot(nx - cx, ny - cy) / cr;
+          if (q < 0.8) v *= 0.82; // the floor
+          else if (q < 1.05) v *= (nx - cx) + (ny - cy) < 0 ? 0.8 : 1.12; // the rim: shaded toward the light, lit away from it
+        }
+        const g = Math.max(0, Math.min(255, Math.round(v * 255)));
+        R0 = g;
+        G0 = g;
+        B0 = g;
+      } else {
+        const limb = 0.45 + 0.55 * Math.pow(nz, 0.5);
+        const gran = 1 + (nz8 - 0.5) * 0.08;
+        R0 = 255;
+        G0 = Math.round(Math.min(255, (150 + 100 * limb) * gran));
+        B0 = Math.round(Math.min(255, (60 + 170 * Math.pow(limb, 2)) * gran));
+      }
+      d[o] = R0;
+      d[o + 1] = G0;
+      d[o + 2] = B0;
+    }
+  }
+  return d;
+}
+function bodyCanvas(size: number, kind: 'moon' | 'sun'): HTMLCanvasElement | null {
+  const c = document.createElement('canvas');
+  c.width = size;
+  c.height = size;
+  const g = context2d(c);
+  if (!g) return null;
+  g.putImageData(new ImageData(bodyPixels(size, kind) as Uint8ClampedArray<ArrayBuffer>, size, size), 0, 0);
+  return c;
+}
 
 function polygonCanvas(size: number, sides: number): HTMLCanvasElement | null {
   const c = document.createElement('canvas');
@@ -305,6 +430,14 @@ function ensurePolygonTextures(scene: Phaser.Scene): void {
   }
 }
 
+/** The shaded moon or sun disc, built the first time a backdrop shows one (only a few stages do). */
+function ensureBodyTexture(scene: Phaser.Scene, key: string): void {
+  if (scene.textures.exists(key)) return;
+  const kind = key === SUN_TEX ? 'sun' : 'moon';
+  const c = bodyCanvas(256, kind);
+  if (c) addCanvasTexture(scene, key, c, () => bodyCanvas(256, kind));
+}
+
 /**
  * A pool of disc / ellipse images drawn at one spot in the layer's order (right above `anchor`), refilled each frame in draw
  * order: begin(), circle()/ellipse() for each shape, end() hides what this frame did not use.
@@ -334,6 +467,7 @@ class ShapePool {
       this.layer.addAt(im, this.layer.getIndex(prev) + 1);
       this.items.push(im);
     } else if (im.texture.key !== tex) im.setTexture(tex);
+    if (im.blendMode !== this.blend) im.setBlendMode(this.blend); // (an image() may have set its own)
     this.used++;
     return im;
   }
@@ -343,6 +477,16 @@ class ShapePool {
     if (!this.scene.textures.exists(DISC_TEX)) return; // could not be built (no canvas memory): skip the shape
     const k = (r * 2) / DISC_SIZE;
     this.next(DISC_TEX).setPosition(x, y).setScale(k, k).setTint(col).setAlpha(a).setVisible(true);
+  }
+
+  /**
+   * A square texture `size` px across drawn as a disc of radius `r` (the shaded moon / sun), normally blended whatever the
+   * pool's blend, so its shading shows instead of washing out to white over a bright sky.
+   */
+  image(tex: string, size: number, x: number, y: number, r: number, col: number, a: number): void {
+    if (!this.scene.textures.exists(tex)) return;
+    const k = (r * 2) / size;
+    this.next(tex).setPosition(x, y).setScale(k, k).setTint(col).setAlpha(a).setVisible(true).setBlendMode(Phaser.BlendModes.NORMAL);
   }
 
   /** Same as Graphics fillStyle(col, a).fillEllipse(x, y, w, h). */
@@ -517,6 +661,7 @@ export class BackgroundView {
 
   setTheme(id: string | undefined): void {
     const b = BACKDROPS[id ?? 'skyline'] ?? BACKDROPS.skyline;
+    setArenaPhase(0); // a scene showing the Apex starts calm (a boss match sets the phase every frame)
     this.sky = b.sky;
     this.planet.setVisible(b.planet);
     this.nebula.setTint(b.nebula);
@@ -551,6 +696,12 @@ export class BackgroundView {
     this.skirt.setVisible(ground !== null);
     if (ground !== null) this.skirt.setFillStyle(ground);
     this.extras = b.extras ?? [];
+    for (const [extra, key] of [['moon', MOON_TEX], ['sun', SUN_TEX]] as const) {
+      if (!this.extras.includes(extra)) continue;
+      ensureBodyTexture(this.scene, key);
+      // kept while a scene shows it, like the ground planes
+      if (this.scene.textures.exists(key)) holdTexture(this.scene, key);
+    }
     this.scroll = b.scroll ?? 0;
     this.clouds.setVisible(this.extras.includes('clouds'));
     this.starsA.setVisible(b.stars !== false);
@@ -1019,16 +1170,13 @@ export class BackgroundView {
           break;
         }
         case 'moon': {
-          // a full moon with soft halo rings and a few maria
+          // a full moon with soft halo rings: a shaded disc (limb darkening, a soft terminator, maria and craters)
           const mx = W * 0.24 - cx * 0.015 * zoom;
           const my = H * 0.2 - cy * 0.01 * zoom;
           const r = H * 0.06;
           const pb = this.pBack;
           for (let k = 5; k >= 1; k--) pb.circle(mx, my, r * (1 + k * 0.55), 0x9ad0ff, 0.035);
-          pb.circle(mx, my, r, 0xe6f2ff, 0.95);
-          pb.circle(mx - r * 0.3, my - r * 0.15, r * 0.28, 0x8aa0c0, 0.35);
-          pb.circle(mx + r * 0.25, my + r * 0.3, r * 0.2, 0x8aa0c0, 0.35);
-          pb.circle(mx + r * 0.35, my - r * 0.35, r * 0.12, 0x8aa0c0, 0.35);
+          pb.image(MOON_TEX, MOON_SIZE, mx, my, r, 0xe6f2ff, 0.97);
           break;
         }
         case 'beacon': {
@@ -1059,8 +1207,20 @@ export class BackgroundView {
           const sy = H * 0.36 - cy * 0.01 * zoom;
           const pulse = 0.94 + 0.06 * Math.sin(time * 0.9);
           for (let r = 7; r >= 1; r--) this.pBack.circle(sx, sy, r * H * 0.075 * pulse, r > 4 ? 0xffb070 : 0xffd890, 0.05 + (7 - r) * 0.012);
-          this.pBack.circle(sx, sy, H * 0.07, 0xfff2c8, 0.9);
-          this.pBack.circle(sx - H * 0.012, sy - H * 0.012, H * 0.05, 0xffffff, 0.8);
+          // the corona: slow, uneven streamers turning round the disc
+          for (let i = 0; i < 16; i++) {
+            const a = (i / 16) * Math.PI * 2 + time * 0.03;
+            const len = H * (0.1 + 0.05 * hash(i * 7 + 3) + 0.02 * Math.sin(time * 0.7 + i * 1.3));
+            const half = H * 0.012;
+            const nx = -Math.sin(a);
+            const ny = Math.cos(a);
+            const x0 = sx + Math.cos(a) * H * 0.06;
+            const y0 = sy + Math.sin(a) * H * 0.06;
+            gb.fillStyle(0xffd890, 0.1);
+            gb.fillTriangle(x0 + nx * half, y0 + ny * half, x0 - nx * half, y0 - ny * half, sx + Math.cos(a) * (H * 0.06 + len), sy + Math.sin(a) * (H * 0.06 + len));
+          }
+          // the disc: limb-darkened, warm at the rim, mottled with granulation
+          this.pBack.image(SUN_TEX, SUN_SIZE, sx, sy, H * 0.07, 0xffffff, 0.98);
           break;
         }
         case 'godrays': {
@@ -1226,6 +1386,100 @@ export class BackgroundView {
             gb.fillGradientStyle(0x6ae8ff, 0x6ae8ff, 0x6ae8ff, 0x6ae8ff, 0, 0, a, a);
             gb.fillRect(0, y - 10 * ps * (0.3 + sp), W, 10 * ps * (0.3 + sp));
             gb.fillStyle(0xe0ffff, a).fillRect(0, y, W, Math.max(1, ps));
+          }
+          break;
+        }
+        case 'crown': {
+          // the Overseer's sigil over the citadel: the vast shadow of its spire crown fanned up behind the arena, and its eye
+          // in the middle, slowly looking about. Phase 2: the sky burns, the blades are rimmed in fire, the eye turns red
+          const p2 = arenaPhase > 0;
+          // the change: the sigil gutters out and comes back burning (BossCinematic's transition window)
+          const k = p2 && arenaShift < 90 ? (arenaShift < 10 ? 1 - arenaShift / 10 : arenaShift < 50 ? ((arenaShift >> 2) & 1) * 0.6 : Math.min(1, (arenaShift - 50) / 40)) : 1;
+          const ox = W * 0.5 - cx * 0.05 * zoom;
+          const oy = H * 0.58 - cy * 0.03 * zoom;
+          const hot = p2 ? 0xff4a2a : 0xb685ff;
+          if (p2) {
+            gb.fillStyle(0xff2a10, 0.1 * k).fillRect(0, 0, W, H);
+            gb.fillStyle(0xff6a2a, 0.08 * k).fillRect(0, H * 0.45, W, H * 0.55);
+          }
+          const gfar = this.gFar;
+          for (let i = 0; i < 7; i++) {
+            const u = (i - 3) / 3;
+            const a = -Math.PI / 2 + u * (p2 ? 1.25 : 1.1) + Math.sin(time * 0.2 + i) * 0.01;
+            const L = H * (0.62 - Math.abs(u) * 0.2) * (p2 ? 1.08 : 1);
+            const wd = H * (0.035 - Math.abs(u) * 0.008);
+            const dx = Math.cos(a);
+            const dy = Math.sin(a);
+            const r0 = H * 0.14;
+            const bx = ox + dx * r0;
+            const by = oy + dy * r0;
+            const tx = ox + dx * L;
+            const ty = oy + dy * L;
+            gfar.fillStyle(0x0c0818, 0.82);
+            gfar.fillTriangle(bx - dy * wd, by + dx * wd, bx + dy * wd, by - dx * wd, tx, ty);
+            // the lit edge, and a light at the tip
+            gb.fillStyle(hot, (p2 ? 0.3 : 0.16) * k);
+            line(gb, bx - dy * wd, by + dx * wd, tx, ty, Math.max(1, ps));
+            this.pBack.circle(tx, ty, ps * (p2 ? 4 : 3), hot, (p2 ? 0.8 : 0.5) * k);
+          }
+          // the eye: a dark almond, a ring of light, a pupil that drifts as if watching the fight
+          const er = H * 0.11;
+          this.pFar.ellipse(ox, oy, er * 3.2, er * 1.5, 0x0c0818, 0.85);
+          this.pBack.circle(ox, oy, er * 1.6, hot, 0.06 * k);
+          const look = Math.sin(time * 0.37) * er * 0.25;
+          const lookY = Math.sin(time * 0.23 + 1) * er * 0.08;
+          this.pFar.ellipse(ox + look, oy + lookY, er * 1.15, er * 1.15, hot, 0.36 * k);
+          this.pFar.ellipse(ox + look, oy + lookY, er * 0.8, er * 0.8, 0x0c0818, 0.9);
+          if (p2) this.pFar.ellipse(ox + look, oy + lookY, er * 0.22, er * 0.75, 0xffc0a0, 0.95 * k);
+          else this.pFar.ellipse(ox + look, oy + lookY, er * 0.32, er * 0.32, 0xf0e4ff, 0.9 * k);
+          break;
+        }
+        case 'ascend': {
+          // light rising from the clouds far below toward the citadel; embers once the boss is enraged
+          const p2 = arenaPhase > 0;
+          for (let i = 0; i < 30; i++) {
+            const sp = (p2 ? 0.05 : 0.025) + hash(i * 3 + 1) * 0.03;
+            const ph = (time * sp + hash(i * 3 + 2)) % 1;
+            const x = ((hash(i * 3) * W - cx * 0.1 * zoom + Math.sin(time * 0.4 + i) * 12 * ps) % W + W) % W;
+            const y = H * (1.02 - ph * 1.05);
+            const sz = ps * (hash(i + 77) > 0.7 ? 3 : 2);
+            gf.fillStyle(p2 ? (hash(i + 5) > 0.5 ? 0xff7a3a : 0xffc070) : 0xd2b0ff, 0.5 * Math.sin(ph * Math.PI));
+            gf.fillRect(Math.round(x), Math.round(y), sz, sz * (p2 ? 1 : 2));
+          }
+          break;
+        }
+        case 'floodlights': {
+          // light cones from the stadium's lamp masts (in the near layer) down onto the field, swaying a little
+          const s = zoom * 0.5 * 0.85;
+          const top = (52 + this.nearDrop - cy * 0.26) * zoom + H / 2 - 192 * s;
+          const tile = 512 * s;
+          const shift = ((((-cx * 0.26 * zoom) / s) * s) % tile + tile) % tile;
+          for (let lx0 = shift - tile; lx0 < W + tile; lx0 += tile) {
+            for (const L of STADIUM_LAMPS) {
+              const lx = lx0 + L.x * s;
+              const ly = top + L.y * s;
+              if (lx < -W * 0.5 || lx > W * 1.5) continue;
+              const toward = lx < W / 2 ? 1 : -1;
+              const ex = lx + toward * W * (0.25 + 0.03 * Math.sin(time * 0.3 + L.x));
+              gb.fillStyle(0xfff0d0, 0.05);
+              gb.fillTriangle(lx - 8 * s, ly, lx + 8 * s, ly, ex + W * 0.12, H);
+              gb.fillTriangle(lx - 8 * s, ly, ex - W * 0.12, H, ex + W * 0.12, H);
+              this.pBack.circle(lx, ly + 3 * s, 14 * s, 0xfff6dc, 0.25);
+            }
+          }
+          break;
+        }
+        case 'flashbulbs': {
+          // camera flashes winking in the crowd
+          const s = zoom * 0.5 * 0.85;
+          const top = (52 + this.nearDrop - cy * 0.26) * zoom + H / 2 - 192 * s;
+          for (let i = 0; i < 26; i++) {
+            const a = Math.sin(time * (1.3 + hash(i * 5 + 1) * 2.2) + hash(i * 5 + 2) * 6.28);
+            if (a < 0.93) continue;
+            const x = ((hash(i * 5 + 3) * W - cx * 0.26 * zoom) % W + W) % W;
+            const y = top + (100 + hash(i * 5 + 4) * 80) * s;
+            if (y > H) continue;
+            this.pFront.circle(x, y, ps * 2.5, 0xffffff, (a - 0.93) * 10);
           }
           break;
         }

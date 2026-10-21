@@ -175,17 +175,22 @@ export class UltCutIn {
     this.name.setScale(1);
     const tw = Math.max(1, this.name.getTextBounds().local.width);
     const fit = Math.min(u * 3.6, (w * 0.5) / tw);
-    // the slam-in overshoot stays on screen: a long name near the edge is nudged inwards while it is oversized
+    // the slam-in overshoot stays on screen: a long name near the edge is nudged inwards while it is oversized. The clamp
+    // takes in everything drawn right of the text (its drop shadow) and the drift after the slam, so neither the name nor
+    // its shadow is ever cut off at the right edge, on the first frames (largest) or the last (furthest drifted)
     const half = (tw * fit * slam) / 2;
-    const nx = Phaser.Math.Clamp(dir > 0 ? w * 0.63 : w * 0.37, Math.min(w / 2, half + 4 * u), Math.max(w / 2, w - half - 4 * u));
+    const sh = 2 * u * Math.max(1, fit / u);
+    const drift = Math.max(0, (p - 0.12) * 14 * u * dir); // keeps creeping with the sweep after the slam
+    const lo = Math.min(w / 2, half + 4 * u);
+    const hi = Math.max(w / 2, w - half - sh - 4 * u);
+    const nx = Phaser.Math.Clamp((dir > 0 ? w * 0.63 : w * 0.37) + drift, lo, hi);
     const ny = yAt(nx) + bh * 0.08;
-    const drift = (p - 0.12) * 14 * u * dir; // keeps creeping with the sweep after the slam
-    this.name.setScale(fit * slam).setPosition(nx + Math.max(0, drift), ny).setTint(0xffffff).setAlpha(fade);
-    this.shadow.setScale(fit * slam).setPosition(nx + Math.max(0, drift) + 2 * u * Math.max(1, fit / u), ny + 2 * u * Math.max(1, fit / u)).setTint(deep).setAlpha(0.95 * fade);
+    this.name.setScale(fit * slam).setPosition(Math.round(nx), Math.round(ny)).setTint(0xffffff).setAlpha(fade);
+    this.shadow.setScale(fit * slam).setPosition(Math.round(nx + sh), Math.round(ny + sh)).setTint(deep).setAlpha(0.95 * fade);
     const tagIn = Math.min(1, Math.max(0, (p - 0.06) / 0.1));
     this.tag
       .setScale(Math.max(1, fit * 0.42))
-      .setPosition(nx + Math.max(0, drift) - dir * (1 - tagIn) * 40 * u, ny - (fit * slam * 10) / 2 - 6 * u)
+      .setPosition(Phaser.Math.Clamp(nx - dir * (1 - tagIn) * 40 * u, 0, w), ny - (fit * slam * 10) / 2 - 6 * u)
       .setTint(hot)
       .setAlpha(tagIn * fade);
     if (close < 1) {

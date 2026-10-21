@@ -135,13 +135,32 @@ export function teleportTo(f: Fighter, x: number, y: number, world: World): bool
 }
 
 // ---- ledge snap ------------------------------------------------------------------------------
+/**
+ * Can `f` take ledge `l`: it is free (or already ours), or a rival hangs on it and grabbing it is a ledge trump. An ally's
+ * ledge, or one whose holder is climbing up, is not. The same rule for an air grab, a ledge snap and a tether.
+ */
+export function ledgeTakeable(f: Fighter, l: Ledge, world: World): boolean {
+  if (l.occupant === -1 || l.occupant === f.id) return true;
+  // a fighter that just lost the ledge (trumped, or let go) cannot trump straight back: the regrab cooldown of the air grab
+  // applies to a snap and a tether too, so two teleporters do not knock each other off forever
+  if (f.grabCooldown > 0) return false;
+  const o = world.fighters[l.occupant];
+  return !!o && o.state === 'ledge' && !world.allied(f.id, o.id);
+}
+
+/** Grab ledge `l`, knocking a rival that hangs there off it (a ledge trump: no invincibility for either). */
+export function takeLedge(f: Fighter, l: Ledge, world: World): void {
+  if (l.occupant !== -1 && l.occupant !== f.id) world.fighters[l.occupant]?.getTrumped(l, world);
+  f.grabLedge(l, world);
+}
+
 export function snapToLedge(f: Fighter, range: number, world: World): boolean {
   let best: Ledge | null = null;
   let bestD = range;
   const cx = f.x;
   const cy = f.y - f.h / 2;
   for (const l of world.ledges) {
-    if (l.occupant !== -1 && l.occupant !== f.id) continue;
+    if (!ledgeTakeable(f, l, world)) continue;
     const d = Math.hypot(l.x - cx, l.y - cy);
     if (d <= bestD) {
       best = l;
@@ -149,7 +168,7 @@ export function snapToLedge(f: Fighter, range: number, world: World): boolean {
     }
   }
   if (!best) return false;
-  f.grabLedge(best, world);
+  takeLedge(f, best, world);
   return true;
 }
 
@@ -191,10 +210,11 @@ function tryTether(f: Fighter, angle: number, range: number, speed: number, grab
         }
       }
     }
-    // a hook passing close to a free ledge corner latches it (forgiving: it need not touch the stage itself)
+    // a hook passing close to a free ledge corner (or one a rival hangs on: the hook trumps it on arrival) latches it
+    // (forgiving: it need not touch the stage itself)
     for (let li = 0; li < world.ledges.length; li++) {
       const l = world.ledges[li];
-      if (l.occupant !== -1 && l.occupant !== f.id) continue;
+      if (!ledgeTakeable(f, l, world)) continue;
       const lx = l.x - px;
       const ly = l.y - py;
       if (lx * lx + ly * ly <= LEDGE_ATTACH_RADIUS * LEDGE_ATTACH_RADIUS) {
@@ -209,7 +229,7 @@ function tryTether(f: Fighter, angle: number, range: number, speed: number, grab
       if (p.kind === 'solid') {
         // solids can only be hooked at a ledge corner
         if (!p.ledges) continue;
-        const ledge = nearestLedge(world, p, px, py);
+        const ledge = nearestLedge(f, world, p, px, py);
         if (!ledge) continue;
         f.beginTether(ledge.x, ledge.y, speed, ledge, null);
         world.emit('tether', f, ledge.x, ledge.y, 0, -1);
@@ -223,11 +243,11 @@ function tryTether(f: Fighter, angle: number, range: number, speed: number, grab
   return false;
 }
 
-function nearestLedge(world: World, p: Platform, px: number, py: number): Ledge | null {
+function nearestLedge(f: Fighter, world: World, p: Platform, px: number, py: number): Ledge | null {
   let best: Ledge | null = null;
   let bd = LEDGE_ATTACH_RADIUS;
   for (const l of world.ledges) {
-    if (l.platform !== p || (l.occupant !== -1)) continue;
+    if (l.platform !== p || !ledgeTakeable(f, l, world)) continue;
     const d = Math.hypot(l.x - px, l.y - py);
     if (d <= bd) {
       best = l;

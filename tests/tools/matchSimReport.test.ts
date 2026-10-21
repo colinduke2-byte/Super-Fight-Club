@@ -95,6 +95,36 @@ function winSummary(rs: MatchResult[]): Record<string, string> {
   return Object.fromEntries(ids.map((c) => [c, `${Math.round((100 * (w[c] ?? 0)) / Math.max(1, g[c] ?? 0))}% (${w[c] ?? 0}/${g[c] ?? 0})`]));
 }
 
+/**
+ * Kit use per fighter: special moves started per minute of match time (by move id), and the share of landed hits that came
+ * from specials (projectiles, deployables and traps count as the special that made them).
+ */
+function kitSummary(rs: MatchResult[]): Record<string, object> {
+  const out: Record<string, { min: number; specials: number; hits: number; specialHits: number; by: Record<string, number> }> = {};
+  for (const r of rs)
+    r.chars.forEach((c, i) => {
+      const x = (out[c] ??= { min: 0, specials: 0, hits: 0, specialHits: 0, by: {} });
+      x.min += r.ticks / 3600;
+      const mv = CHARACTERS[c].moves;
+      for (const [id, n] of Object.entries(r.moveCounts[i])) {
+        if (mv[id]?.kind !== 'special') continue;
+        x.specials += n;
+        x.by[id] = (x.by[id] ?? 0) + n;
+      }
+      for (const [id, n] of Object.entries(r.hitCounts[i])) {
+        x.hits += n;
+        if (mv[id]?.kind === 'special' || id === 'trap') x.specialHits += n;
+      }
+    });
+  return Object.fromEntries(
+    ids.filter((c) => out[c]).map((c) => {
+      const x = out[c];
+      const by = Object.fromEntries(Object.entries(x.by).sort((a, b) => b[1] - a[1]).map(([k, n]) => [k, +(n / x.min).toFixed(1)]));
+      return [c, { min: +x.min.toFixed(1), hits: x.hits, perMin: +(x.specials / x.min).toFixed(1), specialHitShare: +(x.specialHits / Math.max(1, x.hits)).toFixed(2), by }];
+    }),
+  );
+}
+
 function emit(o: unknown): void {
   const s = JSON.stringify(o, null, 1);
   if (process.env.MATCHSIM_OUT) writeFileSync(process.env.MATCHSIM_OUT, s);
@@ -109,7 +139,7 @@ describe.skipIf(!MODE)('match simulation report', () => {
       for (const s of SKILLS) {
         const duel = roundRobin(s);
         const four = FFA > 0 ? ffa(s, FFA) : [];
-        out[`skill${s}`] = MODE === 'sd' ? { duel: sdSummary(duel), ffa: four.length ? sdSummary(four) : null, duelWins: winSummary(duel), ffaWins: four.length ? winSummary(four) : null } : { duel: winSummary(duel), ffa: four.length ? winSummary(four) : null, duelSd: (sdSummary(duel) as { sdRate: number }).sdRate, ffaSd: four.length ? (sdSummary(four) as { sdRate: number }).sdRate : null };
+        out[`skill${s}`] = MODE === 'sd' ? { duel: sdSummary(duel), ffa: four.length ? sdSummary(four) : null, duelWins: winSummary(duel), ffaWins: four.length ? winSummary(four) : null } : { duel: winSummary(duel), ffa: four.length ? winSummary(four) : null, duelSd: (sdSummary(duel) as { sdRate: number }).sdRate, ffaSd: four.length ? (sdSummary(four) as { sdRate: number }).sdRate : null, kit: kitSummary(duel) };
       }
     }
     if (MODE === 'ladder') {

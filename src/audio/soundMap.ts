@@ -17,6 +17,10 @@ export const SOUND_NAMES = [
   'crowd', 'glint',
   // items
   'swordSwing', 'swordHit', 'rayShot', 'crateBreak', 'crateBoom', 'coreGet',
+  // fighter voices (formant-synth grunts, flavoured per fighter by the sound style)
+  'voxAttack', 'voxHurt', 'voxKo', 'voxTaunt',
+  // the announcer's own voice where the browser has no speech voice: formant-synth words
+  'callReady', 'callGo', 'callGame', 'callTime', 'callKo',
 ] as const;
 
 export type SoundName = (typeof SOUND_NAMES)[number];

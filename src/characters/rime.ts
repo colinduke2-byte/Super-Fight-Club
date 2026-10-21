@@ -66,7 +66,7 @@ export const rime: CharacterData = {
   },
   stats: {
     weight: 89,
-    runSpeed: 3.3,
+    runSpeed: 3.2,
     airSpeed: 2.3,
     groundAccel: 0.46,
     groundFriction: 0.42,

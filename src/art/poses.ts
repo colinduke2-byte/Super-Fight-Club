@@ -102,7 +102,7 @@ const STYLES: Record<string, MotionStyle> = {
       p.frontHand = [3.2 - b * 1.3, b * 0.5];
       p.backHand = [-3.2 + b * 1.3, b * 0.5];
     },
-    gait: { stride: 9, lift: 5, arms: 1.15, lean: 5, bounce: 1.4 },
+    gait: { stride: 11, lift: 8, arms: 1.35, lean: 6, bounce: 1.7 },
     jump2: 'jet',
     victory: [
       [-2, 6, [8, 2], [-6, 2], [8, 0], [-8, 0]],
@@ -229,7 +229,7 @@ const STYLES: Record<string, MotionStyle> = {
       p.frontHand = [2 + sin(ph) * 0.8, b * 0.8];
       p.backHand = [-2 + sin(ph) * 0.8, b * 0.6];
     },
-    gait: { stride: 10, lift: 6, arms: 0.9, lean: 5, bounce: 1.2 },
+    gait: { stride: 12, lift: 8, arms: 1.1, lean: 6, bounce: 1.5 },
     jump2: 'stroke',
     victory: [
       [-3, 3, [-8, -10], [-10, -8], [7, 0], [-7, 0]],
@@ -248,7 +248,7 @@ const STYLES: Record<string, MotionStyle> = {
       p.frontHand = [3, -1 + sin(ph + 1.2) * 1.4];
       p.backHand = [-3, -1 + sin(ph + 2.4) * 1.4];
     },
-    gait: { stride: 10, lift: 6, arms: 0.9, lean: 4, bounce: 1.1 },
+    gait: { stride: 12, lift: 8, arms: 1.2, lean: 6, bounce: 1.4 },
     jump2: 'float',
     victory: [
       [0, 3, [6, 0], [-6, 0], [6, 0], [-6, 0]],
@@ -288,7 +288,7 @@ const STYLES: Record<string, MotionStyle> = {
       p.frontHand = [2, b * 0.6];
       p.backHand = [-2, b * 0.6];
     },
-    gait: { stride: 11, lift: 7, arms: 1, lean: 5, bounce: 1.1 },
+    gait: { stride: 12, lift: 8, arms: 1.2, lean: 6, bounce: 1.3 },
     jump2: 'kick',
     victory: [
       [-1, 3, [4, -2], [-2, 0], [6, 0], [-6, 0]],
@@ -322,8 +322,10 @@ const smooth = (t: number): number => t * t * (3 - 2 * t);
 const mixN = (a: number, b: number, t: number): number => a + (b - a) * t;
 const mixV = (a: V2, b: V2, t: number): V2 => [mixN(a[0], b[0], t), mixN(a[1], b[1], t)];
 const mixO = (a: number | undefined, b: number | undefined, t: number): number | undefined => (a === undefined || b === undefined ? (a ?? b) : mixN(a, b, t));
+/** The optional extras (twist, bob, head x, head y) blend toward 0 when only one side has them. */
+const mixX = (a: number | undefined, b: number | undefined, t: number): number | undefined => (a === undefined && b === undefined ? undefined : mixN(a ?? 0, b ?? 0, t));
 function mixKey(a: Key, b: Key, t: number): Key {
-  return [mixN(a[0], b[0], t), mixN(a[1], b[1], t), mixV(a[2], b[2], t), mixV(a[3], b[3], t), mixV(a[4], b[4], t), mixV(a[5], b[5], t), mixO(a[6], b[6], t), mixO(a[7], b[7], t)];
+  return [mixN(a[0], b[0], t), mixN(a[1], b[1], t), mixV(a[2], b[2], t), mixV(a[3], b[3], t), mixV(a[4], b[4], t), mixV(a[5], b[5], t), mixO(a[6], b[6], t), mixO(a[7], b[7], t), mixX(a[8], b[8], t), mixX(a[9], b[9], t), mixX(a[10], b[10], t), mixX(a[11], b[11], t)];
 }
 /** Sample a key-pose track at u (0..1), eased between keys. */
 function track(keys: Key[], u: number): Key {
@@ -341,6 +343,13 @@ function applyKey(p: Pose, e: Key): void {
   p.backFoot = e[5];
   if (e[6] !== undefined) p.aim = e[6];
   if (e[7] !== undefined) p.wing = e[7];
+  applyExtras(p, e);
+}
+/** A key's optional twist, bob and head offset. */
+function applyExtras(p: Pose, e: Key): void {
+  if (e[8] !== undefined) p.twist = e[8];
+  if (e[9] !== undefined) p.bob = e[9];
+  if (e[10] !== undefined || e[11] !== undefined) p.head = [e[10] ?? 0, e[11] ?? 0];
 }
 /** Position (0..1) of frame f in a one-shot row of n frames. */
 const at = (f: number, n: number): number => (n <= 1 ? 1 : f / (n - 1));
@@ -371,18 +380,18 @@ const JUMP2: Record<JumpStyle, Key[]> = {
     [2, 6, [6, 5], [2, 5], [6, 13], [0, 13]],
     [0, 0, [8, -12], [-8, -12], [6, 6], [-5, 8]],
   ],
-  // jet boots: knees in, then legs locked together under the thrust, arms swept back
+  // jet boots: knees snapped up into a tuck as the boots fire, then the legs locked together under the thrust, arms swept back
   jet: [
-    [0, 4, [2, 2], [-2, 2], [6, 2], [-6, 2]],
+    [0, 4, [4, -6], [-4, -6], [6, 2], [-6, 2]],
+    [1, 0, [6, 2], [2, 2], [6, 14], [0, 15]],
     [0, 0, [-2, 6], [-6, 6], [2, 6], [-2, 7]],
-    [0, 0, [-1, 5], [-5, 5], [2, 5], [-2, 6]],
     [0, 0, [0, 4], [-4, 4], [3, 4], [-3, 5]],
   ],
   // levitation: arms rise and spread, legs trailing
   float: [
     [0, 2, [6, -6], [-6, -6], [5, 3], [-5, 3]],
-    [0, 0, [12, -16], [-12, -16], [4, 6], [-4, 8]],
-    [0, 0, [13, -18], [-13, -18], [4, 7], [-4, 9]],
+    [0, 0, [12, -16], [-12, -16], [5, 12], [-1, 13]],
+    [0, 0, [13, -18], [-13, -18], [4, 9], [-3, 11]],
     [0, 0, [10, -12], [-10, -12], [5, 5], [-5, 7]],
   ],
   // breaststroke: arms reach up and pull down, the legs kick
@@ -401,8 +410,12 @@ const JUMP2: Record<JumpStyle, Key[]> = {
   ],
 };
 
-/** Knocked down, on the back (drawn upright, then laid down): one knee up, an arm flung past the head, the other out on the floor. */
-const SPRAWL: Key = [0, 0, [3, -23], [-11, -4], [2, 10], [-6, 0]];
+/**
+ * Knocked down, flat on the back (drawn upright, then laid down: up becomes past the head, back becomes the floor, front
+ * becomes up): both arms flung out past the head along the floor, one knee a little raised, the other leg flat, so as little
+ * as possible stands up off the floor.
+ */
+const SPRAWL: Key = [0, 0, [0, -28], [-4, -25], [5, 4], [-2, 0]];
 /** About to get up: both knees up, hands planted. */
 const PROPPED: Key = [0, 0, [-6, -8], [-10, 2], [4, 12], [-2, 8]];
 
@@ -495,11 +508,16 @@ export function poseFor(anim: string, f: number, frames: number, style?: string)
       break;
     }
     case 'ledge':
-      p.frontFoot = [3, 0];
-      p.backFoot = [-3, 0];
-      p.crouch = 2;
-      p.frontHand = [6, -26];
-      p.backHand = [-2, -26];
+      // hanging from the edge: both hands gripping overhead, arms at full stretch, the body hanging below with the
+      // legs dangling (knees loose, toes down), the head tipped up to the ledge
+      // (the two hands meet over the front of the head: the front one reaches back, the back one across)
+      p.lean = 2;
+      p.crouch = -1;
+      p.frontHand = [-1, -33];
+      p.backHand = [12, -33];
+      p.frontFoot = [-1, 3];
+      p.backFoot = [-4, 1];
+      p.head = [0.5, -0.5];
       break;
     case 'ledgeClimb':
       // hang -> haul the chest up over the edge -> a knee onto the floor -> stand
@@ -507,7 +525,7 @@ export function poseFor(anim: string, f: number, frames: number, style?: string)
         p,
         track(
           [
-            [0, 2, [6, -26], [-2, -26], [3, 0], [-3, 0]],
+            [2, -1, [-1, -33], [12, -33], [-1, 3], [-4, 1]],
             [-2, 5, [7, -14], [2, -14], [8, 10], [-3, 2]],
             [3, 8, [9, 2], [4, 2], [9, 4], [-7, 6]],
             [1, 2, [4, -1], [-2, -1], [5, 0], [-5, 0]],
@@ -552,19 +570,19 @@ export function poseFor(anim: string, f: number, frames: number, style?: string)
     case 'hurt':
       // the hit: head snapped back, chest twisted away; then settling toward the flinch as hitstun runs out
       if (f === 0) {
-        applyKey(p, [-7, 1, [12, -14], [-12, -8], [10, 5], [-7, 0]]);
-        p.head = [-2.5, 1];
-        p.twist = 2.5;
+        applyKey(p, [-10, 2, [11, -20], [-14, -6], [11, 8], [-8, 0]]);
+        p.head = [-3.5, -0.5];
+        p.twist = 3.5;
       } else {
-        applyKey(p, [-4, 2, [8, -8], [-8, -4], [8, 2], [-6, 0]]);
-        p.head = [-1, 0.5];
-        p.twist = 1;
+        applyKey(p, [-7, 4, [9, -12], [-11, -2], [9, 4], [-7, 0]]);
+        p.head = [-2, 1];
+        p.twist = 2;
       }
       break;
     case 'hurtL': // light flinch: a small recoil, still on both feet
-      applyKey(p, [-5, 2, [9, -10], [-9, -5], [8, 0], [-7, 0]]);
-      p.head = [-1.5, 0.5];
-      p.twist = 1.5;
+      applyKey(p, [-6, 3, [9, -12], [-10, -4], [9, 2], [-7, 0]]);
+      p.head = [-2, 0.5];
+      p.twist = 2;
       break;
     case 'hurtU': // launched upward: back arched, arms flung up, legs trailing
       applyKey(p, [-7, 0, [8, -18], [-8, -18], [6, 6], [-6, 8]]);
@@ -576,15 +594,17 @@ export function poseFor(anim: string, f: number, frames: number, style?: string)
       break;
     case 'dizzy': {
       // stunned: the body wobbles on loose knees, the head lolls round in a circle, the arms dangle
+      // the weight lurches from one foot to the other (the unweighted foot lifts and drifts), knees buckling
       const s = sin(ph);
-      p.lean = s * 4;
-      p.head = [cos(ph) * 1.6, 0.6 + s * 0.7];
-      p.crouch = 2 + (1 - cos(ph * 2)) * 0.3;
-      p.bob = 0.8;
-      p.frontHand = [4 + s * 2, 5];
-      p.backHand = [-3 + s * 2, 6];
-      p.frontFoot = [6 + s * 1.2, 0];
-      p.backFoot = [-6 + s * 1.2, 0];
+      p.lean = s * 6.5;
+      p.head = [cos(ph) * 2.6, 1.2 + s * 1.1];
+      p.crouch = 3.5 + (1 - cos(ph * 2)) * 0.8;
+      p.bob = 1;
+      p.twist = s * 1.5;
+      p.frontHand = [5 + s * 4, 8 + cos(ph) * 1.5];
+      p.backHand = [-3 + s * 4, 9 - cos(ph) * 1.5];
+      p.frontFoot = [5 + s * 3, Math.max(0, -s) * 3];
+      p.backFoot = [-5 + s * 3, Math.max(0, s) * 3];
       break;
     }
     case 'airdodge':
@@ -626,15 +646,18 @@ export function poseFor(anim: string, f: number, frames: number, style?: string)
       // beaten: slumped and sighing (heavies drop to a knee; the proud ones turn away, head down)
       const b = (1 - cos(ph)) / 2;
       if (S.lose === 'kneel') {
-        applyKey(p, [5, 9, [8, 4], [-2, 8], [8, 0], [-10, 0]]);
-        p.head = [1, 2];
+        // down on one knee, a fist on the floor, head hung
+        applyKey(p, [6, 11, [9, 10], [-1, 9], [9, 0], [-11, 0]]);
+        p.head = [1.5, 3.5];
       } else if (S.lose === 'turned') {
-        applyKey(p, [-2, 1, [-3, 2], [-6, 3], [5, 0], [-5, 0]]);
-        p.head = [-2, 2];
-        p.twist = 3;
+        // turned half away, shoulders dropped, head down, arms hanging
+        applyKey(p, [3, 3, [0, 6], [-4, 6], [4, 0], [-4, 0]]);
+        p.head = [0.5, 3.5];
+        p.twist = 4;
       } else {
-        applyKey(p, [4, 3, [3, 5], [-1, 5], [5, 0], [-5, 0]]);
-        p.head = [1, 2.5];
+        // slumped: bent forward at the waist, knees sagging, arms hanging limp, head down
+        applyKey(p, [7, 5, [5, 9], [1, 9], [5, 0], [-5, 0]]);
+        p.head = [1.5, 4];
       }
       p.bob = 0.3 + b * 0.8;
       p.frontHand = [p.frontHand[0], p.frontHand[1] + b * 0.6];
@@ -683,15 +706,16 @@ function amplify(p: Pose, k: number): void {
 
 /** Attack/defence key poses. Frame 0 = wind-up, 1 = active, 2 = recovery (see Fighter.attackPhase). */
 function attackPose(anim: string, f: number, p: Pose, frames = 3): void {
-  const set = (lean: number, crouch: number, fh: V2, bh: V2, ff: V2, bf: V2, aim?: number, wing?: number): void => {
-    if (aim !== undefined) p.aim = aim;
-    if (wing !== undefined) p.wing = wing;
-    p.lean = lean;
-    p.crouch = crouch;
-    p.frontHand = fh;
-    p.backHand = bh;
-    p.frontFoot = ff;
-    p.backFoot = bf;
+  const set = (e: Key): void => {
+    if (e[6] !== undefined) p.aim = e[6];
+    if (e[7] !== undefined) p.wing = e[7];
+    p.lean = e[0];
+    p.crouch = e[1];
+    p.frontHand = [e[2][0], e[2][1]];
+    p.backHand = [e[3][0], e[3][1]];
+    p.frontFoot = [e[4][0], e[4][1]];
+    p.backFoot = [e[5][0], e[5][1]];
+    applyExtras(p, e);
   };
   const T: Record<string, Key[]> = {
     jab: [
@@ -739,9 +763,10 @@ function attackPose(anim: string, f: number, p: Pose, frames = 3): void {
       [0, 0, [4, 14], [-2, 6], [6, 1], [-6, 1]],
       [0, 0, [4, 8], [-2, 4], [6, 2], [-6, 2]],
     ],
+    // grab: a lunge with both hands out, then (held for the whole hold) both fists clamped on the victim, braced
     grab: [
-      [-3, 0, [10, -6], [-2, 0], [5, 0], [-5, 0]],
-      [-4, 0, [14, -4], [-4, -2], [6, 0], [-6, 0]],
+      [5, 3, [16, -12], [12, -10], [11, 0], [-8, 0], undefined, undefined, -1],
+      [2, 3, [12, -13], [10, -11], [8, 0], [-8, 0], undefined, undefined, 1],
     ],
     chargeS: [
       [-4, 6, [8, -2], [-6, -2], [8, 0], [-8, 0]],
@@ -855,13 +880,13 @@ function attackPose(anim: string, f: number, p: Pose, frames = 3): void {
     const mix = (a: number, b: number, t: number): number => Math.round(a + (b - a) * t);
     const mixV = (a: V2, b: V2, t: number): V2 => [mix(a[0], b[0], t), mix(a[1], b[1], t)];
     const opt = (a: number | undefined, b: number | undefined, t: number): number | undefined => (a === undefined || b === undefined ? (a ?? b) : Math.round((a + (b - a) * t) * 100) / 100);
-    const lerp = (a: (typeof row)[number], b: (typeof row)[number], t: number): (typeof row)[number] => [mix(a[0], b[0], t), mix(a[1], b[1], t), mixV(a[2], b[2], t), mixV(a[3], b[3], t), mixV(a[4], b[4], t), mixV(a[5], b[5], t), opt(a[6], b[6], t), opt(a[7], b[7], t)];
+    const ext = (a: number | undefined, b: number | undefined, t: number): number | undefined => (a === undefined && b === undefined ? undefined : Math.round(((a ?? 0) + ((b ?? 0) - (a ?? 0)) * t) * 100) / 100);
+    const lerp = (a: Key, b: Key, t: number): Key => [mix(a[0], b[0], t), mix(a[1], b[1], t), mixV(a[2], b[2], t), mixV(a[3], b[3], t), mixV(a[4], b[4], t), mixV(a[5], b[5], t), opt(a[6], b[6], t), opt(a[7], b[7], t), ext(a[8], b[8], t), ext(a[9], b[9], t), ext(a[10], b[10], t), ext(a[11], b[11], t)];
     const [A, B, C] = row;
     // a taunt is a pose, not a strike: no overshoot or snap, just an eased move into it and back out
     const e = (anim === 'mv_taunt' ? [A, lerp(A, B, 0.35), lerp(A, B, 0.75), B, lerp(B, C, 0.5), C] : [A, lerp(A, B, -0.28), lerp(A, B, 0.62), B, lerp(B, C, 0.5), C])[Math.min(f, 5)];
-    set(e[0], e[1], e[2], e[3], e[4], e[5], e[6], e[7]);
+    set(e);
     return;
   }
-  const e = row[Math.min(f, row.length - 1)];
-  set(e[0], e[1], e[2], e[3], e[4], e[5], e[6], e[7]);
+  set(row[Math.min(f, row.length - 1)]);
 }

@@ -162,10 +162,14 @@ export class MatchFlow {
     const w = s.world;
     s.mode?.saveResult();
     if (s.recorder) session.replay = s.recorder.finish();
+    // (Endless and Gauntlet carry the player's damage into the next fight)
+    session.endDamage = s.fighters.map((f) => Math.round(f.damage));
     session.lastResult = buildResult(s.slots, m.scores, w.damageDealt, s.runner.elimAt, m.cfg, m.winner, w.tick, s.fighters.map((f) => f.team), m.winnerTeam, w.bestCombo, s.tally);
     // lifetime records for the humans who played (versus and arcade)
     const chal = s.setup.chal;
-    session.challengeRun = chal ? challengeRunResult(chal, s.slots[0].character, session.lastResult) : null;
+    // (a Target Smash / Launch Contest challenge was scored by its mode's saveResult above: keep that)
+    if (chal) session.challengeRun = challengeRunResult(chal, s.slots[0].character, session.lastResult);
+    else if (!(s.isTargets || s.isLaunch)) session.challengeRun = null;
     if (!s.isTargets && !s.isLaunch && (session.mode === 'versus' || session.mode === 'arcade')) {
       const res = session.lastResult;
       for (const p of res.players) {
@@ -189,7 +193,9 @@ export class MatchFlow {
     }
     const w = m.winner;
     const head = m.cfg.mode === 'time' && !m.suddenDeath ? 'TIME!' : 'GAME!';
-    const tail = w < 0 ? 'DRAW' : m.winnerTeam >= 0 ? `TEAM ${teamName(m.winnerTeam)} WINS` : session.mode === 'arcade' ? (w === 0 ? 'VICTORY' : 'DEFEATED') : `${s.labels[w] ?? `P${w + 1}`} WINS`;
+    // the arcade (team fights and co-op too) is won or lost by player 1's side
+    const arcadeWon = m.winnerTeam >= 0 ? s.fighters[0]?.team === m.winnerTeam : w === 0;
+    const tail = w < 0 && m.winnerTeam < 0 ? 'DRAW' : session.mode === 'arcade' ? (arcadeWon ? 'VICTORY' : 'DEFEATED') : m.winnerTeam >= 0 ? `TEAM ${teamName(m.winnerTeam)} WINS` : `${s.labels[w] ?? `P${w + 1}`} WINS`;
     banner.setText(up(`${head}\n${tail}`)).setVisible(true).setTint(0xffe14a);
     announcer.say(head === 'TIME!' ? 'Time!' : 'Game!', { pitch: 0.55, rate: 0.95 });
   }

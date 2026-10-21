@@ -16,91 +16,91 @@ Lowest damage percent (steps of 5) at which the move KOs the victim on Skyline C
 
 | fighter | strongest (non-ult) | typical (median of smashes + best aerial) | f-smash | u-smash | ultimate |
 |---|---|---:|---:|---:|---:|
-| brick | f-smash 110B / 115B (135) | 127.5 | 110B / 115B (135) | 135T | 0S |
+| brick | f-smash 120B / 120B (140) | 127.5 | 120B / 120B (140) | 135T | 0S |
 | vex | f-smash 120T | 135 | 120T | 130T | 60T |
-| nova | f-smash 120B / 125B (145) | 132.5 | 120B / 125B (145) | 130T | 70B / 100B (145) |
-| gizmo | f-smash 125B / 130B (155) | 140 | 125B / 130B (155) | 135T | 95B / 95B (115) |
+| nova | f-smash 125B / 125B (145) | 132.5 | 125B / 125B (145) | 130T | 70B / 100B (145) |
+| gizmo | f-smash 130B / 130B (155) | 140 | 130B / 130B (155) | 135T | 95B / 95B (115) |
 | agni | f-smash 120B / 120B (140) | 132.5 | 120B / 120B (140) | 125T | 165B / 165B (195) |
 | halcyon | f-smash 120B / 120B (140) | 132.5 | 120B / 120B (140) | 130T | 60T |
 | riptide | f-smash 115B / 115B (135) | 132.5 | 115B / 115B (135) | 130T | 60T |
-| obelisk | f-smash 115B / 115B (135) | 127.5 | 115B / 115B (135) | 120T | 60B / 65B (70) |
+| obelisk | f-smash 115B / 115B (135) | 127.5 | 115B / 115B (135) | 120T | 65B / 65B (70) |
 | rime | f-smash 125B / 125B (150) | 135 | 125B / 125B (150) | 125T | 55T |
 | havoc | f-smash 120B / 120B (140) | 135 | 120B / 120B (140) | 120T | 225T |
 
-Median over all fighters vs nova at centre (best rule): smashes 130%, f-smash 120%, u-smash 130%, d-smash 142.5%; all non-ultimate moves 140% (CPU-recovery rule: 137.5%).
+Median over all fighters vs nova at centre (best rule): smashes 130%, f-smash 120%, u-smash 130%, d-smash 142.5%; all non-ultimate moves 140% (CPU-recovery rule: 140%).
 Blast zone of the strict (pure launch) kills over every non-ultimate cell: top 26%, side 74%, bottom 0%.
 
 ## Every move
 
 | attacker | move | gizmo centre | gizmo ledge | nova centre | nova ledge | brick centre | brick ledge | measured |
 |---|---|---:|---:|---:|---:|---:|---:|---|
-| brick | f-smash | 90B / 110S | 55B / 80S (85) | 110B / 115B (135) | 70B / 70B (105) | 60B / 130B (175) | 80B / 80B (140) | hitbox 13.64d 38deg b50 s0.88 |
-| brick | u-smash | 120T | 110T | 135T | 135T | 210T | 170T / 190T | hitbox 10.61d 82deg b45 s0.807 |
-| brick | d-smash | 115B / 120S | 65B / 90S (95) | 125B / 125B (145) | 80B / 80B (115) | 140B / 140B (190) | 90B / 90B (150) | hitbox 9.1d 40deg b46 s0.89 |
-| brick | bair | 120B / 125S (130) | 85B / 100S | 130B / 130B (155) | 85B / 90B (120) | 145B / 145B (195) | 95B / 95B (155) | hitbox 8.67d 140deg b40 s0.897 |
-| brick | nair | 130B / 165T | 85B / 135S | 175T / 175B (180) | 125B / 130B (160) | 200B / 205B (250) | 135B / 140B (205) | hitbox 3.94d 50deg b42 s0.797 (+1.6% earlier hits) |
-| brick | bthrow | 140B / 160S (165) | 90B / 125S (130) | 165B / 170B (195) | 110B / 110B (155) | 185B / 190B (250) | 120B / 120B (200) | hitbox 7.58d 140deg b46 s0.678 |
+| brick | f-smash | 115S | 85B / 85S (90) | 120B / 120B (140) | 75B / 75B (110) | 135B / 135B (180) | 85B / 85B (145) | hitbox 13.64d 38deg b46 s0.88 |
+| brick | u-smash | 120T | 110T | 135T | 135T | 210T | 190T | hitbox 10.61d 82deg b45 s0.807 |
+| brick | d-smash | 120S | 95S | 125B / 125B (145) | 80B / 80B (115) | 140B / 140B (190) | 90B / 90B (150) | hitbox 9.1d 40deg b46 s0.89 |
+| brick | bair | 125S | 100S | 130B / 130B (150) | 90B / 90B (120) | 145B / 145B (195) | 95B / 95B (155) | hitbox 9.5d 140deg b40 s0.897 |
+| brick | nair | 125B / 165S | 85B / 130S | 175T | 125B / 125B (155) | 200B / 200B (250) | 135B / 135B (200) | hitbox 6d 50deg b42 s0.797 (+1.6% earlier hits) |
+| brick | bthrow | 165S | 125B / 125S (130) | 170B / 170B (195) | 110B / 110B (155) | 190B / 190B (250) | 125B / 125B (200) | hitbox 7.58d 140deg b46 s0.678 |
 | brick | ultimate | 0S | 0S | 0S | 0S | 0S | 0S | cinematic, 30d total |
-| vex | f-smash | 80B / 110S | 45B / 85S | 120T | 75B / 80B (100) | 135B / 140B (175) | 90B / 90B (140) | hitbox 12.06d 50deg b52.3 s0.994 (+6.5% earlier hits) |
+| vex | f-smash | 75B / 110S | 85S | 120T | 80B / 80B (100) | 140B / 140B (175) | 90B / 90B (140) | hitbox 12.06d 50deg b52.3 s0.994 (+6.5% earlier hits) |
 | vex | u-smash | 115T | 115T | 130T | 130T | 200T | 200T | hitbox 13.11d 88deg b38 s0.85 |
-| vex | d-smash | 115B / 135S | 90B / 105S | 135B / 140B (160) | 90B / 95B (130) | 155B / 155B (205) | 100B / 100B (165) | hitbox 10.92d 40deg b36.7 s0.864 |
-| vex | fair | 135B / 155S (160) | 90B / 120S (125) | 160B / 165B (190) | 105B / 110B (150) | 180B / 180B (235) | 120B / 120B (195) | hitbox 8.28d 40deg b39 s0.74 |
-| vex | bair | 140B / 160S | 95B / 125S (130) | 165B / 165B (190) | 110B / 115B (155) | 180B / 185B (240) | 125B / 125B (195) | hitbox 5.96d 140deg b35 s0.76 |
-| vex | bthrow | 120B / 165S | 95B / 130S | 175B / 175B (195) | 110B / 115B (155) | 200B / 200B (255) | 125B / 125B (205) | hitbox 5.24d 135deg b54.3 s0.679 |
-| vex | ultimate | 30B / 45T | 10B / 30S | 60T | 25B / 30B (50) | 100B / 105B (145) | 35B / 40B (100) | cinematic, 34.5d total |
-| nova | f-smash | 110B / 120S | 60B / 90S (95) | 120B / 125B (145) | 75B / 80B (115) | 65B / 140B (190) | 85B / 85B (150) | hitbox 17.3d 38deg b41.8 s0.856 |
-| nova | u-smash | 115T | 105T | 130T | 130T | 200T | 165T / 185T | hitbox 13.6d 82deg b40 s0.85 |
-| nova | d-smash | 120T | 110T / 115T | 135T | 125T | 210T | 195T | hitbox 12.36d 75deg b40 s0.834 |
-| nova | bair | 110B / 130S | 85B / 100S | 130B / 135B (155) | 85B / 90B (125) | 145B / 150B (195) | 95B / 95B (160) | hitbox 9.89d 140deg b41.4 s0.871 |
-| nova | fair | 105B / 125S (130) | 65B / 95S (100) | 125B / 130B (155) | 80B / 85B (120) | 75B / 145B (195) | 95B / 95B (155) | hitbox 13.6d 38deg b40 s0.85 |
+| vex | d-smash | 135S | 105S | 140B / 140B (160) | 95B / 95B (130) | 155B / 155B (205) | 105B / 105B (165) | hitbox 10.92d 40deg b36.7 s0.864 |
+| vex | fair | 155S | 120B / 120S (125) | 160B / 160B (185) | 110B / 110B (150) | 180B / 180B (235) | 120B / 120B (190) | hitbox 10d 40deg b39 s0.74 |
+| vex | bair | 160S | 125S | 165B / 165B (190) | 110B / 110B (150) | 180B / 180B (235) | 120B / 120B (190) | hitbox 9d 140deg b35 s0.76 |
+| vex | bthrow | 165S | 125S | 175B / 175B (195) | 110B / 110B (150) | 195B / 195B (255) | 125B / 125B (205) | hitbox 7d 135deg b54.3 s0.679 |
+| vex | ultimate | 25B / 45T | 30S | 60T | 30B / 30B (50) | 100B / 105B (145) | 40B / 40B (100) | cinematic, 34.5d total |
+| nova | f-smash | 120S | 90B / 90S (95) | 125B / 125B (145) | 80B / 80B (115) | 140B / 140B (190) | 85B / 85B (150) | hitbox 17.3d 38deg b41.8 s0.856 |
+| nova | u-smash | 115T | 105T | 130T | 130T | 200T | 185T | hitbox 13.6d 82deg b40 s0.85 |
+| nova | d-smash | 120T | 110T / 115T | 135T | 125T / 130T | 210T | 195T | hitbox 12.36d 75deg b40 s0.834 |
+| nova | bair | 130S | 100S | 135B / 135B (155) | 90B / 90B (125) | 150B / 150B (195) | 95B / 95B (160) | hitbox 9.89d 140deg b41.4 s0.871 |
+| nova | fair | 125B / 125S (130) | 95B / 95S (100) | 130B / 130B (155) | 85B / 85B (120) | 145B / 145B (195) | 95B / 95B (155) | hitbox 13.6d 38deg b40 s0.85 |
 | nova | uthrow | 130T | 130T | 145T | 145T | 235T | 235T | hitbox 4.94d 88deg b54.8 s0.685 |
-| nova | ultimate | 85B / 95S (115) | 35B / 50B (85) | 70B / 100B (145) | 15B / 45B (105) | 60B / 130B (195) | 65B / 65B (150) | performed at 40px |
-| gizmo | f-smash | 115B / 120S (125) | 65B / 90S (100) | 125B / 130B (155) | 80B / 85B (120) | 70B / 145B (195) | 90B / 90B (155) | hitbox 13.2d 38deg b43.6 s0.835 |
+| nova | ultimate | 100B / 100S (115) | 55B / 55B (85) | 70B / 100B (145) | 15B / 45B (105) | 130B / 130B (195) | 65B / 65B (150) | performed at 40px |
+| gizmo | f-smash | 125S | 95B / 95S (100) | 130B / 130B (155) | 85B / 85B (120) | 145B / 145B (195) | 90B / 90B (155) | hitbox 13.2d 38deg b43.6 s0.835 |
 | gizmo | u-smash | 120T | 120T | 135T | 135T | 210T | 210T | hitbox 9.68d 90deg b38 s0.833 |
-| gizmo | d-smash | 130B / 140S | 80B / 105S (110) | 140B / 145B (165) | 95B / 95B (135) | 85B / 160B (210) | 105B / 105B (170) | hitbox 7.92d 38deg b36.4 s0.831 |
-| gizmo | bair | 140B / 150S | 100B / 115S (120) | 155B / 155B (180) | 100B / 105B (145) | 170B / 170B (225) | 115B / 115B (185) | hitbox 7.92d 140deg b38 s0.784 |
-| gizmo | fair | 185B / 195S (200) | 120B / 155S (160) | 200B / 205B (235) | 135B / 140B (190) | 225B / 225B (295) | 150B / 150B (240) | hitbox 4.51d 40deg b38 s0.608 (+1.1% earlier hits) |
-| gizmo | bthrow | 120B / 155T | 115B / 125S | 170T | 115B / 120B (150) | 195B / 195B (245) | 125B / 125B (195) | hitbox 6.16d 130deg b55.4 s0.755 |
-| gizmo | ultimate | 85B / 90S (95) | 40B / 60S (70) | 95B / 95B (115) | 55B / 55B (90) | 45B / 110B (155) | 65B / 65B (120) | transform, then mech_punch: hitbox 10.47d 38deg b58 s0.95 |
-| agni | f-smash | 105B / 115S | 75B / 85S (90) | 120B / 120B (140) | 75B / 75B (110) | 135B / 135B (180) | 85B / 85B (145) | hitbox 13.47d 40deg b44 s0.92 |
+| gizmo | d-smash | 140S | 110S | 145B / 145B (165) | 95B / 95B (135) | 160B / 160B (210) | 105B / 105B (170) | hitbox 7.92d 38deg b36.4 s0.831 |
+| gizmo | bair | 150S | 115B / 115S (120) | 155B / 155B (180) | 105B / 105B (145) | 170B / 170B (225) | 115B / 115B (185) | hitbox 7.92d 140deg b38 s0.784 |
+| gizmo | fair | 200S | 155B / 155S (160) | 205B / 205B (235) | 140B / 140B (190) | 225B / 225B (295) | 155B / 155B (240) | hitbox 4.51d 40deg b38 s0.608 (+1.1% earlier hits) |
+| gizmo | bthrow | 110B / 155T | 125S | 170T | 120B / 120B (150) | 195B / 195B (245) | 130B / 130B (195) | hitbox 6.16d 130deg b55.4 s0.755 |
+| gizmo | ultimate | 95S | 65B / 65S (70) | 95B / 95B (115) | 55B / 55B (90) | 110B / 110B (155) | 65B / 65B (120) | transform, then mech_punch: hitbox 10.47d 38deg b58 s0.95 |
+| agni | f-smash | 115S | 85B / 85S (90) | 120B / 120B (140) | 75B / 75B (110) | 135B / 135B (180) | 85B / 85B (145) | hitbox 13.47d 40deg b44 s0.92 |
 | agni | u-smash | 110T | 110T | 125T | 125T | 195T | 195T | hitbox 12.68d 88deg b42 s0.85 |
-| agni | d-smash | 115B / 135S (140) | 75B / 100S (110) | 135B / 140B (165) | 90B / 95B (130) | 80B / 155B (210) | 105B / 105B (170) | hitbox 10.73d 38deg b38 s0.823 |
-| agni | bair | 115B / 135S | 80B / 105S (110) | 140B / 140B (165) | 90B / 95B (130) | 155B / 155B (205) | 105B / 105B (165) | hitbox 9.76d 140deg b38 s0.85 |
-| agni | fair | 145B / 185S | 120B / 150S | 195B / 195B (215) | 130B / 135B (175) | 125B / 215B (275) | 145B / 150B (225) | hitbox 8.78d 45deg b34 s0.7 |
-| agni | fthrow | 125B / 170S | 95B / 130S | 170B / 175B (200) | 110B / 115B (160) | 195B / 195B (260) | 125B / 125B (205) | hitbox 6.83d 42deg b49.2 s0.662 |
-| agni | ultimate | 150B / 160S | 85B / 115S (125) | 165B / 165B (195) | 105B / 110B (155) | 185B / 185B (250) | 115B / 120B (200) | performed at 40px |
-| halcyon | f-smash | 110B / 115S | 65B / 90S | 120B / 120B (140) | 75B / 80B (110) | 135B / 135B (180) | 85B / 85B (145) | hitbox 16.08d 40deg b37 s0.95 |
+| agni | d-smash | 135B / 135S (140) | 105B / 105S (110) | 140B / 140B (165) | 95B / 95B (130) | 155B / 155B (210) | 105B / 105B (170) | hitbox 10.73d 38deg b38 s0.823 |
+| agni | bair | 135S | 105B / 105S (110) | 140B / 140B (165) | 95B / 95B (130) | 155B / 155B (205) | 105B / 105B (165) | hitbox 9.76d 140deg b38 s0.85 |
+| agni | fair | 185S | 150S | 195B / 195B (215) | 135B / 135B (175) | 220B / 220B (275) | 150B / 150B (225) | hitbox 8.78d 45deg b34 s0.7 |
+| agni | fthrow | 170S | 130S | 175B / 175B (200) | 115B / 115B (160) | 200B / 200B (260) | 130B / 130B (205) | hitbox 6.83d 42deg b49.2 s0.662 |
+| agni | ultimate | 160S | 120B / 120S (125) | 165B / 165B (195) | 110B / 110B (155) | 185B / 185B (250) | 120B / 120B (200) | performed at 40px |
+| halcyon | f-smash | 115S | 90S | 120B / 120B (140) | 80B / 80B (110) | 135B / 135B (180) | 85B / 85B (145) | hitbox 16.08d 40deg b37 s0.95 |
 | halcyon | u-smash | 120T | 120T | 130T | 130T | 200T | 200T | hitbox 12.96d 88deg b37 s0.85 |
-| halcyon | d-smash | 140B / 150S | 90B / 115S | 155B / 155B (175) | 105B / 105B (140) | 170B / 175B (225) | 115B / 115B (180) | hitbox 10.89d 361deg b38 s0.82 |
-| halcyon | bair | 110B / 130S | 75B / 100S (105) | 135B / 135B (155) | 90B / 90B (125) | 150B / 150B (195) | 100B / 100B (160) | hitbox 10.89d 140deg b38 s0.88 |
-| halcyon | fair | 150B / 160S (165) | 95B / 125S (130) | 165B / 165B (195) | 110B / 115B (155) | 100B / 185B (245) | 125B / 125B (200) | hitbox 10.37d 38deg b34 s0.72 |
-| halcyon | fthrow | 145B / 170S | 115B / 130S (135) | 175B / 175B (200) | 115B / 120B (160) | 195B / 195B (255) | 125B / 130B (205) | hitbox 6.9d 40deg b42 s0.68 |
-| halcyon | ultimate | 45T | 10B / 45T | 60T | 60T | 155B / 160T | 75B / 90B (145) | cinematic, 35.9d total |
-| riptide | f-smash | 95B / 110S (115) | 75B / 85S (90) | 115B / 115B (135) | 75B / 75B (105) | 130B / 130B (175) | 85B / 85B (140) | hitbox 13.82d 40deg b40 s0.968 |
+| halcyon | d-smash | 105B / 150S | 115S | 155B / 155B (175) | 105B / 105B (140) | 175B / 175B (225) | 115B / 115B (180) | hitbox 10.89d 361deg b38 s0.82 |
+| halcyon | bair | 130S | 100B / 100S (105) | 135B / 135B (155) | 90B / 90B (125) | 150B / 150B (195) | 100B / 100B (160) | hitbox 10.89d 140deg b38 s0.88 |
+| halcyon | fair | 165S | 125B / 125S (130) | 165B / 165B (195) | 115B / 115B (155) | 185B / 185B (245) | 125B / 125B (200) | hitbox 10.37d 38deg b34 s0.72 |
+| halcyon | fthrow | 170S | 130B / 130S (135) | 175B / 175B (200) | 120B / 120B (160) | 195B / 195B (255) | 130B / 130B (205) | hitbox 6.9d 40deg b42 s0.68 |
+| halcyon | ultimate | 45T | 5B / 45T | 60T | 60T | 160T | 80B / 90B (145) | cinematic, 35.9d total |
+| riptide | f-smash | 115S | 85B / 85S (90) | 115B / 115B (135) | 75B / 75B (105) | 130B / 130B (175) | 85B / 85B (140) | hitbox 13.82d 40deg b40 s0.968 |
 | riptide | u-smash | 115T | 115T | 130T | 130T | 200T | 200T | hitbox 12.48d 90deg b44 s0.824 |
-| riptide | d-smash | 125B / 155S | 95B / 125S | 160B / 160B (185) | 105B / 110B (150) | 180B / 180B (235) | 125B / 125B (190) | hitbox 10.56d 42deg b38 s0.762 |
-| riptide | bair | 120B / 130S | 75B / 100S (105) | 135B / 135B (155) | 90B / 90B (125) | 150B / 150B (195) | 100B / 100B (160) | hitbox 9.6d 140deg b38 s0.886 |
-| riptide | fair | 145B / 185S | 120B / 145S | 195B / 195B (205) | 135B / 140B (170) | 120B / 215B (270) | 145B / 150B (220) | hitbox 8.83d 48deg b34 s0.742 |
-| riptide | bthrow | 125B / 165S | 100B / 130S | 170B / 175B (195) | 115B / 115B (155) | 195B / 195B (250) | 125B / 125B (200) | hitbox 9.22d 135deg b42 s0.742 |
-| riptide | ultimate | 15B / 45T | 15B / 20S | 60T | 15B / 15B (45) | 85B / 85B (135) | 25B / 25B (90) | cinematic, 35.9d total |
-| obelisk | f-smash | 95B / 110S | 60B / 80S (85) | 115B / 115B (135) | 75B / 75B (105) | 125B / 130B (170) | 80B / 85B (135) | hitbox 15.02d 40deg b38 s0.989 |
+| riptide | d-smash | 155S | 125S | 160B / 160B (185) | 110B / 110B (150) | 180B / 180B (235) | 125B / 125B (190) | hitbox 10.56d 42deg b38 s0.762 |
+| riptide | bair | 130S | 100B / 100S (105) | 135B / 135B (155) | 90B / 90B (125) | 150B / 150B (195) | 100B / 100B (160) | hitbox 9.6d 140deg b38 s0.886 |
+| riptide | fair | 140B / 185S | 145S | 195B / 195B (205) | 135B / 140B (170) | 215B / 215B (270) | 150B / 150B (220) | hitbox 9.5d 48deg b34 s0.742 |
+| riptide | bthrow | 165S | 130S | 175B / 175B (195) | 115B / 115B (155) | 195B / 195B (250) | 130B / 130B (200) | hitbox 9.22d 135deg b42 s0.742 |
+| riptide | ultimate | 5B / 45T | 20S | 60T | 15B / 15B (45) | 90B / 90B (135) | 25B / 25B (90) | cinematic, 35.9d total |
+| obelisk | f-smash | 110S | 85S | 115B / 115B (135) | 75B / 75B (105) | 130B / 130B (170) | 85B / 85B (135) | hitbox 15.02d 40deg b38 s0.989 |
 | obelisk | u-smash | 105T | 105T | 120T | 120T | 185T | 185T | hitbox 13.61d 90deg b40 s0.906 |
-| obelisk | d-smash | 130B / 135S | 80B / 105S | 140B / 140B (160) | 90B / 95B (130) | 90B / 160B (210) | 105B / 105B (165) | hitbox 11.74d 42deg b40 s0.845 |
-| obelisk | bair | 110B / 130S | 75B / 100S (105) | 130B / 135B (155) | 85B / 90B (125) | 150B / 150B (195) | 95B / 100B (160) | hitbox 10.8d 140deg b38 s0.886 |
-| obelisk | fair | 125B / 160S | 100B / 130S | 170B / 170B (190) | 115B / 115B (150) | 185B / 190B (240) | 125B / 125B (195) | hitbox 10.8d 45deg b36 s0.783 |
+| obelisk | d-smash | 135S | 105S | 140B / 140B (160) | 95B / 95B (130) | 160B / 160B (210) | 105B / 105B (165) | hitbox 11.74d 42deg b40 s0.845 |
+| obelisk | bair | 130S | 100B / 100S (105) | 135B / 135B (155) | 90B / 90B (125) | 150B / 150B (195) | 100B / 100B (160) | hitbox 10.8d 140deg b38 s0.886 |
+| obelisk | fair | 160S | 130S | 170B / 170B (190) | 115B / 115B (150) | 190B / 190B (240) | 130B / 130B (195) | hitbox 10.8d 45deg b36 s0.783 |
 | obelisk | uthrow | 135T | 135T | 150T | 150T | 240T | 240T | hitbox 6.57d 90deg b52 s0.68 |
-| obelisk | ultimate | 15B / 50S | 5B / 20S | 60B / 65B (70) | 10B / 10B (40) | 0B / 80B (130) | 20B / 20B (85) | cinematic, 33d total |
-| rime | f-smash | 115B / 120S (125) | 70B / 90S (100) | 125B / 125B (150) | 85B / 85B (120) | 75B / 140B (190) | 95B / 95B (150) | hitbox 14.83d 38deg b28 s0.921 (+4.2% earlier hits) |
+| obelisk | ultimate | 15B / 50S | 20S | 65B / 65B (70) | 10B / 10B (40) | 80B / 80B (130) | 20B / 20B (85) | cinematic, 33d total |
+| rime | f-smash | 125S | 95B / 95S (100) | 125B / 125B (150) | 85B / 85B (120) | 140B / 140B (190) | 95B / 95B (150) | hitbox 14.83d 38deg b28 s0.921 (+3.8% earlier hits) |
 | rime | u-smash | 115T | 115T | 125T | 125T | 195T | 195T | hitbox 16.93d 88deg b34 s0.873 |
-| rime | d-smash | 140B / 150S | 90B / 115S | 155B / 155B (175) | 105B / 105B (140) | 100B / 170B (220) | 115B / 115B (180) | hitbox 13.4d 361deg b34 s0.834 |
-| rime | bair | 120B / 140S | 95B / 105S (115) | 145B / 145B (170) | 95B / 100B (135) | 160B / 160B (210) | 105B / 110B (175) | hitbox 12.01d 140deg b34 s0.834 |
-| rime | uair | 190T | 190T | 210T | 210T | - | - | hitbox 4.95d 85deg b34 s0.582 (+1.7% earlier hits) |
-| rime | bthrow | 130B / 175S | 105B / 135S | 185B / 185B (210) | 120B / 120B (165) | 110B / 205B (270) | 135B / 135B (215) | hitbox 9.88d 135deg b48 s0.66 |
-| rime | ultimate | 40T | 15B / 40T | 55T | 55T | 150T | 90B / 100B (150) | cinematic, 36d total |
-| havoc | f-smash | 100B / 120S | 65B / 90S | 120B / 120B (140) | 75B / 80B (110) | 135B / 135B (180) | 85B / 85B (145) | projectile rocket 14d 40deg b38 s0.95 |
+| rime | d-smash | 150S | 120S | 160B / 160B (175) | 110B / 110B (140) | 175B / 175B (225) | 120B / 120B (180) | hitbox 12d 361deg b34 s0.834 |
+| rime | bair | 145S | 110B / 110S (115) | 145B / 145B (170) | 100B / 100B (135) | 165B / 165B (215) | 110B / 110B (175) | hitbox 11.2d 140deg b34 s0.834 |
+| rime | uair | 190T | 190T | 210T | 210T | - | - | hitbox 4.5d 85deg b34 s0.582 (+1.7% earlier hits) |
+| rime | bthrow | 175S | 135S | 185B / 185B (210) | 120B / 120B (165) | 210B / 210B (270) | 135B / 135B (215) | hitbox 9.88d 135deg b48 s0.66 |
+| rime | ultimate | 40T | 5B / 40T | 55T | 55T | 150T | 95B / 100B (150) | cinematic, 36d total |
+| havoc | f-smash | 120S | 90S | 120B / 120B (140) | 80B / 80B (110) | 135B / 135B (180) | 90B / 90B (145) | projectile rocket 14d 40deg b38 s0.95 |
 | havoc | u-smash | 105T | 105T | 120T | 120T | 185T | 185T | projectile mortar 13d 88deg b40 s0.9 |
-| havoc | d-smash | 105B / 145S | 100B / 110S (115) | 150B / 150B (170) | 100B / 105B (135) | 95B / 165B (215) | 110B / 115B (170) | hitbox 9.5d 361deg b38 s0.86 |
-| havoc | bair | 135B / 145S | 85B / 115S | 150B / 150B (175) | 100B / 105B (140) | 165B / 165B (220) | 110B / 110B (180) | hitbox 10d 140deg b34 s0.82 |
-| havoc | uair | 145T | 145T | 160T | 160T | 240T | 240T | hitbox 8.5d 88deg b34 s0.75 |
-| havoc | fthrow | 145B / 170S (175) | 95B / 130S (135) | 175B / 180B (210) | 110B / 115B (165) | 200B / 200B (265) | 125B / 125B (215) | hitbox 8d 40deg b50 s0.62 |
-| havoc | ultimate | 200T | 190T | 225T | 210T | - | - | performed at 40px |
+| havoc | d-smash | 145S | 110S | 150B / 150B (165) | 100B / 100B (135) | 165B / 165B (215) | 110B / 110B (170) | hitbox 10d 361deg b38 s0.86 |
+| havoc | bair | 145S | 115S | 150B / 150B (175) | 105B / 105B (140) | 165B / 165B (220) | 115B / 115B (180) | hitbox 10d 140deg b34 s0.82 |
+| havoc | uair | 140T | 140T | 160T | 160T | 240T | 240T | hitbox 9.5d 88deg b34 s0.75 |
+| havoc | fthrow | 175S | 130B / 130S (135) | 180B / 180B (210) | 115B / 115B (165) | 200B / 200B (265) | 130B / 130B (215) | hitbox 8d 40deg b50 s0.62 |
+| havoc | ultimate | 200T | 190T | 225T | 210T / 215T | - | - | performed at 40px |

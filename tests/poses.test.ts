@@ -14,7 +14,9 @@ describe('move poses', () => {
         expect(c.sprite.animations[m.anim]?.frames).toBe(6);
         const keys = buildKeys(m.pose);
         expect(keys).toHaveLength(3);
-        for (const k of keys.flat(2)) expect(Number.isFinite(k)).toBe(true);
+        // (optional slots past the six required ones may be left undefined)
+        for (const k of keys.flat(2)) if (k !== undefined) expect(Number.isFinite(k)).toBe(true);
+        for (const k of keys) expect(k.slice(0, 6).flat().every((v) => Number.isFinite(v))).toBe(true);
       }
     });
     it(`${id}: sprite sheet stays within the 4096px texture limit`, () => {

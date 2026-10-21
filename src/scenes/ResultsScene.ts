@@ -1,14 +1,16 @@
-import { announcer } from '../audio/announcer';
+import { PRIORITY, announcer } from '../audio/announcer';
 import { TIER_COLORS, TIER_NAMES, challengeById, challengeCleared, challengeRules, goalText } from '../game/challenges';
 import Phaser from 'phaser';
 import { PIXEL_FONT, up } from '../art/pixelFont';
 import { music } from '../audio/music';
 import { formatSec, formatTicks } from '../game/records';
 import { CHARACTER_LIST, characterById } from '../characters';
-import { DIFFICULTY_NAMES, continueLadder, ladderOutcomeFor, ladderDifficulty, type LadderOutcome } from '../game/ladder';
+import { DIFFICULTY_NAMES, ENDLESS_CARRY, RUN_NAMES, continueLadder, currentFight, humanSideWon, isCoop, ladderOutcomeFor, ladderDifficulty, restartRun, runKind, type LadderOutcome, type LadderState } from '../game/ladder';
 import { rerollRandomPicks } from '../game/quick';
-import { bodyHalf, podiumShrink, podiumSpots } from '../game/results';
-import { endingCards } from '../game/story';
+import { bodyHalf, getLastTimeline, podiumShrink, podiumSpots } from '../game/results';
+import { ResultsGraph } from '../ui/ResultsGraph';
+import { creditsLine, endingCards, gameOverCard } from '../game/story';
+import { activeTurns, restartTurns, standings, turnLabel } from '../game/turns';
 import { session, teamName } from '../game/session';
 import type { CharacterData } from '../engine/types';
 import { OVERSEER_PHASE2_SKIN, requestOverseerPhase2 } from '../ui/BossCinematic';
@@ -109,6 +111,12 @@ export class ResultsScene extends MenuScene {
   private awardHead: Phaser.GameObjects.BitmapText | null = null;
   private awardPorts: number[] = [];
 
+  /** Damage and stocks over the match (versus, arcade and challenge), swapped in for the table by the GRAPHS row. */
+  private graph: ResultsGraph | null = null;
+  private graphOn = false;
+  /** The winner's row band, hidden while the graphs show. */
+  private tableWinRow = -1;
+
   constructor() {
     super('Results');
   }
@@ -117,6 +125,8 @@ export class ResultsScene extends MenuScene {
     // the results play out in front of the stage you just fought on
     this.bg.setTheme(STAGES[session.stage]?.background.theme);
     this.rows = [];
+    this.graph = null;
+    this.graphOn = false;
     this.plate = this.add.graphics();
     this.ui.add(this.plate);
     const r = session.lastResult;
@@ -129,9 +139,14 @@ export class ResultsScene extends MenuScene {
     let label = !r ? 'MATCH OVER' : winner < 0 ? 'DRAW' : r.winnerTeam >= 0 ? `TEAM ${teamName(r.winnerTeam)} WINS` : `${wp0 ? nameOf(wp0) : `P${winner + 1}`} WINS`;
     // arcade: record the fight and decide what comes next
     let outcome: LadderOutcome | null = null;
+    const run = arcade ? runKind(session.ladder!) : null;
+    const sideWon = humanSideWon(r);
     if (arcade) {
-      outcome = ladderOutcomeFor(session.ladder!, r);
-      label = outcome === 'gameover' ? 'GAME OVER' : outcome === 'champion' ? 'LADDER CLEARED!' : winner === 0 ? 'VICTORY' : 'DEFEATED';
+      const l = session.ladder!;
+      outcome = ladderOutcomeFor(l, r, session.endDamage);
+      const cleared = run === 'boss' ? 'OVERSEER DOWN!' : run === 'gauntlet' ? 'GAUNTLET CLEARED!' : 'LADDER CLEARED!';
+      label = outcome === 'gameover' ? (run === 'endless' ? 'RUN OVER' : 'GAME OVER') : outcome === 'champion' ? cleared : sideWon ? 'VICTORY' : 'DEFEATED';
+      if (outcome === 'gameover' && l.best?.newBest) label = 'NEW RECORD!';
     }
     // Target Smash: time, best and targets instead of the versus table
     const tr = session.mode === 'targets' ? session.targetRun : null;
@@ -204,12 +219,16 @@ export class ResultsScene extends MenuScene {
       const prev = lr.prevBest ?? null;
       const diff = prev !== null && prev > 0 && lr.distance > 0 ? lr.distance - prev : null;
       const dummy = lr.dummy ? characterById(lr.dummy) : undefined;
+      const detail = lr as typeof lr & { attempts?: { distance: number; damage: number }[]; boardPlace?: number };
       const lines: [string, number][] = [
         [`DISTANCE  ${m(lr.distance)}`, lr.record ? COLORS.good : lr.distance > 0 ? COLORS.text : COLORS.warn],
         [`BEST      ${m(lr.best)}`, COLORS.hot],
         [`VS BEST   ${diff === null ? (lr.record ? 'FIRST RECORD' : '--') : `${diff >= 0 ? '+' : '-'}${Math.abs(diff).toFixed(1)} M`}`, diff !== null && diff > 0 ? COLORS.good : COLORS.dim],
         [`DAMAGE    ${lr.damage}%`, COLORS.text],
         ...(dummy ? [[`DUMMY     ${dummy.name.replace('The ', '').toUpperCase()} (${dummy.stats.weight} WEIGHT)`, COLORS.dim] as [string, number]] : []),
+        // every attempt of the run, and where the best one landed on the fighter's top five
+        ...(detail?.attempts && detail.attempts.length > 1 ? [[`ATTEMPTS  ${detail.attempts.map((a) => (a.distance > 0 ? a.distance.toFixed(1) : '--')).join('  /  ')}`, COLORS.dim] as [string, number]] : []),
+        ...(detail && typeof detail.boardPlace === 'number' ? [[detail.boardPlace >= 0 ? `TOP FIVE  #${detail.boardPlace + 1}` : 'TOP FIVE  NOT THIS TIME', detail.boardPlace >= 0 ? COLORS.good : COLORS.dim] as [string, number]] : []),
       ];
       for (const [line, col] of lines) this.rows.push(text(this, this.ui, line, col));
     } else if (tr) {
@@ -238,16 +257,23 @@ export class ResultsScene extends MenuScene {
       this.awardStars.push(stars);
     };
     const clear = arcade && outcome === 'champion' ? session.ladder!.clear : undefined;
-    const run = chal && session.challengeRun?.id === chal.id ? session.challengeRun : null;
-    if (clear) {
+    const chalRun = chal && session.challengeRun?.id === chal.id ? session.challengeRun : null;
+    const turns = activeTurns();
+    const runCard = arcade && run !== 'arcade' ? this.runCard(session.ladder!, outcome!) : null;
+    if (runCard) {
+      // Endless, Gauntlet and Boss Battle: where the run stands, and what it improved
+      this.awardHead = text(this, this.ui, runCard.head, runCard.good ? COLORS.good : COLORS.title);
+      for (const [line, col] of runCard.lines) note(line, col);
+    } else if (clear) {
       // the clear card: the run's score, its stars and what it improved
       const l = session.ladder!;
       this.awardHead = text(this, this.ui, clear.firstClear ? 'ARCADE CLEAR  FIRST CLEAR!' : 'ARCADE CLEAR', COLORS.title);
       note(`SCORE      ${clear.score.toLocaleString('en-US')}${clear.newBestScore ? '   NEW BEST!' : ''}`, clear.newBestScore || clear.firstClear ? COLORS.good : COLORS.text);
       note(`STARS     ${'       '}${clear.stars > clear.prevStars ? '  NEW STAR!' : ''}`, clear.stars > clear.prevStars ? COLORS.good : COLORS.text, clear.stars);
       note(`${DIFFICULTY_NAMES[ladderDifficulty(l)]}   KOS ${l.kos}   TIME ${formatSec(l.seconds)}${clear.newBestTime ? ' (BEST)' : ''}   CONTINUES ${l.continuesUsed}`, COLORS.hint);
-    } else if (run) {
+    } else if (chalRun) {
       // the medal this run earned, each goal met or missed, and what it improved
+      const run = chalRun;
       const c = chal!;
       this.awardHead = text(this, this.ui, `MEDAL  ${run.earned ? TIER_NAMES[run.earned] : 'NONE'}`, TIER_COLORS[run.earned]);
       note(`BRONZE  CLEAR             ${run.earned ? 'MET' : 'MISSED'}`, run.earned ? TIER_COLORS[1] : COLORS.dim);
@@ -255,6 +281,10 @@ export class ResultsScene extends MenuScene {
       note(`GOLD    ${goalText(c.gold).padEnd(18)}${run.goldMet && run.silverMet ? 'MET' : run.goldMet ? 'MET (NEEDS SILVER)' : 'MISSED'}`, run.goldMet && run.silverMet ? TIER_COLORS[3] : COLORS.dim);
       const news = [run.firstClear ? 'FIRST CLEAR!' : '', run.newTier && !run.firstClear ? `NEW BEST MEDAL: ${TIER_NAMES[run.tier]}` : '', run.newBestTime ? `NEW BEST TIME ${formatSec(run.durationSec)}` : ''].filter(Boolean);
       if (news.length) note(news.join('   '), COLORS.good);
+    } else if (turns && (tr || lr)) {
+      // take turns: everyone's result so far, best first
+      this.awardHead = text(this, this.ui, 'STANDINGS', COLORS.title);
+      for (const row of standings(turns)) note(`${row.result ? `${row.place}.` : '-'}  ${turnLabel(turns, row.player)}  ${(characterById(turns.players[row.player]?.character ?? '')?.name ?? '').replace('The ', '').toUpperCase().padEnd(10)} ${row.result?.text ?? 'WAITING'}`, row.result && row.place === 1 ? COLORS.good : COLORS.text);
     } else if (r && !tr && !lr && !arcade && !chal) {
       const awards = matchAwards(r, nameOf);
       if (awards.length) {
@@ -268,12 +298,37 @@ export class ResultsScene extends MenuScene {
       }
     }
     const items: MenuItem[] = [];
+    const tl = r && !tr && !lr && (session.mode === 'versus' || session.mode === 'arcade' || session.mode === 'challenge') ? getLastTimeline() : null;
+    if (tl && r) {
+      const graph = new ResultsGraph(this, this.ui, tl, r.players.map((p, i) => ({ label: nameOf(p), color: COLORS.p[i % 4] })));
+      graph.setVisible(false);
+      this.graph = graph;
+    }
+    // the stat table or the graphs (ALT also swaps them)
+    const graphRow: MenuItem | null = this.graph ? { label: 'GRAPHS', value: () => (this.graphOn ? 'ON' : 'OFF'), onConfirm: () => this.toggleGraph(), onLeft: () => this.toggleGraph(), onRight: () => this.toggleGraph() } : null;
     const watch: MenuItem | null = session.replay && (session.replay.mode ?? 'versus') === session.mode && !tr && !lr ? { label: 'WATCH REPLAY', onConfirm: () => { session.watchReplay = true; this.go('Match'); } } : null;
-    if (arcade) {
+    if (arcade && run !== 'arcade') {
+      // Endless, Gauntlet and Boss Battle: no continues; a lost (or finished) run starts over
+      const l = session.ladder!;
+      if (outcome === 'next') items.push({ label: run === 'endless' ? 'NEXT ROUND' : 'NEXT FIGHT', onConfirm: () => this.go('LadderMap') });
+      else {
+        items.push({
+          label: outcome === 'champion' ? 'PLAY AGAIN' : 'RETRY',
+          onConfirm: () => {
+            session.ladder = restartRun(l);
+            this.go('LadderMap');
+          },
+        });
+      }
+      if (watch) items.push(watch);
+      const quit = outcome === 'gameover' ? (): void => this.go('Story', { cards: [gameOverCard(l)], next: 'ModeSelect' }) : (): void => this.go('ModeSelect');
+      items.push({ label: outcome === 'next' ? `QUIT ${RUN_NAMES[run!]}` : 'MAIN MENU', onConfirm: quit });
+    } else if (arcade) {
       const l = session.ladder!;
       if (outcome === 'next') items.push({ label: 'NEXT FIGHT', onConfirm: () => this.go('LadderMap') });
       else if (outcome === 'retry') items.push({ label: `CONTINUE (${l.continuesLeft} LEFT)`, onConfirm: () => this.go('LadderMap') });
-      else if (outcome === 'champion') items.push({ label: 'CONTINUE', onConfirm: () => this.go('Story', { cards: endingCards(l), next: 'ModeSelect' }) });
+      // the ending, then the staff roll (which takes the champion for its finale)
+      else if (outcome === 'champion') items.push({ label: 'CONTINUE', onConfirm: () => this.go('Story', { cards: endingCards(l), next: 'Credits', nextData: { ending: true, fighter: l.player, next: 'ModeSelect', lines: creditsLine(l) } }) });
       if (outcome === 'gameover') {
         // out of continues: carry on as another fighter, or on an easier setting, from the same fight (each costs score)
         const roster = CHARACTER_LIST.map((c) => c.id);
@@ -304,7 +359,7 @@ export class ResultsScene extends MenuScene {
           });
         }
         if (watch) items.push(watch);
-        items.push({ label: 'QUIT', onConfirm: () => this.go('ModeSelect') });
+        items.push({ label: 'QUIT', onConfirm: () => this.go('Story', { cards: [gameOverCard(l)], next: 'ModeSelect' }) });
       } else {
         if (watch) items.push(watch);
         items.push({ label: 'QUIT LADDER', onConfirm: () => this.go('ModeSelect') });
@@ -314,7 +369,13 @@ export class ResultsScene extends MenuScene {
       if (watch) items.push(watch);
       items.push({ label: 'CHALLENGES', onConfirm: () => this.go('Challenges') }, { label: 'MAIN MENU', onConfirm: () => this.go('ModeSelect') });
     } else if (tr || lr) {
-      items.push({ label: 'RETRY', onConfirm: () => this.go('Match') }, { label: 'CHARACTER SELECT', onConfirm: () => this.go('CharacterSelect') }, { label: 'MAIN MENU', onConfirm: () => this.go('ModeSelect') });
+      items.push({
+        label: turns ? 'PLAY AGAIN' : 'RETRY',
+        onConfirm: () => {
+          if (turns) restartTurns(); // everyone takes their turn again, from player 1
+          this.go('Match');
+        },
+      }, { label: 'CHARACTER SELECT', onConfirm: () => this.go('CharacterSelect') }, { label: 'MAIN MENU', onConfirm: () => this.go('ModeSelect') });
     } else {
       items.push({
         label: 'REMATCH',
@@ -327,24 +388,70 @@ export class ResultsScene extends MenuScene {
       if (session.mode === 'versus') items.push({ label: 'STAGE SELECT', onConfirm: () => this.go('StageSelect') });
       items.push({ label: 'CHARACTER SELECT', onConfirm: () => this.go('CharacterSelect') }, { label: 'MAIN MENU', onConfirm: () => this.go('ModeSelect') });
     }
+    if (graphRow) items.splice(Math.max(0, items.length - 1), 0, graphRow);
     this.list = new MenuList(this, this.ui, items);
     this.hint = text(this, this.ui, '', COLORS.dim).setOrigin(0.5);
     this.bindFooter(this.hint, [['updown', 'MOVE'], ['confirm', 'SELECT'], ['back', 'EXIT']]);
     // a human loss in the arcade gets the sad version; everything else celebrates
-    const humanLost = (arcade && winner !== 0) || (!!tr && !tr.cleared) || (!!lr && lr.distance <= 0) || (!!chal && !chalClear);
+    const humanLost = (arcade && !sideWon) || (!!tr && !tr.cleared) || (!!lr && lr.distance <= 0) || (!!chal && !chalClear);
     this.celebrate = !humanLost && (winner >= 0 || (!!tr && tr.cleared) || (!!lr && lr.distance > 0) || chalClear);
     this.winRow = !tr && !lr && winner >= 0 && this.rows.length ? 0 : -1;
     this.front = this.add.graphics();
     this.ui.add(this.front);
-    music.jingle(humanLost || winner < 0 ? 'lose' : 'win', wc?.id);
+    // the boss falling (the arcade's last fight, a Boss Battle) gets its own fanfare
+    if (arcade && outcome === 'champion' && (run === 'arcade' || run === 'boss')) music.sting('bossClear', 'results');
+    else music.jingle(humanLost || (winner < 0 && !sideWon) ? 'lose' : 'win', wc?.id);
     if (chal) announcer.say(chalClear ? 'Challenge complete!' : 'Try again.', { pitch: 0.55 });
     else if (!tr && !lr) {
       const champName = wc?.name.replace('The ', '');
       announcer.say(
-        !r || winner < 0 ? 'No contest.' : arcade ? (outcome === 'gameover' ? 'Game over.' : outcome === 'champion' ? 'Ladder cleared!' : winner === 0 ? `${champName} wins!` : 'Defeated.') : r.winnerTeam >= 0 ? `Team ${teamName(r.winnerTeam).toLowerCase()} wins!` : `The winner is ${champName}!`,
-        { pitch: 0.55, rate: 0.98 },
+        !r || (winner < 0 && r.winnerTeam < 0) ? 'No contest.' : arcade ? (outcome === 'gameover' ? 'Game over.' : outcome === 'champion' ? (run === 'boss' ? 'The Overseer is down!' : run === 'gauntlet' ? 'Gauntlet cleared!' : 'Ladder cleared!') : sideWon ? `${champName} wins!` : 'Defeated.') : r.winnerTeam >= 0 ? `Team ${teamName(r.winnerTeam).toLowerCase()} wins!` : `The winner is ${champName}!`,
+        { pitch: 0.55, rate: 0.98, priority: PRIORITY.result },
       );
     }
+  }
+
+  /** Endless, Gauntlet and Boss Battle: the run's card under the results (where it stands, what it improved). */
+  private runCard(l: LadderState, outcome: LadderOutcome): { head: string; good: boolean; lines: [string, number][] } {
+    const d = `${DIFFICULTY_NAMES[ladderDifficulty(l)]}${isCoop(l) ? '  CO-OP' : ''}`;
+    const best = l.best;
+    const bestLine = (fmt: (v: number) => string, what: string): [string, number] => (best?.newBest ? [`NEW BEST ${what}!${best.prev !== null ? `  (WAS ${fmt(best.prev)})` : ''}`, COLORS.good] : [`BEST ${what}  ${best?.prev !== null && best?.prev !== undefined ? fmt(best.prev) : '--'}`, COLORS.hot]);
+    switch (runKind(l)) {
+      case 'endless': {
+        if (outcome === 'next') {
+          const next = currentFight(l);
+          return { head: `ROUND ${l.index} CLEARED`, good: true, lines: [[`WINS ${l.index}   KOS ${l.kos}   ${d}`, COLORS.text], [`NEXT ROUND: YOU START AT ${next.playerDamage ?? 0}% (${Math.round(ENDLESS_CARRY * 100)}% CARRIED OVER)`, COLORS.hint]] };
+        }
+        return { head: 'ENDLESS RESULTS', good: !!best?.newBest, lines: [[`WINS ${l.index}   KOS ${l.kos}   TIME ${formatSec(l.seconds)}   ${d}`, COLORS.text], bestLine((v) => `${v} WINS`, 'RUN')] };
+      }
+      case 'gauntlet': {
+        const n = l.fights.length;
+        if (outcome === 'next') {
+          const next = currentFight(l);
+          return { head: `${l.index} OF ${n} DOWN`, good: true, lines: [[`STOCKS LEFT ${l.stocksLeft ?? next.playerStocks}   NEXT FIGHT AT ${next.playerDamage ?? 0}%`, COLORS.text], [`TIME ${formatSec(l.seconds)}   ${d}`, COLORS.hint]] };
+        }
+        if (outcome === 'champion') return { head: 'GAUNTLET CLEARED', good: true, lines: [[`ALL ${n} BEATEN   TIME ${formatSec(l.seconds)}   ${d}`, COLORS.text], bestLine(formatSec, 'TIME')] };
+        return { head: 'GAUNTLET OVER', good: false, lines: [[`${l.index} OF ${n} BEATEN   TIME ${formatSec(l.seconds)}   ${d}`, COLORS.text]] };
+      }
+      default: {
+        if (outcome === 'champion') return { head: 'BOSS BATTLE CLEAR', good: true, lines: [[`TIME ${formatSec(l.seconds)}   ${d}`, COLORS.text], bestLine(formatSec, 'TIME')] };
+        return { head: 'THE OVERSEER STANDS', good: false, lines: [[`${d}   RETRY, OR PICK AN EASIER SETTING`, COLORS.text]] };
+      }
+    }
+  }
+
+  /** GRAPHS: the damage / stock graphs in place of the stat table, and back. */
+  private toggleGraph(): void {
+    const g = this.graph;
+    if (!g) return;
+    const on = !this.graphOn;
+    this.graphOn = on;
+    g.setVisible(on);
+    this.head.setVisible(!on);
+    for (const r of this.rows) r.setVisible(!on);
+    if (on) this.tableWinRow = this.winRow;
+    this.winRow = on ? -1 : this.tableWinRow;
+    this.layoutUi(this.scale.width, this.scale.height, this.u);
   }
 
   /** A fighter that did not win: its lose row when the sheet has one, else a still, neutral stance (the first idle frame). */
@@ -392,6 +499,7 @@ export class ResultsScene extends MenuScene {
     this.rows.forEach((r, i) => r.setScale(ts).setPosition(tx, h * 0.27 + (17 + i * 14) * (ts / 1.2)));
     this.rowX = tx;
     this.rowBand = { x: tx - 2 * u, w: tw * ts + 4 * u, h: 12 * (ts / 1.2), ys: this.rows.map((r) => r.y - 2.5 * (ts / 1.2)) };
+    this.graph?.layout(tx, h * 0.27 - 4 * u, tw * ts, Math.max(60 * u, (17 + Math.max(4, this.rows.length) * 14) * (ts / 1.2) + 8 * u), u);
     const pad = 5 * u;
     const top = h * 0.27 - pad;
     const bottom = h * 0.27 + (17 + Math.max(0, this.rows.length - 1) * 14 + 8) * (ts / 1.2) + pad;
@@ -622,6 +730,10 @@ export class ResultsScene extends MenuScene {
 
   protected onEvent(e: MenuEvent): void {
     if (this.list.handle(e)) return;
+    if (e.action === 'alt' && this.graph) {
+      this.toggleGraph();
+      return;
+    }
     // back jumps the cursor to the way out (main menu / quit ladder); confirming it is still a deliberate press
     if (e.action === 'back') this.list.index = this.list.items.length - 1;
   }

@@ -10,91 +10,91 @@ Columns: **KO dir** is the blast zone of the KOs the fighter scored (bottom = a 
 
 ### 1v1
 
-360 matches, mean length 131 s, 29 draws / time-outs.
+360 matches, mean length 136 s, 23 draws / time-outs.
 
-**All KOs** (excluding self-destructs): 1557, median KO percent **140%**, top / side / bottom **51% / 16% / 33%**, by ultimate 16%. Self-destructs: 4% of all falls.
+**All KOs** (excluding self-destructs): 1597, median KO percent **148%**, top / side / bottom **53% / 21% / 26%**, by ultimate 14%. Self-destructs: 3% of all falls.
 
 | fighter | win rate (50% = even) | KOs scored / match | median KO % (scored) | KO dir top / side / bottom (scored) | ult KO share | died at (median) | SD rate (of own falls) | ults used / match |
 |---|---:|---:|---:|---|---:|---:|---:|---:|
-| brick | 50% | 2.24 | 117% | 41% / 31% / 28% | 34% | 187% | 10% | 1.18 |
-| vex | 32% | 1.83 | 121% | 35% / 20% / 45% | 30% | 146% | 8% | 1.32 |
-| nova | 47% | 2.15 | 161% | 58% / 15% / 27% | 5% | 147% | 4% | 1.56 |
-| gizmo | 47% | 2.11 | 152% | 39% / 13% / 49% | 1% | 129% | 4% | 1.60 |
-| agni | 36% | 2.10 | 140% | 46% / 16% / 38% | 3% | 131% | 0% | 1.51 |
-| halcyon | 56% | 2.32 | 141% | 35% / 17% / 47% | 26% | 142% | 1% | 1.51 |
-| riptide | 57% | 2.31 | 131% | 61% / 13% / 25% | 22% | 149% | 1% | 1.18 |
-| obelisk | 46% | 2.18 | 142% | 55% / 17% / 29% | 19% | 134% | 1% | 1.17 |
-| rime | 43% | 2.17 | 158% | 67% / 13% / 19% | 17% | 137% | 8% | 1.60 |
-| havoc | 46% | 2.22 | 140% | 66% / 8% / 27% | 1% | 132% | 3% | 1.54 |
+| brick | 38% | 2.00 | 118% | 47% / 36% / 17% | 30% | 186% | 4% | 1.13 |
+| vex | 46% | 2.18 | 136% | 43% / 21% / 36% | 21% | 149% | 6% | 1.50 |
+| nova | 42% | 2.14 | 167% | 59% / 19% / 21% | 4% | 148% | 5% | 1.74 |
+| gizmo | 40% | 2.11 | 159% | 41% / 23% / 36% | 0% | 131% | 3% | 1.72 |
+| agni | 53% | 2.32 | 149% | 50% / 28% / 22% | 2% | 144% | 1% | 1.56 |
+| halcyon | 49% | 2.31 | 148% | 39% / 23% / 39% | 23% | 143% | 0% | 1.65 |
+| riptide | 47% | 2.21 | 134% | 56% / 22% / 22% | 19% | 156% | 1% | 1.38 |
+| obelisk | 51% | 2.26 | 149% | 58% / 13% / 29% | 21% | 149% | 1% | 1.39 |
+| rime | 49% | 2.28 | 162% | 64% / 16% / 20% | 21% | 143% | 4% | 1.75 |
+| havoc | 54% | 2.38 | 149% | 71% / 6% / 23% | 0% | 150% | 2% | 1.65 |
 
 ### 4-player free-for-all
 
-60 matches, mean length 132 s, 4 draws / time-outs.
+60 matches, mean length 138 s, 5 draws / time-outs.
 
-**All KOs** (excluding self-destructs): 626, median KO percent **150%**, top / side / bottom **53% / 18% / 29%**, by ultimate 11%. Self-destructs: 3% of all falls.
+**All KOs** (excluding self-destructs): 638, median KO percent **156%**, top / side / bottom **55% / 22% / 24%**, by ultimate 14%. Self-destructs: 1% of all falls.
 
 | fighter | win rate (25% = even) | KOs scored / match | median KO % (scored) | KO dir top / side / bottom (scored) | ult KO share | died at (median) | SD rate (of own falls) | ults used / match |
 |---|---:|---:|---:|---|---:|---:|---:|---:|
-| brick | 25% | 3.25 | 133% | 56% / 19% / 24% | 13% | 192% | 3% | 0.83 |
-| vex | 0% | 1.54 | 147% | 68% / 19% / 14% | 8% | 145% | 10% | 1.04 |
-| nova | 38% | 2.79 | 161% | 60% / 9% / 31% | 7% | 152% | 2% | 1.92 |
-| gizmo | 8% | 1.83 | 155% | 25% / 23% / 52% | 0% | 130% | 4% | 1.63 |
-| agni | 29% | 3.42 | 136% | 37% / 24% / 39% | 5% | 140% | 0% | 1.50 |
-| halcyon | 42% | 3.08 | 160% | 49% / 23% / 28% | 15% | 164% | 0% | 1.58 |
-| riptide | 17% | 2.33 | 149% | 61% / 14% / 25% | 23% | 158% | 2% | 1.33 |
-| obelisk | 46% | 3.29 | 155% | 48% / 20% / 32% | 18% | 139% | 0% | 1.54 |
-| rime | 13% | 1.63 | 151% | 62% / 21% / 18% | 28% | 148% | 3% | 1.46 |
-| havoc | 17% | 2.92 | 151% | 74% / 9% / 17% | 0% | 157% | 2% | 1.83 |
+| brick | 29% | 2.96 | 134% | 55% / 24% / 21% | 17% | 184% | 3% | 1.21 |
+| vex | 25% | 3.04 | 150% | 53% / 27% / 19% | 18% | 150% | 0% | 1.50 |
+| nova | 21% | 2.67 | 159% | 66% / 23% / 11% | 6% | 158% | 3% | 1.71 |
+| gizmo | 4% | 2.04 | 159% | 39% / 8% / 53% | 0% | 136% | 4% | 1.79 |
+| agni | 25% | 3.50 | 157% | 55% / 17% / 29% | 10% | 150% | 0% | 1.71 |
+| halcyon | 13% | 2.00 | 158% | 46% / 27% / 27% | 23% | 156% | 0% | 1.38 |
+| riptide | 54% | 2.88 | 145% | 51% / 28% / 22% | 32% | 175% | 0% | 1.58 |
+| obelisk | 33% | 2.92 | 161% | 54% / 20% / 26% | 21% | 162% | 0% | 1.50 |
+| rime | 17% | 1.75 | 162% | 71% / 21% / 7% | 14% | 152% | 0% | 1.67 |
+| havoc | 8% | 2.83 | 172% | 57% / 19% / 24% | 0% | 151% | 0% | 2.13 |
 
 <details><summary>1v1 pairings (wins - wins)</summary>
 
 | pairing | wins |
 |---|---|
-| brick vs vex | 4 - 4 |
-| brick vs nova | 4 - 4 |
-| brick vs gizmo | 3 - 4 |
-| brick vs agni | 3 - 3 |
+| brick vs vex | 2 - 6 |
+| brick vs nova | 3 - 5 |
+| brick vs gizmo | 4 - 2 |
+| brick vs agni | 1 - 6 |
 | brick vs halcyon | 3 - 5 |
 | brick vs riptide | 5 - 3 |
-| brick vs obelisk | 5 - 1 |
-| brick vs rime | 5 - 3 |
-| brick vs havoc | 4 - 4 |
-| vex vs nova | 1 - 6 |
-| vex vs gizmo | 4 - 4 |
-| vex vs agni | 6 - 2 |
-| vex vs halcyon | 1 - 5 |
-| vex vs riptide | 0 - 7 |
-| vex vs obelisk | 1 - 7 |
-| vex vs rime | 3 - 5 |
-| vex vs havoc | 3 - 4 |
-| nova vs gizmo | 4 - 4 |
+| brick vs obelisk | 1 - 5 |
+| brick vs rime | 6 - 2 |
+| brick vs havoc | 2 - 6 |
+| vex vs nova | 2 - 6 |
+| vex vs gizmo | 5 - 3 |
+| vex vs agni | 2 - 6 |
+| vex vs halcyon | 4 - 3 |
+| vex vs riptide | 5 - 2 |
+| vex vs obelisk | 3 - 5 |
+| vex vs rime | 2 - 6 |
+| vex vs havoc | 4 - 2 |
+| nova vs gizmo | 3 - 5 |
 | nova vs agni | 3 - 5 |
-| nova vs halcyon | 4 - 2 |
-| nova vs riptide | 4 - 4 |
-| nova vs obelisk | 2 - 6 |
-| nova vs rime | 4 - 3 |
-| nova vs havoc | 3 - 3 |
+| nova vs halcyon | 2 - 5 |
+| nova vs riptide | 2 - 6 |
+| nova vs obelisk | 4 - 4 |
+| nova vs rime | 2 - 6 |
+| nova vs havoc | 3 - 4 |
 | gizmo vs agni | 4 - 4 |
-| gizmo vs halcyon | 0 - 8 |
-| gizmo vs riptide | 4 - 2 |
-| gizmo vs obelisk | 6 - 2 |
-| gizmo vs rime | 2 - 6 |
-| gizmo vs havoc | 6 - 1 |
-| agni vs halcyon | 2 - 6 |
-| agni vs riptide | 3 - 5 |
-| agni vs obelisk | 1 - 5 |
-| agni vs rime | 2 - 4 |
+| gizmo vs halcyon | 2 - 6 |
+| gizmo vs riptide | 3 - 4 |
+| gizmo vs obelisk | 3 - 5 |
+| gizmo vs rime | 3 - 5 |
+| gizmo vs havoc | 4 - 2 |
+| agni vs halcyon | 1 - 7 |
+| agni vs riptide | 4 - 4 |
+| agni vs obelisk | 2 - 4 |
+| agni vs rime | 6 - 2 |
 | agni vs havoc | 4 - 4 |
-| halcyon vs riptide | 2 - 6 |
-| halcyon vs obelisk | 4 - 2 |
-| halcyon vs rime | 5 - 3 |
-| halcyon vs havoc | 3 - 5 |
+| halcyon vs riptide | 3 - 5 |
+| halcyon vs obelisk | 3 - 4 |
+| halcyon vs rime | 2 - 6 |
+| halcyon vs havoc | 1 - 7 |
 | riptide vs obelisk | 3 - 3 |
-| riptide vs rime | 7 - 1 |
-| riptide vs havoc | 4 - 4 |
-| obelisk vs rime | 4 - 3 |
-| obelisk vs havoc | 3 - 3 |
-| rime vs havoc | 3 - 5 |
+| riptide vs rime | 4 - 4 |
+| riptide vs havoc | 3 - 5 |
+| obelisk vs rime | 3 - 3 |
+| obelisk vs havoc | 4 - 2 |
+| rime vs havoc | 1 - 7 |
 
 </details>
 

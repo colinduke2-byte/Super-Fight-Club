@@ -1,10 +1,19 @@
 import type { CharacterData } from './types';
+import type { PoseSpec } from './moves';
+import { bookPose } from '../art/poseBook';
 
 /**
  * Gives every move that declares a `pose` its own six-frame animation row (`mv_<id>`), so each attack can look unique without
  * hand-drawn frames. Call once per character after its data is built. Idempotent.
  */
 export function applyMovePoses(data: CharacterData): CharacterData {
+  // hand-set art poses (art/poseBook.ts) replace a move's template pose; moves that shared a pose keep sharing the new one
+  const swap = new Map<string, PoseSpec>();
+  for (const m of Object.values(data.moves)) {
+    const b = m.pose && bookPose(data.id, m.id, m.pose);
+    if (b) swap.set(JSON.stringify(m.pose), b);
+  }
+  for (const m of Object.values(data.moves)) if (m.pose) m.pose = swap.get(JSON.stringify(m.pose)) ?? m.pose;
   const byPose = new Map<string, string>(); // identical pose specs (e.g. charge levels of one special) share one animation row
   for (const m of Object.values(data.moves)) {
     if (!m.pose) continue;

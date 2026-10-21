@@ -6,7 +6,7 @@ import { Button, makeInput } from '../src/engine/buttons';
 import { Fighter } from '../src/engine/fighter';
 import { applyDummyReactions, ComboTracker, cycle, defaultTrainingOptions, InputRecording, RECORD_MAX, restoreFighter, saveFighter, type DiOption, type TechOption } from '../src/engine/training';
 import { World } from '../src/engine/world';
-import { stepMatches, TRIALS, TrialChecker, trialsFor } from '../src/game/trials';
+import { MECHANIC_TRIALS, stepMatches, TRIALS, TrialChecker, trialsFor } from '../src/game/trials';
 import { LESSONS, TutorialRunner } from '../src/game/tutorial';
 import { sandboxStage } from '../src/stages/sandbox';
 
@@ -117,11 +117,15 @@ describe('training options', () => {
 });
 
 describe('combo trials', () => {
-  it('every roster fighter has three trials whose moves exist', () => {
+  it('every roster fighter has its combo trials and a trial of its own mechanic, whose moves exist', () => {
     for (const id of Object.keys(CHARACTERS)) {
       const list = trialsFor(id);
-      expect(list.length, id).toBe(3);
+      expect(list.length, id).toBeGreaterThanOrEqual(3);
       expect(TRIALS[id], id).toBeDefined();
+      expect(MECHANIC_TRIALS[id]?.teaches, id).toBeTruthy();
+      expect(list[list.length - 1], id).toBe(MECHANIC_TRIALS[id]);
+      // no generic jab strings left
+      expect(list.filter((t) => t.name === 'JAB STRING'), id).toHaveLength(0);
       const ids = Object.keys(CHARACTERS[id].moves);
       for (const t of list) for (const st of t.steps) expect(ids.some((m) => stepMatches(m, st)), `${id} ${t.id} ${st}`).toBe(true);
     }
@@ -200,12 +204,12 @@ describe('tutorial', () => {
 });
 
 describe('combo trials in the sim', () => {
-  it("every fighter's jab-string trial clears by tapping Attack next to the dummy", () => {
+  it("Vex's four-hit flurry clears by tapping Attack next to the dummy", () => {
     // a player stands at the right spacing: try a few
-    const clears = (id: string, gap: number): boolean => {
+    const clears = (gap: number): boolean => {
       const world = new World(sandboxStage);
-      const p = new Fighter(0, CHARACTERS[id]);
-      const d = new Fighter(1, id === 'vex' ? CHARACTERS.nova : vex); // a dummy without Brick's armour
+      const p = new Fighter(0, CHARACTERS.vex);
+      const d = new Fighter(1, CHARACTERS.nova);
       world.addFighter(p);
       world.addFighter(d);
       const g = world.platforms[0];
@@ -213,7 +217,7 @@ describe('combo trials in the sim', () => {
       d.standOn(g, -40 + gap);
       p.facing = 1;
       d.facing = -1;
-      const c = new TrialChecker(trialsFor(id)[0], p, d);
+      const c = new TrialChecker(trialsFor('vex')[0], p, d);
       world.listener = (t, f) => c.onEvent(t, f);
       let prev = 0;
       for (let i = 0; i < 240 && !c.done; i++) {
@@ -227,6 +231,6 @@ describe('combo trials in the sim', () => {
       }
       return c.done;
     };
-    for (const id of Object.keys(CHARACTERS)) expect([8, 14, 22, 30, 40].some((gap) => clears(id, gap)), id).toBe(true);
+    expect([8, 14, 22, 30, 40].some((gap) => clears(gap))).toBe(true);
   });
 });

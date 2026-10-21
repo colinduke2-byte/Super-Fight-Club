@@ -2,9 +2,14 @@ import Phaser from 'phaser';
 import { inputManager } from '../input/inputManager';
 import type { MenuEvent } from '../input/menuInput';
 import { session } from '../game/session';
+import { planRun, type RunPlan } from '../game/ladder';
 import { quickMatch } from '../game/quick';
 import { markTutorialOffered, shouldOfferTutorial, startTutorial, tutorialDone } from '../game/tutorial';
-import { CHALLENGES } from '../game/challenges';
+import { CHALLENGES, armSpecialChallenge } from '../game/challenges';
+import { startDaily } from '../game/daily';
+import { setTargetCourse, targetCourseChoice } from '../game/targetRuns';
+import { endTurns } from '../game/turns';
+import { SHARED_COURSES } from '../stages/targetCourses';
 import { MergedDevice } from '../input/device';
 import { sfx } from '../audio/sfx';
 import { COLORS, MenuList, MenuScene, drawPanel, pointerXY, tapMin, text, textPx, wrapText, type MenuBackdrop, type MenuItem } from '../ui/menuKit';
@@ -12,6 +17,7 @@ import { PIXEL_FONT } from '../art/pixelFont';
 import { fighterAnimKey, fighterTextureKey, uiTexK } from '../art/proceduralFighter';
 import { CHARACTER_LIST } from '../characters';
 import { releaseUnusedOutfits } from './outfits';
+import { drawShowcaseLight } from '../ui/menuBackdrops';
 
 /** A main-menu group: a tab of related modes. */
 interface Group {
@@ -27,19 +33,47 @@ const GROUPS: Group[] = [
     items: [
       { label: 'VERSUS', desc: 'SET UP A MATCH FOR 2-4 FIGHTERS: FRIENDS, CPUS, RULES AND STAGE.', go: (s) => s.goTo('VersusSetup') },
       { label: 'QUICK MATCH', desc: 'STRAIGHT INTO A FIGHT: YOUR LAST FIGHTER VS ONE CPU ON A RANDOM STAGE.', go: (s, e) => s.quick(e) },
+      { label: 'TARGET TURNS', desc: '2-4 PLAYERS TAKE TURNS ON ONE TARGET COURSE, THEN COMPARE TIMES.', go: (s) => s.startTurns('targets') },
+      { label: 'LAUNCH TURNS', desc: '2-4 PLAYERS TAKE TURNS IN THE LAUNCH CONTEST, THEN COMPARE DISTANCES.', go: (s) => s.startTurns('launch') },
       // new players find the lessons on the first tab (until they finish them; they stay in the VAULT after that)
       { label: 'TUTORIAL', desc: 'NEW HERE? EIGHT SHORT HANDS-ON LESSONS: MOVING, ATTACKING, SHIELDING, RECOVERING.', go: (s, e) => startTutorial(s, 'ModeSelect', undefined, e?.device), show: () => !tutorialDone() },
       { label: 'HOW TO PLAY', desc: 'THE CONTROLS FOR YOUR KEYBOARD, PAD OR TOUCH, AND EVERY TECHNIQUE, PAGE BY PAGE.', go: (s) => s.goTo('HowToPlay') },
     ],
   },
   {
+    id: 'arcade',
+    label: 'ARCADE',
+    items: [
+      { label: 'ARCADE', desc: 'YOUR FIGHTER\'S OWN ROUTE: EIGHT FIGHTS, A RIVAL ON HOME GROUND, THEN THE OVERSEER.', go: (s) => s.startRun({ kind: 'arcade' }) },
+      { label: 'CO-OP ARCADE', desc: 'TWO PLAYERS, ONE TEAM, THE WHOLE LADDER. THE RIVALS COME IN PAIRS.', go: (s) => s.startRun({ kind: 'arcade', coop: true }) },
+      { label: 'BOSS BATTLE', desc: 'STRAIGHT TO THE OVERSEER. PICK A DIFFICULTY; A SECOND PLAYER CAN JOIN AS CO-OP.', go: (s) => s.startRun({ kind: 'boss', coop: true }) },
+      { label: 'ENDLESS', desc: 'ONE STOCK, RIVAL AFTER RIVAL, EACH SHARPER. HALF YOUR DAMAGE CARRIES OVER. HOW FAR?', go: (s) => s.startRun({ kind: 'endless' }) },
+      { label: 'GAUNTLET', desc: 'ALL TEN FIGHTERS IN A ROW ON THEIR HOME STAGES. THREE STOCKS, LITTLE HEALING. RACE THE CLOCK.', go: (s) => s.startRun({ kind: 'gauntlet' }) },
+    ],
+  },
+  {
     id: 'solo',
     label: 'SOLO',
     items: [
-      { label: 'ARCADE', desc: 'CLIMB EIGHT FIGHTS THAT GET HARDER, THEN FACE THE OVERSEER.', go: (s) => s.start('arcade') },
       { label: 'CHALLENGES', desc: `${CHALLENGES.length} SET-PIECE FIGHTS, EACH WITH A TWIST. CLEAR THEM ALL.`, go: (s) => s.goTo('Challenges') },
-      { label: 'TARGET SMASH', desc: 'BREAK TEN TARGETS AS FAST AS YOU CAN. BEAT YOUR BEST TIME.', go: (s) => s.start('targets') },
-      { label: 'LAUNCH CONTEST', desc: 'TEN SECONDS TO BUILD DAMAGE ON A DUMMY, THEN SEND IT FLYING. HOW FAR?', go: (s) => s.start('launch') },
+      { label: 'DAILY CHALLENGE', desc: 'A NEW CHALLENGE EVERY DAY: TODAY\'S FIGHTER, STAGE, RULE AND GOALS. BEAT YOUR BEST.', go: (s) => s.goTo(startDaily()) },
+      {
+        label: 'TARGET SMASH',
+        desc: 'BREAK TEN TARGETS ON YOUR FIGHTER\'S OWN COURSE. A GHOST OF YOUR BEST RUN RACES YOU.',
+        go: (s) => {
+          setTargetCourse('own');
+          s.start('targets');
+        },
+      },
+      {
+        label: 'TARGET COURSES',
+        desc: 'THE SHARED COURSES, EASY TO HARD: TARGET GAUNTLET, SKY SPIRE, THE ABYSS.',
+        go: (s) => {
+          setTargetCourse(nextShared());
+          s.start('targets');
+        },
+      },
+      { label: 'LAUNCH CONTEST', desc: 'THREE ATTEMPTS: TEN SECONDS TO BUILD DAMAGE ON A DUMMY, THEN SEND IT FLYING. THE BEST COUNTS.', go: (s) => s.start('launch') },
       { label: 'TRAINING', desc: 'PRACTISE FREELY: A DUMMY, HITBOXES, FRAME DATA AND NO CLOCK.', go: (s) => s.start('training') },
     ],
   },
@@ -48,6 +82,8 @@ const GROUPS: Group[] = [
     label: 'VAULT',
     items: [
       { label: 'RECORDS', desc: 'YOUR WINS, KOS, BEST TIMES AND DISTANCES, FIGHTER BY FIGHTER.', go: (s) => s.goTo('Records') },
+      { label: 'REPLAYS', desc: 'YOUR LAST MATCHES AND STARRED FAVOURITES: WATCH, SEEK, SHARE AS CODES.', go: (s) => s.goTo('ReplayVault') },
+      { label: 'SOUND TEST', desc: 'EVERY TRACK, SOUND AND ANNOUNCER CALL IN THE GAME.', go: (s) => s.goTo('SoundTest', { back: 'ModeSelect' }) },
       { label: 'HOW TO PLAY', desc: 'THE CONTROLS, MOVES AND TECHNIQUES, PAGE BY PAGE.', go: (s) => s.goTo('HowToPlay') },
       { label: 'TUTORIAL', desc: 'EIGHT SHORT HANDS-ON LESSONS: MOVING, ATTACKING, SHIELDING, RECOVERING.', go: (s, e) => startTutorial(s, 'ModeSelect', undefined, e?.device) },
       { label: 'CREDITS', desc: 'WHO IS WHO, WHERE THEY FIGHT AND HOW THE GAME WAS MADE.', go: (s) => s.goTo('Credits') },
@@ -62,6 +98,9 @@ const GROUPS: Group[] = [
     ],
   },
 ];
+
+/** TARGET COURSES: each pick moves on to the next shared course (the course select is on the course itself). */
+const nextShared = (): string => SHARED_COURSES[(SHARED_COURSES.findIndex((c) => c.id === targetCourseChoice()) + 1) % SHARED_COURSES.length].id;
 
 const OFFER_BODY = 'A FIVE-MINUTE HANDS-ON TUTORIAL TEACHES THE BASICS.';
 
@@ -193,17 +232,41 @@ export class ModeSelectScene extends MenuScene {
     const d = e?.device;
     const device = d && (d.kind === 'gamepad' || d.kind === 'touch') ? d : new MergedDevice('p1', 'Keyboard + Gamepad', () => [inputManager.keyboards[0], ...inputManager.padList]);
     quickMatch(device);
-    this.go('Match');
+    // the VS splash first, as before every arcade fight
+    this.go('VersusSplash', { next: 'Match', title: 'QUICK MATCH' });
   }
 
   goTo(key: string, data?: object): void {
     this.go(key, data);
   }
 
-  start(mode: 'arcade' | 'training' | 'targets' | 'launch'): void {
+  /** 2-4 players take turns on one target course or in the Launch Contest. */
+  startTurns(mode: 'targets' | 'launch'): void {
+    this.start(mode);
+    session.playerCount = 4;
+  }
+
+  start(mode: 'training' | 'targets' | 'launch'): void {
+    endTurns();
+    armSpecialChallenge(null);
     session.mode = mode;
     session.playerCount = 1;
     session.ladder = null;
+    this.go('CharacterSelect');
+  }
+
+  /**
+   * The arcade family (Arcade, Co-op Arcade, Boss Battle, Endless, Gauntlet): character select builds the planned run. A
+   * co-op run opens two cards; a second player who joins plays it with you, otherwise it runs solo.
+   */
+  startRun(plan: RunPlan): void {
+    endTurns();
+    armSpecialChallenge(null);
+    session.mode = 'arcade';
+    session.playerCount = plan.coop ? 2 : 1;
+    session.ladder = null;
+    session.arcadePartner = null;
+    planRun(plan);
     this.go('CharacterSelect');
   }
 
@@ -312,8 +375,7 @@ export class ModeSelectScene extends MenuScene {
       s.name.setAlpha(fade);
       if (s.sprite.visible) {
         const col = parseInt(c.sprite.placeholder.accent.slice(1), 16);
-        this.glow.fillStyle(col, 0.22 * fade).fillEllipse(s.sprite.x, this.floorY, 46 * this.showScale, 9 * this.showScale);
-        this.glow.fillStyle(col, 0.06 * fade).fillEllipse(s.sprite.x, this.floorY - 30 * this.showScale, 60 * this.showScale, 80 * this.showScale);
+        drawShowcaseLight(this.glow, s.sprite.x, this.floorY, this.showScale, col, fade, time);
       }
     });
     this.offer?.list.update(time);

@@ -7,6 +7,7 @@ import { fighterTextureKey, registerPixels, releaseSheet } from '../art/procedur
 import { buildSheetPixels } from '../art/sheetPool';
 import { sheetSpec } from '../art/sheetPixels';
 import { fastShapes, type FastShapes } from './fastShapes';
+import { setArenaPhase } from './BackgroundView';
 
 /** Stage id of the boss arena (its lights are drawn here, per phase). */
 export const BOSS_ARENA_ID = 'apex';
@@ -17,17 +18,21 @@ const PILLARS = [-240, -160, -80, 80, 160, 240];
 const WARN_AT = 24;
 const ERUPT_AT = 66;
 
-/** Arena light rig: light columns hanging over the arena (x) and their phase colours. */
+/** Arena light rig: light columns hanging over the arena (x) and their phase colours (the Overseer's violet, then red). */
 const RIG = [-300, -150, 0, 150, 300];
-const LIGHT = [0x4ae4ff, 0xff3a1a];
-const LIGHT_HOT = [0xc8f8ff, 0xffa060];
+const LIGHT = [0xb685ff, 0xff3a1a];
+const LIGHT_HOT = [0xf0e4ff, 0xffa060];
+/** The boss's eye, as a fraction of its body height above its feet (the drawer's head sits on a neck above the collar). */
+const EYE_H = 0.93;
 
 /**
  * World-space staging for the final boss, drawn every frame from the sim state (no events needed):
- *  - the Cataclysm cinematic: the sky drops dark, a huge halo opens behind the Overseer and its eye-beam lances up, red
- *    target columns lock onto the six landing spots and tighten, then each erupts in a white-hot shaft;
- *  - the phase-2 transition: on the roar the arena light rig flickers out and comes back red, a shock ring rolls out;
- *  - on the boss arena, the light rig itself: cold cyan shafts and floor pools in phase 1, red and pulsing in phase 2.
+ *  - the Cataclysm cinematic: the sky drops dark, the Overseer's spire crown unfolds behind it as seven blades of light
+ *    and its eye-beam lances up, red target columns lock onto the six landing spots and tighten, then each erupts in a
+ *    white-hot shaft;
+ *  - the phase-2 transition: the shell bursts (shards flung out from the body), a shock ring rolls out, the arena light rig
+ *    flickers out and comes back red, and the Apex backdrop (its sky, the crown and eye over the citadel) burns red with it;
+ *  - on the boss arena, the light rig itself: cold violet shafts and floor pools in phase 1, red and pulsing in phase 2.
  * One instance per match scene: `new BossCinematic(scene, worldLayer)` and `update(world, tick)` each frame.
  */
 export class BossCinematic {
@@ -49,6 +54,7 @@ export class BossCinematic {
 
   destroy(): void {
     for (const o of [this.back, this.backGlow, this.g, this.glow]) o.destroy();
+    setArenaPhase(0);
   }
 
   /** The boss in this world, if any. */
@@ -63,7 +69,10 @@ export class BossCinematic {
     g.clear();
     glow.clear();
     const b = BossCinematic.boss(world);
-    if (!b) return;
+    if (!b) {
+      setArenaPhase(0);
+      return;
+    }
     const k = settings.reduceFlashes ? 0.45 : 1;
     backGlow.setAlpha(k);
     glow.setAlpha(k);
@@ -71,6 +80,7 @@ export class BossCinematic {
     if (enr && !this.lastEnrage) this.since2 = 0;
     else if (this.since2 >= 0) this.since2++;
     this.lastEnrage = enr;
+    setArenaPhase(enr, this.since2 >= 0 ? this.since2 : 999);
     if (world.stage.id === BOSS_ARENA_ID) this.rig(enr, tick);
     if (this.since2 >= 0 && this.since2 < 120) this.transition(b, this.since2);
     if (b.state === 'attack' && b.move?.id === 'roar') this.roar(b, b.moveFrame, b.move.startup);
@@ -122,14 +132,33 @@ export class BossCinematic {
     a.lineStyle(6, 0xff4a2a, 0.8 * (1 - t)).strokeCircle(cx, cy, 20 + s * 7);
     a.lineStyle(2, 0xffd0a0, 0.6 * (1 - t)).strokeCircle(cx, cy, 10 + s * 5);
     a.fillStyle(0xff2a10, 0.18 * (1 - t)).fillCircle(cx, cy, 30 + s * 4);
+    // the ivory shell bursts: shards flung out from the body, tumbling and falling, each trailing fire
+    if (s < 70) {
+      const g = this.g;
+      const u = s / 70;
+      for (let i = 0; i < 14; i++) {
+        const ang = (i / 14) * Math.PI * 2 + i * 0.37;
+        const v = 2.4 + (i % 4) * 0.7;
+        const x = cx + Math.cos(ang) * v * s;
+        const y = cy + Math.sin(ang) * v * s * 0.7 + 0.04 * s * s;
+        const sz = 3 + (i % 3) * 1.5;
+        const spin = s * 0.25 + i;
+        const p = (k: number): [number, number] => [x + Math.cos(spin + k * 2.1) * sz * (k === 0 ? 1.5 : 1), y + Math.sin(spin + k * 2.1) * sz * (k === 0 ? 1.5 : 1)];
+        const [x0, y0] = p(0);
+        const [x1, y1] = p(1);
+        const [x2, y2] = p(2);
+        g.fillStyle(0xd8ccc0, 1 - u * 0.6).fillTriangle(x0, y0, x1, y1, x2, y2);
+        a.fillStyle(0xff6a2a, 0.5 * (1 - u)).fillCircle(x, y, sz * 0.9);
+      }
+    }
   }
 
   /** The roar: the eye flares and concentric rings pump out with the shockwave. */
   private roar(b: Fighter, frame: number, startup: number): void {
     const a = this.glow;
     const g = this.g;
-    const cx = b.x + b.facing * 4;
-    const cy = b.y - b.h * 0.72;
+    const cx = b.x + b.facing * 2;
+    const cy = b.y - b.h * EYE_H;
     if (frame < startup) {
       // charging: heat converging on the helm
       const t = frame / startup;
@@ -167,21 +196,29 @@ export class BossCinematic {
     const col = LIGHT[enr];
     const hot = LIGHT_HOT[enr];
     const cx = b.x;
-    const cy = b.y - b.h * 0.72;
+    const cy = b.y - b.h * EYE_H;
     const end = ERUPT_AT + 24;
     // the sky drops dark (behind everything in the world layer), lifting after the eruption
     const dark = f < 14 ? f / 14 : f < ERUPT_AT ? 1 : Math.max(0, 1 - (f - ERUPT_AT) / 24);
     back.fillStyle(0x05030c, 0.5 * dark).fillRect(cx - 900, -900, 1800, 1300);
-    // the great halo: a ring of segments opening behind the boss, turning faster as it charges
+    // the spire crown unfolds: seven blades of light fanning up behind the boss, growing as it charges, a ring at their root
     const open = Math.min(1, f / 22);
-    const R = 30 + 90 * open;
-    const spin = f * (0.02 + 0.002 * f);
-    for (let i = 0; i < 16; i++) {
-      const a0 = spin + (i / 16) * Math.PI * 2;
-      bg.lineStyle(5, i % 2 ? col : hot, 0.55 * dark);
-      bg.strokeArc(cx, cy, R, a0, a0 + 0.26);
+    const root = cy + 10;
+    for (let i = 0; i < 7; i++) {
+      const u = (i - 3) / 3;
+      const ang = -Math.PI / 2 + u * (0.9 + 0.35 * open) + Math.sin(tick * 0.08 + i) * 0.02;
+      const L = (60 + 170 * open) * (1 - Math.abs(u) * 0.3);
+      const w = 7 - Math.abs(u) * 2;
+      const dx = Math.cos(ang);
+      const dy = Math.sin(ang);
+      const bx = cx + dx * 20;
+      const by = root + dy * 20;
+      const tx = cx + dx * L;
+      const ty = root + dy * L;
+      bg.fillStyle(i % 2 ? col : hot, 0.32 * dark).fillTriangle(bx - dy * w, by + dx * w, bx + dy * w, by - dx * w, tx, ty);
+      bg.fillStyle(0xffffff, 0.5 * dark).fillCircle(tx, ty, 2.5);
     }
-    bg.lineStyle(1.5, hot, 0.35 * dark).strokeCircle(cx, cy, R * 0.72);
+    bg.lineStyle(3, hot, 0.45 * dark).strokeCircle(cx, root, 22 + 6 * open);
     // the eye-beam: a lance of light from the helm straight up into the dark
     if (f > 6 && f < ERUPT_AT + 6) {
       const w = 3 + Math.min(1, (f - 6) / 12) * 5 + Math.sin(tick * 0.9) * 1.5;

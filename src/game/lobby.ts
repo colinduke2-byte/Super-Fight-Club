@@ -251,7 +251,8 @@ export class Lobby {
   /** Every active slot taken or fillable, and at least one locked human. */
   get ready(): boolean {
     const humans = this.active.filter((s) => s.kind === 'human');
-    return humans.length > 0 && humans.every((s) => s.locked);
+    // (no humans at all: a CPU-only lineup of two or more is ready, and the match spectates it)
+    return (humans.length > 0 && humans.every((s) => s.locked)) || (humans.length === 0 && this.active.filter((s) => s.kind === 'cpu').length >= 2);
   }
 
   /** Turn all empty active slots into CPUs (level 2). Returns how many were filled. */

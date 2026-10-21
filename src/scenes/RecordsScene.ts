@@ -2,7 +2,9 @@ import Phaser from 'phaser';
 import { fighterAnimKey, fighterTextureKey, uiTexK } from '../art/proceduralFighter';
 import { PIXEL_FONT, up } from '../art/pixelFont';
 import { CHARACTER_LIST } from '../characters';
-import { CHALLENGES, TIER_COLORS } from '../game/challenges';
+import { CHALLENGES, TIER_COLORS, TIER_NAMES } from '../game/challenges';
+import { vaultList } from '../game/replayVault';
+import { clearedTrials, trialsFor } from '../game/trials';
 import {
   ARCADE_STAR_SCORE,
   DIFFICULTY_LABELS,
@@ -13,27 +15,40 @@ import {
   bestTargetTime,
   challengeBests,
   clearedChallenges,
+  fighterMatchups,
   fighterRecords,
   formatSec,
+  HISTORY_MAX,
+  matchHistory,
+  stageWinRates,
   formatTicks,
   lifetimeStats,
   resetRecordSection,
   resetRecords,
   type RecordSection,
 } from '../game/records';
-import { exportSave, importSave, readSave } from '../game/save';
+import { exportSave, importSave, readSave, vaultSkippedInSave } from '../game/save';
 import { footerHint } from '../input/prompts';
 import type { MenuEvent } from '../input/menuInput';
 import { STAGES, STAGE_LIST } from '../stages';
-import { COLORS, MenuList, MenuScene, PANEL, drawPanel, text, textPx, type MenuBackdrop } from '../ui/menuKit';
+import { COLORS, MenuList, MenuScene, PANEL, drawPanel, text, textPx, type MenuBackdrop, type MenuItem } from '../ui/menuKit';
 
-const PAGES = ['FIGHTERS', 'ARCADE', 'STATS', 'MATCHUPS'] as const;
+const PAGES = ['FIGHTERS', 'ARCADE', 'STATS', 'MATCHUPS', 'RIVALS', 'STAGES', 'HISTORY', 'TRIALS'] as const;
+/** History rows shown at once (older / newer pages through the rest). */
+const HISTORY_ROWS = 12;
+
+/** A text table drawn on a panel: a header, rows, and optionally a bar per row (0..1, null: no bar). */
+interface PanelTable {
+  head: Phaser.GameObjects.BitmapText;
+  rows: { t: Phaser.GameObjects.BitmapText; bar: number | null; color: number }[];
+}
 const STAR = 0xffd84a;
 const accentOf = (c: { sprite: { placeholder: { accent: string } } }): number => parseInt(c.sprite.placeholder.accent.slice(1), 16);
 const short = (name: string): string => name.toUpperCase().slice(0, 3);
 
-/** Remembered page between visits. */
+/** Remembered page between visits (and the fighter on the RIVALS page). */
 let lastPage = 0;
+let rivalOf = -1;
 
 /**
  * Lifetime records kept in this browser, over four pages: per-fighter versus numbers and bests (with arcade stars),
@@ -70,12 +85,9 @@ export class RecordsScene extends MenuScene {
     this.ui.add(this.plate);
     this.sub = text(this, this.ui, '', COLORS.accent).setOrigin(0.5);
     this.chal = text(this, this.ui, '', COLORS.good).setOrigin(0.5);
-    this.list = new MenuList(this, this.ui, [
-      { label: 'PAGE', value: () => PAGES[this.page], onLeft: () => this.turn(-1), onRight: () => this.turn(1), onConfirm: () => this.turn(1) },
-      { label: 'SAVE DATA', onConfirm: () => this.openSave() },
-      { label: 'BACK', onConfirm: () => this.go('ModeSelect') },
-    ]);
-    this.list.index = 2;
+    this.list = new MenuList(this, this.ui, []);
+    this.setRows();
+    this.list.index = this.list.items.length - 1;
     this.hint = text(this, this.ui, footerHint([['updown', 'MOVE'], ['leftright', 'PAGE'], ['confirm', 'SELECT'], ['back', 'BACK']]), COLORS.dim).setOrigin(0.5);
     this.events.once(Phaser.Scenes.Events.SHUTDOWN, () => this.closeSave(false));
     this.fill();
@@ -83,6 +95,62 @@ export class RecordsScene extends MenuScene {
 
   private turn(d: number): void {
     this.page = lastPage = (this.page + d + PAGES.length) % PAGES.length;
+    this.histAt = 0;
+    this.setRows();
+    this.list.index = 0;
+    this.fill();
+  }
+
+  /** The menu rows: PAGE, the page's own row (RIVALS: the fighter; HISTORY: older / newer), SAVE DATA, BACK. */
+  private setRows(): void {
+    const page = PAGES[this.page];
+    const extra: MenuItem[] = [];
+    if (page === 'RIVALS') {
+      extra.push({ label: 'FIGHTER', value: () => (CHARACTER_LIST[this.rival()]?.name ?? '-').toUpperCase(), onLeft: () => this.pickRival(-1), onRight: () => this.pickRival(1), onConfirm: () => this.pickRival(1) });
+    } else if (page === 'HISTORY') {
+      extra.push({
+        label: 'MATCHES',
+        value: () => {
+          const n = matchHistory().length;
+          return n ? `${this.histAt + 1}-${Math.min(n, this.histAt + HISTORY_ROWS)}/${n}` : 'NONE';
+        },
+        onLeft: () => this.pageHistory(-1),
+        onRight: () => this.pageHistory(1),
+        onConfirm: () => this.pageHistory(1),
+      });
+    }
+    this.list.items = [
+      { label: 'PAGE', value: () => PAGES[this.page], onLeft: () => this.turn(-1), onRight: () => this.turn(1), onConfirm: () => this.turn(1) },
+      ...extra,
+      { label: 'SAVE DATA', onConfirm: () => this.openSave() },
+      { label: 'BACK', onConfirm: () => this.go('ModeSelect') },
+    ];
+    this.list.rebuild();
+  }
+
+  /** The fighter the RIVALS page shows (default: the one played most). */
+  private rival(): number {
+    if (rivalOf < 0) {
+      const recs = fighterRecords();
+      let best = 0;
+      CHARACTER_LIST.forEach((c, i) => {
+        if ((recs[c.id]?.played ?? 0) > (recs[CHARACTER_LIST[best].id]?.played ?? 0)) best = i;
+      });
+      rivalOf = best;
+    }
+    return rivalOf;
+  }
+
+  private pickRival(d: number): void {
+    rivalOf = (this.rival() + d + CHARACTER_LIST.length) % CHARACTER_LIST.length;
+    this.fill();
+  }
+
+  private histAt = 0;
+  private pageHistory(d: number): void {
+    const n = matchHistory().length;
+    this.histAt = Math.max(0, Math.min(Math.max(0, n - 1), this.histAt + d * HISTORY_ROWS));
+    this.histAt -= this.histAt % HISTORY_ROWS;
     this.fill();
   }
 
@@ -96,10 +164,16 @@ export class RecordsScene extends MenuScene {
     this.labels = [];
     this.starCol = -1;
     this.stars = [];
-    if (this.page === 0) this.fillFighters();
-    else if (this.page === 1) this.fillArcade();
-    else if (this.page === 2) this.fillStats();
-    else this.fillMatchups();
+    this.tables = [];
+    const page = PAGES[this.page];
+    if (page === 'FIGHTERS') this.fillFighters();
+    else if (page === 'ARCADE') this.fillArcade();
+    else if (page === 'STATS') this.fillStats();
+    else if (page === 'MATCHUPS') this.fillMatchups();
+    else if (page === 'RIVALS') this.fillRivals();
+    else if (page === 'STAGES') this.fillStages();
+    else if (page === 'HISTORY') this.fillHistory();
+    else this.fillTrials();
     this.relayoutNow();
   }
 
@@ -206,6 +280,124 @@ export class RecordsScene extends MenuScene {
     this.cells = this.grid.flat().map((x) => this.t(x.w + x.l ? String(Math.round((x.w / (x.w + x.l)) * 100)) : '', COLORS.text).setOrigin(0.5));
   }
 
+  // ---- RIVALS, STAGES, HISTORY, TRIALS: panel tables ------------------------------------------------------------------
+
+  private tables: PanelTable[] = [];
+
+  private table2(head: string, rows: { text: string; tint?: number; bar?: number | null; color?: number }[]): void {
+    this.tables.push({ head: this.t(head, COLORS.dim), rows: rows.map((r) => ({ t: this.t(r.text, r.tint ?? COLORS.text), bar: r.bar ?? null, color: r.color ?? COLORS.accent })) });
+  }
+
+  private pct(w: number, n: number): string {
+    return n ? `${Math.round((w / n) * 100)}%` : '-';
+  }
+
+  /** One fighter's record against each opponent. */
+  private fillRivals(): void {
+    const me = CHARACTER_LIST[this.rival()];
+    const ms = new Map(fighterMatchups(me.id).map((m) => [m.opponent, m]));
+    const rows = CHARACTER_LIST.filter((c) => c.id !== me.id || ms.has(c.id))
+      .map((c) => ({ c, m: ms.get(c.id) ?? { opponent: c.id, w: 0, l: 0 } }))
+      .sort((a, b) => b.m.w + b.m.l - (a.m.w + a.m.l));
+    this.table2(`${'OPPONENT'.padEnd(11)}${'WINS'.padStart(6)}${'LOSSES'.padStart(8)}${'WIN%'.padStart(7)}`, rows.map(({ c, m }) => ({ text: `${c.name.slice(0, 10).padEnd(11)}${String(m.w).padStart(6)}${String(m.l).padStart(8)}${this.pct(m.w, m.w + m.l).padStart(7)}`, tint: accentOf(c), bar: m.w + m.l ? m.w / (m.w + m.l) : null, color: accentOf(c) })));
+  }
+
+  /** Matches and wins per stage (human matches). */
+  private fillStages(): void {
+    const rates = new Map(stageWinRates().map((r) => [r.stage, r]));
+    const ids = [...STAGE_LIST.map((st) => st.id), ...[...rates.keys()].filter((k) => !STAGE_LIST.some((st) => st.id === k))];
+    const rows = ids.map((id) => ({ id, r: rates.get(id) ?? { stage: id, played: 0, wins: 0 } })).sort((a, b) => b.r.played - a.r.played);
+    this.table2(
+      `${'STAGE'.padEnd(16)}${'PLAYED'.padStart(7)}${'WINS'.padStart(6)}${'WIN%'.padStart(6)}`,
+      rows.map(({ id, r }) => ({ text: `${(STAGES[id]?.name ?? id).slice(0, 15).padEnd(16)}${String(r.played).padStart(7)}${String(r.wins).padStart(6)}${this.pct(r.wins, r.played).padStart(6)}`, tint: r.played ? COLORS.text : COLORS.dim, bar: r.played ? r.wins / r.played : null, color: COLORS.good })),
+    );
+  }
+
+  /** The last HISTORY_MAX matches, newest first, a page at a time. */
+  private fillHistory(): void {
+    const all = matchHistory();
+    const two = (n: number): string => String(n).padStart(2, '0');
+    const when = (ms: number): string => {
+      const d = new Date(ms);
+      return ms ? `${two(d.getMonth() + 1)}/${two(d.getDate())} ${two(d.getHours())}:${two(d.getMinutes())}` : '--/-- --:--';
+    };
+    const nm = (id: string): string => (CHARACTER_LIST.find((c) => c.id === id)?.name ?? id).slice(0, 7);
+    const rows = all.slice(this.histAt, this.histAt + HISTORY_ROWS).map((h) => {
+      const who = h.fighters.map((f) => `${f.placement === 1 ? '*' : ''}${nm(f.character)}`).join(h.fighters.length > 2 ? ',' : ' VS ');
+      return { text: `${when(h.date)}  ${h.mode.slice(0, 9).padEnd(10)}${who.slice(0, 30).padEnd(31)}${(STAGES[h.stage]?.name ?? h.stage).slice(0, 12).padEnd(13)}${h.result.slice(0, 22).padEnd(23)}${formatSec(h.sec).padStart(6)}`, tint: h.fighters.some((f) => f.type === 'human' && f.placement === 1) ? COLORS.good : COLORS.text };
+    });
+    if (!rows.length) rows.push({ text: `NO MATCHES YET: THE LAST ${HISTORY_MAX} ARE KEPT HERE.`, tint: COLORS.dim });
+    this.table2(`${'DATE'.padEnd(13)}${'MODE'.padEnd(10)}${'FIGHTERS (* WON)'.padEnd(31)}${'STAGE'.padEnd(13)}${'RESULT'.padEnd(23)}${'TIME'.padStart(6)}`, rows);
+  }
+
+  /** Combo trials cleared per fighter, and every challenge's medal and best time (read from their own saves). */
+  private fillTrials(): void {
+    const done = clearedTrials();
+    this.table2(
+      `${'FIGHTER'.padEnd(11)}${'TRIALS'.padStart(7)}`,
+      CHARACTER_LIST.map((c) => {
+        const all = trialsFor(c.id);
+        const n = all.filter((t) => done.has(`${c.id}:${t.id}`)).length;
+        return { text: `${c.name.slice(0, 10).padEnd(11)}${`${n}/${all.length}`.padStart(7)}`, tint: accentOf(c), bar: all.length ? n / all.length : null, color: n === all.length ? STAR : accentOf(c) };
+      }),
+    );
+    // the challenges: medal counts, then the best medals won (as many as fit beside the trials; the rest are counted)
+    const bests = challengeBests();
+    const tiers = [3, 2, 1].map((t) => CHALLENGES.filter((ch) => bests[ch.id]?.tier === t).length);
+    const won = CHALLENGES.filter((ch) => bests[ch.id]).sort((a, b) => bests[b.id].tier - bests[a.id].tier);
+    const shown = won.slice(0, CHARACTER_LIST.length - 2);
+    const rows: { text: string; tint?: number }[] = [
+      { text: `GOLD ${tiers[0]}  SILVER ${tiers[1]}  BRONZE ${tiers[2]}  OF ${CHALLENGES.length}`, tint: COLORS.title },
+      ...shown.map((ch) => ({ text: `${ch.title.slice(0, 19).padEnd(20)}${TIER_NAMES[bests[ch.id].tier].padStart(8)}${(bests[ch.id].sec ? formatSec(bests[ch.id].sec) : '-').padStart(7)}`, tint: TIER_COLORS[bests[ch.id].tier] })),
+    ];
+    if (won.length > shown.length) rows.push({ text: `+${won.length - shown.length} MORE MEDALS (SEE CHALLENGES)`, tint: COLORS.dim });
+    if (!won.length) rows.push({ text: 'NO MEDALS YET: CHALLENGES ARE IN SOLO.', tint: COLORS.dim });
+    this.table2(`${'CHALLENGE'.padEnd(20)}${'MEDAL'.padStart(8)}${'BEST'.padStart(7)}`, rows);
+  }
+
+  /** The page's tables side by side, each on its own panel, text sized to fit (bars at the right of each row). */
+  private layoutTables(g: Phaser.GameObjects.Graphics, w: number, u: number, top: number, bottom: number): void {
+    const subs: Record<string, string> = {
+      RIVALS: `${(CHARACTER_LIST[this.rival()]?.name ?? '').toUpperCase()} AGAINST EACH OPPONENT (FIGHTER ROW: LEFT / RIGHT)`,
+      STAGES: 'MATCHES AND WINS BY STAGE (MATCHES WITH A HUMAN PLAYER)',
+      HISTORY: `THE LAST ${HISTORY_MAX} MATCHES, NEWEST FIRST`,
+      TRIALS: 'COMBO TRIALS CLEARED AND CHALLENGE MEDALS',
+    };
+    this.sub.setText(up(subs[PAGES[this.page]] ?? ''));
+    this.sub.setScale(Math.min(u * 1.2, (w * 0.94) / Math.max(1, textPx(this.sub))));
+    const n = this.tables.length;
+    if (!n) return;
+    const avail = Math.min(w * 0.96, 460 * u);
+    const gap = 6 * u;
+    const pw = (avail - gap * (n - 1)) / n;
+    let x = w / 2 - avail / 2;
+    const h = bottom - top;
+    for (const tb of this.tables) {
+      drawPanel(g, x, top, pw, h, u, 0.94);
+      const barW = tb.rows.some((r) => r.bar !== null) ? Math.min(60 * u, pw * 0.22) : 0;
+      const widest = Math.max(textPx(tb.head), ...tb.rows.map((r) => textPx(r.t)));
+      const lineH = Math.min(12 * u, (h - 12 * u) / (tb.rows.length + 1.5));
+      const ts = Math.max(0.5, Math.min(u * 1.1, (pw - 14 * u - barW) / Math.max(1, widest), (lineH * 0.8) / 7));
+      tb.head.setScale(ts).setPosition(x + 6 * u, top + 5 * u);
+      g.fillStyle(PANEL.border, 1).fillRect(x + u, top + 5 * u + lineH, pw - 2 * u, u);
+      tb.rows.forEach((r, i) => {
+        const y = top + 5 * u + lineH * (i + 1.4);
+        r.t.setScale(ts).setPosition(x + 6 * u, y);
+        if (i % 2 === 1) g.fillStyle(0x16132e, 1).fillRect(x + u, y - (lineH - 7 * ts) / 2, pw - 2 * u, lineH);
+        if (barW && r.bar !== null && r.bar > 0) {
+          const bx = x + pw - 6 * u - barW;
+          const by = y + 7 * ts * 0.15;
+          const bh = 7 * ts * 0.7;
+          g.fillStyle(0x16132e, 1).fillRect(bx, by, barW, bh);
+          g.fillStyle(r.color, 0.95).fillRect(bx, by, Math.max(u, barW * r.bar), bh);
+          // the 50% mark
+          g.fillStyle(0xffffff, 0.35).fillRect(bx + barW / 2, by - u / 2, Math.max(1, u / 2), bh + u);
+        }
+      });
+      x += pw + gap;
+    }
+  }
+
   private relayoutNow(): void {
     this.layoutUi(this.scale.width, this.scale.height, this.u);
   }
@@ -214,10 +406,10 @@ export class RecordsScene extends MenuScene {
     if (!this.list) return;
     this.title.setScale(Math.min(u * 4, (w * 0.9) / Math.max(1, textPx(this.title)))).setPosition(w / 2, h * 0.08);
     const footTop = this.placeFooter(this.hint);
-    // bottom up: hint, menu (3 rows), tally; the page fills what is left under the title
-    const menuH = 3 * 18 * u;
+    // bottom up: hint, menu (3-4 rows), tally; the page fills what is left under the title
+    const menuH = this.list.items.length * 18 * u;
     const menuTop = footTop - 6 * u - menuH;
-    this.list.layout(w / 2, menuTop + 4 * u, u, 130);
+    this.list.layout(w / 2, menuTop + 4 * u, u, 150);
     this.chal.setScale(u).setPosition(w / 2, menuTop - 10 * u);
     this.sub.setScale(u * 1.2).setPosition(w / 2, this.title.y + this.title.displayHeight / 2 + 7 * u);
     const top = this.sub.y + 8 * u;
@@ -225,7 +417,8 @@ export class RecordsScene extends MenuScene {
     const g = this.plate.clear();
     if (this.page <= 1) this.layoutTable(g, w, u, top, bottom);
     else if (this.page === 2) this.layoutStats(g, w, u, top, bottom);
-    else this.layoutMatchups(g, w, u, top, bottom);
+    else if (this.page === 3) this.layoutMatchups(g, w, u, top, bottom);
+    else this.layoutTables(g, w, u, top, bottom);
   }
 
   private drawStar(g: Phaser.GameObjects.Graphics, x: number, y: number, r: number, on: boolean): void {
@@ -407,12 +600,21 @@ export class RecordsScene extends MenuScene {
       return b;
     };
     el('h2', `margin:0 0 6px;font-size:20px;color:#ffd46a;letter-spacing:2px`, 'SAVE DATA');
-    el('p', 'margin:0 0 10px;color:#c8c4ec', 'Copy the text below to keep your records somewhere safe or move them to another browser. To load a save, paste its text into the box and press LOAD. Settings and controls are not part of the save.');
+    el('p', 'margin:0 0 10px;color:#c8c4ec', 'Copy the text below to keep your records somewhere safe or move them to another browser. To load a save, paste its text into the box and press LOAD. Settings and controls are not part of the save. Starred replays from the replay vault ride along (as many as fit); loading a save adds them to the vault.');
     const area = el('textarea', 'width:100%;height:120px;box-sizing:border-box;background:#07060f;color:#7fe8ff;border:2px solid #3c3478;font:12px/1.3 ui-monospace,Menlo,Consolas,monospace;padding:6px;resize:vertical');
     area.spellcheck = false;
     area.setAttribute('aria-label', 'Save text');
     area.value = exportSave();
     const status = el('p', 'margin:6px 0;min-height:1.4em;color:#7affa0', '');
+    // the vault is asynchronous storage: its favourites join the save text once read
+    void vaultList()
+      .then(() => {
+        if (this.overlay !== root || pendingLoad()) return;
+        area.value = exportSave();
+        const skipped = vaultSkippedInSave();
+        if (skipped) say(`${skipped} favourite replays are left out of the save text (too long): use their share codes in the replay vault.`, true);
+      })
+      .catch(() => undefined);
     const say = (msg: string, bad = false) => {
       status.textContent = msg;
       status.style.color = bad ? '#ff6a5a' : '#7affa0';
@@ -440,6 +642,8 @@ export class RecordsScene extends MenuScene {
       row1,
     );
     let pending = '';
+    const pendingLoad = (): boolean => !!pending || area.value !== exportSaveSnapshot;
+    const exportSaveSnapshot = area.value;
     const load = button(
       'LOAD PASTED SAVE',
       (b) => {

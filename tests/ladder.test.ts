@@ -80,7 +80,11 @@ describe('story cards', () => {
         for (const line of card.lines) expect(line.length).toBeLessThanOrEqual(LINE_WIDTH);
       }
       expect(fightCard(l, l.fights[8]).art).toBe('boss');
-      expect(endingCards(l).length).toBe(3);
+      // the Overseer's fall, the rival's epilogue, the fighter's own, then the run's numbers
+      const end = endingCards(l);
+      expect(end.length).toBe(4);
+      expect(end[1].right).toBeTruthy();
+      expect(end.slice(0, 3).every((c) => !!c.stage)).toBe(true);
     }
   });
 });

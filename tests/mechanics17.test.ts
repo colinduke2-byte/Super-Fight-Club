@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { agni } from '../src/characters/agni';
 import { brick } from '../src/characters/brick';
+import { executeMoveEvent, snapToLedge } from '../src/engine/actions';
 import { Button, makeInput, type FighterInput } from '../src/engine/buttons';
 import { COMBO_GAP, COMBO_STUN_MIN, PARRY_FRAMES, PARRY_HITLAG, SDI_DIST, SHIELD_DROP_FRAMES, SHIELD_DROP_LAG, STALE_PER_USE, Fighter } from '../src/engine/fighter';
 import { computeKnockback, hitstunFrames } from '../src/engine/knockback';
@@ -268,6 +269,51 @@ describe('Ledge trump', () => {
     expect(r.a.state).toBe('ledge');
     expect(r.b.state).not.toBe('ledge');
     expect(r.events).toContain('trump');
+  });
+
+  const hangB = (r: ReturnType<typeof rig>) => {
+    const ledge = r.world.ledges[0];
+    r.b.grabLedge(ledge, r.world);
+    r.run(20);
+    r.events.length = 0;
+    const air = (x: number, y: number): void => {
+      Object.assign(r.a, { x, y, vx: 0, vy: 0, grounded: false, groundPlat: null, invuln: 0 });
+      r.a.setState('air');
+      r.a.facing = (-ledge.side) as 1 | -1;
+    };
+    return { ledge, air };
+  };
+
+  it('a ledge snap (teleport recoveries) trumps a rival hanging on the ledge, with no invincibility', () => {
+    const r = rig(classicStage, 200);
+    const { ledge, air } = hangB(r);
+    air(ledge.x + ledge.side * 30, ledge.y + 60);
+    expect(snapToLedge(r.a, 110, r.world)).toBe(true);
+    expect(r.a.state).toBe('ledge');
+    expect(ledge.occupant).toBe(r.a.id);
+    expect(r.b.state).toBe('air');
+    expect(r.events).toContain('trump');
+    expect(r.a.invuln).toBe(0);
+  });
+
+  it('a tether that latches an occupied ledge trumps the hanging rival on arrival', () => {
+    const r = rig(classicStage, 200);
+    const { ledge, air } = hangB(r);
+    air(ledge.x + ledge.side * 70, ledge.y + 70);
+    executeMoveEvent(r.a, { action: 'tether', angle: 55, range: 160, speed: 7, cone: 35 } as never, inp(), r.world);
+    expect(r.a.state).toBe('tether');
+    for (let i = 0; i < 40 && r.a.state === 'tether'; i++) r.tick(inp(), hold(0));
+    expect(r.a.state).toBe('ledge');
+    expect(r.b.state).not.toBe('ledge');
+    expect(r.events).toContain('trump');
+  });
+
+  it('a snap does not take a ledge an ally holds or one being climbed', () => {
+    const r = rig(classicStage, 200);
+    const { ledge, air } = hangB(r);
+    r.b.setState('ledgeClimb');
+    air(ledge.x + ledge.side * 30, ledge.y + 60);
+    expect(snapToLedge(r.a, 110, r.world)).toBe(false);
   });
 });
 

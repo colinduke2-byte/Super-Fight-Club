@@ -1,6 +1,6 @@
 import { settings } from '../settings';
 import { sfx, unit } from './sfx';
-import { LOOP_STEPS, TRACKS, midiToHz, stepEvents, type MusicEvent, type Track } from './tracks';
+import { TRACKS, midiToHz, songSteps, stepEvents, type MusicEvent, type Track } from './tracks';
 
 const LOOKAHEAD = 0.14; // seconds scheduled ahead
 const TICK_MS = 30;
@@ -18,7 +18,7 @@ const SPEECH_DUCK = 0.5;
 
 /** Length of one pass of a track's arranged song, in seconds. */
 export function loopSeconds(t: Track): number {
-  return (60 / t.bpm / 4) * LOOP_STEPS;
+  return (60 / t.bpm / 4) * songSteps(t);
 }
 
 /**
@@ -132,6 +132,11 @@ export class Music {
     }
   }
 
+  /** Seconds into the playing song (the step being scheduled; 0 while waiting for audio to unlock). */
+  get songTime(): number {
+    return this.track ? (this.step * 60) / this.track.bpm / 4 : 0;
+  }
+
   /** The track id that is playing (or waiting for audio to unlock); '' when stopped. */
   get playing(): string {
     return this.current;
@@ -167,6 +172,8 @@ export class Music {
   private fanfare(f: Fanfare): void {
     const ctx = sfx.context;
     if (!ctx) return;
+    // a fanfare still playing (a win jingle, then the boss-clear sting) is faded out rather than played over
+    if (ctx.currentTime < this.holdUntil) this.retire();
     const bus = this.ensureBus(ctx);
     if (!bus) return;
     this.level(bus);
@@ -286,7 +293,7 @@ export class Music {
     if (this.nextTime < ctx.currentTime) this.nextTime = ctx.currentTime + 0.05;
     while (this.nextTime < ctx.currentTime + LOOKAHEAD) {
       for (const e of stepEvents(t, this.step)) this.voice(ctx, bus, t, e, this.nextTime, stepDur);
-      this.step = (this.step + 1) % LOOP_STEPS;
+      this.step = (this.step + 1) % songSteps(t);
       this.nextTime += stepDur;
     }
   }
@@ -416,6 +423,30 @@ export class Music {
       case 'hat':
         this.noise(ctx, bus.gain, at, 0.04, 0.25 * vel, 7000);
         break;
+      case 'ohat':
+        // an open hat: a longer, softer wash of the same noise
+        this.noise(ctx, bus.gain, at, 0.16, 0.16 * vel, 6500);
+        break;
+      case 'tom': {
+        // a pitched drum for the fills: a sine dropping a little, with a short knock of noise
+        const o = ctx.createOscillator();
+        const g = ctx.createGain();
+        const hz = midiToHz(e.midi);
+        o.frequency.setValueAtTime(hz, at);
+        o.frequency.exponentialRampToValueAtTime(hz * 0.62, at + 0.16);
+        g.gain.setValueAtTime(0.0001, at);
+        g.gain.linearRampToValueAtTime(0.55 * vel, at + 0.003);
+        g.gain.exponentialRampToValueAtTime(0.0001, at + 0.2);
+        o.connect(g).connect(bus.gain);
+        o.onended = () => {
+          o.disconnect();
+          g.disconnect();
+        };
+        o.start(at);
+        o.stop(at + 0.22);
+        this.noise(ctx, bus.gain, at, 0.03, 0.12 * vel, 900);
+        break;
+      }
       case 'crash':
         this.noise(ctx, bus.gain, at, 1.1, 0.2 * vel, 4500);
         break;

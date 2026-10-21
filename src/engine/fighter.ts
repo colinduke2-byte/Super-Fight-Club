@@ -3,7 +3,7 @@ import { COYOTE_FRAMES } from './constants';
 import { moveBody, type Body } from './collision';
 import { InputBuffer } from './inputBuffer';
 import { computeKnockback, hitstunFrames, launchVelocity, LAUNCH_DRAG, type LaunchVector } from './knockback';
-import { executeMoveEvent } from './actions';
+import { executeMoveEvent, ledgeTakeable, takeLedge } from './actions';
 import { moveTotal, type MoveDef, type StatusApply } from './moves';
 import type { Ledge, Platform } from './platform';
 import type { CharacterData, CharacterStats } from './types';
@@ -104,7 +104,7 @@ export const SOAK_KB_PER_LEVEL = 0.04;
 export const FREEZE_IMMUNE = 120;
 /** Frostbite: this many chill stacks freeze the fighter solid for CHILL_FREEZE frames. */
 export const CHILL_MAX = 6;
-export const CHILL_FREEZE = 42;
+export const CHILL_FREEZE = 36;
 /**
  * Hit confirm: a jab / tilt / aerial / dash attack that lands on a fighter (not a shield) keeps only this fraction of
  * its recovery, so strings flow; whiffs and shielded hits keep the full recovery and stay punishable.
@@ -1529,8 +1529,8 @@ export class Fighter implements Body {
     if (d2 <= this.tetherSpeed) {
       this.x = hangX;
       this.y = hangY;
-      if (this.tetherLedge && (this.tetherLedge.occupant === -1 || this.tetherLedge.occupant === this.id)) {
-        this.grabLedge(this.tetherLedge, world);
+      if (this.tetherLedge && ledgeTakeable(this, this.tetherLedge, world)) {
+        takeLedge(this, this.tetherLedge, world); // a rival hanging there by now is trumped off, as by an air grab
       } else if (this.tetherPlat) {
         this.groundPlat = this.tetherPlat;
         this.grounded = true;

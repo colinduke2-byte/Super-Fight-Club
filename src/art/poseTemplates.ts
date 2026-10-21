@@ -1,8 +1,11 @@
 import type { PoseSpec } from '../engine/moves';
 
 type V2 = [number, number];
-/** [lean, crouch, frontHand, backHand, frontFoot, backFoot] (same layout as the pose tables in proceduralFighter). */
-export type Key = [number, number, V2, V2, V2, V2, number?, number?];
+/**
+ * [lean, crouch, frontHand, backHand, frontFoot, backFoot] (same layout as the pose tables in proceduralFighter), then the
+ * optional weapon aim and wing spread, then optional torso twist, body bob and head offset x / y (see `Pose`).
+ */
+export type Key = [number, number, V2, V2, V2, V2, number?, number?, number?, number?, number?, number?];
 
 const FF: V2 = [4, 0];
 const BF: V2 = [-4, 0];

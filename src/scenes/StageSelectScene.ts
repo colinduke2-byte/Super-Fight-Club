@@ -125,7 +125,7 @@ export class StageSelectScene extends MenuScene {
     session.stageRandom = random;
     const wants = outfitWants();
     if (palettesReady(this, wants)) {
-      this.go('Match');
+      this.fight();
       return;
     }
     this.waiting = true;
@@ -134,8 +134,16 @@ export class StageSelectScene extends MenuScene {
     ensurePalettesReady(this, wants)
       .catch((err: unknown) => console.warn('[stage select] outfit prebuild failed (the match builds them itself):', err))
       .finally(() => {
-        if (this.isVisit(visit)) this.go('Match');
+        if (this.isVisit(visit)) this.fight();
       });
+  }
+
+  /** Into the match through the VS splash (any button skips it), headed by the rules being played. */
+  private fight(): void {
+    const r = session.rules;
+    const head = r.mode === 'time' ? `${Math.round(r.timeSec / 60)} MINUTE MATCH` : r.mode === 'stamina' ? `STAMINA: ${r.staminaHp} HP` : `${r.stocks} STOCK${r.stocks === 1 ? '' : 'S'}`;
+    if (session.players.length >= 2) this.go('VersusSplash', { next: 'Match', title: r.teams ? `TEAM BATTLE: ${head}` : head });
+    else this.go('Match');
   }
 
   protected override layoutUi(w: number, h: number, u: number): void {

@@ -625,6 +625,82 @@ function spires(seed: number, body: string, light: string, dark: string, glow: s
   return c;
 }
 
+/** The Overseer's citadel: ivory needle towers with obsidian bands and violet slit windows, flying buttresses; tileable. */
+function citadel(seed: number, body: string, light: string, dark: string, glow: string, W = 512, H = 192): HTMLCanvasElement {
+  const [c, g] = canvas(W, H);
+  const rnd = mulberry32(seed);
+  let x = 4;
+  const tops: [number, number][] = [];
+  while (x < W - 10) {
+    const w = 8 + Math.floor(rnd() * 16);
+    const h = 70 + Math.floor(rnd() * 112);
+    const bx0 = x;
+    wrapX(W, bx0, (bx) => {
+      const spike = Math.max(10, Math.round(w * 1.6));
+      for (let k = 0; k < h; k++) {
+        const y = H - h + k;
+        const ww = k < spike ? Math.max(1, Math.round((k / spike) * w)) : w + Math.floor((k - spike) / 40) * 2;
+        const xx = bx + Math.floor((w - ww) / 2);
+        px(g, body, xx, y, ww, 1);
+        px(g, light, xx, y, Math.max(1, Math.floor(ww / 3)), 1);
+        px(g, dark, xx + ww - 1, y, 1, 1);
+        if (k > spike && (k - spike) % 26 === 0) px(g, dark, xx, y, ww, 2); // obsidian bands
+        if (k > spike + 6 && (k - spike) % 26 > 8 && (k - spike) % 26 < 16 && ww > 6 && (k + bx) % 3 === 0) px(g, glow, xx + Math.floor(ww / 2), y, 1, 1);
+      }
+      px(g, glow, bx + Math.floor(w / 2), H - h - 1, 1, 1);
+    });
+    tops.push([x + w / 2, H - h]);
+    x += w + 4 + Math.floor(rnd() * 26);
+  }
+  // flying buttresses between neighbouring towers
+  for (let i = 0; i + 1 < tops.length; i++) {
+    if (rnd() > 0.55) continue;
+    const [ax, ay] = tops[i];
+    const [bx, by] = tops[i + 1];
+    const y0 = Math.max(ay, by) + 30 + Math.floor(rnd() * 30);
+    for (let xx = Math.round(ax); xx <= Math.round(bx); xx++) {
+      const t = (xx - ax) / Math.max(1, bx - ax);
+      const y = Math.round(y0 - Math.sin(t * Math.PI) * 10);
+      px(g, body, xx, y, 1, 3);
+      px(g, light, xx, y, 1, 1);
+    }
+  }
+  return c;
+}
+
+/** Floodlit stadium stands: a raked grandstand packed with a dim crowd, a roof edge, and lattice light masts; tileable. */
+export const STADIUM_LAMPS: { x: number; y: number }[] = [];
+function stands(seed: number, body: string, light: string, dark: string, crowd: string[], W = 512, H = 192): HTMLCanvasElement {
+  const [c, g] = canvas(W, H);
+  const rnd = mulberry32(seed);
+  const top = 92;
+  // the rake: rows of seats rising toward the back, the crowd as specks of colour
+  for (let y = top; y < H; y++) {
+    const row = Math.floor((y - top) / 5);
+    const inRow = (y - top) % 5;
+    px(g, inRow === 0 ? light : inRow === 4 ? dark : body, 0, y, W, 1);
+    if (inRow > 0 && inRow < 3) {
+      for (let x = (row * 3) % 4; x < W; x += 3 + Math.floor(rnd() * 2)) if (rnd() > 0.22) px(g, crowd[Math.floor(rnd() * crowd.length)], x, y, 2, inRow === 1 ? 2 : 1);
+    }
+  }
+  // aisles and the roof canopy over the back rows
+  for (let x = 40; x < W; x += 128) px(g, dark, x, top, 4, H - top);
+  px(g, dark, 0, top - 14, W, 10);
+  px(g, light, 0, top - 14, W, 2);
+  for (let x = 0; x < W; x += 16) px(g, dark, x, top - 4, 2, 6);
+  // two lattice masts with lamp banks
+  for (const mx of [118, 374]) {
+    for (let y = 18; y < top - 14; y++) {
+      px(g, dark, mx, y, 2, 1);
+      px(g, dark, mx + 8, y, 2, 1);
+      if (y % 8 === 0) for (let k = 0; k < 8; k++) px(g, dark, mx + k, y + (k >> 1), 1, 1);
+    }
+    px(g, dark, mx - 8, 8, 26, 12);
+    for (let ly = 0; ly < 2; ly++) for (let lx = 0; lx < 5; lx++) px(g, '#fff6dc', mx - 6 + lx * 5, 10 + ly * 5, 3, 3);
+  }
+  return c;
+}
+
 /** Floating islands with grass, trees, tiny towers, stalactite undersides and waterfalls; tileable, sky above. */
 function islands(seed: number, rock: string, rockL: string, rockD: string, grass: string, grassL: string, water: string, W = 512, H = 192): HTMLCanvasElement {
   const [c, g] = canvas(W, H);
@@ -2206,6 +2282,11 @@ export function buildStageTextures(scene: Phaser.Scene): void {
   add('bg-peaks-far', () => peaks(13, '#3a4a68', '#5a6e90', '#24304a', '#e8f2ff', '#a8bcd8', 512, 192));
   add('bg-shrine-near', () => shrineWoods(29, '#14283a', '#24405a', '#0a1622', '#e8f2ff', '#b02a30', '#6a1418', '#ffd08a', 512, 192));
   add('bg-snowbank', () => cloudBank(23, '#c8d8ec', '#f4f8ff', '#8aa0c0', 512, 128));
+  add('bg-citadel-far', () => citadel(17, '#8a8098', '#b8b0c4', '#3a3048', '#c89cff', 512, 192));
+  add('bg-citadel-near', () => citadel(43, '#4a4058', '#7a7090', '#1c1428', '#d8b4ff', 512, 192));
+  STADIUM_LAMPS.length = 0;
+  STADIUM_LAMPS.push({ x: 123, y: 15 }, { x: 379, y: 15 });
+  add('bg-stands-near', () => stands(5, '#1e1c2a', '#34303e', '#0e0c16', ['#5a3a4a', '#3a4a6a', '#6a5a3a', '#4a2a3a', '#2a4a4a', '#7a6a6a'], 512, 192));
   add('bg-thunderheads-far', () => thunderheads(41, '#4e2e5c', '#7a4670', '#b8687a', '#eaa290', 512, 192));
   add('spark', () => sparkTex());
   add('ring', () => ringTex());

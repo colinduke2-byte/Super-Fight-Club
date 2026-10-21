@@ -1,5 +1,5 @@
 import type { PlaceholderLook } from '../../engine/types';
-import { col, mix, mul, type Raster, type RGB, type V2 } from './raster';
+import { col, mix, mul, Raster, type RGB, type V2 } from './raster';
 import type { Skel } from './skeleton';
 
 /**
@@ -61,20 +61,24 @@ export function drawObelisk(r: Raster, k: Skel, look: PlaceholderLook): void {
   const ph = k.phase;
   const pulse = 0.5 + 0.5 * Math.sin(ph * 1.3);
   const lean = k.pose.lean * 0.7;
+  // the shaft bends with the pose: it is drawn upright, then sheared so its foot stays over the hips while its top
+  // (and the head on it) leans on into the strike or snaps back from a hit
+  const baseOff = -k.pose.lean;
+  const topOff = k.pose.lean * 1.2;
 
-  // the shaft's outline: a firm taper, leaning with the pose at the top
+  // the shaft's outline: a firm taper (upright here; see `baseOff` / `topOff`)
   const cx = T.x + T.w / 2;
   const topY = T.y - 6;
   const baseY = Math.min(T.y + T.h + 2, r.h - 5);
   const topHalf = T.w * 0.3;
   const baseHalf = T.w * 0.56;
-  const tl: V2 = [cx - topHalf + lean, topY];
-  const tr: V2 = [cx + topHalf + lean, topY];
+  const tl: V2 = [cx - topHalf, topY];
+  const tr: V2 = [cx + topHalf, topY];
   const br: V2 = [cx + baseHalf, baseY];
   const bl: V2 = [cx - baseHalf, baseY];
   const edgeAt = (y: number, side: -1 | 1): number => {
     const t = (y - topY) / (baseY - topY);
-    return cx + lean * (1 - t) + side * (topHalf + (baseHalf - topHalf) * t);
+    return cx + side * (topHalf + (baseHalf - topHalf) * t);
   };
 
   // ---- two shards of crystal hanging in the air behind the shoulder, bobbing on their own and trailing a lunge: kept
@@ -98,7 +102,7 @@ export function drawObelisk(r: Raster, k: Skel, look: PlaceholderLook): void {
   leg(r, P, k.hipB, k.kneeB, k.ankleB, true, o, moss);
 
   // ---- the shaft ----
-  {
+  const shaft = (r: Raster): void => {
     r.poly(P.stone, [tl, tr, br, bl]);
     // the chamfered side face: a darker plane down the left, so it reads as a solid four-sided column
     const sideW = (y: number): number => 6 + ((y - topY) / (baseY - topY)) * 6;
@@ -131,7 +135,7 @@ export function drawObelisk(r: Raster, k: Skel, look: PlaceholderLook): void {
       r.poly(P.stoneDeep, [[ex, y - 1], [ex - side * 4, y + 1], [ex - side * 1, y + 5], [ex, y + 5]]);
     }
     // the cartouche: a sunken panel down the front face, rounded at the top, full of glowing glyphs
-    const px = cx + lean * 0.4 + 3;
+    const px = cx + 3;
     const pTop = topY + 7;
     const pBot = baseY - 10;
     const pw = topHalf * 0.85;
@@ -176,6 +180,22 @@ export function drawObelisk(r: Raster, k: Skel, look: PlaceholderLook): void {
         for (let y = 0; y < len; y += 2) r.ellipse(y % 4 ? moss : mossL, vx + Math.sin(y * 0.4 + ph * 0.5) * 1.2, topY + 2 + y, 1.4, 1.4);
       }
     }
+  };
+  {
+    const t = new Raster(r.w, r.h);
+    shaft(t);
+    const span = Math.max(1, baseY - topY);
+    for (let y = 0; y < t.h; y++) {
+      const off = Math.round(baseOff + (topOff - baseOff) * Math.min(1.15, Math.max(0, (baseY - y) / span)));
+      for (let x = 0; x < t.w; x++) {
+        const i = y * t.w + x;
+        if (!t.id[i]) continue;
+        const nx = x + off;
+        if (nx < 0 || nx >= r.w) continue;
+        r.id[y * r.w + nx] = t.id[i];
+        r.over[y * r.w + nx] = t.over[i];
+      }
+    }
   }
 
   // ---- front leg ----
@@ -183,7 +203,7 @@ export function drawObelisk(r: Raster, k: Skel, look: PlaceholderLook): void {
 
   // ---- the head: a bronze collar, then the capstone ----
   {
-    const bx = cx + lean;
+    const bx = cx + Math.round(topOff + (topOff - baseOff) * (4 / Math.max(1, baseY - topY)));
     const half = topHalf + 9;
     const collarY = topY - 4;
     r.poly(P.bronzeD, [[bx - half - 2, collarY], [bx + half + 2, collarY], [bx + half, topY + 3], [bx - half, topY + 3]]);

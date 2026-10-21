@@ -6,9 +6,13 @@ import { PIXEL_FONT, up } from '../art/pixelFont';
 import { CARD_H, CARD_W, drawStoryArt } from '../art/storyArt';
 import { characterById } from '../characters';
 import { music } from '../audio/music';
+import { announcer } from '../audio/announcer';
 import type { StoryCard } from '../game/story';
 import type { MenuEvent } from '../input/menuInput';
 import { COLORS, MenuScene, drawPanel, playerColors, text, textPx, type MenuBackdrop } from '../ui/menuKit';
+import { playResultPose } from '../ui/FighterView';
+import { stageThumb } from '../ui/stageThumb';
+import { STAGES } from '../stages';
 
 const CPS = 38; // typewriter characters per second
 
@@ -29,6 +33,10 @@ export class StoryScene extends MenuScene {
   private right: Phaser.GameObjects.Sprite | null = null;
   /** The brawl card's back-up rivals, drawn behind the main one. */
   private extras: Phaser.GameObjects.Sprite[] = [];
+  /** The second fighter on the player's side (an ally, the co-op partner). */
+  private mate: Phaser.GameObjects.Sprite | null = null;
+  /** Composed cards: the stage's picture filling the card. */
+  private stageImg!: Phaser.GameObjects.Image;
   private box = { x: 0, y: 0, s: 3 };
   /** Plate behind the caption. */
   private plateBox = { x: 0, y: 0, w: 0, h: 0 };
@@ -49,8 +57,13 @@ export class StoryScene extends MenuScene {
 
   protected build(): void {
     this.art = this.add.graphics();
+    this.stageImg = this.add.image(0, 0, '__DEFAULT').setOrigin(0, 0).setVisible(false);
     this.frame = this.add.graphics();
-    this.ui.add([this.art, this.frame]);
+    this.ui.add([this.art, this.stageImg, this.frame]);
+    this.left = null;
+    this.right = null;
+    this.mate = null;
+    this.extras = [];
     this.title = this.add.bitmapText(0, 0, PIXEL_FONT, '').setOrigin(0.5).setTint(COLORS.title);
     this.vs = this.add.bitmapText(0, 0, PIXEL_FONT, 'VS').setOrigin(0.5).setTint(0xffffff).setVisible(false);
     this.ui.add([this.title, this.vs]);
@@ -98,13 +111,26 @@ export class StoryScene extends MenuScene {
     if (!c) return;
     this.left?.destroy();
     this.right?.destroy();
+    this.mate?.destroy();
+    this.mate = null;
     this.extras.forEach((e) => e.destroy());
     this.extras = [];
+    // a composed card: the stage's own picture behind the fighters (a slightly darkened backdrop so they read over it)
+    const stage = c.stage ? STAGES[c.stage] : undefined;
+    if (stage) this.stageImg.setTexture(stageThumb(this, stage, 480, 270)).setTint(0xb8b4d0).setVisible(true);
+    else this.stageImg.setVisible(false);
     // the player in their chosen look, the rival in the one it rolled (a mirror match never shows two identical fighters)
     const lp = session.arcadeHuman?.palette ?? 0;
     let rp = c.rightPalette ?? 0;
     if (c.right && c.right === c.left && rp === lp) rp = (rp + 1) % paletteCount(c.right);
+    // the partner first, a step behind the player
+    if (c.leftMate && c.leftMate !== c.left) {
+      const m = this.spriteFor(c.leftMate, false, session.arcadePartner?.palette ?? 0);
+      if (m) this.mate = m.setTint(0xc8c2e0);
+    }
     this.left = this.spriteFor(c.left, false, lp);
+    if (this.left && c.pose) this.posed(this.left, c.left!, lp, c.pose);
+    if (this.mate && c.pose && c.leftMate) this.posed(this.mate, c.leftMate, session.arcadePartner?.palette ?? 0, c.pose);
     // back-up rivals first so the main one draws over them
     for (const r of (c.rivals ?? []).slice(1).reverse()) {
       if (!characterById(r.character) || !this.textures.exists(fighterTextureKey(r.character))) continue;
@@ -115,10 +141,19 @@ export class StoryScene extends MenuScene {
     if (this.right && this.extras.length) this.ui.bringToTop(this.right);
     this.title.setText(up(c.title));
     this.caption.setText('');
-    this.vs.setVisible(c.art === 'duel');
+    this.vs.setVisible(c.art === 'duel' && !c.calm);
     this.shownAt = performance.now();
-    music.play(c.art === 'boss' ? 'boss' : 'menu');
+    music.play(c.art === 'boss' ? 'boss' : 'story');
+    if (c.art === 'boss') announcer.bossWarning();
     this.relayoutCard();
+  }
+
+  /** The ending's victory pose, or the game-over card's slump. */
+  private posed(sprite: Phaser.GameObjects.Sprite, id: string, palette: number, pose: 'victory' | 'lose'): void {
+    const data = characterById(id);
+    if (!data) return;
+    playResultPose(sprite, data, palette > 0 ? ensurePalette(this, data, palette) : id, pose === 'victory');
+    if (pose === 'lose') sprite.setTint(0x8a84a8);
   }
 
   private fullText(): string {
@@ -146,6 +181,14 @@ export class StoryScene extends MenuScene {
     this.vs.setScale(u * 5).setPosition(x + (CARD_W / 2) * s, y + (CARD_H / 2) * s);
     // sprites: art px = s; a 64px frame covers 64*k art pixels
     const base = y + 80 * s;
+    if (this.stageImg.visible) this.stageImg.setPosition(x, y).setDisplaySize(CARD_W * s, CARD_H * s);
+    const kOf = (sp: Phaser.GameObjects.Sprite | null): number => (sp?.getData('k') as number | undefined) ?? 0.4;
+    // the partner stands a step behind and beside the player
+    if (this.mate) {
+      const mx = c.art === 'boss' ? 16 : c.art === 'duel' ? 20 : c.right ? 30 : 56;
+      this.mate.setScale(s * 0.9 * kOf(this.mate)).setPosition(x + mx * s, base - 3 * s).setFlipX(false);
+      if (this.left) this.ui.moveBelow(this.mate, this.left);
+    }
     if (c.art === 'boss') {
       this.left?.setScale(s * 0.8 * ((this.left?.getData('k') as number | undefined) ?? 0.4)).setPosition(x + 34 * s, base + 4 * s);
       // the boss towers over the player, but stays inside the card (its halo included)
@@ -160,8 +203,12 @@ export class StoryScene extends MenuScene {
         const k = (e.getData('k') as number | undefined) ?? 0.4;
         e.setScale(s * 0.85 * k).setPosition(x + (122 + (i % 2 ? -1 : 1) * (18 + 6 * i)) * s, base - 3 * s);
       });
+    } else if (c.right) {
+      // a composed card with two fighters at peace: side by side, facing each other
+      this.left?.setScale(s * 1.05 * kOf(this.left)).setPosition(x + 58 * s, base);
+      this.right?.setScale(s * 1.05 * kOf(this.right)).setPosition(x + 102 * s, base);
     } else {
-      this.left?.setScale(s * 1.1 * ((this.left?.getData('k') as number | undefined) ?? 0.4)).setPosition(x + (c.art === 'victory' ? 80 : 58) * s, base - (c.art === 'arena' ? 2 : 0) * s);
+      this.left?.setScale(s * 1.1 * ((this.left?.getData('k') as number | undefined) ?? 0.4)).setPosition(x + (c.art === 'victory' ? (this.mate ? 92 : 80) : 58) * s, base - (c.art === 'arena' ? 2 : 0) * s);
     }
   }
 
@@ -182,7 +229,8 @@ export class StoryScene extends MenuScene {
     if (!c) return;
     const { x, y, s } = this.box;
     const pc = playerColors();
-    drawStoryArt(this.art, c.art, x, y, s, time, pc[0], pc[1]);
+    if (this.stageImg.visible) this.art.clear();
+    else drawStoryArt(this.art, c.art, x, y, s, time, pc[0], pc[1]);
     const f = this.frame;
     f.clear();
     const pb = this.plateBox;

@@ -30,9 +30,17 @@ interface MassTheme {
   accent: string[]; // 5 shades, dark -> bright (emissive)
   alt?: string[]; // second accent
   body: 'ashlar' | 'plate' | 'hull' | 'rock';
-  cap: 'metal' | 'tech' | 'hazard' | 'slate' | 'grass' | 'deck' | 'crystal' | 'snow';
+  cap: 'metal' | 'tech' | 'hazard' | 'slate' | 'grass' | 'deck' | 'crystal' | 'snow' | 'dais' | 'track';
   panel: 'window' | 'holo' | 'vent' | 'rune' | 'alcove' | 'glyph' | 'porthole' | 'geode';
-  under: 'crystal' | 'tech' | 'machine' | 'shard' | 'roots' | 'reef' | 'galleon' | 'ice';
+  under: 'crystal' | 'tech' | 'machine' | 'shard' | 'roots' | 'reef' | 'galleon' | 'ice' | 'spire';
+  /**
+   * The facade's own architecture, replacing the shared pillars-and-bays template: 'deco' an art-deco tower crown (piers,
+   * window strips, a sunburst), 'ring' a training ring's apron (corner posts, glowing ropes, quilted padding, a hex crest),
+   * 'tower' a storm-beaten tower (buttresses, lancet windows, copper lightning conductors, a rose window), 'throne' the
+   * Overseer's dais (obsidian blade-pillars, carved eye reliefs, one great eye), 'boards' a stadium runway wall (sponsor
+   * boards and distance posts).
+   */
+  facade?: 'deco' | 'ring' | 'tower' | 'throne' | 'boards';
   /**
    * The structure's outline below the cornice (art only: the collision box is unchanged). 'hull' tapers like a ship, bow left;
    * 'steps' is a stepped temple; 'outcrop' a jagged rock mass; 'shelf' an undercut ice shelf; 'housing' a machined reactor
@@ -53,6 +61,7 @@ const THEMES: Record<string, MassTheme> = {
     panel: 'window',
     under: 'crystal',
     shape: 'setback',
+    facade: 'deco',
     fog: '#2a1846',
   },
   void: {
@@ -63,6 +72,7 @@ const THEMES: Record<string, MassTheme> = {
     panel: 'holo',
     under: 'tech',
     shape: 'chamfer',
+    facade: 'ring',
     fog: '#0c2a40',
   },
   reactor: {
@@ -84,7 +94,34 @@ const THEMES: Record<string, MassTheme> = {
     panel: 'rune',
     under: 'shard',
     shape: 'ruin',
+    facade: 'tower',
     fog: '#141e30',
+  },
+  apex: {
+    // the Overseer's dais: ivory marble, obsidian, violet light
+    stone: ['#241c30', '#4a4058', '#7a7088', '#aea6b6', '#d6d0d6', '#f4f0ea'],
+    accent: ['#2a1450', '#5a2c9a', '#9a5cf0', '#d2b0ff', '#f6eaff'],
+    alt: ['#140e1e', '#2a2236', '#3e344e', '#544866', '#6e6084', '#9a8cb8'],
+    body: 'ashlar',
+    cap: 'dais',
+    panel: 'rune',
+    under: 'spire',
+    shape: 'steps',
+    facade: 'throne',
+    fog: '#1c1030',
+  },
+  stadium: {
+    // the Launch Contest runway: poured concrete, a red track on top, sponsor boards in amber and cyan
+    stone: ['#16171c', '#24262e', '#363842', '#4c4e5a', '#686a78', '#9294a0'],
+    accent: ['#4a2a10', '#9a5a18', '#ffa030', '#ffd27a', '#fff2d0'],
+    alt: ['#0c3040', '#147090', '#3ac8f0', '#a0eaff', '#e8fcff'],
+    body: 'plate',
+    cap: 'track',
+    panel: 'vent',
+    under: 'tech',
+    shape: 'chamfer',
+    facade: 'boards',
+    fog: '#20203a',
   },
   temple: {
     stone: ['#1a2420', '#26342c', '#34463a', '#46604c', '#5e7c62', '#82a080'],
@@ -368,6 +405,8 @@ export function stageMassPixels(themeId: string | undefined, w: number, h: numbe
   } else if (T.body === 'rock') {
     // a cave outcrop: geodes cracked open at random in the rock, no masonry or columns
     geodeScatter(b, S, A, A2, X0 + 10, panelTop - 4, BW - 20, Math.max(24, bodyBot - panelTop - 6), rnd);
+  } else if (T.facade) {
+    facade(b, T, S, A, A2, X0, BW, bodyTop + CORN, panelTop, panelBot, bodyBot, rnd, n2, seed);
   } else {
     for (let i = 0; i + 1 < pillars.length; i++) {
       const px0 = pillars[i] + PW + 6;
@@ -616,6 +655,235 @@ function centrepiece(b: Buf, T: MassTheme, S: Ramp, A: Ramp, A2: Ramp, x0: numbe
     default: {
       disc(Math.round(r * 0.7), (d) => (d < r * 0.25 ? A[4] : d < r * 0.5 ? A[3] : A[1]), true);
     }
+  }
+}
+
+/**
+ * A facade with its own architecture (see `MassTheme.facade`), drawn over the masonry or plating fill between the cornice
+ * (`top`) and the bottom of the body. Lit from the top-left like everything else; its lights are dimmed with the rest of the
+ * facade afterwards.
+ */
+function facade(b: Buf, T: MassTheme, S: Ramp, A: Ramp, A2: Ramp, X0: number, BW: number, top: number, panelTop: number, panelBot: number, bodyBot: number, rnd: () => number, n: (x: number, y: number) => number, seed: number): void {
+  const X1 = X0 + BW;
+  const cx = Math.round(X0 + BW / 2);
+  const ph = panelBot - panelTop;
+  const shaft = (x0: number, w: number, y0: number, y1: number, R: Ramp = S): void => {
+    for (let y = y0; y < y1; y++) for (let lx = 0; lx < w; lx++) {
+      const t = lx / Math.max(1, w - 1);
+      b.set(x0 + lx, y, R[t < 0.2 ? 4 : t < 0.6 ? 3 : t < 0.85 ? 2 : 1]);
+    }
+  };
+  const disc = (x: number, y: number, r: number, fill: (d: number, dx: number, dy: number) => [RGB, boolean] | null): void => {
+    for (let dy = -r; dy <= r; dy++) for (let dx = -r; dx <= r; dx++) {
+      const d = Math.hypot(dx, dy);
+      if (d > r + 0.3) continue;
+      const f = fill(d, dx, dy);
+      if (f) b.set(x + dx, y + dy, f[0], f[1]);
+    }
+  };
+  switch (T.facade) {
+    case 'deco': {
+      // an art-deco tower crown: tall piers with stepped caps, narrow strips of lit windows between them, chevron
+      // spandrels, and a sunburst fan over the middle instead of a clock
+      const pitch = 22;
+      const fanR = Math.max(16, Math.min(Math.round(ph * 0.95), 40));
+      for (let x = X0 + 6; x < X1 - 8; x += pitch) {
+        const nearFan = Math.abs(x + 3 - cx) < fanR + 4;
+        shaft(x, 6, nearFan ? panelTop + fanR - 6 : panelTop - 4, bodyBot - 2);
+        if (!nearFan) for (let k = 0; k < 3; k++) for (let lx = -k; lx < 6 + k; lx++) b.set(x + lx, panelTop - 4 + k * 2, S[k === 0 ? 5 : 4 - k]);
+        // a window strip in the bay to the right
+        const wx = x + 9;
+        if (wx + 8 > X1 - 6) continue;
+        for (let y = panelTop + 2; y < panelBot - 2; y += 7) {
+          if (Math.abs(wx + 4 - cx) < fanR && y < panelTop + fanR) continue;
+          const lit = rnd();
+          const col = lit > 0.82 ? A2[2] : lit > 0.5 ? A[2] : S[0];
+          b.rect(wx, y, 3, 4, col, lit > 0.5);
+          b.rect(wx + 5, y, 3, 4, rnd() > 0.55 ? A[1] : S[0], false);
+          for (let lx = 0; lx < 8; lx++) b.set(wx + lx, y + 5, S[1]);
+        }
+      }
+      // chevron spandrel band under the windows
+      for (let x = X0 + 2; x < X1 - 2; x++) for (let k = 0; k < 6; k++) {
+        const v = (x + k) % 12 < 6 ? (x - k) % 12 < 6 : false;
+        b.set(x, panelBot + k, v ? S[4] : k === 5 ? S[0] : S[2]);
+      }
+      // the sunburst: alternating rays in a half fan, a lit rim and a small lit keystone
+      for (let dy = -fanR; dy <= 0; dy++) for (let dx = -fanR; dx <= fanR; dx++) {
+        const d = Math.hypot(dx, dy);
+        if (d > fanR) continue;
+        const a = Math.atan2(-dy, dx);
+        const ray = Math.floor((a / Math.PI) * 14) % 2 === 0;
+        const y = panelTop + fanR + dy;
+        if (d > fanR - 2) b.set(cx + dx, y, d > fanR - 1 ? S[5] : A2[2], d <= fanR - 1);
+        else if (d < 6) b.set(cx + dx, y, A[3], true);
+        else b.set(cx + dx, y, ray ? S[4] : S[2]);
+      }
+      break;
+    }
+    case 'ring': {
+      // a training ring's apron: quilted padding with seams, turnbuckle posts at both ends, three glowing ropes, a hex crest
+      for (let y = top; y < bodyBot; y++) for (let x = X0; x < X1; x++) {
+        const row = (y - top) % 8;
+        const seam = (x - X0) % 40 === 0;
+        b.set(x, y, seam ? S[0] : row === 0 ? S[3] : row === 7 ? S[0] : row < 3 ? S[2] : S[1]);
+      }
+      const postW = 12;
+      for (const px of [X0, X1 - postW]) {
+        shaft(px, postW, top - 2, bodyBot);
+        for (let k = 0; k < 3; k++) b.rect(px + 2, panelTop + 2 + k * 9, postW - 4, 5, A[k === 1 ? 3 : 2], true);
+      }
+      for (let k = 0; k < 3; k++) {
+        const ry = panelTop + 4 + k * 9;
+        for (let x = X0 + postW; x < X1 - postW; x++) {
+          const u = (x - X0 - postW) / Math.max(1, BW - postW * 2);
+          const y = ry + Math.round(Math.sin(u * Math.PI) * 2);
+          b.set(x, y, A[3], true);
+          b.set(x, y + 1, A[2], true);
+          b.set(x, y + 2, S[0]);
+        }
+      }
+      // the crest: a hexagon with a crosshair
+      const hr = Math.max(10, Math.min(Math.round(ph * 0.42), 20));
+      const hy = panelTop + Math.round(ph * 0.62);
+      for (let dy = -hr; dy <= hr; dy++) for (let dx = -hr; dx <= hr; dx++) {
+        const q = Math.max(Math.abs(dy) * 1.15, (Math.abs(dx) * 0.87 + Math.abs(dy) * 0.5) * 1.15);
+        if (q > hr) continue;
+        const edge = q > hr - 2;
+        const cross = (dx === 0 || dy === 0) && q < hr - 4 && q > 3;
+        b.set(cx + dx, hy + dy, edge ? A[2] : cross ? A[1] : q < 3 ? A[3] : S[3], edge || q < 3);
+      }
+      // the LED strip along the foot of the apron
+      for (let x = X0 + postW + 2; x < X1 - postW - 2; x += 4) b.rect(x, bodyBot - 6, 2, 2, (x >> 2) % 5 === 0 ? A[3] : A[1], (x >> 2) % 5 === 0);
+      break;
+    }
+    case 'tower': {
+      // a storm-beaten tower: stepped buttresses, pairs of lancet windows with a faint glow, copper lightning conductors
+      // running down the buttresses, and a rose window over the middle
+      const pitch = 76;
+      const COPPER: Ramp = ['#2a3a30', '#3e6a5a', '#b8703a', '#e8a060', '#fff0c8'].map(hex);
+      const roseR = Math.max(10, Math.min(Math.round(ph * 0.45), 22));
+      for (let bx = X0 + 4; bx < X1 - 10; bx += pitch) {
+        // the buttress widens as it goes down
+        for (let y = panelTop - 6; y < bodyBot; y++) {
+          const t = (y - panelTop + 6) / Math.max(1, bodyBot - panelTop + 6);
+          const w = Math.round(8 + t * 8);
+          for (let lx = 0; lx < w; lx++) b.set(bx + lx, y, S[lx < 2 ? 5 : lx < w - 3 ? 4 : 1]);
+          if (y % 12 === 0) for (let lx = 0; lx < w; lx++) b.set(bx + lx, y, S[1]);
+        }
+        // the conductor: a copper strip with patina, a spark at its tip
+        for (let y = panelTop - 10; y < bodyBot - 2; y++) b.set(bx + 4, y, COPPER[(y >> 2) % 3 === 0 ? 1 : 2]);
+        b.set(bx + 4, panelTop - 11, A[4], true);
+        // two lancet windows in the bay
+        for (const off of [26, 44]) {
+          const wx = bx + off;
+          if (wx + 8 > X1 - 6 || Math.abs(wx + 4 - cx) < roseR + 6) continue;
+          const wy = panelTop + 2;
+          const wh = Math.max(14, ph - 6);
+          for (let y = 0; y < wh; y++) for (let lx = 0; lx < 8; lx++) {
+            const arch = y < 6 ? Math.abs(lx - 3.5) > y * 0.75 : false;
+            if (arch) continue;
+            const glow = y > wh * 0.55 && lx > 1 && lx < 6 && n(wx + lx, seed) > 0.35;
+            b.set(wx + lx, wy + y, lx === 0 ? S[4] : lx === 7 ? S[1] : glow ? A[1] : S[0], false);
+          }
+          b.set(wx + 4, wy + wh - 4, A[2], true);
+        }
+      }
+      // the rose window: tracery spokes over dim glass
+      const ry = panelTop + Math.round(ph * 0.5);
+      disc(cx, ry, roseR, (d, dx, dy) => {
+        if (d > roseR - 2) return [d > roseR - 1 ? S[1] : S[4], false];
+        const a = Math.atan2(dy, dx);
+        const spoke = Math.abs(Math.sin(a * 4)) < 0.16 && d > 4;
+        if (spoke || Math.abs(d - roseR * 0.55) < 0.8) return [S[3], false];
+        if (d < 3) return [A[3], true];
+        return [(dx + dy) & 4 ? A[1] : A[0], d < roseR * 0.55];
+      });
+      break;
+    }
+    case 'throne': {
+      // the Overseer's dais: obsidian blade-pillars rising into points, carved eye reliefs in the ivory between them, and one
+      // great eye over the middle with the spire crown fanned above it
+      const OB: Ramp = A2;
+      const pitch = 92;
+      const eyeR = Math.max(10, Math.min(Math.round(ph * 0.5), 24));
+      for (let x = X0 + 10; x < X1 - 16; x += pitch) {
+        if (Math.abs(x + 6 - cx) < eyeR * 2.6) continue;
+        // a blade-pillar: a tall obsidian shaft whose top is a point, a violet seam down its face
+        for (let y = top; y < bodyBot; y++) {
+          const t = y - top;
+          const w = t < 10 ? Math.max(1, Math.round((t / 10) * 12)) : 12;
+          const lx0 = 6 - Math.floor(w / 2);
+          for (let lx = 0; lx < w; lx++) b.set(x + lx0 + lx, y, OB[lx === 0 ? 4 : lx < w / 2 ? 3 : 1]);
+          if (t > 12 && t % 10 < 6) b.set(x + 6, y, A[2], true);
+        }
+        // the eye relief in the next bay
+        const ex = x + 52;
+        const ey = panelTop + Math.round(ph * 0.45);
+        if (ex + 10 > X1 - 8 || Math.abs(ex - cx) < eyeR * 2.4) continue;
+        for (let dx = -10; dx <= 10; dx++) {
+          const hgt = Math.round(5 * Math.sqrt(1 - (dx / 10.5) ** 2));
+          for (let dy = -hgt; dy <= hgt; dy++) b.set(ex + dx, ey + dy, Math.abs(dy) === hgt ? S[dy < 0 ? 1 : 5] : S[2]);
+        }
+        b.rect(ex - 2, ey - 2, 4, 4, A[1], false);
+        b.set(ex, ey - 1, A[3], true);
+      }
+      // the great eye: an almond of obsidian, a violet iris in rings, a white-hot pupil; seven carved rays above it
+      const ey = panelTop + Math.round(ph * 0.55);
+      for (let i = 0; i < 7; i++) {
+        const a = Math.PI + ((i + 0.5) / 7) * Math.PI;
+        for (let r = eyeR + 3; r < eyeR + 3 + Math.round(ph * 0.5); r++) {
+          const w = Math.max(0, Math.round(2.5 - (r - eyeR) * 0.08));
+          for (let k = -w; k <= w; k++) b.set(cx + Math.round(Math.cos(a) * r - Math.sin(a) * k * 0.6), ey + Math.round(Math.sin(a) * r * 0.8), k === -w ? OB[4] : OB[2]);
+        }
+      }
+      for (let dx = -Math.round(eyeR * 1.9); dx <= Math.round(eyeR * 1.9); dx++) {
+        const u = dx / (eyeR * 1.95);
+        const hgt = Math.round(eyeR * 0.75 * (1 - u * u));
+        for (let dy = -hgt; dy <= hgt; dy++) {
+          const d = Math.hypot(dx, dy);
+          let col: RGB = Math.abs(dy) >= hgt - 1 ? OB[4] : OB[1];
+          let em = false;
+          if (d < eyeR * 0.62) {
+            col = d < eyeR * 0.18 ? A[4] : d < eyeR * 0.3 ? A[3] : Math.round(d) % 3 === 0 ? A[1] : A[2];
+            em = d < eyeR * 0.3 || Math.round(d) % 3 !== 0;
+          }
+          b.set(cx + dx, ey + dy, col, em);
+        }
+      }
+      break;
+    }
+    case 'boards': {
+      // a stadium wall: sponsor boards (bars of amber and cyan light on dark panels) and striped distance posts
+      const pitch = 120;
+      for (let x = X0 + 4; x < X1 - 20; x += pitch) {
+        // the post
+        for (let y = top; y < bodyBot - 2; y++) for (let lx = 0; lx < 6; lx++) b.set(x + lx, y, ((y - top) >> 3) % 2 === 0 ? hex('#e8e8ec') : hex('#c83a2c'));
+        // the board
+        const bx = x + 14;
+        const bw = Math.min(pitch - 24, X1 - bx - 6);
+        const by = panelTop;
+        const bh = Math.max(14, Math.min(ph, 26));
+        if (bw < 30) continue;
+        const C = (Math.floor((x - X0) / pitch) + seed) % 2 === 0 ? A : A2;
+        for (let y = 0; y < bh; y++) for (let lx = 0; lx < bw; lx++) {
+          const edge = y === 0 || lx === 0 || y === bh - 1 || lx === bw - 1;
+          b.set(bx + lx, by + y, edge ? S[4] : S[0]);
+        }
+        // a 'logo' of bars and a block, different per board
+        const r = mulberry32(seed * 31 + x);
+        let lx = 6;
+        while (lx < bw - 10) {
+          const w = 3 + Math.floor(r() * 10);
+          const h = 4 + Math.floor(r() * (bh - 10));
+          b.rect(bx + lx, by + Math.round((bh - h) / 2), Math.min(w, bw - 6 - lx), h, C[r() > 0.5 ? 2 : 3], true);
+          lx += w + 3;
+        }
+      }
+      break;
+    }
+    default:
+      break;
   }
 }
 
@@ -1252,30 +1520,42 @@ function portholes(b: Buf, S: Ramp, A: Ramp, A2: Ramp, x0: number, y0: number, p
   const count = Math.max(1, Math.floor(pw / (r * 2 + spread)));
   const cy = y0 + Math.floor(ph * 0.42);
   const fishIn = Math.floor(rnd() * count);
+  const R0 = r;
   for (let i = 0; i < count; i++) {
-    const cx = x0 + Math.round(((i + 0.5) / count) * pw);
+    // not a row of identical lamps: sizes, spacing and light vary, most are dim or dark, so they never outshine the fighters
+    const r = Math.max(5, R0 - (i % 3 === 1 ? 2 : 0) - (rnd() > 0.7 ? 1 : 0));
+    const cx = x0 + Math.round(((i + 0.5 + (rnd() - 0.5) * 0.3) / count) * pw);
     const broken = !sky && rnd() > 0.75;
+    const light = broken ? 0 : rnd(); // < 0.35 dark, < 0.8 dim, else lit
+    const dark = light < 0.35;
+    const dim = light < 0.8;
     for (let yy = -r - 2; yy <= r + 2; yy++) for (let xx = -r - 2; xx <= r + 2; xx++) {
       const d = Math.hypot(xx, yy);
       if (d > r + 2) continue;
       if (d > r - 0.5) {
         // brass ring lit from the top-left
         const lit = (-xx - yy) / (r * 1.4);
-        b.set(cx + xx, cy + yy, BRASS[d > r + 1.2 ? 1 : lit > 0.3 ? 4 : lit > -0.3 ? 3 : 2]);
+        const k = d > r + 1.2 ? 1 : lit > 0.3 ? 4 : lit > -0.3 ? 3 : 2;
+        b.set(cx + xx, cy + yy, BRASS[dim ? Math.max(0, k - (dark ? 2 : 1)) : k]); // tarnished on the darker ports
       } else if (broken && (xx + yy * 0.6 > r * 0.2 || d < r * 0.35)) {
         b.set(cx + xx, cy + yy, S[0]); // shattered glass: dark hold behind
+      } else if (dark) {
+        // an unlit port: dark glass with the sky's reflection across the top
+        const t = (yy + r) / (2 * r);
+        b.set(cx + xx, cy + yy, t < 0.25 && xx < 0 ? S[2] : S[0]);
       } else {
         const t = (yy + r) / (2 * r);
-        b.set(cx + xx, cy + yy, t < 0.3 ? A[3] : t < 0.7 ? A[2] : A[1], true);
+        const k = dim ? (t < 0.4 ? 2 : 1) : t < 0.3 ? 3 : t < 0.7 ? 2 : 1;
+        b.set(cx + xx, cy + yy, A[k], !dim || t < 0.4);
       }
     }
     // glint and bolts
-    b.set(cx - Math.round(r * 0.45), cy - Math.round(r * 0.45), A[4], true);
+    b.set(cx - Math.round(r * 0.45), cy - Math.round(r * 0.45), dark ? S[3] : A[dim ? 3 : 4], !dark);
     for (let k = 0; k < 8; k++) {
       const a = (k / 8) * Math.PI * 2;
       b.set(cx + Math.cos(a) * (r + 1), cy + Math.sin(a) * (r + 1), BRASS[0]);
     }
-    if (!sky && i === fishIn && !broken && r >= 7) {
+    if (!sky && i === fishIn && !broken && !dark && r >= 7) {
       // a little fish silhouette
       const fx = cx - 2;
       const fy = cy + 1;
@@ -1403,6 +1683,29 @@ function cap(b: Buf, T: MassTheme, S: Ramp, A: Ramp, A2: Ramp, y0: number, ch: n
           else col = M[1];
           break;
         }
+        case 'dais': {
+          // polished ivory with a violet inlay line and an obsidian lip
+          if (ly === 0) col = M[5];
+          else if (ly < 3) col = M[4];
+          else if (ly === 4) {
+            col = (x >> 2) % 4 === 0 ? A[3] : A[1];
+            em = (x >> 2) % 4 === 0;
+          } else if (ly < 8) col = M[3];
+          else if (ly < 10) col = A2[2];
+          else col = A2[0];
+          break;
+        }
+        case 'track': {
+          // a red running track with a white lane line, over a grey kerb
+          const red = (x * 13 + ly * 7) % 11 === 0 ? hex('#8a2a22') : hex('#b23a2c');
+          if (ly === 0) col = hex('#d8604a');
+          else if (ly === 3) col = (x % 48) < 30 ? hex('#f4f0e8') : red;
+          else if (ly < 6) col = red;
+          else if (ly === 6) col = hex('#6a1c18');
+          else if (ly < 9) col = (x >> 4) % 2 === 0 ? hex('#e8e8ec') : hex('#2a2a30');
+          else col = M[1];
+          break;
+        }
         case 'tech': {
           if (ly === 0) col = A[3];
           else if (ly < 3) col = M[4];
@@ -1506,7 +1809,7 @@ function cap(b: Buf, T: MassTheme, S: Ramp, A: Ramp, A2: Ramp, y0: number, ch: n
 
 function underside(b: Buf, T: MassTheme, S: Ramp, A: Ramp, A2: Ramp, x0: number, y0: number, bw: number, uh: number, rnd: () => number, n: (x: number, y: number) => number): void {
   const prof: number[] = [];
-  const R = T.under === 'ice' ? ICE : S; // the shrine stands on a glacier: its underside is ice, not rock
+  const R = T.under === 'ice' ? ICE : T.under === 'spire' ? A2 : S; // the shrine stands on a glacier; the dais on obsidian
   const stepped = T.under === 'tech' || T.under === 'machine';
   const hull = T.under === 'reef' || T.under === 'galleon'; // a ship's planked hull, not rock
   for (let x = 0; x < bw; x++) {
@@ -1517,6 +1820,9 @@ function underside(b: Buf, T: MassTheme, S: Ramp, A: Ramp, A2: Ramp, x0: number,
       // a smooth bowl: full depth amidships, sweeping up hard at bow and stern
       d = uh * 0.78 * Math.sqrt(Math.max(0, 1 - Math.pow(e, 3.2)));
       if (T.under === 'reef') d += (n(x / 7, 5) - 0.5) * 6; // a wreck sags and splinters
+    } else if (T.under === 'spire') {
+      // an inverted spire: the dais rests on one long obsidian point
+      d = uh * 1.12 * Math.pow(1 - e, 1.7) + (n(x / 5, 3) - 0.5) * 3;
     } else if (stepped) {
       const step = Math.floor(e * 5) / 5; // tiered keel
       d = uh * (1 - Math.pow(step, 1.3)) * 0.92;
@@ -1582,6 +1888,15 @@ function underside(b: Buf, T: MassTheme, S: Ramp, A: Ramp, A2: Ramp, x0: number,
         b.set(x0 + x, y, A[2], true);
         y++;
         if (rnd() > 0.5) x = clampI(x + (rnd() > 0.5 ? 1 : -1), 0, bw - 1);
+      }
+    }
+  } else if (T.under === 'spire') {
+    // violet light runs down the spire's facets to its point
+    for (const f of [-0.5, -0.2, 0.15, 0.45]) {
+      for (let y = 6; y < uh * 1.1; y++) {
+        const x = Math.round(bw / 2 + f * (bw / 2) * Math.pow(1 - y / (uh * 1.12), 1.1));
+        if (x < 1 || x >= bw - 1 || y0 + y >= tip(x) - 2) break;
+        if (y % 9 < 6) b.set(x0 + x, y0 + y, y % 9 < 2 ? A[3] : A[2], true);
       }
     }
   } else if (T.under === 'galleon') {
@@ -1768,6 +2083,13 @@ function underside(b: Buf, T: MassTheme, S: Ramp, A: Ramp, A2: Ramp, x0: number,
   if (T.under === 'machine') reactorCore(b, S, A, A2, x0 + mid, y0 + Math.round(prof[mid] * 0.5), Math.max(8, Math.min(18, Math.round(prof[mid] * 0.3))));
   else if (T.cap === 'crystal') crystalCluster(b, A, A2, x0 + mid, tip(mid) - 6, 1, rnd);
   else if (T.under === 'shard') crystalCluster(b, A, A, x0 + mid, tip(mid) - 4, 0.7, rnd);
+  else if (T.under === 'spire') {
+    // a lamp of violet light at the very point
+    for (let yy = -6; yy <= 6; yy++) for (let xx = -6; xx <= 6; xx++) {
+      const d = Math.hypot(xx, yy * 1.4);
+      if (d <= 5) b.set(x0 + mid + xx, tip(mid) + 4 + yy, d < 2 ? A[4] : d < 3.5 ? A[3] : A[2], true);
+    }
+  }
   else if (T.under === 'ice') shrineLantern(b, S, A2, x0 + mid, tip(mid) - 2);
   else if (T.under === 'roots' && T.panel === 'glyph') sunPendant(b, S, A, x0 + mid, tip(mid) - 2);
 }

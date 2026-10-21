@@ -1,10 +1,14 @@
-import type { StageData } from '../engine/types';
+import type { StageBackground, StageData } from '../engine/types';
+
+/** (Its own backdrop and structure theme; engine/types' theme union does not list it yet.) */
+const APEX_THEME = 'apex' as NonNullable<StageBackground['theme']>;
 
 /**
  * The Apex: the Overseer's chamber at the top of the arena, the Arcade Ladder's final stage (not in Stage Select). One
  * long dais built for a boss 1.6x a fighter's size, with two low ledges either side to dodge the Cataclysm's pillars and
- * a high perch over the middle. No hazards: the boss is the hazard. Its light rig (cold cyan in phase 1, red in phase 2)
- * is drawn by ui/BossCinematic.ts over the stock 'void' backdrop.
+ * a high perch over the middle. No hazards: the boss is the hazard. Its own 'apex' look: the Overseer's throne-citadel above
+ * the clouds at the top of the world, an ivory dais on an obsidian spire under the vast shadow of its spire crown and eye.
+ * The sky, the crown's eye and the light rig (ui/BossCinematic.ts) turn from cold violet to burning red in phase 2.
  */
 export const apexStage: StageData = {
   id: 'apex',
@@ -22,7 +26,7 @@ export const apexStage: StageData = {
     { x: -60, y: -4 },
     { x: 60, y: -4 },
   ],
-  background: { topColor: 0x04030c, bottomColor: 0x241048, layers: ['stars'], theme: 'void' },
+  background: { topColor: 0x05030c, bottomColor: 0x4a2a6a, layers: ['stars'], theme: APEX_THEME, light: { rim: 0xc8a8ff, dir: [0, -1], strength: 0.5 } },
   music: 'boss',
   blurb: 'The Overseer\'s chamber at the top of the arena. A long dais, two low ledges, one high perch, nowhere to hide.',
 };

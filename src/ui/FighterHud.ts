@@ -6,6 +6,7 @@ import { addCanvasTexture, context2dOrBlank } from '../art/canvasTexture';
 import type { BossBar } from './BossBar';
 import { COLORS, drawPortShape } from './menuKit';
 import { settings } from '../settings';
+import { paletteOfSkin, portraitKey } from '../art/portraits';
 
 const MAX_PIPS = 5;
 /** Stock pips text by count: spaced ("@ @ @") while three fit beside the name, packed ("@@@@@") for bigger stock counts. */
@@ -97,6 +98,20 @@ export class FighterHud {
   private readonly ptsTag: Phaser.GameObjects.BitmapText;
   private readonly port: number;
   private readonly color: number;
+  /** The portrait is a bust render (portraits.ts) rather than a crop of the idle frame. */
+  private readonly bust: boolean;
+  private readonly data: CharacterData;
+  private readonly skin: string;
+  /** Hurt: 1 on a hit (more on a lost stock), decaying: the portrait flinches and flushes red. */
+  private flinch = 0;
+  private hurtAt = 0;
+  private lastStocks = -1;
+  /** The portrait shows the grey, cracked copy (the fighter is out). */
+  private koShown = false;
+  /** Centre of the portrait well (bust portraits are placed by their centre so the flinch shakes about it). */
+  private wellX = 0;
+  private wellY = 0;
+  private wellK = 1;
 
   constructor(
     scene: Phaser.Scene,
@@ -112,7 +127,12 @@ export class FighterHud {
     const frame = animFrameIndex(data, 'idle', 0);
     this.panel = scene.add.image(0, 0, 'hud-panel').setOrigin(0.5, 1);
     this.accent = scene.add.image(0, 0, 'px').setOrigin(0, 0).setTint(color);
-    this.portrait = scene.add.image(0, 0, key, frame).setOrigin(0, 0).setCrop(...portraitCrop(data));
+    // the fighter's bust portrait (the idle frame's crop where there is none)
+    this.data = data;
+    this.skin = skin;
+    const bust = portraitKey(scene, data, paletteOfSkin(skin));
+    this.bust = !!bust;
+    this.portrait = bust ? scene.add.image(0, 0, bust).setOrigin(0.5, 0.5) : scene.add.image(0, 0, key, frame).setOrigin(0, 0).setCrop(...portraitCrop(data));
     this.crop = portraitCrop(data);
     this.texK = portraitK(data);
     this.name = scene.add.bitmapText(0, 0, PIXEL_FONT, up(label)).setTint(color);
@@ -162,9 +182,17 @@ export class FighterHud {
     this.top = top;
     this.panel.setPosition(cx, bottom).setScale(u);
     this.accent.setPosition(left + 4 * u, top + 2 * u).setScale((32 * u) / 4, (1 * u) / 4);
-    // 40x40 crop of the idle frame shown at 0.8 => fills the 32x32 well; crop origin offsets the image
-    const k = 0.8 * u;
-    this.portrait.setScale(k * this.texK).setPosition(left + 4 * u - this.crop[0] * k * this.texK, top + 4 * u - this.crop[1] * k * this.texK);
+    if (this.bust) {
+      // the bust fills the 32x32 well
+      this.wellX = left + 20 * u;
+      this.wellY = top + 20 * u;
+      this.wellK = (32 * u) / Math.max(1, this.portrait.width);
+      this.portrait.setScale(this.wellK).setPosition(this.wellX, this.wellY);
+    } else {
+      // 40x40 crop of the idle frame shown at 0.8 => fills the 32x32 well; crop origin offsets the image
+      const k = 0.8 * u;
+      this.portrait.setScale(k * this.texK).setPosition(left + 4 * u - this.crop[0] * k * this.texK, top + 4 * u - this.crop[1] * k * this.texK);
+    }
     this.name.setPosition(left + 41 * u, top + 8 * u + ty).setScale(tu);
     this.percent.setPosition(left + 41 * u, top + 16 * u).setScale(u * 2);
     this.percentAt = [left + 41 * u, top + 16 * u];
@@ -207,6 +235,37 @@ export class FighterHud {
   /** @param meterFrac ultimate meter 0..1 (drawn over the plate's conduit; pulses gold when full) */
   private jolt = 0;
   private percentAt: [number, number] = [0, 0];
+
+  /**
+   * The portrait's moods: it flinches (a shake and a red flush, harder on a lost stock) when the fighter is hurt, and once
+   * the fighter is out of the match it turns grey and cracked.
+   */
+  private updatePortrait(damage: number, stocks: number, out: boolean, tick: number, k: number): void {
+    const p = this.portrait;
+    if (!this.bust) {
+      p.setAlpha(out ? 0.35 : 1);
+      return;
+    }
+    if (out !== this.koShown) {
+      const key = portraitKey(p.scene, this.data, paletteOfSkin(this.skin), out);
+      if (key) p.setTexture(key);
+      this.koShown = out;
+    }
+    if (this.lastStocks >= 0 && stocks < this.lastStocks && !out) this.flinch = 1.6;
+    this.lastStocks = stocks;
+    if (damage > this.hurtAt) this.flinch = Math.max(this.flinch, Math.min(1.3, 0.55 + (damage - this.hurtAt) / 20));
+    this.hurtAt = damage;
+    this.flinch = Math.max(0, this.flinch - 0.07 * k);
+    const f = out ? 0 : Math.min(1, this.flinch);
+    const u = this.u;
+    // a whole-pixel shake that settles, the head snapping away from the hit, and a red flush fading out
+    const shake = settings.reduceMotion ? 0 : Math.round(f * 2) * (tick & 2 ? 1 : -1) * Math.max(1, Math.floor(u / 2));
+    p.setPosition(this.wellX + shake, this.wellY + (f > 0.5 ? Math.max(1, Math.floor(u / 2)) : 0));
+    p.setScale(this.wellK * (1 + 0.05 * f), this.wellK * (1 - 0.04 * f));
+    const red = Math.round(255 - 150 * f);
+    p.setTint(f > 0 ? (0xff << 16) | (red << 8) | red : 0xffffff);
+    p.setAlpha(1);
+  }
 
   /** Stamina mode: hit points per stock (the number shows HP left instead of percent). 0 = percent. */
   hpMax = 0;
@@ -286,7 +345,7 @@ export class FighterHud {
         this.pips.setText((this.maxPips > 3 ? PIPS_PACKED : PIPS)[pips]);
       }
     }
-    this.portrait.setAlpha(out ? 0.35 : 1);
+    this.updatePortrait(damage, stocks, out, tick, k);
     // character resource seam (Heat): fills left to right, glows hot at/after the threshold
     const hd = this.hudDef;
     if (hd) {

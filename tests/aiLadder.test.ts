@@ -33,6 +33,7 @@ describe('CPU skill ladder', () => {
       rates.push(`${n}v${n - 1}: ${hi}-${lo}`);
       if (rate <= 0.55) fails.push(`${n}v${n - 1} ${hi}-${lo}`);
     }
+    if (process.env.LADDER_LOG) console.log(rates.join(', '));
     expect(fails, rates.join(', ')).toEqual([]);
   }, 600_000);
 });

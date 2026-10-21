@@ -8,7 +8,8 @@ const WALL_TOP = -240;
 
 /**
  * Launch Contest dressing in the world: the barrier walls (shimmering while they hold), distance posts along the
- * runway every 25 m with a sign every 100 m, a gold flag at the fighter's best and a marker at this run's furthest point.
+ * runway every 25 m with a sign every 100 m, a gold flag at the fighter's best, a white pin at this run's best attempt and a
+ * marker at the current attempt's furthest point.
  */
 export class LaunchView {
   private readonly g: Phaser.GameObjects.Graphics;
@@ -65,8 +66,14 @@ export class LaunchView {
       gl.fillStyle(0xffffff, a * 1.4).fillRect(x - 0.5, WALL_TOP, 1, -WALL_TOP);
       for (let y = WALL_TOP + ((time * 60) % 24); y < 0; y += 24) gl.fillStyle(0xbff4ff, a).fillRect(x - 3, y, 6, 2);
     }
+    // this run's best attempt (a white pin) and the current attempt's furthest point (green)
     if (this.lc.distance > 0) {
       const x = LAUNCH_EDGE + this.lc.distance * LAUNCH_PX_PER_M;
+      g.fillStyle(0xffffff, 0.75).fillRect(x - 0.5, RUNWAY_Y - 24, 1, 24);
+      g.fillStyle(0xffffff, 0.9).fillTriangle(x + 0.5, RUNWAY_Y - 24, x + 9, RUNWAY_Y - 21, x + 0.5, RUNWAY_Y - 18);
+    }
+    if (this.lc.current > 0) {
+      const x = LAUNCH_EDGE + this.lc.current * LAUNCH_PX_PER_M;
       g.fillStyle(0x7affa0, 0.9).fillRect(x - 0.5, RUNWAY_Y - 18, 1, 18);
       gl.fillStyle(0x7affa0, 0.25).fillRect(x - 3, RUNWAY_Y - 18, 6, 18);
     }

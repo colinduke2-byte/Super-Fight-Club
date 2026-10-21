@@ -1,8 +1,11 @@
 import Phaser from 'phaser';
 import { PIXEL_FONT, up } from '../art/pixelFont';
+import { announcer } from '../audio/announcer';
 import { ensureStageArt } from '../art/stageArt';
 import { ensurePalette, fighterAnimKey, fighterTextureKey, uiTexK } from '../art/proceduralFighter';
 import { characterById } from '../characters';
+import type { CharacterData } from '../engine/types';
+import { lastInput } from '../input/prompts';
 import { session } from '../game/session';
 import type { MenuEvent } from '../input/menuInput';
 import { settings } from '../settings';
@@ -37,6 +40,8 @@ export class VersusSplashScene extends MenuScene {
   private vs!: Phaser.GameObjects.BitmapText;
   private stageName!: Phaser.GameObjects.BitmapText;
   private fightNo!: Phaser.GameObjects.BitmapText;
+  /** "PRESS ANY BUTTON TO SKIP" (or TAP) in the corner. */
+  private skip!: Phaser.GameObjects.BitmapText;
   private done = false;
   protected override backChip = false;
   protected override tapConfirms = true;
@@ -73,7 +78,7 @@ export class VersusSplashScene extends MenuScene {
       const skin = (slot.palette ?? 0) > 0 ? ensurePalette(this, c, slot.palette ?? 0) : c.id;
       if (!this.textures.exists(fighterTextureKey(skin))) return;
       const sprite = this.add.sprite(0, 0, fighterTextureKey(skin), 0).setOrigin(0.5, 1).setFlipX(dir === 1);
-      sprite.play(fighterAnimKey(skin, 'idle'));
+      this.strikePose(sprite, c, skin);
       if (rank > 0) sprite.setTint(0xb8b0d8);
       const port = slot.index % 4;
       const color = slot.boss ? 0x4ae4ff : COLORS.p[port];
@@ -85,10 +90,31 @@ export class VersusSplashScene extends MenuScene {
     add(rivals[0], 1, 0);
     add(human, -1, 0);
     for (const s of this.sides) this.ui.add([s.sprite, s.name]);
+    if (players.some((p) => p.boss)) announcer.bossWarning();
     this.vs = this.add.bitmapText(0, 0, PIXEL_FONT, 'VS').setOrigin(0.5).setTint(COLORS.hot);
     this.stageName = text(this, this.ui, up(stage?.name ?? ''), COLORS.text).setOrigin(0.5);
     this.fightNo = text(this, this.ui, up(this.fightTitle), COLORS.title).setOrigin(0.5);
     this.ui.add(this.vs);
+    this.skip = text(this, this.ui, '', COLORS.hint).setOrigin(1, 1);
+  }
+
+  /**
+   * A versus pose: the fighter's own `versus` row where the sheet has one, else their victory action settling into its held
+   * end pose (the idle for a sheet with neither).
+   */
+  private strikePose(sprite: Phaser.GameObjects.Sprite, c: CharacterData, skin: string): void {
+    const rows = c.sprite.animations;
+    const has = (row: string): boolean => !!rows[row] && this.anims.exists(fighterAnimKey(skin, row));
+    if (has('versus')) {
+      sprite.play(fighterAnimKey(skin, 'versus'));
+      return;
+    }
+    if (has('victory')) {
+      sprite.play(fighterAnimKey(skin, 'victory'));
+      if (has('victoryHold')) sprite.anims.chain(fighterAnimKey(skin, 'victoryHold'));
+      return;
+    }
+    sprite.play(fighterAnimKey(skin, 'idle'));
   }
 
   protected override backdrop(): MenuBackdrop {
@@ -102,6 +128,8 @@ export class VersusSplashScene extends MenuScene {
     }
     this.stageName.setScale(Math.min(u * 1.5, (w * 0.9) / Math.max(1, textPx(this.stageName)))).setPosition(w / 2, h - 14 * u);
     this.fightNo.setScale(Math.min(u * 1.5, (w * 0.9) / Math.max(1, textPx(this.fightNo)))).setPosition(w / 2, 12 * u);
+    this.skip.setText(lastInput.kind === 'touch' ? 'TAP TO SKIP' : 'PRESS ANY BUTTON TO SKIP');
+    this.skip.setScale(Math.min(u, (w * 0.5) / Math.max(1, textPx(this.skip)))).setPosition(w - 6 * u, h - 4 * u);
   }
 
   private ease(t: number, t0: number, dur: number): number {
@@ -156,6 +184,7 @@ export class VersusSplashScene extends MenuScene {
     this.fightNo.setAlpha(this.ease(time, 0.2, 0.3));
     this.stageName.setAlpha(this.ease(time, 0.35, 0.3));
     g.fillStyle(0x0a0820, 0.8 * this.stageName.alpha).fillRect(w / 2 - this.stageName.displayWidth / 2 - 8 * u, this.stageName.y - this.stageName.displayHeight / 2 - 4 * u, this.stageName.displayWidth + 16 * u, this.stageName.displayHeight + 8 * u);
+    this.skip.setAlpha(this.ease(time, 0.5, 0.3) * 0.85);
     if (time >= HOLD) this.finish();
   }
 

@@ -35,8 +35,8 @@ function fullVolume(): () => void {
 }
 
 /** Attach a synth to a fresh render context with the master dynamics bypassed. */
-function dry(s: Sfx): RenderCtx {
-  const ctx = new RenderCtx(SR);
+function dry(s: Sfx, sr = SR): RenderCtx {
+  const ctx = new RenderCtx(sr);
   s.attach(ctx as unknown as BaseAudioContext);
   const mix = (s as unknown as { mix: { disconnect(): void; connect(n: unknown): void } }).mix;
   mix.disconnect();
@@ -44,8 +44,8 @@ function dry(s: Sfx): RenderCtx {
   return ctx;
 }
 
-function measure(x: Float32Array): Measured {
-  const l = lufs(x, SR);
+function measure(x: Float32Array, sr = SR): Measured {
+  const l = lufs(x, sr);
   return { peak: peakDb(x), momentary: l.momentary, integrated: l.integrated, x };
 }
 
@@ -66,17 +66,20 @@ export function measureSound(name: SoundName, style: AudioStyle = 'plain', inten
   }
 }
 
-/** One full pass of a track's arranged song, played by the real scheduler. */
-export function measureTrack(id: string): Measured {
+/**
+ * One full pass of a track's song (two and a half minutes or more), played by the real scheduler. Rendered at 24 kHz by
+ * default: the songs are long, and nothing in the music sits above 12 kHz that the loudness or the peak would miss.
+ */
+export function measureTrack(id: string, sr = 24000): Measured {
   const restore = fullVolume();
   try {
     return seeded(() => {
-      const ctx = dry(sfx);
+      const ctx = dry(sfx, sr);
       const m = new Music();
       m.play(id);
       const x = ctx.render(loopSeconds(TRACKS[id]) + 0.3, () => m.tick());
       m.stop();
-      return measure(x);
+      return measure(x, sr);
     });
   } finally {
     restore();
