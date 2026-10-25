@@ -133,10 +133,10 @@ describe('Heat in combat', () => {
     expect(dmg(60) / dmg(0)).toBeCloseTo(1.15, 2);
   });
 
-  it('Vent needs Heat, spends all of it, and hits much harder at 100% than at 30%', () => {
-    const none = rig(26);
-    none.a.res.heat = 10;
-    expect(none.a.startMove('downB', null, none.world)).toBe(false);
+  it('Vent always comes out (a weak puff when cold), spends all the Heat, and hits much harder at 100% than at 30%', () => {
+    const cold = rig(26);
+    cold.a.res.heat = 0;
+    expect(cold.a.startMove('downB', null, cold.world)).toBe(true);
 
     const run = (heat: number): { dmg: number; speed: number; left: number } => {
       const r = rig(26);
@@ -150,8 +150,11 @@ describe('Heat in combat', () => {
       r.run(40);
       return { dmg: r.b.damage, speed, left: r.a.res.heat };
     };
+    const puff = run(0);
     const small = run(30);
     const big = run(100);
+    expect(puff.dmg).toBeGreaterThan(0);
+    expect(small.dmg).toBeGreaterThan(puff.dmg);
     expect(big.dmg).toBeGreaterThan(small.dmg * 1.5);
     expect(big.speed).toBeGreaterThan(small.speed * 1.3);
   });

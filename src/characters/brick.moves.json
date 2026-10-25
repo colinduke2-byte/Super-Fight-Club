@@ -1338,10 +1338,6 @@
    "startup": 14,
    "active": 4,
    "recovery": 30,
-   "requires": {
-    "key": "heat",
-    "min": 30
-   },
    "armor": {
     "from": 1,
     "to": 14,
