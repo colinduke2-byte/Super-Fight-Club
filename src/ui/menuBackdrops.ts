@@ -21,6 +21,7 @@ export type MenuFamily = 'title' | 'lobby' | 'arcade' | 'vault' | 'settings' | '
 /** Each screen's family (screens not listed get `title`; a screen may also name one through MenuBackdrop.family). */
 export const MENU_FAMILIES: Record<string, MenuFamily> = {
   Title: 'title',
+  Home: 'title',
   ModeSelect: 'title',
   CharacterSelect: 'lobby',
   VersusSetup: 'lobby',

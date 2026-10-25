@@ -6,7 +6,7 @@ import { AUDIO_STYLES, sfx, type AudioStyle } from '../audio/sfx';
 import { SOUND_NAMES, type SoundName } from '../audio/soundMap';
 import { TRACKS, barSeconds, sectionAt, type SectionKind } from '../audio/tracks';
 import type { MenuEvent } from '../input/menuInput';
-import { COLORS, MenuList, MenuScene, drawPanel, pointerXY, tapMin, text, textPx, type MenuBackdrop, type MenuItem } from '../ui/menuKit';
+import { COLORS, MenuList, MenuScene, drawButton, pointerXY, tapMin, text, textPx, type MenuBackdrop, type MenuItem } from '../ui/menuKit';
 
 type Tab = 'music' | 'jingles' | 'effects' | 'voices' | 'announcer';
 const TABS: { id: Tab; label: string }[] = [
@@ -243,9 +243,8 @@ export class SoundTestScene extends MenuScene {
     const u = this.u;
     this.tabBoxes.forEach((b, i) => {
       const on = TABS[i].id === this.tab;
-      drawPanel(g, b.x, b.y, b.w, b.h, u, on ? 0.95 : 0.7);
-      if (on) g.fillStyle(COLORS.hot, 0.9).fillRect(b.x, b.y + b.h - u, b.w, u);
-      this.tabTexts[i].setTint(on ? COLORS.hot : COLORS.dim);
+      drawButton(g, b.x, b.y, b.w, b.h, u, { sel: on });
+      this.tabTexts[i].setTint(on ? COLORS.hot : COLORS.hint);
     });
   }
 

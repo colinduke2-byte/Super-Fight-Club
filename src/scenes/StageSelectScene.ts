@@ -4,6 +4,7 @@ import { ensurePalettesReady, palettesReady, type PaletteWant } from '../art/pro
 import { assignPalettes } from '../art/palettes';
 import { characterById } from '../characters';
 import { session } from '../game/session';
+import { saveLastSetup, versusTitle } from '../game/lastSetup';
 import { lifetimeStats } from '../game/records';
 import type { StageData } from '../engine/types';
 import { footerHint, type MenuVerb } from '../input/prompts';
@@ -12,6 +13,13 @@ const FOOTER: readonly (readonly [MenuVerb, string])[] = [
   ['updown', 'MOVE'],
   ['leftright', 'FORM'],
   ['confirm', 'FIGHT'],
+  ['back', 'BACK'],
+];
+/** Opened from character select's ALL STAGES: confirm picks the stage and goes back to the lobby. */
+const PICK_FOOTER: readonly (readonly [MenuVerb, string])[] = [
+  ['updown', 'MOVE'],
+  ['leftright', 'FORM'],
+  ['confirm', 'CHOOSE'],
   ['back', 'BACK'],
 ];
 import type { MenuEvent } from '../input/menuInput';
@@ -87,6 +95,17 @@ export class StageSelectScene extends MenuScene {
     super('StageSelect');
   }
 
+  /** Picking for the lobby (ALL STAGES on character select): a pick returns there instead of starting the fight. */
+  private picking = false;
+
+  init(data?: { pick?: boolean }): void {
+    this.picking = !!data?.pick;
+  }
+
+  private get footer(): readonly (readonly [MenuVerb, string])[] {
+    return this.picking ? PICK_FOOTER : FOOTER;
+  }
+
   /** Stages whose art was asked for this visit (built off the main thread; the preview waits for it). */
   private readonly requested = new Set<string>();
 
@@ -116,8 +135,11 @@ export class StageSelectScene extends MenuScene {
     }
     this.waiting = false;
     // the lineup's outfits (duplicates already bumped in the lobby) keep building while the stage is chosen
-    const wants = outfitWants();
-    if (!palettesReady(this, wants)) ensurePalettesReady(this, wants).catch(() => undefined);
+    // (picking for the lobby: nobody is locked in yet, so there is no lineup to build)
+    if (!this.picking) {
+      const wants = outfitWants();
+      if (!palettesReady(this, wants)) ensurePalettesReady(this, wants).catch(() => undefined);
+    }
     this.title = this.add.bitmapText(0, 0, PIXEL_FONT, 'CHOOSE A STAGE').setOrigin(0.5).setTint(COLORS.title);
     this.ui.add(this.title);
     // left / right picks the form (NORMAL, BATTLEFIELD, PLAIN) for every stage: it is a match rule, kept for RANDOM too
@@ -138,7 +160,12 @@ export class StageSelectScene extends MenuScene {
     this.ui.add([this.thumb, this.preview]);
     this.blurb = text(this, this.ui, '', COLORS.text).setOrigin(0, 0).setLineSpacing(3);
     this.tags = text(this, this.ui, '', COLORS.accent).setOrigin(0, 0);
-    this.hint = text(this, this.ui, footerHint(FOOTER), COLORS.dim).setOrigin(0.5);
+    this.hint = text(this, this.ui, footerHint(this.footer), COLORS.dim).setOrigin(0.5);
+    // back on the stage the lobby's strip shows
+    if (this.picking && !session.stageRandom) {
+      const at = STAGE_LIST.findIndex((s) => s.id === session.stage);
+      if (at >= 0) this.list.index = at;
+    } else if (this.picking) this.list.index = STAGE_LIST.length;
   }
 
   /** Set while the picked fighters' outfit sheets finish building (the match would otherwise build them on the main thread). */
@@ -146,6 +173,13 @@ export class StageSelectScene extends MenuScene {
 
   private pick(id: string, random: boolean): void {
     if (this.waiting) return;
+    if (this.picking) {
+      // the lobby's stage strip takes the pick (RANDOM stays RANDOM: it rolls when the fight starts)
+      session.stageRandom = random;
+      if (!random) session.stage = id;
+      this.go('CharacterSelect');
+      return;
+    }
     session.stage = id;
     session.stageRandom = random;
     const wants = outfitWants();
@@ -165,9 +199,8 @@ export class StageSelectScene extends MenuScene {
 
   /** Into the match through the VS splash (any button skips it), headed by the rules being played. */
   private fight(): void {
-    const r = session.rules;
-    const head = r.mode === 'time' ? `${Math.round(r.timeSec / 60)} MINUTE MATCH` : r.mode === 'stamina' ? `STAMINA: ${r.staminaHp} HP` : `${r.stocks} STOCK${r.stocks === 1 ? '' : 'S'}`;
-    if (session.players.length >= 2) this.go('VersusSplash', { next: 'Match', title: r.teams ? `TEAM BATTLE: ${head}` : head });
+    if (session.mode === 'versus') saveLastSetup();
+    if (session.players.length >= 2) this.go('VersusSplash', { next: 'Match', title: versusTitle(session.rules) });
     else this.go('Match');
   }
 
@@ -201,7 +234,7 @@ export class StageSelectScene extends MenuScene {
   protected override tick(time: number): void {
     const formNow = `STAGE FORM: ${FORM_NAMES[session.rules.stageForm ?? 'normal']}`;
     if (formNow !== this.formLine.text) this.formLine.setText(formNow);
-    const hint = this.waiting ? 'PREPARING FIGHTERS...' : footerHint(FOOTER);
+    const hint = this.waiting ? 'PREPARING FIGHTERS...' : footerHint(this.footer);
     if (hint !== this.hint.text) this.hint.setText(hint);
     this.list.update(time);
     const g = this.preview;

@@ -6,9 +6,13 @@ import { announcer } from '../audio/announcer';
 import { portraitKey } from '../art/portraits';
 import { skinsInUse } from './outfits';
 import { CHARACTER_LIST } from '../characters';
-import { Lobby, skillName, skillOfLevel, type CardRow } from '../game/lobby';
+import { Lobby, skillName, skillOfLevel, type CardRow, type LobbySlot } from '../game/lobby';
 import { rememberFighter } from '../game/quick';
-import { saveLastRules } from '../game/rulesets';
+import { LOBBY_PRESETS, PRESETS as RULE_PRESETS, applyLobbyPreset, loadSavedRules, lobbyPresetName, rulesSummary, saveLastRules, type SavedRules } from '../game/rulesets';
+import { prepareVersus, saveLastSetup, versusTitle } from '../game/lastSetup';
+import { STAGE_LIST } from '../stages';
+import { FORM_NAMES, STAGE_FORMS } from '../stages/forms';
+import { randomStage } from './StageSelectScene';
 import { footerHint, promptFor, type MenuVerb } from '../input/prompts';
 import { deviceKind } from '../game/tutorial';
 import type { InputDevice } from '../input/device';
@@ -22,7 +26,7 @@ import { settings } from '../settings';
 import { inputManager } from '../input/inputManager';
 import type { MenuEvent } from '../input/menuInput';
 import { fastShapes } from '../ui/fastShapes';
-import { COLORS, MenuScene, PANEL, drawPanel, pointerDevice, pointerXY, tapMin, text, textPx, type MenuBackdrop } from '../ui/menuKit';
+import { COLORS, MenuList, MenuScene, PANEL, drawButton, drawPanel, pointerDevice, pointerXY, tapMin, text, textPx, wrapText, type MenuBackdrop, type MenuItem } from '../ui/menuKit';
 
 /** Team colour names (team index = player colour index). */
 const TEAM_NAMES = ['BLUE', 'RED', 'GREEN', 'YELLOW'];
@@ -60,6 +64,19 @@ interface Card {
   cw: number;
   cu: number;
 }
+
+/** How long the lobby waits once everyone is locked in before the fight starts by itself (seconds). */
+export const AUTO_START_SEC = 1.5;
+
+/** The versus setup chips along the top of the lobby: rules, the stage strip and its form, every stage, the CPUs. */
+type ChipId = 'rules' | 'stage' | 'form' | 'all' | 'cpu';
+const CHIP_IDS: readonly ChipId[] = ['rules', 'stage', 'form', 'all', 'cpu'];
+
+/**
+ * The lobby as it was when it opened another screen (the full rules, every stage) or rebuilt itself for a new player
+ * count: it comes back exactly as it was (who joined, their picks and locks, the CPUs, the names).
+ */
+let carry: { slots: LobbySlot[]; profiles: (string | null)[] } | null = null;
 
 /** Card height in card units: header band, the fighter's stage, name / status / outfit, tagline, stat bars. */
 const CARD_H = 174;
@@ -107,6 +124,27 @@ export class CharacterSelectScene extends MenuScene {
   private wasHuman = [false, false, false, false];
   /** A locked player's own rows: the cursor is on NAME (above the lobby's team / handicap rows). */
   private nameRow = [false, false, false, false];
+  /** Versus: the setup chips along the top (rules, stage strip, form, every stage, CPUs), their boxes and labels. */
+  private chips: { id: ChipId; t: Phaser.GameObjects.BitmapText; box: { x: number; y: number; w: number; h: number } }[] = [];
+  private chipG: Phaser.GameObjects.Graphics | null = null;
+  /** Devices whose cursor is up on the chips (keyboard / pad: the alt button), and the chip each is on. */
+  private chipFocus = new Map<string, number>();
+  /** The chip under the mouse (-1: none). */
+  private chipHover = -1;
+  /**
+   * Everyone is locked in: seconds left until the fight starts by itself (null while nothing counts down). It runs on
+   * frame time (each frame counts at most 1/20 s), so a slow frame never skips it.
+   */
+  private countdownAt: number | null = null;
+  private lastTick = -1;
+  /** The compact panel open over the lobby (RULES presets, or the CPU setup), or null. */
+  private panel: { kind: 'rules' | 'cpu'; list: MenuList; g: Phaser.GameObjects.Graphics; head: Phaser.GameObjects.BitmapText; desc: Phaser.GameObjects.BitmapText; box: { x: number; y: number; w: number; h: number } } | null = null;
+  /** The player count the RULES panel is set to (applied when it closes: the lobby rebuilds for it). */
+  private pendingCount = 2;
+  /** Waiting for the picked outfits to finish building before the fight. */
+  private waiting = false;
+  /** The saved custom rule sets (read once per visit: the RULES chip names the set the rules match). */
+  private savedRules: SavedRules = { last: null, playerCount: 2, custom: [null, null, null] };
 
   constructor() {
     super('CharacterSelect');
@@ -123,6 +161,17 @@ export class CharacterSelectScene extends MenuScene {
     this.profiles = [null, null, null, null];
     this.wasHuman = [false, false, false, false];
     this.nameRow = [false, false, false, false];
+    this.chips = [];
+    this.chipG = null;
+    this.chipFocus = new Map();
+    this.chipHover = -1;
+    this.countdownAt = null;
+    this.lastTick = -1;
+    this.panel = null;
+    this.waiting = false;
+    this.savedRules = loadSavedRules();
+    // versus: the saved rules (first visit), 2-4 players, and the stage strip on the last setup's stage
+    if (session.mode === 'versus') prepareVersus();
     // a challenge with a set fighter: the cursor starts (and stays) on them (and there is no RANDOM tile)
     const fixed = this.fixedFighter();
     this.lobby = new Lobby(session.playerCount, CHARACTER_LIST.length, { random: fixed < 0, palettes: (ci) => (CHARACTER_LIST[ci] ? paletteCount(CHARACTER_LIST[ci].id) : 1) });
@@ -137,6 +186,7 @@ export class CharacterSelectScene extends MenuScene {
     });
     if (fixed >= 0) this.lobby.slots.forEach((s) => (s.character = fixed));
     else this.restorePicks();
+    this.restoreCarry();
     const title = session.mode === 'versus' ? 'CHOOSE YOUR FIGHTERS' : session.mode === 'arcade' ? 'CHOOSE YOUR CHAMPION' : session.mode === 'targets' ? 'TARGET SMASH' : session.mode === 'launch' ? 'LAUNCH CONTEST' : session.mode === 'challenge' ? challengeHead(challengeById(session.challenge)?.title ?? '') : 'TRAINING: CHOOSE A FIGHTER';
     this.title = this.add.bitmapText(0, 0, PIXEL_FONT, title).setOrigin(0.5).setTint(COLORS.title);
     this.ui.add(this.title);
@@ -215,6 +265,367 @@ export class CharacterSelectScene extends MenuScene {
     this.ui.add(this.goG);
     this.warn = text(this, this.ui, '', COLORS.warn).setOrigin(0.5);
     this.hint = text(this, this.ui, '', COLORS.dim).setOrigin(0.5);
+    if (versus) {
+      // the setup chips replace the heading: the rules, the stage and the CPUs are set right here
+      this.title.setVisible(false);
+      this.chipG = this.add.graphics();
+      this.ui.add(this.chipG);
+      this.chips = CHIP_IDS.map((id) => ({ id, t: text(this, this.ui, '', COLORS.text).setOrigin(0.5), box: { x: 0, y: 0, w: 0, h: 0 } }));
+      this.refreshChips();
+      this.input.on(Phaser.Input.Events.POINTER_MOVE, (p: Phaser.Input.Pointer) => {
+        if (p.wasTouch) return;
+        const q = pointerXY(this, p);
+        this.chipHover = this.panel ? -1 : this.chipAt(q.x, q.y);
+      });
+    }
+  }
+
+  /** Back from the full rules / every stage (or rebuilt for a new player count): the lobby as it was. */
+  private restoreCarry(): void {
+    const c = carry;
+    carry = null;
+    if (!c || session.mode !== 'versus') return;
+    const live = new Set(inputManager.allDevices.map((d) => d.id));
+    const l = this.lobby;
+    c.slots.slice(0, l.playerCount).forEach((src, i) => {
+      const s = l.slots[i];
+      if (src.kind === 'human' && (!src.deviceId || !live.has(src.deviceId) || l.slotOf(src.deviceId) >= 0)) return;
+      Object.assign(s, { kind: src.kind, deviceId: src.deviceId, character: Math.min(src.character, l.randomIndex), locked: src.locked, cpuLevel: src.cpuLevel, skill: src.skill, palette: src.palette, damage: src.damage, stock: src.stock, focus: -1, row: 0 });
+      if (l.teams) s.team = src.team;
+      if (src.kind === 'human') {
+        this.profiles[i] = c.profiles[i] ?? null;
+        this.wasHuman[i] = true;
+      }
+    });
+  }
+
+  /** Keep the lobby for when this screen opens again, then go to `key`. */
+  private leaveFor(key: string, data?: object): void {
+    carry = { slots: this.lobby.slots.map((s) => ({ ...s })), profiles: [...this.profiles] };
+    this.countdownAt = null;
+    this.go(key, data);
+  }
+
+  // ---- the versus setup chips ----
+
+  /** The stage strip's choices: every stage, then RANDOM. */
+  private stageIds(): string[] {
+    return [...STAGE_LIST.map((st) => st.id), 'random'];
+  }
+
+  private stagePick(): string {
+    return session.stageRandom || !STAGE_LIST.some((st) => st.id === session.stage) ? 'random' : session.stage;
+  }
+
+  private stepStage(dir: number): void {
+    const ids = this.stageIds();
+    const i = Math.max(0, ids.indexOf(this.stagePick()));
+    const next = ids[(i + dir + ids.length) % ids.length];
+    if (next === 'random') session.stageRandom = true;
+    else {
+      session.stage = next;
+      session.stageRandom = false;
+    }
+  }
+
+  private stepForm(dir: number): void {
+    const r = session.rules;
+    const i = Math.max(0, STAGE_FORMS.indexOf(r.stageForm ?? 'normal'));
+    const f = STAGE_FORMS[(i + dir + STAGE_FORMS.length) % STAGE_FORMS.length];
+    r.stageForm = f === 'normal' ? undefined : f;
+  }
+
+  /** The CPU chip's summary: the level the CPUs play at (empty slots fill at Normal), or how many there are. */
+  private cpuSummary(): string {
+    const others = this.lobby.active.filter((s) => s.kind !== 'human');
+    if (!others.length) return 'NONE';
+    const skills = new Set(others.map((s) => (s.kind === 'cpu' ? s.skill : 5)));
+    return skills.size === 1 ? `LV ${[...skills][0]}` : 'MIXED';
+  }
+
+  private chipLabel(id: ChipId): string {
+    const r = session.rules;
+    switch (id) {
+      case 'rules':
+        return `RULES: ${lobbyPresetName(r, this.savedRules)}  ${rulesSummary(r)}`;
+      case 'stage': {
+        const pick = this.stagePick();
+        return `< ${pick === 'random' ? 'RANDOM STAGE' : (STAGE_LIST.find((st) => st.id === pick)?.name ?? pick).toUpperCase()} >`;
+      }
+      case 'form':
+        return `FORM: ${FORM_NAMES[r.stageForm ?? 'normal']}`;
+      case 'all':
+        return 'ALL STAGES';
+      case 'cpu':
+        return `CPU: ${this.cpuSummary()}`;
+    }
+  }
+
+  /** Re-read the chip labels (and lay them out again when one changed size). */
+  private refreshChips(): void {
+    let changed = false;
+    for (const c of this.chips) {
+      const t = up(this.chipLabel(c.id));
+      if (t !== c.t.text) {
+        c.t.setText(t);
+        changed = true;
+      }
+    }
+    if (changed && this.cards.length) this.layoutUi(this.scale.width, this.scale.height, this.u);
+  }
+
+  private chipAt(x: number, y: number): number {
+    const m = this.u;
+    return this.chips.findIndex((c) => c.box.w > 0 && x >= c.box.x - m && x <= c.box.x + c.box.w + m && y >= c.box.y - m && y <= c.box.y + c.box.h + m);
+  }
+
+  /**
+   * Lay the chips out from (x0, y) to the right edge, wrapping onto further rows (which may start at the left edge, below
+   * the BACK button). Returns the bottom of the last row.
+   */
+  private layoutChips(w: number, y: number, x0: number, u: number): number {
+    const tap = tapMin(this);
+    const h = Math.max(15 * u, tap);
+    const gap = 3 * u;
+    // whole-pixel text, as large as the chip's height allows
+    let k = Math.max(1, Math.floor(Math.min(u * 1.25, (h * 0.55) / 7)));
+    const right = w - 5 * u;
+    const widthsAt = (kk: number): number[] => this.chips.map((c) => Math.max(textPx(c.t) * kk + 10 * u, tap));
+    let widths = widthsAt(k);
+    // a landscape screen keeps the chips on one row (smaller text) rather than taking a second row from the cards
+    if (w > this.scale.height * 1.4) {
+      for (let kk = k; kk >= Math.max(Math.min(k, 2), k - 1); kk--) {
+        const ww = widthsAt(kk);
+        if (x0 + ww.reduce((a, b) => a + b, 0) + gap * (ww.length - 1) <= right) {
+          k = kk;
+          widths = ww;
+          break;
+        }
+      }
+    }
+    let rowX = x0;
+    let rowY = y;
+    let row: number[] = [];
+    const rows: { y: number; x0: number; items: number[] }[] = [];
+    widths.forEach((cw, i) => {
+      const used = row.reduce((a, j) => a + widths[j] + gap, 0);
+      if (row.length && rowX + used + cw > right) {
+        rows.push({ y: rowY, x0: rowX, items: row });
+        row = [];
+        rowY += h + gap;
+        rowX = 5 * u;
+      }
+      row.push(i);
+    });
+    if (row.length) rows.push({ y: rowY, x0: rowX, items: row });
+    for (const r of rows) {
+      const room = right - r.x0;
+      const total = r.items.reduce((a, j) => a + widths[j], 0) + gap * (r.items.length - 1);
+      // a row too wide for the screen shrinks its labels; otherwise it is centred in its space
+      const fit = Math.min(1, room / Math.max(1, total));
+      let x = r.x0 + Math.max(0, (room - total * fit) / 2);
+      for (const j of r.items) {
+        const c = this.chips[j];
+        const cw = widths[j] * fit;
+        c.box = { x, y: r.y, w: cw, h };
+        c.t.setScale(Math.min(k, (cw - 6 * u) / Math.max(1, textPx(c.t)))).setPosition(x + cw / 2, r.y + h / 2);
+        x += cw + gap;
+      }
+    }
+    return rows.length ? rows[rows.length - 1].y + h : y;
+  }
+
+  private drawChips(time: number): void {
+    const g = this.chipG?.clear();
+    if (!g) return;
+    const u = Math.max(1, this.u / 2);
+    const focusBy = new Map<number, number>();
+    for (const [id, ci] of this.chipFocus) {
+      const slot = this.lobby.slotOf(id);
+      if (!focusBy.has(ci)) focusBy.set(ci, slot >= 0 ? (COLORS.p[slot] ?? COLORS.hot) : COLORS.hot);
+    }
+    this.chips.forEach((c, i) => {
+      const sel = focusBy.has(i) || this.chipHover === i;
+      const accent = c.id === 'rules' ? COLORS.title : c.id === 'cpu' ? COLORS.dim : COLORS.accent;
+      drawButton(g, c.box.x, c.box.y, c.box.w, c.box.h, u, { sel, accent, glow: settings.reduceMotion ? 1 : 0.6 + 0.4 * Math.sin(time * 6) });
+      const col = focusBy.get(i);
+      if (col !== undefined && col !== COLORS.hot) g.lineStyle(u, col, 1).strokeRect(c.box.x - 2 * u, c.box.y - 2 * u, c.box.w + 4 * u, c.box.h + 4 * u);
+      c.t.setTint(sel ? COLORS.hot : c.id === 'rules' ? COLORS.title : COLORS.text).setAlpha(this.panel ? 0.5 : 1);
+    });
+  }
+
+  /** A chip pressed (confirm, click or tap); `dir` steps the stage / form chips (a tap on the stage chip's left part goes back). */
+  private useChip(i: number, dev: InputDevice, dir: 1 | -1 = 1): void {
+    const c = this.chips[i];
+    if (!c) return;
+    this.countdownAt = null;
+    switch (c.id) {
+      case 'rules':
+        this.openPanel('rules', dev);
+        break;
+      case 'stage':
+        this.stepStage(dir);
+        break;
+      case 'form':
+        this.stepForm(dir);
+        break;
+      case 'all':
+        this.chipFocus.clear();
+        this.leaveFor('StageSelect', { pick: true });
+        break;
+      case 'cpu':
+        this.openPanel('cpu', dev);
+        break;
+    }
+    this.refreshChips();
+  }
+
+  /** Keyboard / pad on the chips: left / right picks a chip, up / down changes the stage or form, confirm presses it. */
+  private chipEvent(e: MenuEvent, at: number): void {
+    const n = this.chips.length;
+    const id = e.device.id;
+    switch (e.action) {
+      case 'left':
+      case 'right':
+        this.chipFocus.set(id, (at + (e.action === 'left' ? -1 : 1) + n) % n);
+        break;
+      case 'up':
+      case 'down': {
+        const c = this.chips[at];
+        const d = e.action === 'up' ? -1 : 1;
+        if (c.id === 'stage') this.stepStage(d);
+        else if (c.id === 'form') this.stepForm(d);
+        this.refreshChips();
+        break;
+      }
+      case 'confirm':
+        this.useChip(at, e.device);
+        break;
+      case 'back':
+      case 'alt':
+        this.chipFocus.delete(id);
+        break;
+      case 'start':
+        this.chipFocus.delete(id);
+        if (this.lobby.ready) this.proceed();
+        break;
+    }
+  }
+
+  // ---- the compact panels: RULES presets and the CPU setup ----
+
+  private openPanel(kind: 'rules' | 'cpu', dev: InputDevice | null): void {
+    this.closePanel(false);
+    this.countdownAt = null;
+    if (dev) this.chipFocus.delete(dev.id);
+    const l = this.lobby;
+    const r = session.rules;
+    this.pendingCount = session.playerCount;
+    let items: MenuItem[];
+    if (kind === 'rules') {
+      items = [
+        ...LOBBY_PRESETS.map((pid) => {
+          const p = RULE_PRESETS.find((x) => x.id === pid)!;
+          return {
+            label: p.name,
+            hint: p.hint,
+            value: () => (lobbyPresetName(r, this.savedRules) === p.name ? 'ON' : ''),
+            onConfirm: () => {
+              applyLobbyPreset(r, pid);
+              l.stockRule = r.mode !== 'time';
+              saveLastRules(r, session.playerCount);
+              this.closePanel();
+            },
+          };
+        }),
+        {
+          label: 'PLAYERS',
+          hint: 'How many fighters. CPUs fill the empty slots.',
+          value: () => String(this.pendingCount),
+          onLeft: () => (this.pendingCount = Math.max(2, this.pendingCount - 1)),
+          onRight: () => (this.pendingCount = Math.min(4, this.pendingCount + 1)),
+          onConfirm: () => (this.pendingCount = this.pendingCount >= 4 ? 2 : this.pendingCount + 1),
+        },
+        { label: 'CUSTOM', hint: 'Every rule: stocks, time, stamina, teams, items, hazards, stage pool, ratios, modifiers, series, saved sets.', value: () => (lobbyPresetName(r, this.savedRules) === 'CUSTOM' ? 'ON' : '...'), onConfirm: () => this.leaveFor('VersusSetup', { from: 'lobby' }) },
+        { label: 'DONE', onConfirm: () => this.closePanel() },
+      ];
+    } else {
+      // the empty slots become the CPUs they would be anyway (Normal, RANDOM), so each can be set up
+      l.fillWithCpu();
+      const ROWS: [CardRow, string][] = [['level', 'LEVEL'], ['fighter', 'FIGHTER'], ['outfit', 'OUTFIT'], ['team', 'TEAM'], ['damage', 'START %'], ['stock', 'STOCKS']];
+      items = [];
+      l.active.forEach((s, i) => {
+        if (s.kind !== 'cpu') return;
+        for (const [row, name] of ROWS) {
+          if (!l.rows(i).includes(row)) continue;
+          items.push({ label: `P${i + 1} ${name}`, hint: row === 'level' ? 'CPU skill 1-9: Easy at 1, Normal at 5, Hard at 9.' : `P${i + 1} is a CPU. Joining takes its place.`, value: () => this.rowValue(i, row), onLeft: () => l.adjustSlot(i, row, -1), onRight: () => l.adjustSlot(i, row, 1), onConfirm: () => l.adjustSlot(i, row, 1) });
+        }
+      });
+      if (!items.length) items.push({ label: 'NO CPU SLOTS', hint: 'Every slot has a player: raise PLAYERS under RULES for a CPU.', enabled: () => false });
+      items.push({ label: 'DONE', onConfirm: () => this.closePanel() });
+    }
+    const g = this.add.graphics();
+    this.ui.add(g);
+    const head = text(this, this.ui, kind === 'rules' ? 'RULES' : 'CPU FIGHTERS', COLORS.title).setOrigin(0.5);
+    const desc = text(this, this.ui, '', COLORS.accent).setOrigin(0.5);
+    const list = new MenuList(this, this.ui, items);
+    list.index = kind === 'rules' ? Math.max(0, LOBBY_PRESETS.findIndex((pid) => RULE_PRESETS.find((x) => x.id === pid)?.name === lobbyPresetName(r, this.savedRules))) : 0;
+    this.panel = { kind, list, g, head, desc, box: { x: 0, y: 0, w: 0, h: 0 } };
+    this.layoutPanel();
+  }
+
+  /** Close the panel; a new player count rebuilds the lobby (everyone's picks are kept). */
+  private closePanel(apply = true): void {
+    const p = this.panel;
+    if (!p) return;
+    this.panel = null;
+    p.list.destroy();
+    const at = this.lists.indexOf(p.list);
+    if (at >= 0) this.lists.splice(at, 1);
+    for (const o of [p.g, p.head, p.desc]) o.destroy();
+    this.refreshChips();
+    if (apply && p.kind === 'rules' && this.pendingCount !== session.playerCount) {
+      session.playerCount = this.pendingCount;
+      const r = session.rules;
+      if (r.teamOf && r.teamOf.length !== session.playerCount) r.teamOf = undefined;
+      if (session.playerCount < 3) r.teams = false;
+      saveLastRules(r, session.playerCount);
+      this.leaveFor('CharacterSelect');
+    }
+  }
+
+  private layoutPanel(): void {
+    const p = this.panel;
+    if (!p) return;
+    const w = this.scale.width;
+    const h = this.scale.height;
+    const u = this.u;
+    const pw = Math.min(w - 10 * u, 230 * u);
+    p.head.setScale(Math.min(u * 2, (pw * 0.9) / Math.max(1, textPx(p.head))));
+    const top = Math.max(8 * u, h * 0.08);
+    p.head.setPosition(w / 2, top + p.head.displayHeight / 2 + 4 * u);
+    const listTop = p.head.y + p.head.displayHeight / 2 + 12 * u;
+    const bottom = h - 44 * u;
+    p.list.layout(w / 2, listTop, u, pw / u - 12, bottom);
+    const descY = Math.min(bottom + 10 * u, p.list.bottom + 10 * u);
+    p.desc.setPosition(w / 2, descY);
+    p.box = { x: w / 2 - pw / 2, y: top, w: pw, h: descY + 10 * u - top };
+  }
+
+  private drawPanelOverlay(time: number): void {
+    const p = this.panel;
+    if (!p) return;
+    const w = this.scale.width;
+    const h = this.scale.height;
+    const g = p.g.clear();
+    g.fillStyle(0x05040e, 0.72).fillRect(0, 0, w, h);
+    drawPanel(g, p.box.x, p.box.y, p.box.w, p.box.h, this.u, 0.96);
+    p.list.update(time);
+    // the row's hint, wrapped to the panel (at most three lines at the normal text size)
+    const per = Math.max(12, Math.floor((p.box.w - 10 * this.u) / (6 * this.u)));
+    const d = wrapText(up(p.list.hint), per);
+    if (d !== p.desc.text) p.desc.setText(d).setCenterAlign();
+    p.desc.setScale(Math.min(this.u, (p.box.w - 8 * this.u) / Math.max(1, textPx(p.desc))));
   }
 
   /** Short window: the cards leave out the tagline row. */
@@ -233,25 +644,36 @@ export class CharacterSelectScene extends MenuScene {
     this.warn.setData('k', warnK).setScale(Math.min(warnK, (w * 0.95) / Math.max(1, textPx(this.warn)))).setPosition(w / 2, hintTop - 5 * ru - (7 * warnK) / 2);
     const warnTop = this.warn.y - (7 * warnK) / 2;
     const rn = this.roster.length;
-    const rw = Math.min((w - 8 * ru) / (rn + 0.3), 74 * ru);
+    // the roster runs in one strip, or wraps onto more rows (a phone held upright) so every tile stays finger-sized
+    const minTile = Math.max(tapMin(this) * 1.15, 30 * ru);
+    let rows = 1;
+    while (rows < 4 && (w - 8 * ru) / (Math.ceil(rn / rows) + 0.3) < minTile) rows++;
+    const cols = Math.ceil(rn / rows);
+    const rw = Math.min((w - 8 * ru) / (cols + 0.3), 74 * ru);
     // one size for every name (measured unscaled, so it does not depend on the last layout), with a gap between neighbours
     const widest = Math.max(1, ...this.roster.map((r) => textPx(r.name)));
     const nameS = Math.min(ru * 1.2, (rw - 7 * ru) / widest);
-    const pipY = warnTop - 6 * ru;
-    const nameY = pipY - 4 * ru - 7 * nameS;
-    const portH = 40 * ru * 1.35;
-    const portBottom = nameY - 2 * ru;
-    const stripTop = portBottom - portH - 3 * ru;
-    this.rosterPlate = { x: w / 2 - (rn * rw) / 2 - 2 * ru, y: stripTop, w: rn * rw + 4 * ru, h: pipY + 4 * ru - stripTop, u: ru };
+    const pipY0 = warnTop - 6 * ru;
+    const portH = Math.min(40 * ru * 1.35, rw * 1.1);
+    // one row's height: portrait well, name, pips
+    const rowSpan = 4 * ru + 7 * nameS + 2 * ru + portH + 3 * ru + 4 * ru;
+    const stripTop = pipY0 + 4 * ru - rows * rowSpan;
+    this.rosterPlate = { x: w / 2 - (cols * rw) / 2 - 2 * ru, y: stripTop, w: cols * rw + 4 * ru, h: pipY0 + 4 * ru - stripTop, u: ru };
     this.roster.forEach((r, i) => {
-      const cx = w / 2 + (i - (rn - 1) / 2) * rw;
+      const row = Math.floor(i / cols);
+      const inRow = Math.min(cols, rn - row * cols);
+      const cx = w / 2 + ((i % cols) - (inRow - 1) / 2) * rw;
+      const pipY = pipY0 - (rows - 1 - row) * rowSpan;
+      const nameY = pipY - 4 * ru - 7 * nameS;
+      const portBottom = nameY - 2 * ru;
+      const top = portBottom - portH - 3 * ru;
       if (r.img?.getData('bust')) {
         // the bust fills the tile's portrait well
         const side = Math.min(portH, rw - 6 * ru);
         r.img.setScale(side / r.img.width).setPosition(cx, portBottom - portH / 2);
         r.img.setData('home', [cx, portBottom - portH / 2, side / r.img.width]);
       } else if (r.img) {
-        const sc = ru * 1.35 * (r.img.getData('k') as number);
+        const sc = Math.min(ru * 1.35, (portH / 40) * 1.0) * (r.img.getData('k') as number);
         // centre the cropped portrait (not the whole frame) over the name
         const cr = r.img.getData('crop') as [number, number, number, number];
         r.img.setScale(sc).setPosition(cx + (r.img.width / 2 - (cr[0] + cr[2] / 2)) * sc, portBottom + (r.img.height / 2 - (cr[1] + cr[3])) * sc);
@@ -259,10 +681,16 @@ export class CharacterSelectScene extends MenuScene {
       r.q?.setScale(Math.max(1, Math.floor(Math.min(portH * 0.8, rw * 0.8) / 7))).setPosition(cx, portBottom - portH / 2);
       r.name.setScale(nameS).setPosition(cx, nameY);
       r.pips.forEach((p, k) => p.setScale((3 * ru) / 4).setPosition(cx - ((r.pips.length - 1) * 4 * ru) / 2 + k * 4 * ru, pipY));
-      r.box = { x: cx - rw / 2 + ru, y: stripTop + ru, w: rw - 2 * ru, h: pipY + 3 * ru - stripTop - ru };
+      r.box = { x: cx - rw / 2 + ru, y: top + ru, w: rw - 2 * ru, h: pipY + 3 * ru - top - ru };
     });
-    // the cards: as large as fits between the title and the roster (quarter-unit steps keep the pixel text even)
-    const cardsTop = this.title.y + this.title.displayHeight / 2 + 7 * ru;
+    // the cards: as large as fits between the title (versus: the setup chips) and the roster (quarter-unit steps keep the
+    // pixel text even)
+    let cardsTop = this.title.y + this.title.displayHeight / 2 + 7 * ru;
+    if (this.chips.length) {
+      // the chips share the top row with the BACK button, right of it
+      const backW = Math.max(48 * u0, tapMin(this) * 1.4 + 2 * u0);
+      cardsTop = this.layoutChips(w, 5 * u0, 5 * u0 + backW + 4 * u0, u0) + 6 * ru;
+    }
     const avail = stripTop - 7 * ru - cardsTop;
     this.compact = avail / (CARD_H + KEYS_H) < 2;
     const cardH = this.cardH + KEYS_H;
@@ -298,6 +726,7 @@ export class CharacterSelectScene extends MenuScene {
         b.setPosition(bx, by);
       });
     });
+    this.layoutPanel();
   }
 
   protected override backdrop(): MenuBackdrop {
@@ -563,7 +992,20 @@ export class CharacterSelectScene extends MenuScene {
         ?.replace('PRESS A BUTTON TO JOIN', deviceKind(this.lastDevice) === 'touch' ? 'TAP A FIGHTER TO JOIN' : 'PRESS A BUTTON TO JOIN')
         .replace(/1 EMPTY SLOT: CPU WILL FILL/, coop ? 'P2 MAY JOIN FOR CO-OP' : '1 EMPTY SLOT: CPU WILL FILL') ?? null;
     const narrow = this.scale.width < this.scale.height;
-    const msg = up(l.ready ? `CONTINUE  >${warning && !narrow ? `   (${warning})` : ''}` : (warning ?? ''));
+    this.tickCountdown(time);
+    const left = this.countdownAt !== null ? Math.max(0, this.countdownAt) : -1;
+    const touch = deviceKind(this.lastDevice) === 'touch';
+    const wait = touch ? 'BACK: WAIT' : `${promptFor('special', this.lastDevice)}: WAIT`;
+    const goWord = session.mode === 'versus' ? 'FIGHT!' : 'CONTINUE';
+    const msg = up(
+      this.waiting
+        ? 'PREPARING FIGHTERS...'
+        : left >= 0
+          ? `${goWord}  IN ${left.toFixed(1)}   ${wait}`
+          : l.ready
+            ? `${goWord}  >${warning && !narrow ? `   (${warning})` : ''}`
+            : (warning ?? ''),
+    );
     if (msg !== this.warn.text) {
       this.warn.setText(msg);
       const k = (this.warn.getData('k') as number | undefined) ?? this.u;
@@ -571,6 +1013,8 @@ export class CharacterSelectScene extends MenuScene {
     }
     this.warn.setTint(l.ready ? (((time * 3) | 0) % 2 === 0 ? COLORS.good : COLORS.hot) : COLORS.warn);
     this.drawGo(time);
+    this.drawChips(time);
+    this.drawPanelOverlay(time);
     this.cards.forEach((c, i) => this.cardKeys(c, i));
     const hint = this.footerText(time);
     if (hint !== this.hint.text) {
@@ -590,7 +1034,9 @@ export class CharacterSelectScene extends MenuScene {
     const card = d ? l.focusOf(d.id) : -1;
     const touch = deviceKind(d) === 'touch';
     // a touch screen has no "alt" button: CPUs are set up from a keyboard or pad
-    const cpus: [MenuVerb, string][] = session.mode === 'versus' && !touch ? [['alt', 'SET UP CPUS']] : [];
+    const cpus: [MenuVerb, string][] = session.mode === 'versus' && !touch ? [['alt', 'RULES, STAGE, CPUS']] : [];
+    if (this.panel) return footerHint([['updown', 'MOVE'], ['leftright', 'CHANGE'], ['confirm', 'SELECT'], ['back', 'CLOSE']], d);
+    if (d && this.chipFocus.has(d.id)) return footerHint([['leftright', 'CHOOSE'], ['updown', 'CHANGE'], ['confirm', 'PRESS'], ['back', 'DONE']], d);
     if (d && i >= 0 && card !== i) return footerHint([['updown', 'ROW'], ['leftright', 'CHANGE'], ['confirm', 'NEXT CARD'], ['back', 'DONE']], d);
     if (l.humans() === 0) return footerHint([...cpus, ['back', 'BACK']], d);
     return cpus.length ? footerHint(cpus, d) : '';
@@ -608,7 +1054,7 @@ export class CharacterSelectScene extends MenuScene {
     const slot = l.slots[i];
     const u = (c.keys.getData('u') as number) ?? this.u;
     let msg = '';
-    if (slot.kind === 'empty' && l.humans() === 0 && deviceKind(this.lastDevice) !== 'touch') msg = 'OR CLICK A FIGHTER';
+    if (slot.kind === 'empty' && l.humans() === 0 && deviceKind(this.lastDevice) !== 'touch') msg = 'OR CLICK A FIGHTER TO LOCK IN';
     if (slot.kind === 'human' && slot.deviceId) {
       const d = this.deviceById(slot.deviceId);
       const kind = deviceKind(d);
@@ -616,9 +1062,10 @@ export class CharacterSelectScene extends MenuScene {
       const lr = kind === 'keyboard' ? `${P('left')}/${P('right')}` : kind === 'gamepad' ? 'LEFT/RIGHT' : '';
       const ud = kind === 'keyboard' ? `${P('up')}/${P('down')}` : kind === 'gamepad' ? 'UP/DOWN' : '';
       const open = this.ownOpen(i);
-      if (kind === 'touch') msg = slot.locked ? `TAP CONTINUE   TAP P${i + 1} BAR: NAME` : 'TAP A FIGHTER, TAP AGAIN TO LOCK IN';
+      const go = session.mode === 'versus' ? 'FIGHT' : 'CONTINUE';
+      if (kind === 'touch') msg = slot.locked ? `TAP AGAIN: OUTFIT   TAP P${i + 1} BAR: NAME` : 'TAP A FIGHTER TO LOCK IN';
       else if (open) msg = `${ud}: ROW   ${lr}: CHANGE   ${P('special')}: CLOSE`;
-      else if (slot.locked) msg = `${P('attack')}: CONTINUE   ${P('special')}: CHANGE   ${ud}: NAME${l.rows(i).length ? `, ${l.teams ? 'TEAM, ' : ''}HANDICAP` : ''}`;
+      else if (slot.locked) msg = `${P('attack')}: ${go}   ${P('special')}: CHANGE   ${ud}: NAME${l.rows(i).length ? `, ${l.teams ? 'TEAM, ' : ''}HANDICAP` : ''}`;
       else msg = `${lr}: FIGHTER   ${ud}: OUTFIT   ${P('attack')}: LOCK IN`;
     }
     if (c.keys.text !== up(msg)) c.keys.setText(up(msg));
@@ -630,7 +1077,7 @@ export class CharacterSelectScene extends MenuScene {
   private drawGo(time: number): void {
     const g = this.goG.clear();
     this.goBox = null;
-    if (!this.lobby.ready || !this.warn.text) return;
+    if (!this.lobby.ready || !this.warn.text || this.waiting) return;
     const u = this.u;
     const t = this.warn;
     const w = t.displayWidth + 16 * u;
@@ -639,7 +1086,42 @@ export class CharacterSelectScene extends MenuScene {
     this.goBox = box;
     drawPanel(g, box.x, box.y, box.w, box.h, Math.max(1, u / 2), 0.95);
     g.fillStyle(COLORS.good, 0.12 + 0.06 * Math.sin(time * 5)).fillRect(box.x, box.y, box.w, box.h);
+    // counting down to the fight: the plate fills up
+    if (this.countdownAt !== null) g.fillStyle(COLORS.good, 0.3).fillRect(box.x, box.y, box.w * Math.max(0, Math.min(1, 1 - this.countdownAt / AUTO_START_SEC)), box.h);
     g.lineStyle(Math.max(1, u / 2), COLORS.good, 0.9).strokeRect(box.x, box.y, box.w, box.h);
+  }
+
+  /** Locking in starts the fight by itself (versus, and single-player modes); co-op and turns wait for CONTINUE. */
+  private autoStarts(): boolean {
+    return session.mode === 'versus' || session.playerCount === 1;
+  }
+
+  /** Everyone is ready and the lineup can play (a team battle needs two teams; the empty slots fill on their own teams). */
+  private canGo(): boolean {
+    const l = this.lobby;
+    if (!l.ready || this.waiting) return false;
+    if (session.mode === 'versus' && l.teams && new Set(l.active.map((s) => s.team)).size < 2) return false;
+    return true;
+  }
+
+  /** Everyone just locked in: the short countdown to the fight starts (again). */
+  private startCountdown(): void {
+    if (this.autoStarts() && this.canGo() && !this.panel) this.countdownAt = AUTO_START_SEC;
+  }
+
+  private tickCountdown(time: number): void {
+    const dt = this.lastTick < 0 ? 0 : Math.max(0, Math.min(0.05, time - this.lastTick));
+    this.lastTick = time;
+    if (this.countdownAt === null) return;
+    if (this.panel || !this.canGo()) {
+      this.countdownAt = null;
+      return;
+    }
+    this.countdownAt -= dt;
+    if (this.countdownAt <= 0) {
+      this.countdownAt = null;
+      this.proceed();
+    }
   }
 
   /** The locked player's own team / handicap rows are open (they touched them in the last few seconds). */
@@ -758,18 +1240,38 @@ export class CharacterSelectScene extends MenuScene {
 
   /** Roster tiles, cards and the CONTINUE button take taps directly (the touch OK / BACK column lets them through). */
   protected override tapTargetAt(x: number, y: number): boolean {
+    const pb = this.panel?.box;
+    if (pb) return x >= pb.x && x <= pb.x + pb.w && y >= pb.y && y <= pb.y + pb.h;
+    if (this.chipAt(x, y) >= 0) return true;
     const gb = this.goBox;
     if (gb && x >= gb.x && x <= gb.x + gb.w && y >= gb.y && y <= gb.y + gb.h) return true;
     if (this.cards.some((c) => x >= c.cx - c.cw / 2 && x <= c.cx + c.cw / 2 && y >= c.top && y <= c.top + this.cardH * c.cu)) return true;
     return this.roster.some((r) => x >= r.box.x && x <= r.box.x + r.box.w && y >= r.box.y && y <= r.box.y + r.box.h);
   }
 
-  /** Mouse / tap on the roster: joins (as the pointer's device), moves the cursor there, a second tap locks in. */
+  /**
+   * Mouse / tap: a roster tile joins (as the pointer's device) and locks that fighter in at once; tapping your locked
+   * fighter again steps their outfit (as does a swatch on your card). The setup chips and the panels take their own taps.
+   */
   private onPointer(p: Phaser.Input.Pointer): void {
-    if (p.rightButtonDown()) return;
+    if (p.rightButtonDown() || this.waiting) return;
     const q = pointerXY(this, p);
     const l = this.lobby;
     const dev = pointerDevice(p);
+    const pb = this.panel?.box;
+    if (pb) {
+      // the panel's rows handle their own taps; a tap beside the panel closes it
+      if (q.x < pb.x || q.x > pb.x + pb.w || q.y < pb.y || q.y > pb.y + pb.h) this.closePanel();
+      return;
+    }
+    const ci = this.chipAt(q.x, q.y);
+    if (ci >= 0) {
+      this.lastDevice = dev;
+      const b = this.chips[ci].box;
+      // the stage chip's left part goes back a stage, the rest forward
+      this.useChip(ci, dev, this.chips[ci].id === 'stage' && q.x < b.x + b.w * 0.35 ? -1 : 1);
+      return;
+    }
     // the CONTINUE button (a finger's margin around it)
     const gb = this.goBox;
     // at least a finger's height on touch screens
@@ -790,6 +1292,14 @@ export class CharacterSelectScene extends MenuScene {
         return;
       }
       const mine = l.slotOf(dev.id);
+      // an outfit swatch on your own card
+      if (mine === card) {
+        const k = cc.swatches.findIndex((sw) => sw.visible && Math.abs(q.y - sw.y) <= 3.5 * cc.cu && Math.abs(q.x - sw.x) <= Math.max(6 * cc.cu, tapMin(this) / 2));
+        if (k >= 0 && l.setOutfit(dev.id, k)) {
+          if (this.countdownAt !== null) this.startCountdown();
+          return;
+        }
+      }
       if (mine < 0 && l.slots[card].kind === 'empty') l.join(dev.id);
       else if (mine === card && l.slots[card].locked && (l.ready || (session.mode !== 'versus' && !this.takesTurns()))) this.proceed();
       return;
@@ -797,15 +1307,34 @@ export class CharacterSelectScene extends MenuScene {
     const tile = this.roster.findIndex((r) => q.x >= r.box.x && q.x <= r.box.x + r.box.w && q.y >= r.box.y && q.y <= r.box.y + r.box.h);
     if (tile < 0) return;
     this.lastDevice = dev;
-    if (l.slotOf(dev.id) < 0 && l.join(dev.id) < 0) return;
-    const s = l.slots[l.slotOf(dev.id)];
-    l.focusHome(dev.id);
-    if (s.locked) return;
-    if (this.fixedFighter() >= 0 || s.character === tile) this.confirmAndCall(dev.id);
-    else {
-      s.character = tile;
-      s.palette = 0;
+    const mine = l.slotOf(dev.id);
+    const s0 = mine >= 0 ? l.slots[mine] : null;
+    if (this.fixedFighter() >= 0) {
+      // a challenge's set fighter: any tile locks them in
+      if (mine < 0 && l.join(dev.id) < 0) return;
+      l.focusHome(dev.id);
+      if (!l.slots[l.slotOf(dev.id)].locked) {
+        this.confirmAndCall(dev.id);
+        this.startCountdown();
+      }
+      return;
     }
+    if (s0?.locked && s0.character === tile) {
+      // your fighter again: the next outfit (the countdown starts over so you can see it)
+      l.restyle(dev.id, 1);
+      this.startCountdown();
+      return;
+    }
+    const before = s0 ? { locked: s0.locked, character: s0.character } : null;
+    const i = l.pickAndLock(dev.id, tile);
+    if (i < 0) return;
+    const s = l.slots[i];
+    if ((!before || !before.locked || before.character !== s.character) && !l.isRandom(s)) {
+      const c = CHARACTER_LIST[s.character];
+      if (c) announcer.fighterName(c.name.toUpperCase());
+    }
+    this.startCountdown();
+    this.refreshChips();
   }
 
   /** Start building the picked outfits (duplicates already bumped) so the match does not stall on them. */
@@ -847,6 +1376,10 @@ export class CharacterSelectScene extends MenuScene {
   }
 
   private proceed(): void {
+    if (this.waiting) return;
+    this.countdownAt = null;
+    if (this.panel) this.closePanel(false);
+    this.chipFocus.clear();
     const l = this.lobby;
     const versus = session.mode === 'versus';
     if (versus) l.fillWithCpu();
@@ -877,7 +1410,15 @@ export class CharacterSelectScene extends MenuScene {
       saveLastRules(r, session.playerCount);
     }
     this.prepareOutfits(slots);
-    if (versus) this.go('StageSelect');
+    if (versus) {
+      // the stage strip's pick (RANDOM rolls now, from the rules' stage pool), then through the VS splash into the fight
+      if (this.stagePick() === 'random') {
+        session.stage = randomStage(session.rules.stagePool);
+        session.stageRandom = true;
+      } else session.stageRandom = false;
+      saveLastSetup(session, l.active.map((s, i) => (s.kind === 'human' ? this.profiles[i] : null)));
+      this.fightWhenReady(slots);
+    }
     else if (session.mode === 'arcade') {
       session.arcadeHuman = slots[0];
       session.ladder = buildLadder(slots[0].character);
@@ -898,6 +1439,32 @@ export class CharacterSelectScene extends MenuScene {
       session.players = [slots[0], { index: 1, type: 'cpu', device: null, character: slots[0].character === 'brick' ? 'vex' : 'brick', cpuLevel: 1 }];
       this.go('Match');
     }
+  }
+
+  /** Into the versus match once the picked outfits are built (the match would otherwise build them on the main thread). */
+  private fightWhenReady(slots: readonly PlayerSlot[]): void {
+    const go = (): void => this.go('VersusSplash', { next: 'Match', title: versusTitle(session.rules) });
+    const wants = slots.flatMap((p) => {
+      const data = CHARACTER_LIST.find((c) => c.id === p.character);
+      return data ? [{ data, palette: p.palette ?? 0 }] : [];
+    });
+    if (palettesReady(this, wants)) {
+      go();
+      return;
+    }
+    this.waiting = true;
+    const visit = this.visitId;
+    ensurePalettesReady(this, wants)
+      .catch((err: unknown) => console.warn('[lobby] outfit prebuild failed (the match builds them itself):', err))
+      .finally(() => {
+        if (this.isVisit(visit)) go();
+      });
+  }
+
+  /** Where BACK goes from an empty versus lobby: the home screen when the game has one, else the main menu. */
+  private versusBack(): string {
+    const keys = (this.game.scene as unknown as { keys?: Record<string, unknown> }).keys ?? {};
+    return keys.Home ? 'Home' : 'ModeSelect';
   }
 
   /** Up / down through a locked player's own rows: NAME, then the lobby's (team, handicap), wrapping round. */
@@ -934,9 +1501,24 @@ export class CharacterSelectScene extends MenuScene {
   }
 
   protected onEvent(e: MenuEvent): void {
+    if (this.waiting) return;
+    this.lastDevice = e.device;
+    if (this.panel) {
+      if (!this.panel.list.handle(e) && (e.action === 'back' || e.action === 'alt' || e.action === 'start')) this.closePanel();
+      return;
+    }
+    const at = this.chipFocus.get(e.device.id);
+    if (at !== undefined) {
+      this.chipEvent(e, at);
+      return;
+    }
+    this.lobbyEvent(e);
+    this.refreshChips();
+  }
+
+  private lobbyEvent(e: MenuEvent): void {
     const l = this.lobby;
     const id = e.device.id;
-    this.lastDevice = e.device;
     const i = l.slotOf(id);
     const onOther = i >= 0 && l.focusOf(id) !== i;
     const ownLocked = i >= 0 && !onOther && l.slots[i].locked && l.slots[i].kind === 'human';
@@ -953,6 +1535,7 @@ export class CharacterSelectScene extends MenuScene {
         const dir = e.action === 'left' ? -1 : 1;
         if (onOther) l.adjust(id, dir);
         else if (ownLocked) {
+          this.countdownAt = null;
           if (touchOwn()) {
             if (this.nameRow[i] || !l.rows(i).length) this.stepProfile(i, dir);
             else l.adjust(id, dir);
@@ -965,6 +1548,7 @@ export class CharacterSelectScene extends MenuScene {
         const dir = e.action === 'down' ? 1 : -1;
         if (onOther) l.moveRow(id, dir);
         else if (ownLocked) {
+          this.countdownAt = null;
           if (touchOwn()) this.moveOwnRow(i, dir);
         } else l.outfit(id, dir); // colour palette for this player's fighter
         break;
@@ -975,10 +1559,19 @@ export class CharacterSelectScene extends MenuScene {
           break;
         }
         if (i >= 0 && l.slots[i].locked && (l.ready || (session.mode !== 'versus' && !this.takesTurns()))) this.proceed();
-        else this.confirmAndCall(id);
+        else {
+          const wasLocked = i >= 0 && l.slots[i].locked;
+          this.confirmAndCall(id);
+          if (!wasLocked && l.slotOf(id) >= 0 && l.slots[l.slotOf(id)].locked) this.startCountdown();
+        }
         break;
       }
       case 'back': {
+        // the countdown to the fight: back holds it (everyone stays locked in; confirm or CONTINUE starts the fight)
+        if (this.countdownAt !== null) {
+          this.countdownAt = null;
+          break;
+        }
         if (onOther) {
           l.focusHome(id);
           break;
@@ -988,14 +1581,15 @@ export class CharacterSelectScene extends MenuScene {
           break;
         }
         const r = l.back(id);
-        if (r === 'none' && l.humans() === 0) this.go(session.mode === 'versus' ? 'VersusSetup' : session.mode === 'challenge' ? 'Challenges' : 'ModeSelect');
+        if (r === 'none' && l.humans() === 0) this.go(session.mode === 'versus' ? this.versusBack() : session.mode === 'challenge' ? 'Challenges' : 'ModeSelect');
         break;
       }
       case 'alt':
         if (session.mode !== 'versus') break;
-        // move your cursor onto the CPU / empty cards to set them up (not joined yet: just add a CPU)
-        if (i >= 0) l.focusNext(id);
-        else l.cycleCpu();
+        // up onto the setup chips: rules, the stage strip and its form, every stage, the CPUs
+        this.countdownAt = null;
+        if (i >= 0) l.focusHome(id);
+        this.chipFocus.set(id, 0);
         break;
       case 'start':
         if (l.ready) this.proceed();

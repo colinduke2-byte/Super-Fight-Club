@@ -139,6 +139,8 @@ export interface MenuItem {
   enabled?: () => boolean;
   /** One-line explanation, for scenes that show the selected row's hint. */
   hint?: string | (() => string);
+  /** A pixel icon in the row's gutter (see drawIcon). */
+  icon?: IconName;
 }
 
 /** Unscaled pixel width of a bitmap text (independent of its current scale). */
@@ -160,6 +162,110 @@ export function drawPanel(g: Phaser.GameObjects.Graphics, x: number, y: number, 
   g.lineStyle(u, PANEL.border, 1).strokeRect(x - u / 2, y - u / 2, w + u, h + u);
   g.fillStyle(PANEL.tick, 0.9);
   for (const [cx, cy] of [[x - u, y - u], [x + w - u * 2, y - u], [x - u, y + h - u * 2], [x + w - u * 2, y + h - u * 2]]) g.fillRect(cx, cy, u * 3, u * 3);
+}
+
+/**
+ * The menus' pixel icons: 8x8 one-colour glyphs drawn straight into a Graphics (runs of pixels as single rects, no texture),
+ * each with a dark drop shadow so it reads over any plate.
+ */
+const ICON_ART = {
+  play: ['.#......', '.##.....', '.###....', '.####...', '.####...', '.###....', '.##.....', '.#......'],
+  battle: ['#......#', '.#....#.', '..#..#..', '...##...', '..####..', '.##..##.', '###..###', '.#....#.'],
+  more: ['###..###', '###..###', '###..###', '........', '........', '###..###', '###..###', '###..###'],
+  gear: ['...##...', '.#.##.#.', '..####..', '###..###', '###..###', '..####..', '.#.##.#.', '...##...'],
+  solo: ['...##...', '..####..', '...##...', '.######.', '#..##..#', '...##...', '..#..#..', '.##..##.'],
+  extras: ['...##...', '...##...', '########', '.######.', '..####..', '..####..', '.##..##.', '.#....#.'],
+  back: ['...#....', '..##....', '.#######', '########', '.#######', '..##....', '...#....', '........'],
+  quick: ['....###.', '...###..', '..###...', '.######.', '...###..', '..###...', '.##.....', '#.......'],
+  teams: ['.#....#.', '###..###', '.#....#.', '###..###', '#.#..#.#', '.#....#.', '#.#..#.#', '........'],
+  turns: ['..####..', '.#....#.', '#.....##', '#....###', '###....#', '##.....#', '.#....#.', '..####..'],
+  arcade: ['...##...', '...##...', '....#...', '....#...', '.######.', '#......#', '#.#..#.#', '.######.'],
+  boss: ['.######.', '########', '#..##..#', '#..##..#', '########', '.##..##.', '.######.', '.#.##.#.'],
+  endless: ['........', '.##..##.', '#..##..#', '#..##..#', '#..##..#', '.##..##.', '........', '........'],
+  gauntlet: ['#......#', '########', '#......#', '########', '#......#', '########', '#......#', '#......#'],
+  flag: ['#.......', '######..', '#######.', '######..', '#.......', '#.......', '#.......', '#.......'],
+  daily: ['.#....#.', '########', '#......#', '########', '#.#.#.##', '########', '#.#.#..#', '########'],
+  target: ['..####..', '.#....#.', '#..##..#', '#.#..#.#', '#.#..#.#', '#..##..#', '.#....#.', '..####..'],
+  launch: ['....####', '.....###', '....####', '...###.#', '..###...', '.###....', '###.....', '.#......'],
+  training: ['..###...', '..###...', '...#....', '.#####..', '...#....', '...#....', '..###...', '.#####..'],
+  book: ['........', '###..###', '#..##..#', '#..##..#', '#..##..#', '#..##..#', '########', '........'],
+  film: ['########', '#.#..#.#', '########', '#..#...#', '#..##..#', '#..#...#', '########', '#.#..#.#'],
+  trophy: ['########', '########', '.######.', '..####..', '...##...', '...##...', '..####..', '.######.'],
+  card: ['########', '#......#', '#.##...#', '#.##.###', '#......#', '#.##.###', '#.##...#', '########'],
+  help: ['..####..', '.##..##.', '.....##.', '....##..', '...##...', '...##...', '........', '...##...'],
+  note: ['...#####', '...#...#', '...#...#', '...#...#', '...#...#', '.###.###', '####.###', '.##...#.'],
+  heart: ['.##..##.', '########', '########', '########', '.######.', '..####..', '...##...', '........'],
+  pad: ['........', '.######.', '#.####.#', '###.##.#', '#.####.#', '########', '##....##', '........'],
+  close: ['##....##', '###..###', '.######.', '..####..', '..####..', '.######.', '###..###', '##....##'],
+} as const;
+
+export type IconName = keyof typeof ICON_ART;
+
+/** Runs of lit pixels per icon row ([x0, length] pairs), worked out once. */
+const ICON_RUNS = new Map<IconName, number[][]>();
+function iconRuns(name: IconName): number[][] {
+  let r = ICON_RUNS.get(name);
+  if (r) return r;
+  r = ICON_ART[name].map((row) => {
+    const out: number[] = [];
+    for (let x = 0; x < row.length; x++) {
+      if (row[x] !== '#') continue;
+      let n = 1;
+      while (row[x + n] === '#') n++;
+      out.push(x, n);
+      x += n - 1;
+    }
+    return out;
+  });
+  ICON_RUNS.set(name, r);
+  return r;
+}
+
+/** Draw icon `name` centred on (cx, cy), `px` render pixels per icon pixel (whole pixels, so it stays crisp). */
+export function drawIcon(g: Phaser.GameObjects.Graphics, name: IconName, cx: number, cy: number, px: number, color: number, alpha = 1): void {
+  const p = Math.max(1, Math.round(px));
+  const x0 = Math.round(cx - p * 4);
+  const y0 = Math.round(cy - p * 4);
+  const runs = iconRuns(name);
+  const sh = Math.max(1, Math.round(p / 2));
+  for (const [col, a] of [[0x0a0818, alpha * 0.85], [color, alpha]] as const) {
+    const o = col === color ? 0 : sh;
+    g.fillStyle(col, a);
+    for (let y = 0; y < runs.length; y++) {
+      const row = runs[y];
+      for (let i = 0; i < row.length; i += 2) g.fillRect(x0 + row[i] * p + o, y0 + y * p + o, row[i + 1] * p, p);
+    }
+  }
+}
+
+/** A button / tile's look: selected (gold edge and glow), held down (pressed in), an accent stripe colour. */
+export interface ButtonState {
+  sel?: boolean;
+  press?: boolean;
+  accent?: number;
+  /** 0..1 pulse of the selected edge (pass 1 for steady). */
+  glow?: number;
+}
+
+/**
+ * The one button style for every tile, chip and corner button: the panel plate, a gold edge with a soft outer glow when
+ * selected, an accent stripe along the bottom and, while held, the plate pressed in one unit.
+ */
+export function drawButton(g: Phaser.GameObjects.Graphics, x: number, y: number, w: number, h: number, u: number, st: ButtonState = {}): void {
+  const dy = st.press ? u : 0;
+  const yy = y + dy;
+  if (st.sel) {
+    const a = 0.22 + 0.18 * (st.glow ?? 1);
+    g.fillStyle(COLORS.hot, a * 0.5).fillRect(x - 3 * u, yy - 3 * u, w + 6 * u, h + 6 * u);
+    g.fillStyle(COLORS.hot, a).fillRect(x - 2 * u, yy - 2 * u, w + 4 * u, h + 4 * u);
+  }
+  g.fillStyle(st.press ? 0x05040e : PANEL.fill, st.sel ? 0.97 : 0.9).fillRect(x, yy, w, h);
+  if (!st.press) g.fillStyle(0xffffff, st.sel ? 0.08 : 0.04).fillRect(x, yy, w, u);
+  if (st.sel) g.fillStyle(COLORS.hot, 0.07).fillRect(x, yy, w, h);
+  g.lineStyle(u, st.sel ? COLORS.hot : PANEL.border, 1).strokeRect(x - u / 2, yy - u / 2, w + u, h + u);
+  if (st.accent !== undefined) g.fillStyle(st.accent, st.sel ? 1 : 0.75).fillRect(x, yy + h - 2 * u, w, 2 * u);
+  g.fillStyle(st.sel ? COLORS.hot : PANEL.tick, 0.95);
+  for (const [cx, cy] of [[x - u, yy - u], [x + w - u * 2, yy - u], [x - u, yy + h - u * 2], [x + w - u * 2, yy + h - u * 2]]) g.fillRect(cx, cy, u * 3, u * 3);
 }
 
 /**
@@ -227,6 +333,12 @@ export class MenuList {
   interactive = true;
   /** Text scale factor of the last update (the plate and the hit boxes follow it). */
   private lastK = 1.5;
+  /** When the last confirm landed (the cursor bar flashes for a moment: press feedback). */
+  private flashAt = -9;
+  /** Icon gutter width in art pixels (0 when no row has an icon). */
+  private get gutter(): number {
+    return this.items.some((it) => it.icon) ? 16 : 0;
+  }
   /**
    * Scrolling: the first row shown and how many fit. A list longer than the space it is given (down to `bottom`, or the
    * footer) keeps its row size and scrolls with the cursor (and a finger drag) instead of shrinking its text.
@@ -399,7 +511,7 @@ export class MenuList {
       const slot = i - this.first;
       const on = this.visible && slot >= 0 && slot < this.shown;
       const y = this.top + slot * this.rowH * u;
-      this.labels[i].setScale(u * k).setPosition(cx - (width / 2) * u, y).setVisible(on);
+      this.labels[i].setScale(u * k).setPosition(cx - (width / 2) * u + this.gutter * u, y).setVisible(on);
       this.values[i].setScale(u * k).setOrigin(1, 0).setPosition(cx + (width / 2) * u, y).setVisible(on);
     }
   }
@@ -434,7 +546,10 @@ export class MenuList {
         item.onRight?.();
         return !!item.onRight;
       case 'confirm':
-        if (this.enabled(this.index)) item.onConfirm?.();
+        if (this.enabled(this.index) && item.onConfirm) {
+          this.flashAt = this.lastTime;
+          item.onConfirm();
+        }
         return !!item.onConfirm;
       default:
         return false;
@@ -481,6 +596,20 @@ export class MenuList {
       const a = settings.reduceMotion ? 0.18 : 0.16 + 0.06 * Math.sin(time * 6);
       g.fillStyle(COLORS.hot, a).fillRect(x + u, sy, w - u * 2, rh);
       g.fillStyle(COLORS.hot, 0.9).fillRect(x + u, sy, u * 2, rh);
+      // press feedback: the bar flashes white for a moment as a row is confirmed
+      const fl = Math.max(0, 1 - (time - this.flashAt) / 0.18);
+      if (fl > 0) g.fillStyle(0xffffff, (settings.reduceFlashes ? 0.12 : 0.3) * fl).fillRect(x + u, sy, w - u * 2, rh);
+    }
+    // the rows' icons in the gutter (lit on the selected row)
+    if (this.gutter) {
+      const px = Math.max(1, Math.round(u * Math.min(1.25, k * 0.85)));
+      for (let s = 0; s < this.shown; s++) {
+        const i = this.first + s;
+        const ic = this.items[i]?.icon;
+        if (!ic) continue;
+        const sel = i === this.index;
+        drawIcon(g, ic, this.cx - (this.width / 2) * u + 5 * u, this.top + s * rh + textH / 2, px, !this.enabled(i) ? 0x5a5680 : sel ? COLORS.hot : COLORS.accent);
+      }
     }
     // a scrolling list: a thin track and thumb down the right edge, and arrows where more rows wait
     const n = this.items.length;
@@ -520,7 +649,7 @@ export class MenuList {
       const on = this.enabled(i);
       const label = typeof it.label === 'function' ? it.label() : it.label;
       const pulse = sel && !settings.reduceMotion && blink(time, 2);
-      labels[i] = up(`${sel ? '> ' : '  '}${label}`);
+      labels[i] = up(this.gutter ? label : `${sel ? '> ' : '  '}${label}`);
       this.labels[i].setText(labels[i]);
       this.labels[i].setTint(!on ? 0x5a5680 : sel ? (pulse ? COLORS.hot : COLORS.title) : COLORS.text);
       vals[i] = it.value ? up(`${sel && it.onLeft ? '< ' : ''}${it.value()}${sel && it.onRight ? ' >' : ''}`) : '';
@@ -532,8 +661,8 @@ export class MenuList {
     });
     // one text size for the whole menu: shrunk when the widest row (label + value) would overflow the menu width, but never
     // below the font's own size (k = 1); rows still too long are cut short with '..' instead
-    const k = (this.lastK = Math.max(Math.min(1, this.fontK), Math.min(this.fontK, this.width / worst)));
-    const room = this.width / k;
+    const k = (this.lastK = Math.max(Math.min(1, this.fontK), Math.min(this.fontK, (this.width - this.gutter) / worst)));
+    const room = (this.width - this.gutter) / k;
     for (let i = 0; i < n; i++) {
       const lw = textPx(this.labels[i]);
       const vw = vals[i] ? textPx(this.values[i]) + 12 : 0;
@@ -586,6 +715,22 @@ const DEFAULT_TOUCH_PADS: Record<string, MenuPad> = {
   Title: 'none',
 };
 
+/** A corner button (BACK, the settings gear): its graphics, label, box, hover and press state. */
+interface Chip {
+  g: Phaser.GameObjects.Graphics;
+  t: Phaser.GameObjects.BitmapText | null;
+  icon: IconName;
+  x: number;
+  y: number;
+  w: number;
+  h: number;
+  hover: boolean;
+  down: boolean;
+}
+
+/** Scene transitions: the fade out and in (ms), and the short slide the new screen's UI makes into place. */
+export const TRANSITION = { out: 100, in: 150, slide: 0.16 };
+
 /** Last cursor row per scene (scenes with `rememberCursor`), kept for the session. */
 const CURSORS = new Map<string, number>();
 
@@ -606,7 +751,12 @@ export abstract class MenuScene extends Phaser.Scene {
   protected backChip = true;
   /** A click / tap that lands on no row or chip confirms (screens with nothing else to click: story cards, credits...). */
   protected tapConfirms = false;
-  private chip: { g: Phaser.GameObjects.Graphics; t: Phaser.GameObjects.BitmapText; x: number; y: number; w: number; h: number; hover: boolean } | null = null;
+  private chip: Chip | null = null;
+  /** Show the settings gear in the top-right corner (it opens Settings and comes back here). */
+  protected gearChip = false;
+  private gear: Chip | null = null;
+  /** Scene time the enter slide started (the UI eases up into place; none with REDUCE MOTION). */
+  private enterAt = -1;
   private wheelAt = 0;
   /** Reopening the screen puts the cursor back on the row it was on (first list only). */
   protected rememberCursor = false;
@@ -714,7 +864,19 @@ export abstract class MenuScene extends Phaser.Scene {
     };
     this.events.on('resume', onResume);
     this.events.once('shutdown', () => this.events.off('resume', onResume));
-    for (const cam of [main, this.uiCam]) cam.fadeIn(160, 7, 6, 15);
+    for (const cam of [main, this.uiCam]) cam.fadeIn(TRANSITION.in, 7, 6, 15);
+    // the UI rises a few units into place as the screen fades in (a cut with REDUCE MOTION)
+    this.enterAt = settings.reduceMotion ? -1 : 0;
+    this.uiCam.setScroll(0, 0);
+  }
+
+  /** The enter slide: the UI camera eases from a few units low to rest. */
+  private slideIn(time: number): void {
+    if (this.enterAt < 0) return;
+    const k = Math.min(1, (time - this.enterAt) / TRANSITION.slide);
+    const e = 1 - Math.pow(1 - k, 3);
+    this.uiCam.setScroll(0, -(1 - e) * 6 * this.u);
+    if (k >= 1) this.enterAt = -1;
   }
 
   /**
@@ -729,6 +891,7 @@ export abstract class MenuScene extends Phaser.Scene {
     const time = (performance.now() - this.time0) / 1000;
     if (!this.menuFx.covers) this.bg.update(time * 6, Math.sin(time * 0.2) * 10, 3, time);
     this.placePlanet(time);
+    this.slideIn(time);
     this.menuFx.update(time);
     // the controls hints follow the device in use (a pad's buttons once a pad is touched, the keys after a key press)
     if (this.boundFooters.length && promptSerial() !== this.footSerial) {
@@ -779,7 +942,7 @@ export abstract class MenuScene extends Phaser.Scene {
       const k = renderPerCss(this);
       const x = cx * k;
       const y = cy * k;
-      return this.lists.some((l) => l.rowAt(x, y) >= 0) || this.inChipAt(x, y) || this.tapTargetAt(x, y);
+      return this.lists.some((l) => l.rowAt(x, y) >= 0) || this.inChipAt(x, y) || this.inChip(this.gear, x, y) || this.tapTargetAt(x, y);
     };
     t.passThrough = through;
     this.events.once('shutdown', () => {
@@ -789,7 +952,10 @@ export abstract class MenuScene extends Phaser.Scene {
 
   /** The BACK chip's hit box (a little larger than the chip: fingers are fat) contains render point (x, y). */
   private inChipAt(x: number, y: number): boolean {
-    const c = this.chip;
+    return this.inChip(this.chip, x, y);
+  }
+
+  private inChip(c: Chip | null, x: number, y: number): boolean {
     if (!c) return false;
     const s = this.u * 3;
     return x >= c.x - s && x <= c.x + c.w + s && y >= c.y - s && y <= c.y + c.h + s;
@@ -798,27 +964,51 @@ export abstract class MenuScene extends Phaser.Scene {
   /** Mouse / touch: the BACK chip, right-click = back, the wheel moves up / down, and (opt-in) tap-anywhere = confirm. */
   private buildPointer(): void {
     this.chip = null;
-    if (this.backChip) {
+    this.gear = null;
+    const mk = (icon: IconName, label: string | null): Chip => {
       const g = this.add.graphics();
       this.ui.add(g);
-      const t = text(this, this.ui, '< BACK', COLORS.dim).setOrigin(0, 0.5);
-      this.chip = { g, t, x: 0, y: 0, w: 0, h: 0, hover: false };
-    }
-    const inChip = (pp: Phaser.Input.Pointer): boolean => {
+      const t = label ? text(this, this.ui, label, COLORS.hint).setOrigin(0, 0.5) : null;
+      return { g, t, icon, x: 0, y: 0, w: 0, h: 0, hover: false, down: false };
+    };
+    if (this.backChip) this.chip = mk('back', 'BACK');
+    if (this.gearChip) this.gear = mk('gear', null);
+    const hit = (c: Chip | null, pp: Phaser.Input.Pointer): boolean => {
       const p = pointerXY(this, pp);
-      return this.inChipAt(p.x, p.y);
+      return this.inChip(c, p.x, p.y);
     };
     this.input.on(Phaser.Input.Events.POINTER_MOVE, (p: Phaser.Input.Pointer) => {
-      const c = this.chip;
-      if (c && inChip(p) !== c.hover) {
-        c.hover = !c.hover;
-        this.drawChip();
+      for (const c of [this.chip, this.gear]) {
+        if (c && hit(c, p) !== c.hover) {
+          c.hover = !c.hover;
+          if (!c.hover) c.down = false;
+          this.drawChip(c);
+        }
+      }
+    });
+    this.input.on(Phaser.Input.Events.POINTER_UP, () => {
+      for (const c of [this.chip, this.gear]) {
+        if (c?.down) {
+          c.down = false;
+          this.drawChip(c);
+        }
       }
     });
     this.input.on(Phaser.Input.Events.POINTER_DOWN, (p: Phaser.Input.Pointer) => {
       if (this.leaving) return;
       const dev = pointerDevice(p);
-      if (p.rightButtonDown() || inChip(p)) {
+      if (hit(this.gear, p)) {
+        this.gear!.down = true;
+        this.drawChip(this.gear!);
+        sfx.play('menuOk', 0.7, 0);
+        this.openSettings();
+        return;
+      }
+      if (p.rightButtonDown() || hit(this.chip, p)) {
+        if (this.chip && !p.rightButtonDown()) {
+          this.chip.down = true;
+          this.drawChip(this.chip);
+        }
         menuInput.inject('back', dev);
         return;
       }
@@ -855,29 +1045,69 @@ export abstract class MenuScene extends Phaser.Scene {
   /** MenuLists the scene created (they register themselves), so a tap on a row is not also a tap on the screen. */
   readonly lists: MenuList[] = [];
 
-  private drawChip(): void {
-    const c = this.chip;
-    if (!c) return;
-    const u = this.u;
-    c.t.setScale(u).setPosition(c.x + (c.w - textPx(c.t) * u) / 2, c.y + c.h / 2).setTint(c.hover ? COLORS.hot : COLORS.hint);
-    const g = c.g.clear();
-    g.fillStyle(PANEL.fill, c.hover ? 0.95 : 0.7).fillRect(c.x, c.y, c.w, c.h);
-    g.lineStyle(u, c.hover ? COLORS.hot : PANEL.border, c.hover ? 0.9 : 0.8).strokeRect(c.x - u / 2, c.y - u / 2, c.w + u, c.h + u);
-    g.fillStyle(c.hover ? COLORS.hot : PANEL.tick, 0.9).fillRect(c.x - u, c.y - u, u * 2, u * 2);
+  /** The gear: Settings over this screen's flow (it comes back here). Screens can send it elsewhere. */
+  protected openSettings(): void {
+    this.go('Settings', { back: this.scene.key });
   }
 
-  private placeChip(): void {
-    const c = this.chip;
-    if (!c) return;
+  /** A corner button in the shared button style: icon (and label), lit on hover, pressed in while held. */
+  private drawChip(c: Chip): void {
     const u = this.u;
-    c.t.setScale(u);
-    c.x = 5 * u;
-    c.y = 5 * u;
-    // a finger-sized chip on touch screens
+    const px = Math.max(1, Math.round(u));
+    const dy = c.down ? u : 0;
+    const iconW = 8 * px;
+    const tw = c.t ? textPx(c.t) * u : 0;
+    const inner = iconW + (c.t ? 4 * u + tw : 0);
+    const x0 = c.x + (c.w - inner) / 2;
+    const col = c.hover || c.down ? COLORS.hot : COLORS.hint;
+    c.t?.setScale(u).setPosition(x0 + iconW + 4 * u, c.y + c.h / 2 + dy).setTint(col);
+    const g = c.g.clear();
+    drawButton(g, c.x, c.y, c.w, c.h, u, { sel: c.hover, press: c.down });
+    drawIcon(g, c.icon, x0 + iconW / 2, c.y + c.h / 2 + dy, px, col);
+  }
+
+  /** BACK in the top-left corner and the gear in the top-right, the same size and spot on every screen. */
+  private placeChip(): void {
+    const u = this.u;
     const tap = tapMin(this);
-    c.w = Math.max(textPx(c.t) * u + 8 * u, tap * 1.4);
-    c.h = Math.max(7 * u + 6 * u, tap);
-    this.drawChip();
+    const h = Math.max(7 * u + 6 * u, tap);
+    const c = this.chip;
+    if (c) {
+      c.t?.setScale(u);
+      c.x = 5 * u;
+      c.y = 5 * u;
+      // a finger-sized chip on touch screens
+      c.w = Math.max((c.t ? textPx(c.t) * u + 4 * u : 0) + 8 * u + 8 * u, tap * 1.4);
+      c.h = h;
+      this.drawChip(c);
+    }
+    const gr = this.gear;
+    if (gr) {
+      gr.w = Math.max(h, tap);
+      gr.h = h;
+      gr.x = this.scale.width - 5 * u - gr.w;
+      gr.y = 5 * u;
+      this.drawChip(gr);
+    }
+  }
+
+  /** The gear's box (null without one), so a screen can put it in its own keyboard / pad navigation. */
+  protected get gearBox(): { x: number; y: number; w: number; h: number } | null {
+    const g = this.gear;
+    return g ? { x: g.x, y: g.y, w: g.w, h: g.h } : null;
+  }
+
+  /** Light the gear as the keyboard / pad selection (or not). */
+  protected setGearLit(on: boolean): void {
+    const g = this.gear;
+    if (!g || g.hover === on) return;
+    g.hover = on;
+    this.drawChip(g);
+  }
+
+  /** The corner buttons' bottom edge (screens start their content below it). */
+  protected get chipBottom(): number {
+    return 5 * this.u + Math.max(13 * this.u, tapMin(this));
   }
 
   private onResize(size: Phaser.Structs.Size): void {
@@ -923,6 +1153,8 @@ export abstract class MenuScene extends Phaser.Scene {
       const y0 = top - 3 * u;
       g.fillStyle(0x05040e, 0.5).fillRect(0, y0, w, h - y0);
       g.fillStyle(0x05040e, 0.25).fillRect(0, y0 - 2 * u, w, 2 * u);
+      // one footer style everywhere: a thin rule along the band's top edge
+      g.fillStyle(PANEL.border, 0.8).fillRect(0, y0, w, Math.max(1, u * 0.5));
     }
     if (desc) {
       // a description too long for one readable line wraps (up to three lines) rather than shrinking
@@ -972,7 +1204,7 @@ export abstract class MenuScene extends Phaser.Scene {
     if (this.leaving) return;
     this.leaving = true;
     const cams = [this.cameras.main, this.uiCam];
-    for (const cam of cams) cam.fadeOut(110, 7, 6, 15);
+    for (const cam of cams) cam.fadeOut(TRANSITION.out, 7, 6, 15);
     this.uiCam.once(Phaser.Cameras.Scene2D.Events.FADE_OUT_COMPLETE, () => this.scene.start(key, data));
   }
 }

@@ -4,7 +4,8 @@ import type { MenuEvent } from '../input/menuInput';
 import { session } from '../game/session';
 import { planRun, type RunPlan } from '../game/ladder';
 import { quickMatch } from '../game/quick';
-import { markTutorialOffered, shouldOfferTutorial, startTutorial, tutorialDone } from '../game/tutorial';
+import { startTutorial } from '../game/tutorial';
+import { prepareVersus, saveLastSetup } from '../game/lastSetup';
 import { CHALLENGES, armSpecialChallenge } from '../game/challenges';
 import { startDaily } from '../game/daily';
 import { setTargetCourse, targetCourseChoice } from '../game/targetRuns';
@@ -12,7 +13,7 @@ import { endTurns } from '../game/turns';
 import { SHARED_COURSES } from '../stages/targetCourses';
 import { MergedDevice } from '../input/device';
 import { sfx } from '../audio/sfx';
-import { COLORS, MenuList, MenuScene, drawPanel, pointerXY, tapMin, text, textPx, wrapText, type MenuBackdrop, type MenuItem } from '../ui/menuKit';
+import { COLORS, MenuList, MenuScene, drawButton, drawIcon, pointerXY, tapMin, text, textPx, type IconName, type MenuBackdrop, type MenuItem } from '../ui/menuKit';
 import { PIXEL_FONT } from '../art/pixelFont';
 import { fighterAnimKey, fighterTextureKey, uiTexK } from '../art/proceduralFighter';
 import { CHARACTER_LIST } from '../characters';
@@ -23,42 +24,38 @@ import { drawShowcaseLight } from '../ui/menuBackdrops';
 interface Group {
   id: string;
   label: string;
-  items: { label: string; desc: string; go: (scene: ModeSelectScene, e?: MenuEvent) => void; show?: () => boolean }[];
+  icon: IconName;
+  items: { label: string; desc: string; icon: IconName; go: (scene: ModeSelectScene, e?: MenuEvent) => void; show?: () => boolean }[];
 }
 
 const GROUPS: Group[] = [
   {
-    id: 'smash',
-    label: 'SMASH',
+    id: 'battle',
+    label: 'BATTLE',
+    icon: 'battle',
     items: [
-      { label: 'VERSUS', desc: 'SET UP A MATCH FOR 2-4 FIGHTERS: FRIENDS, CPUS, RULES AND STAGE.', go: (s) => s.goTo('VersusSetup') },
-      { label: 'QUICK MATCH', desc: 'STRAIGHT INTO A FIGHT: YOUR LAST FIGHTER VS ONE CPU ON A RANDOM STAGE.', go: (s, e) => s.quick(e) },
-      { label: 'TARGET TURNS', desc: '2-4 PLAYERS TAKE TURNS ON ONE TARGET COURSE, THEN COMPARE TIMES.', go: (s) => s.startTurns('targets') },
-      { label: 'LAUNCH TURNS', desc: '2-4 PLAYERS TAKE TURNS IN THE LAUNCH CONTEST, THEN COMPARE DISTANCES.', go: (s) => s.startTurns('launch') },
-      // new players find the lessons on the first tab (until they finish them; they stay in the VAULT after that)
-      { label: 'TUTORIAL', desc: 'NEW HERE? EIGHT SHORT HANDS-ON LESSONS: MOVING, ATTACKING, SHIELDING, RECOVERING.', go: (s, e) => startTutorial(s, 'ModeSelect', undefined, e?.device), show: () => !tutorialDone() },
-      { label: 'HOW TO PLAY', desc: 'THE CONTROLS FOR YOUR KEYBOARD, PAD OR TOUCH, AND EVERY TECHNIQUE, PAGE BY PAGE.', go: (s) => s.goTo('HowToPlay') },
-    ],
-  },
-  {
-    id: 'arcade',
-    label: 'ARCADE',
-    items: [
-      { label: 'ARCADE', desc: 'YOUR FIGHTER\'S OWN ROUTE: EIGHT FIGHTS, A RIVAL ON HOME GROUND, THEN THE OVERSEER.', go: (s) => s.startRun({ kind: 'arcade' }) },
-      { label: 'CO-OP ARCADE', desc: 'TWO PLAYERS, ONE TEAM, THE WHOLE LADDER. THE RIVALS COME IN PAIRS.', go: (s) => s.startRun({ kind: 'arcade', coop: true }) },
-      { label: 'BOSS BATTLE', desc: 'STRAIGHT TO THE OVERSEER. PICK A DIFFICULTY; A SECOND PLAYER CAN JOIN AS CO-OP.', go: (s) => s.startRun({ kind: 'boss', coop: true }) },
-      { label: 'ENDLESS', desc: 'ONE STOCK, RIVAL AFTER RIVAL, EACH SHARPER. HALF YOUR DAMAGE CARRIES OVER. HOW FAR?', go: (s) => s.startRun({ kind: 'endless' }) },
-      { label: 'GAUNTLET', desc: 'ALL TEN FIGHTERS IN A ROW ON THEIR HOME STAGES. THREE STOCKS, LITTLE HEALING. RACE THE CLOCK.', go: (s) => s.startRun({ kind: 'gauntlet' }) },
+      { label: 'VERSUS', icon: 'battle', desc: 'SET UP A MATCH FOR 2-4 FIGHTERS: FRIENDS, CPUS, RULES AND STAGE.', go: (s) => { prepareVersus(); s.goTo('CharacterSelect'); } },
+      { label: 'QUICK MATCH', icon: 'quick', desc: 'STRAIGHT INTO A FIGHT: YOUR LAST FIGHTER VS ONE CPU ON A RANDOM STAGE.', go: (s, e) => s.quick(e) },
+      { label: 'TEAM BATTLE', icon: 'teams', desc: 'FOUR FIGHTERS, TWO TEAMS: FRIENDS AND CPUS SIDE BY SIDE. TEAM LAYOUTS ARE IN VERSUS SETUP.', go: (s) => s.teams() },
+      { label: 'TARGET TURNS', icon: 'turns', desc: '2-4 PLAYERS TAKE TURNS ON ONE TARGET COURSE, THEN COMPARE TIMES.', go: (s) => s.startTurns('targets') },
+      { label: 'LAUNCH TURNS', icon: 'turns', desc: '2-4 PLAYERS TAKE TURNS IN THE LAUNCH CONTEST, THEN COMPARE DISTANCES.', go: (s) => s.startTurns('launch') },
     ],
   },
   {
     id: 'solo',
     label: 'SOLO',
+    icon: 'solo',
     items: [
-      { label: 'CHALLENGES', desc: `${CHALLENGES.length} SET-PIECE FIGHTS, EACH WITH A TWIST. CLEAR THEM ALL.`, go: (s) => s.goTo('Challenges') },
-      { label: 'DAILY CHALLENGE', desc: 'A NEW CHALLENGE EVERY DAY: TODAY\'S FIGHTER, STAGE, RULE AND GOALS. BEAT YOUR BEST.', go: (s) => s.goTo(startDaily()) },
+      { label: 'ARCADE', icon: 'arcade', desc: 'YOUR FIGHTER\'S OWN ROUTE: EIGHT FIGHTS, A RIVAL ON HOME GROUND, THEN THE OVERSEER.', go: (s) => s.startRun({ kind: 'arcade' }) },
+      { label: 'CO-OP ARCADE', icon: 'teams', desc: 'TWO PLAYERS, ONE TEAM, THE WHOLE LADDER. THE RIVALS COME IN PAIRS.', go: (s) => s.startRun({ kind: 'arcade', coop: true }) },
+      { label: 'BOSS BATTLE', icon: 'boss', desc: 'STRAIGHT TO THE OVERSEER. PICK A DIFFICULTY; A SECOND PLAYER CAN JOIN AS CO-OP.', go: (s) => s.startRun({ kind: 'boss', coop: true }) },
+      { label: 'ENDLESS', icon: 'endless', desc: 'ONE STOCK, RIVAL AFTER RIVAL, EACH SHARPER. HALF YOUR DAMAGE CARRIES OVER. HOW FAR?', go: (s) => s.startRun({ kind: 'endless' }) },
+      { label: 'GAUNTLET', icon: 'gauntlet', desc: 'ALL TEN FIGHTERS IN A ROW ON THEIR HOME STAGES. THREE STOCKS, LITTLE HEALING. RACE THE CLOCK.', go: (s) => s.startRun({ kind: 'gauntlet' }) },
+      { label: 'CHALLENGES', icon: 'flag', desc: `${CHALLENGES.length} SET-PIECE FIGHTS, EACH WITH A TWIST. CLEAR THEM ALL.`, go: (s) => s.goTo('Challenges') },
+      { label: 'DAILY CHALLENGE', icon: 'daily', desc: 'A NEW CHALLENGE EVERY DAY: TODAY\'S FIGHTER, STAGE, RULE AND GOALS. BEAT YOUR BEST.', go: (s) => s.goTo(startDaily()) },
       {
         label: 'TARGET SMASH',
+        icon: 'target',
         desc: 'BREAK TEN TARGETS ON YOUR FIGHTER\'S OWN COURSE. A GHOST OF YOUR BEST RUN RACES YOU.',
         go: (s) => {
           setTargetCourse('own');
@@ -67,35 +64,31 @@ const GROUPS: Group[] = [
       },
       {
         label: 'TARGET COURSES',
+        icon: 'target',
         desc: 'THE SHARED COURSES, EASY TO HARD: TARGET GAUNTLET, SKY SPIRE, THE ABYSS.',
         go: (s) => {
           setTargetCourse(nextShared());
           s.start('targets');
         },
       },
-      { label: 'LAUNCH CONTEST', desc: 'THREE ATTEMPTS: TEN SECONDS TO BUILD DAMAGE ON A DUMMY, THEN SEND IT FLYING. THE BEST COUNTS.', go: (s) => s.start('launch') },
-      { label: 'TRAINING', desc: 'PRACTISE FREELY: A DUMMY, HITBOXES, FRAME DATA AND NO CLOCK.', go: (s) => s.start('training') },
+      { label: 'LAUNCH CONTEST', icon: 'launch', desc: 'THREE ATTEMPTS: TEN SECONDS TO BUILD DAMAGE ON A DUMMY, THEN SEND IT FLYING. THE BEST COUNTS.', go: (s) => s.start('launch') },
+      { label: 'TRAINING', icon: 'training', desc: 'PRACTISE FREELY: A DUMMY, HITBOXES, FRAME DATA AND NO CLOCK.', go: (s) => s.start('training') },
+      { label: 'TUTORIAL', icon: 'book', desc: 'NEW HERE? EIGHT SHORT HANDS-ON LESSONS: MOVING, ATTACKING, SHIELDING, RECOVERING.', go: (s, e) => startTutorial(s, 'ModeSelect', undefined, e?.device) },
     ],
   },
   {
-    id: 'vault',
-    label: 'VAULT',
+    id: 'extras',
+    label: 'EXTRAS',
+    icon: 'extras',
     items: [
-      { label: 'PROFILES', desc: 'EVERY FIGHTER\'S STORY, STATS, RIVAL AND YOUR RECORD WITH THEM. MAKE PLAYER NAMES HERE.', go: (s) => s.goTo('Profiles') },
-      { label: 'RECORDS', desc: 'YOUR WINS, KOS, BEST TIMES AND DISTANCES, FIGHTER BY FIGHTER.', go: (s) => s.goTo('Records') },
-      { label: 'REPLAYS', desc: 'YOUR LAST MATCHES AND STARRED FAVOURITES: WATCH, SEEK, SHARE AS CODES.', go: (s) => s.goTo('ReplayVault') },
-      { label: 'SOUND TEST', desc: 'EVERY TRACK, SOUND AND ANNOUNCER CALL IN THE GAME.', go: (s) => s.goTo('SoundTest', { back: 'ModeSelect' }) },
-      { label: 'HOW TO PLAY', desc: 'THE CONTROLS, MOVES AND TECHNIQUES, PAGE BY PAGE.', go: (s) => s.goTo('HowToPlay') },
-      { label: 'TUTORIAL', desc: 'EIGHT SHORT HANDS-ON LESSONS: MOVING, ATTACKING, SHIELDING, RECOVERING.', go: (s, e) => startTutorial(s, 'ModeSelect', undefined, e?.device) },
-      { label: 'CREDITS', desc: 'WHO IS WHO, WHERE THEY FIGHT AND HOW THE GAME WAS MADE.', go: (s) => s.goTo('Credits') },
-    ],
-  },
-  {
-    id: 'options',
-    label: 'OPTIONS',
-    items: [
-      { label: 'SETTINGS', desc: 'AUDIO, VIDEO, GAMEPLAY AND ACCESSIBILITY.', go: (s) => s.goTo('Settings', { back: 'ModeSelect' }) },
-      { label: 'CONTROLS', desc: 'REBIND KEYS AND BUTTONS FOR EACH KEYBOARD OR CONTROLLER.', go: (s) => s.goTo('Controls', { back: 'ModeSelect' }) },
+      { label: 'REPLAYS', icon: 'film', desc: 'YOUR LAST MATCHES AND STARRED FAVOURITES: WATCH, SEEK, SHARE AS CODES.', go: (s) => s.goTo('ReplayVault') },
+      { label: 'RECORDS', icon: 'trophy', desc: 'YOUR WINS, KOS, BEST TIMES AND DISTANCES, FIGHTER BY FIGHTER.', go: (s) => s.goTo('Records') },
+      { label: 'PROFILES', icon: 'card', desc: 'EVERY FIGHTER\'S STORY, STATS, RIVAL AND YOUR RECORD WITH THEM. MAKE PLAYER NAMES HERE.', go: (s) => s.goTo('Profiles') },
+      { label: 'HOW TO PLAY', icon: 'help', desc: 'THE CONTROLS FOR YOUR KEYBOARD, PAD OR TOUCH, AND EVERY TECHNIQUE, PAGE BY PAGE.', go: (s) => s.goTo('HowToPlay') },
+      { label: 'SOUND TEST', icon: 'note', desc: 'EVERY TRACK, SOUND AND ANNOUNCER CALL IN THE GAME.', go: (s) => s.goTo('SoundTest', { back: 'ModeSelect' }) },
+      { label: 'CREDITS', icon: 'heart', desc: 'WHO IS WHO, WHERE THEY FIGHT AND HOW THE GAME WAS MADE.', go: (s) => s.goTo('Credits') },
+      { label: 'CONTROLS', icon: 'pad', desc: 'REBIND KEYS AND BUTTONS FOR EACH KEYBOARD OR CONTROLLER.', go: (s) => s.goTo('Controls', { back: 'ModeSelect' }) },
+      { label: 'SETTINGS', icon: 'gear', desc: 'AUDIO, VIDEO, GAMEPLAY AND ACCESSIBILITY.', go: (s) => s.goTo('Settings', { back: 'ModeSelect' }) },
     ],
   },
 ];
@@ -103,15 +96,13 @@ const GROUPS: Group[] = [
 /** TARGET COURSES: each pick moves on to the next shared course (the course select is on the course itself). */
 const nextShared = (): string => SHARED_COURSES[(SHARED_COURSES.findIndex((c) => c.id === targetCourseChoice()) + 1) % SHARED_COURSES.length].id;
 
-const OFFER_BODY = 'A FIVE-MINUTE HANDS-ON TUTORIAL TEACHES THE BASICS.';
-
 /** The group and row the menu was left on (kept for the session). */
 let lastGroup = 0;
 const lastRows: number[] = GROUPS.map(() => 0);
-/** The first-launch tutorial offer is shown once per session at most. */
-let offered = false;
-
-/** Main menu: the modes in five groups (SMASH / ARCADE / SOLO / VAULT / OPTIONS), switched with left / right or the tabs. */
+/**
+ * MORE: every mode in three groups (BATTLE / SOLO / EXTRAS, each with its icon), switched with left / right or the tabs, and
+ * the settings gear in the corner. The tab and row last used come back on the next visit.
+ */
 export class ModeSelectScene extends MenuScene {
   private list!: MenuList;
   private title!: Phaser.GameObjects.BitmapText;
@@ -126,8 +117,7 @@ export class ModeSelectScene extends MenuScene {
   private tabTexts: Phaser.GameObjects.BitmapText[] = [];
   private tabG!: Phaser.GameObjects.Graphics;
   private tabBoxes: { x: number; y: number; w: number; h: number }[] = [];
-  /** First-launch offer: a small dialog over the menu (null when not showing). */
-  private offer: { list: MenuList; head: Phaser.GameObjects.BitmapText; body: Phaser.GameObjects.BitmapText; g: Phaser.GameObjects.Graphics } | null = null;
+  protected override gearChip = true;
 
   constructor() {
     super('ModeSelect');
@@ -137,7 +127,7 @@ export class ModeSelectScene extends MenuScene {
     // the main menu shows no outfits: free those nobody in the session wears (challenge rivals, finished ladders...)
     releaseUnusedOutfits(this);
     this.group = lastGroup;
-    this.title = this.add.bitmapText(0, 0, PIXEL_FONT, 'MAIN MENU').setOrigin(0.5).setTint(COLORS.title);
+    this.title = this.add.bitmapText(0, 0, PIXEL_FONT, 'ALL MODES').setOrigin(0.5).setTint(COLORS.title);
     this.ui.add(this.title);
     this.tabG = this.add.graphics();
     this.ui.add(this.tabG);
@@ -149,7 +139,6 @@ export class ModeSelectScene extends MenuScene {
       lastRows[this.group] = this.list.index;
     });
     this.input.on(Phaser.Input.Events.POINTER_DOWN, (p: Phaser.Input.Pointer) => {
-      if (this.offer) return;
       const q = pointerXY(this, p);
       const i = this.tabBoxes.findIndex((b) => q.x >= b.x && q.x <= b.x + b.w && q.y >= b.y - this.u * 2 && q.y <= b.y + b.h + this.u * 2);
       if (i >= 0 && i !== this.group) {
@@ -174,15 +163,10 @@ export class ModeSelectScene extends MenuScene {
       const pads = inputManager.padList.length;
       return pads ? `${pads} CONTROLLER${pads === 1 ? '' : 'S'}` : '';
     });
-    this.offer = null;
-    if (!offered && shouldOfferTutorial()) {
-      offered = true;
-      this.showOffer();
-    }
   }
 
   private items(): MenuItem[] {
-    return GROUPS[this.group].items.filter((it) => !it.show || it.show()).map((it) => ({ label: it.label, hint: it.desc, onConfirm: () => it.go(this, this.lastEvent) }));
+    return GROUPS[this.group].items.filter((it) => !it.show || it.show()).map((it) => ({ label: it.label, hint: it.desc, icon: it.icon, onConfirm: () => it.go(this, this.lastEvent) }));
   }
 
   private lastEvent: MenuEvent | undefined;
@@ -196,49 +180,26 @@ export class ModeSelectScene extends MenuScene {
     this.layoutUi(this.scale.width, this.scale.height, this.u);
   }
 
-  /** A first launch: offer the tutorial before anything else (declining is remembered). */
-  private showOffer(): void {
-    const g = this.add.graphics();
-    this.ui.add(g);
-    const head = text(this, this.ui, 'NEW TO SUPER FIGHT CLUB?', COLORS.title).setOrigin(0.5);
-    const body = text(this, this.ui, OFFER_BODY, COLORS.text).setOrigin(0.5);
-    const list = new MenuList(this, this.ui, [
-      { label: 'PLAY THE TUTORIAL', onConfirm: () => { this.closeOffer(); startTutorial(this, 'ModeSelect', undefined, this.lastEvent?.device); } },
-      {
-        label: 'NOT NOW',
-        onConfirm: () => {
-          markTutorialOffered();
-          this.closeOffer();
-          // the tutorial and How To Play stay on the first tab, in view
-          if (this.group !== 0) this.setGroup(0);
-        },
-      },
-    ]);
-    this.list.interactive = false;
-    this.offer = { list, head, body, g };
-  }
-
-  private closeOffer(): void {
-    const o = this.offer;
-    if (!o) return;
-    this.offer = null;
-    o.list.destroy();
-    this.lists.splice(this.lists.indexOf(o.list), 1);
-    for (const t of [o.head, o.body, o.g]) t.destroy();
-    this.list.interactive = true;
-  }
-
   /** Quick Match: the last fighter vs one CPU on a random stage, straight into the fight. */
   quick(e?: MenuEvent): void {
     const d = e?.device;
     const device = d && (d.kind === 'gamepad' || d.kind === 'touch') ? d : new MergedDevice('p1', 'Keyboard + Gamepad', () => [inputManager.keyboards[0], ...inputManager.padList]);
     quickMatch(device);
+    saveLastSetup(); // PLAY on Home repeats it
     // the VS splash first, as before every arcade fight
     this.go('VersusSplash', { next: 'Match', title: 'QUICK MATCH' });
   }
 
   goTo(key: string, data?: object): void {
     this.go(key, data);
+  }
+
+  /** TEAM BATTLE: versus for four with teams on, at character select (the team layout is set in VERSUS SETUP). */
+  teams(): void {
+    prepareVersus();
+    session.playerCount = 4;
+    session.rules = { ...session.rules, teams: true, teamOf: session.rules.teamOf?.length === 4 ? session.rules.teamOf : undefined };
+    this.go('CharacterSelect');
   }
 
   /** 2-4 players take turns on one target course or in the Launch Contest. */
@@ -272,19 +233,24 @@ export class ModeSelectScene extends MenuScene {
   }
 
   protected override layoutUi(w: number, h: number, u: number): void {
-    this.title.setScale(Math.min(u * 4, (h * 0.1) / 7)).setPosition(w / 2, Math.max(h * 0.1, 6 * u + (7 * Math.min(u * 4, (h * 0.1) / 7)) / 2));
-    // the group tabs under the title
+    const tk = Math.min(u * 4, (h * 0.1) / 7, (w * 0.8) / Math.max(1, textPx(this.title)));
+    this.title.setScale(tk).setPosition(w / 2, Math.max(h * 0.1, 6 * u + (7 * tk) / 2));
+    // a narrow screen: the title drops below the corner buttons rather than run under them
+    if (this.title.displayWidth / 2 > w / 2 - this.chipBottom * 1.6) this.title.setY(this.chipBottom + 4 * u + this.title.displayHeight / 2);
+    // the group tabs under the title: icon and name, finger-sized on touch screens
     const ty = this.title.y + this.title.displayHeight / 2 + 8 * u;
     const pad = 6 * u;
     const gap = 6 * u;
     const raw = this.tabTexts.reduce((acc, t) => acc + textPx(t), 0);
-    const k = Math.min(u * 1.3, (w * 0.94 - (pad * 2 + gap) * GROUPS.length) / Math.max(1, raw));
-    let x = w / 2 - (raw * k + (pad * 2 + gap) * GROUPS.length - gap) / 2;
+    const k = Math.min(u * 1.5, (w * 0.94 - (pad * 2 + gap + 12 * u) * GROUPS.length) / Math.max(1, raw));
+    const iconW = 8 * Math.max(1, Math.round(k * 0.9)) + 4 * u;
+    const th = Math.max(7 * k + 8 * u, tapMin(this));
+    let x = w / 2 - (raw * k + (pad * 2 + gap + iconW) * GROUPS.length - gap) / 2;
     this.tabBoxes = this.tabTexts.map((t) => {
       t.setScale(k);
-      const bw = textPx(t) * k + pad * 2;
-      const box = { x, y: ty, w: bw, h: 7 * k + 5 * u };
-      t.setPosition(x + bw / 2, ty + box.h / 2);
+      const bw = textPx(t) * k + pad * 2 + iconW;
+      const box = { x, y: ty, w: bw, h: th };
+      t.setPosition(x + pad + iconW + (textPx(t) * k) / 2, ty + box.h / 2);
       x += bw + gap;
       return box;
     });
@@ -292,7 +258,7 @@ export class ModeSelectScene extends MenuScene {
     // the selected mode's description sits in the footer above the controls hint, as on every other menu
     this.desc.setText(this.list.hint);
     const footTop = this.placeFooter(this.hint, this.desc, 1.5);
-    const listTop = ty + 7 * k + 5 * u + 12 * u;
+    const listTop = ty + th + 12 * u;
     this.list.layout(w / 2, listTop, u, 130, footTop - 12 * u);
     // flanking fighters only when there is room beside the menu
     const room = w > h * 1.25;
@@ -304,41 +270,18 @@ export class ModeSelectScene extends MenuScene {
       this.fitShowcase(s.sprite, CHARACTER_LIST[s.idx]);
       s.name.setVisible(room && h >= 560).setScale(u * 1.2).setPosition(x, this.floorY + 4 * u);
     });
-    this.layoutOffer(w, h, u);
   }
 
   private drawTabs(): void {
     const g = this.tabG.clear();
     const u = this.u;
+    const px = Math.max(1, Math.round((this.tabTexts[0]?.scaleX ?? u) * 0.9));
     this.tabBoxes.forEach((b, i) => {
       const on = i === this.group;
-      drawPanel(g, b.x, b.y, b.w, b.h, u, on ? 0.95 : 0.7);
-      if (on) g.fillStyle(COLORS.hot, 0.9).fillRect(b.x, b.y + b.h - u, b.w, u);
+      drawButton(g, b.x, b.y, b.w, b.h, u, { sel: on });
       this.tabTexts[i].setTint(on ? COLORS.hot : COLORS.hint);
+      drawIcon(g, GROUPS[i].icon as IconName, b.x + 6 * u + px * 4, b.y + b.h / 2, px, on ? COLORS.hot : COLORS.accent);
     });
-  }
-
-  private layoutOffer(w: number, h: number, u: number): void {
-    const o = this.offer;
-    if (!o) return;
-    o.head.setScale(Math.min(u * 2, (w * 0.86) / Math.max(1, textPx(o.head))));
-    // the description wraps on a narrow screen rather than shrinking out of reading size
-    o.body.setText(OFFER_BODY).setCenterAlign();
-    if ((w * 0.86) / Math.max(1, textPx(o.body)) < u * 0.8) o.body.setText(wrapText(OFFER_BODY, Math.max(16, Math.floor((w * 0.86) / (6 * u)))));
-    o.body.setScale(Math.min(u, (w * 0.86) / Math.max(1, textPx(o.body))));
-    const pw = Math.min(w * 0.94, Math.max(o.head.displayWidth, o.body.displayWidth, 150 * u) + 24 * u);
-    // laid out once to measure (the rows are a finger tall on touch screens), then centred
-    const place = (top: number): number => {
-      o.head.setPosition(w / 2, top + 10 * u + o.head.displayHeight / 2);
-      o.body.setPosition(w / 2, o.head.y + o.head.displayHeight / 2 + 6 * u + o.body.displayHeight / 2);
-      o.list.layout(w / 2, o.body.y + o.body.displayHeight / 2 + 12 * u + Math.max(0, tapMin(this) - 18 * u) / 2, u, 170, h);
-      return o.list.bottom + 8 * u - top;
-    };
-    const ph = place(0);
-    const top = Math.max(4 * u, (h - ph) / 2);
-    place(top);
-    o.g.clear().fillStyle(0x000000, 0.6).fillRect(0, 0, w, h);
-    drawPanel(o.g, w / 2 - pw / 2, top, pw, ph, u, 0.97);
   }
 
   /** Scale a showcase fighter, shrinking it if a wide one (wings, staffs) would run past the screen edge. */
@@ -379,7 +322,6 @@ export class ModeSelectScene extends MenuScene {
         drawShowcaseLight(this.glow, s.sprite.x, this.floorY, this.showScale, col, fade, time);
       }
     });
-    this.offer?.list.update(time);
     const desc = this.list.hint;
     if (desc !== this.desc.text) {
       this.desc.setText(desc);
@@ -388,20 +330,12 @@ export class ModeSelectScene extends MenuScene {
   }
 
   protected onEvent(e: MenuEvent): void {
-    if (this.offer) {
-      this.lastEvent = e;
-      if (e.action === 'back') {
-        markTutorialOffered();
-        this.closeOffer();
-      } else this.offer.list.handle(e);
-      return;
-    }
     this.lastEvent = e;
     if (e.action === 'left' || e.action === 'right') {
       this.setGroup(this.group + (e.action === 'left' ? -1 : 1));
       return;
     }
     if (this.list.handle(e)) return;
-    if (e.action === 'back') this.go('Title');
+    if (e.action === 'back') this.go('Home');
   }
 }

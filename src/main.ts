@@ -2,6 +2,7 @@ import Phaser from 'phaser';
 import { BootScene } from './scenes/BootScene';
 import { TitleScene } from './scenes/TitleScene';
 import { ModeSelectScene } from './scenes/ModeSelectScene';
+import { HomeScene } from './scenes/HomeScene';
 import { VersusSetupScene } from './scenes/VersusSetupScene';
 import { CharacterSelectScene } from './scenes/CharacterSelectScene';
 import { StageSelectScene } from './scenes/StageSelectScene';
@@ -109,7 +110,7 @@ function boot(): void {
     input: { keyboard: false, gamepad: false, mouse: true, touch: true },
     disableContextMenu: true,
     audio: { noAudio: true }, // all sound is our own Web Audio graph (src/audio): no idle second AudioContext
-    scene: [BootScene, TitleScene, ModeSelectScene, VersusSetupScene, CharacterSelectScene, StageSelectScene, MatchScene, ResultsScene, LadderMapScene, StoryScene, SettingsScene, ControlsScene, RecordsScene, HowToPlayScene, ChallengesScene, CreditsScene, VersusSplashScene, ReplayVaultScene, SoundTestScene, ProfilesScene],
+    scene: [BootScene, TitleScene, HomeScene, ModeSelectScene, VersusSetupScene, CharacterSelectScene, StageSelectScene, MatchScene, ResultsScene, LadderMapScene, StoryScene, SettingsScene, ControlsScene, RecordsScene, HowToPlayScene, ChallengesScene, CreditsScene, VersusSplashScene, ReplayVaultScene, SoundTestScene, ProfilesScene],
   });
 
   // one exception in a scene must not stop the game loop for good (see errorOverlay.ts)

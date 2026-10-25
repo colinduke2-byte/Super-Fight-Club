@@ -11,7 +11,7 @@ import type { InputDevice } from '../../input/device';
 import { menuInput, type MenuEvent } from '../../input/menuInput';
 import { footerHint } from '../../input/prompts';
 import { deviceKind } from '../../game/tutorial';
-import { drawPanel, MenuList, type MenuItem } from '../../ui/menuKit';
+import { drawPanel, MenuList, tapMin, type MenuItem } from '../../ui/menuKit';
 import type { MatchScene } from '../MatchScene';
 import { hudUnit } from './hudLayout';
 import { menuKeyLabel, openTrainingMenu } from './training';
@@ -30,7 +30,7 @@ export function pauseHelp(device: InputDevice | null | undefined, training: bool
 
 /**
  * Pausing: the dim overlay, "P2 PAUSED" / WINDOW LOST FOCUS / CONTROLLER DISCONNECTED text, the RESUME / RESTART / MOVE LIST
- * / CONTROLS / SETTINGS / QUIT menu (RESTART and QUIT ask first), the move list box, and the disconnect choices (carry on on a
+ * / SETTINGS / QUIT menu (TRAINING MENU in training; RESTART and QUIT ask first), the move list box, and the disconnect choices (carry on on a
  * keyboard, or hand the slot to a CPU). Pauses on window blur / a hidden tab and while a human's gamepad is unplugged. Only the
  * device that paused drives the menu and can resume (anyone can after a focus or disconnect pause).
  */
@@ -65,9 +65,8 @@ export class PauseMenu {
       ...(canRestart ? [{ label: 'RESTART', onConfirm: () => this.ask('restart') }] : []),
       ...(s.isTraining ? [{ label: 'TRAINING MENU', onConfirm: () => void openTrainingMenu(s) }] : []),
       ...(!s.replay ? [{ label: 'MOVE LIST', onConfirm: () => this.showMoveList(true) }] : []),
-      { label: 'CONTROLS', onConfirm: () => this.overlayScene('Controls') },
-      // the Settings scene comes up over the paused match once it supports being an overlay (see settingsOverlay)
-      ...(settingsOverlay(s) ? [{ label: 'SETTINGS', onConfirm: () => this.overlayScene('Settings') }] : []),
+      // Settings comes up over the paused match (CONTROLS is inside it); without that overlay, CONTROLS stands in for it
+      ...(settingsOverlay(s) ? [{ label: 'SETTINGS', onConfirm: () => this.overlayScene('Settings') }] : [{ label: 'CONTROLS', onConfirm: () => this.overlayScene('Controls') }]),
       { label: 'QUIT', onConfirm: () => this.ask('quit') },
     ];
     this.menu = new MenuList(s, s.uiLayer, items);
@@ -103,8 +102,11 @@ export class PauseMenu {
 
   layout(w: number, h: number, u: number): void {
     this.overlay.setSize(w, h);
-    this.text.setScale(u * 2).setPosition(w / 2, h * 0.26);
-    this.menu.layout(w / 2, h * 0.38, u, 110);
+    // a short (phone landscape) screen: the title and menu sit higher, so every row shows without scrolling
+    const rowH = Math.max(18 * u, tapMin(this.s));
+    const short = h * 0.38 + this.menu.items.length * rowH + 24 * u > h;
+    this.text.setScale(u * 2).setPosition(w / 2, short ? Math.max(10 * u, h * 0.12) : h * 0.26);
+    this.menu.layout(w / 2, short ? this.text.y + 24 * u : h * 0.38, u, 110, h - 18 * u);
     this.confirmMenu.layout(w / 2, h * 0.42, u, 70);
     this.dcMenu.layout(w / 2, h * 0.44, u, 150);
     this.placeHelp(w, h, u);
@@ -261,7 +263,7 @@ export class PauseMenu {
     if (session.demo) {
       endDemo();
       s.scene.start('Title');
-    } else s.scene.start('ModeSelect');
+    } else s.scene.start('Home');
   }
 
   /** Controls / Settings come up over the paused match, which carries on where it was. */

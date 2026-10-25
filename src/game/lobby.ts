@@ -343,7 +343,17 @@ export class Lobby {
   adjust(deviceId: string, dir: -1 | 1): boolean {
     const row = this.rowOf(deviceId);
     if (row === null) return false;
-    const card = this.slots[this.focusOf(deviceId)];
+    this.adjustSlot(this.focusOf(deviceId), row, dir);
+    return true;
+  }
+
+  /**
+   * Change one row of slot `idx` directly (the lobby's CPU panel: no cursor involved). The same steps as `adjust`; a
+   * row the slot does not have (see `rows`) is ignored. Returns true when the row applied.
+   */
+  adjustSlot(idx: number, row: CardRow, dir: -1 | 1): boolean {
+    const card = this.slots[idx];
+    if (!card || idx >= this.playerCount || !this.rows(idx).includes(row)) return false;
     switch (row) {
       case 'cpu':
         if (card.kind === 'empty') this.newCpu(card, 5);
@@ -369,6 +379,47 @@ export class Lobby {
         break;
     }
     return true;
+  }
+
+  /**
+   * Cycle the outfit of the device's own fighter even once it is locked in (a second tap on the fighter you picked).
+   * Returns false when the device has not joined.
+   */
+  restyle(deviceId: string, dir: -1 | 1): boolean {
+    const i = this.slotOf(deviceId);
+    if (i < 0) return false;
+    this.cycleOutfit(this.slots[i], dir);
+    return true;
+  }
+
+  /** Pick outfit `palette` for the device's own fighter (a tapped swatch), locked or not. */
+  setOutfit(deviceId: string, palette: number): boolean {
+    const i = this.slotOf(deviceId);
+    if (i < 0 || this.isRandom(this.slots[i])) return false;
+    const n = this.outfits(this.slots[i].character);
+    this.slots[i].palette = Math.max(0, Math.min(n - 1, Math.round(palette)));
+    return true;
+  }
+
+  /**
+   * Pick fighter `character` for the device (joining first if needed) and lock it in: one tap on a roster tile. A locked
+   * player who picks someone else switches to them (still locked). Returns the slot, or -1 when the device cannot join.
+   */
+  pickAndLock(deviceId: string, character: number): number {
+    let i = this.slotOf(deviceId);
+    if (i < 0) i = this.join(deviceId);
+    if (i < 0) return -1;
+    const s = this.slots[i];
+    const n = this.rosterSpan();
+    const c = Math.max(0, Math.min(n - 1, Math.round(character)));
+    if (s.character !== c) {
+      s.character = c;
+      s.palette = 0;
+    }
+    s.locked = true;
+    s.row = 0;
+    s.focus = -1;
+    return i;
   }
 
   /** Distinct teams among the active, filled slots (a team battle needs two). */

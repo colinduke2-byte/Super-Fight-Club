@@ -15,8 +15,8 @@ import { STAGES } from '../stages';
 import { COLORS, MenuScene, drawPortShape, text, textPx, type MenuBackdrop } from '../ui/menuKit';
 import { stageThumb } from '../ui/stageThumb';
 
-/** How long the splash holds before the fight starts (seconds). */
-const HOLD = 2;
+/** How long the splash holds before the fight starts (seconds): short, and any press skips it. */
+export const SPLASH_HOLD = 1.4;
 
 interface Side {
   sprite: Phaser.GameObjects.Sprite;
@@ -30,7 +30,7 @@ interface Side {
 }
 
 /**
- * The two-second VS splash before an arcade fight: the stage behind, the player on the left and the rival(s) on the
+ * The short VS splash before an arcade fight: the stage behind, the player on the left and the rival(s) on the
  * right sliding in under a diagonal split, their names, a big VS and the stage name. Any button skips it.
  */
 export class VersusSplashScene extends MenuScene {
@@ -207,7 +207,7 @@ export class VersusSplashScene extends MenuScene {
     this.stageName.setAlpha(this.ease(time, 0.35, 0.3));
     g.fillStyle(0x0a0820, 0.8 * this.stageName.alpha).fillRect(w / 2 - this.stageName.displayWidth / 2 - 8 * u, this.stageName.y - this.stageName.displayHeight / 2 - 4 * u, this.stageName.displayWidth + 16 * u, this.stageName.displayHeight + 8 * u);
     this.skip.setAlpha(this.ease(time, 0.5, 0.3) * 0.85);
-    if (time >= HOLD) this.finish();
+    if (time >= SPLASH_HOLD) this.finish();
   }
 
   private finish(): void {
@@ -216,7 +216,8 @@ export class VersusSplashScene extends MenuScene {
     this.go(this.next, this.nextData);
   }
 
-  protected onEvent(e: MenuEvent): void {
-    if (e.action === 'confirm' || e.action === 'start' || e.action === 'back') this.finish();
+  /** Any press at all (a direction too, a click or a tap) skips to the fight. */
+  protected onEvent(_e: MenuEvent): void {
+    this.finish();
   }
 }

@@ -395,7 +395,7 @@ export class ResultsScene extends MenuScene {
           if (turns) restartTurns(); // everyone takes their turn again, from player 1
           this.go('Match');
         },
-      }, { label: 'CHARACTER SELECT', onConfirm: () => this.go('CharacterSelect') }, { label: 'MAIN MENU', onConfirm: () => this.go('ModeSelect') });
+      }, { label: 'CHANGE FIGHTER', hint: 'BACK TO CHARACTER SELECT', onConfirm: () => this.go('CharacterSelect') }, { label: 'MAIN MENU', onConfirm: () => this.go('Home') });
     } else {
       items.push({
         label: 'REMATCH',
@@ -404,9 +404,11 @@ export class ResultsScene extends MenuScene {
           this.go('Match');
         },
       });
+      // quick changes: back to character select with everyone's picks kept, or straight to the stage select
+      items.push({ label: 'CHANGE FIGHTER', hint: 'CHARACTER SELECT, WITH EVERYONE\'S PICKS KEPT', onConfirm: () => this.go('CharacterSelect') });
+      if (session.mode === 'versus') items.push({ label: 'CHANGE STAGE', hint: 'SAME FIGHTERS, ANOTHER STAGE', onConfirm: () => this.go('StageSelect') });
       if (watch) items.push(watch);
-      if (session.mode === 'versus') items.push({ label: 'STAGE SELECT', onConfirm: () => this.go('StageSelect') });
-      items.push({ label: 'CHARACTER SELECT', onConfirm: () => this.go('CharacterSelect') }, { label: 'MAIN MENU', onConfirm: () => this.go('ModeSelect') });
+      items.push({ label: 'MAIN MENU', onConfirm: () => this.go('Home') });
     }
     if (graphRow) items.splice(Math.max(0, items.length - 1), 0, graphRow);
     this.list = new MenuList(this, this.ui, items);

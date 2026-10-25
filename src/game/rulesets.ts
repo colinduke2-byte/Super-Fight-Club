@@ -1,5 +1,5 @@
 import { DEFAULT_RULES, type MatchRules } from './session';
-import { MODIFIERS } from './modifiers';
+import { MODIFIERS, MODIFIER_NAMES } from './modifiers';
 
 /**
  * Versus rule presets and the saved rules: the last rules used come back next time (localStorage), plus three custom
@@ -25,6 +25,18 @@ export interface RulePreset {
 /** Built-in presets. They keep the player count and team layout; only the rules change. */
 export const PRESETS: readonly RulePreset[] = [
   {
+    id: 'classic',
+    name: 'CLASSIC',
+    hint: '3 stocks, a few items, hazards on.',
+    rules: { ...DEFAULT_RULES, mode: 'stock', stocks: 3, items: 1, hazards: true },
+  },
+  {
+    id: 'quick',
+    name: 'QUICK',
+    hint: 'One stock: one life each, a short fight.',
+    rules: { ...DEFAULT_RULES, mode: 'stock', stocks: 1, items: 0, hazards: true },
+  },
+  {
     id: 'competitive',
     name: 'COMPETITIVE',
     hint: '3 stocks, 7 minutes, no items, no hazards.',
@@ -33,8 +45,8 @@ export const PRESETS: readonly RulePreset[] = [
   {
     id: 'party',
     name: 'PARTY',
-    hint: '2 minute timed brawl with lots of items.',
-    rules: { ...DEFAULT_RULES, mode: 'time', timeSec: 120, items: 2, hazards: true, suddenDeath: true, itemsOff: [] },
+    hint: '2 minute timed brawl: lots of items, everyone on TURBO.',
+    rules: { ...DEFAULT_RULES, mode: 'time', timeSec: 120, items: 2, hazards: true, suddenDeath: true, itemsOff: [], modifier: 'turbo' },
   },
 ];
 
@@ -142,4 +154,51 @@ export function presetName(rules: MatchRules, saved: SavedRules): string | null 
   for (let i = 0; i < saved.custom.length; i++) if (saved.custom[i] && sig(saved.custom[i]!) === me) return `CUSTOM ${i + 1}`;
   if (sig(DEFAULT_RULES) === me) return 'STANDARD';
   return null;
+}
+
+/** The presets offered on character select's RULES panel, in order (CUSTOM there opens the full rules screen). */
+export const LOBBY_PRESETS: readonly string[] = ['classic', 'quick', 'party'];
+
+/** The rules on one short line for the lobby's RULES chip: "3 STOCKS  ITEMS LOW", "2 MIN  ITEMS HIGH  TURBO". */
+export function rulesSummary(r: MatchRules): string {
+  const parts: string[] = [r.mode === 'time' ? `${Math.round(r.timeSec / 60)} MIN` : r.mode === 'stamina' ? `${r.staminaHp} HP` : `${r.stocks} STOCK${r.stocks === 1 ? '' : 'S'}`];
+  if (r.items) parts.push(`ITEMS ${r.items === 2 ? 'HIGH' : 'LOW'}`);
+  if (r.modifier) parts.push(MODIFIER_NAMES[r.modifier]);
+  if (r.teams) parts.push('TEAMS');
+  if ((r.bestOf ?? 1) > 1) parts.push(`BO${r.bestOf}`);
+  return parts.join('  ');
+}
+
+/** The preset (or custom slot) the rules match, ignoring the stage form (the lobby sets that beside the stage). */
+export function lobbyPresetName(r: MatchRules, saved: SavedRules = loadSavedRules()): string {
+  return presetName({ ...r, stageForm: undefined }, saved) ?? 'CUSTOM';
+}
+
+/** Load a preset over the session's rules from the lobby: the stage form stays (it belongs to the stage strip there). */
+export function applyLobbyPreset(into: MatchRules, id: string): boolean {
+  const p = PRESETS.find((x) => x.id === id);
+  if (!p) return false;
+  const form = into.stageForm;
+  applyRules(into, p.rules);
+  if (!p.rules.stageForm) {
+    if (form) into.stageForm = form;
+    else delete into.stageForm;
+  }
+  return true;
+}
+
+let restored = false;
+/** The saved rules come back once per run (the first versus visit); returns the saved player count when it applied them. */
+export function restoreSavedRulesOnce(into: MatchRules): number | null {
+  if (restored) return null;
+  restored = true;
+  const saved = loadSavedRules();
+  if (!saved.last) return null;
+  applyRules(into, saved.last);
+  return saved.playerCount;
+}
+
+/** Tests: forget that the saved rules were restored this run. */
+export function resetRulesRestoreForTest(): void {
+  restored = false;
 }

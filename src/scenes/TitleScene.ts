@@ -440,7 +440,7 @@ export class TitleScene extends MenuScene {
     this.logo2.setTint(0xff6a8a);
     const fl = calm ? 0 : pressed ? Math.max(0, 0.4 - (time - this.pressedAt) * 1.6) : time > 0.42 && time < 0.6 ? 0.25 * (1 - (time - 0.42) / 0.18) : 0;
     this.flash.setAlpha(fl);
-    if (pressed && time - this.pressedAt > 0.32) this.go('ModeSelect');
+    if (pressed && time - this.pressedAt > 0.32) this.go('Home');
     // fighters whose sheets arrive late step into the lineup
     if (this.sprites.some((sp) => !sp) && this.addArrivals()) this.layoutUi(this.scale.width, this.scale.height, this.u);
     // every few seconds one of the lineup strikes their taunt pose, then settles back into the idle

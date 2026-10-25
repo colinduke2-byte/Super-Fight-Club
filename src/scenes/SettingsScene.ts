@@ -4,7 +4,7 @@ import { sfx } from '../audio/sfx';
 import type { MenuEvent } from '../input/menuInput';
 import { resetSettings, saveSettings, settings, type ParticleQuality, type RenderQuality, type Settings, type SmashMode } from '../settings';
 import { applySize, fullscreenSupported, isIosBrowser, showHomeScreenTip } from '../display';
-import { COLORS, MenuList, MenuScene, PORT_SHAPES, drawPanel, drawPortShape, playerColors, pointerXY, tapMin, text, textPx, type MenuBackdrop, type MenuItem } from '../ui/menuKit';
+import { COLORS, MenuList, MenuScene, PORT_SHAPES, drawButton, drawPortShape, playerColors, pointerXY, tapMin, text, textPx, type MenuBackdrop, type MenuItem } from '../ui/menuKit';
 
 const QUALITY: ParticleQuality[] = ['low', 'medium', 'high'];
 const SMASH: SmashMode[] = ['flick', 'button'];
@@ -313,9 +313,8 @@ export class SettingsScene extends MenuScene {
     const u = this.u;
     this.tabBoxes.forEach((b, i) => {
       const on = TABS[i].id === this.tab;
-      drawPanel(g, b.x, b.y, b.w, b.h, u, on ? 0.95 : 0.7);
-      if (on) g.fillStyle(COLORS.hot, 0.9).fillRect(b.x, b.y + b.h - u, b.w, u);
-      this.tabTexts[i].setTint(on ? COLORS.hot : COLORS.dim);
+      drawButton(g, b.x, b.y, b.w, b.h, u, { sel: on });
+      this.tabTexts[i].setTint(on ? COLORS.hot : COLORS.hint);
     });
     // the accessibility tab previews the player colours and shapes
     if (this.tab === 'access') {

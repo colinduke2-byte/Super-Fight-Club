@@ -2,7 +2,7 @@ import Phaser from 'phaser';
 import { PIXEL_FONT, up } from '../art/pixelFont';
 import type { MenuEvent } from '../input/menuInput';
 import { DEFAULT_RULES, session, teamsFor, type MatchRules } from '../game/session';
-import { PRESETS, applyRules, loadSavedRules, presetName, saveCustomRules, saveLastRules, type SavedRules } from '../game/rulesets';
+import { PRESETS, applyRules, loadSavedRules, presetName, restoreSavedRulesOnce, saveCustomRules, saveLastRules, type SavedRules } from '../game/rulesets';
 import { CELL_METER, CORE_METER, ITEM_KINDS } from '../engine/items';
 import { ITEM_NAMES } from '../game/howToPlay';
 import { footerHint } from '../input/prompts';
@@ -10,9 +10,6 @@ import { STAGE_LIST } from '../stages';
 import { FORM_NAMES, STAGE_FORMS } from '../stages/forms';
 import { MODIFIERS, MODIFIER_HINTS, MODIFIER_NAMES } from '../game/modifiers';
 import { COLORS, MenuList, MenuScene, drawPanel, tapMin, text, textPx, type MenuBackdrop, type MenuItem } from '../ui/menuKit';
-
-/** The saved rules are applied once per run (on the first visit). */
-let rulesRestored = false;
 
 const ITEM_HINTS: Record<string, string> = {
   heal: 'Heals 25% damage.',
@@ -82,6 +79,19 @@ export class VersusSetupScene extends MenuScene {
     super('VersusSetup');
   }
 
+  /** Opened from character select's RULES panel (CUSTOM): DONE and BACK return to the lobby. */
+  private fromLobby = false;
+
+  init(data?: { from?: string }): void {
+    this.fromLobby = data?.from === 'lobby';
+  }
+
+  /** Where BACK on the main page goes: the lobby it was opened from, else the menu. */
+  private leave(): void {
+    if (this.fromLobby) this.next();
+    else this.go('ModeSelect');
+  }
+
   /** Which page of rows is showing: the rules, the presets, the item switches or the RANDOM stage pool. */
   private page: 'main' | 'presets' | 'items' | 'stages' | 'more' = 'main';
   private saved: SavedRules = loadSavedRules();
@@ -91,13 +101,8 @@ export class VersusSetupScene extends MenuScene {
     this.ui.add(this.title);
     // the last rules used come back (once per run: changes made since stay in the session)
     this.saved = loadSavedRules();
-    if (!rulesRestored) {
-      rulesRestored = true;
-      if (this.saved.last) {
-        applyRules(session.rules, this.saved.last);
-        session.playerCount = this.saved.playerCount;
-      }
-    }
+    const n = restoreSavedRulesOnce(session.rules);
+    if (n !== null) session.playerCount = n;
     // single-player modes leave playerCount at 1: versus always needs at least two
     session.playerCount = clamp(session.playerCount, 2, 4);
     this.page = 'main';
@@ -138,7 +143,7 @@ export class VersusSetupScene extends MenuScene {
     };
     const onCount = (all: readonly string[], off: readonly string[] | undefined): string => `${all.filter((k) => !off?.includes(k)).length} / ${all.length} ON`;
     return [
-      { label: 'PRESET', hint: 'Load Competitive, Party or a saved custom set, or save these rules.', value: () => presetName(r, this.saved) ?? 'CUSTOM', onConfirm: () => this.showPage('presets'), onRight: () => this.showPage('presets') },
+      { label: 'PRESET', hint: 'Load Classic, Quick, Competitive, Party or a saved custom set, or save these rules.', value: () => presetName(r, this.saved) ?? 'CUSTOM', onConfirm: () => this.showPage('presets'), onRight: () => this.showPage('presets') },
       { label: 'PLAYERS', hint: 'How many fighters. Empty slots are filled with CPUs.', value: () => String(n()), onLeft: () => this.setPlayers(n() - 1), onRight: () => this.setPlayers(n() + 1) },
       { label: 'RULES', hint: () => ({ stock: 'Lose all your stocks and you are out. Last one standing wins.', time: 'Most KOs when the clock runs out wins. Falling costs a point.', stamina: 'No launching for keeps: run out of HP and you are out.' })[r.mode], value: () => NAMES[r.mode], onLeft: cycle(-1), onRight: cycle(1), onConfirm: cycle(1) },
       {
@@ -189,8 +194,8 @@ export class VersusSetupScene extends MenuScene {
       { label: 'STAGE HAZARDS', hint: 'Geysers, lightning and water spouts. Off is the plain stage.', value: () => (r.hazards ? 'ON' : 'OFF'), onLeft: () => (r.hazards = !r.hazards), onRight: () => (r.hazards = !r.hazards), onConfirm: () => (r.hazards = !r.hazards) },
       { label: 'RANDOM STAGES', hint: 'The stages RANDOM can pick.', value: () => `${STAGE_LIST.filter((st) => inPool(r, st.id)).length} / ${STAGE_LIST.length}`, onConfirm: () => this.showPage('stages'), onRight: () => this.showPage('stages') },
       { label: 'MORE RULES', hint: 'Stage form, damage ratio, launch rate, modifiers and best-of series.', value: () => moreSummary(r), onConfirm: () => this.showPage('more'), onRight: () => this.showPage('more') },
-      { label: 'CHOOSE FIGHTERS', hint: 'On to the lobby.', onConfirm: () => this.next() },
-      { label: 'BACK', onConfirm: () => this.go('ModeSelect') },
+      { label: this.fromLobby ? 'DONE' : 'CHOOSE FIGHTERS', hint: this.fromLobby ? 'Back to the fighters with these rules.' : 'On to the lobby.', onConfirm: () => this.next() },
+      { label: 'BACK', onConfirm: () => this.leave() },
     ];
   }
 
@@ -383,7 +388,7 @@ export class VersusSetupScene extends MenuScene {
   protected onEvent(e: MenuEvent): void {
     if (this.list.handle(e)) return;
     if (e.action !== 'back') return;
-    if (this.page === 'main') this.go('ModeSelect');
+    if (this.page === 'main') this.leave();
     else this.showPage('main', this.page === 'presets' ? 0 : this.page === 'items' ? 10 : this.page === 'more' ? 13 : 12);
   }
 }
