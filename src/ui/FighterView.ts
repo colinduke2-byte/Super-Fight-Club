@@ -5,7 +5,8 @@ import { flipsOnDoubleJump } from '../art/poses';
 import type { CharacterData } from '../engine/types';
 import { SHIELD_MAX, type Fighter } from '../engine/fighter';
 import type { Platform } from '../engine/platform';
-import { fighterTrailColor } from '../fx/runner';
+import { color, fighterTrailColor } from '../fx/runner';
+import { BASIC_KINDS, basicOf } from '../fx/basicFx';
 import { applyMechSkin } from './mechSkin';
 import { RimLight } from './RimLight';
 import { fastShapes } from './fastShapes';
@@ -84,6 +85,9 @@ export class FighterView {
   private readonly ghosts: Phaser.GameObjects.Sprite[] = [];
   private readonly ghostLife: number[] = [];
   private nextGhost = 0;
+  /** The move the aerial after-images were counted for, and how many it has left. */
+  private ghostMove: object | null = null;
+  private ghostsLeft = 0;
   private spin = 0;
   private lastJumps = 0;
   private lastGhostTick = -9;
@@ -255,7 +259,7 @@ export class FighterView {
     else if (this.pummelFlash > 0) this.pummelFlash = Math.max(0, this.pummelFlash - dt);
     if (posed) {
       // attack poses are driven by the move phase (wind-up / active / recovery), not by a timer
-      const frame = f.state === 'holding' ? (this.pummelFlash > 0 ? 0 : 1) : f.attackPhase;
+      const frame = f.state === 'holding' ? (this.pummelFlash > 0 ? 0 : 1) : f.attackFrame;
       if (f.anim !== this.poseAnim || frame !== this.poseFrame) {
         s.anims.stop();
         s.setFrame(animFrameIndex(f.data, f.anim, frame));
@@ -285,7 +289,9 @@ export class FighterView {
     this.lastJumps = f.jumpsLeft;
     this.lastHitlag = f.hitlag;
     // hitlag: victims shake
-    const shake = f.hitlag > 0 && f.state === 'hitstun' ? ((tick & 1) === 0 ? 1.5 : -1.5) : 0;
+    // a held smash trembles harder the longer it charges (a calmer shiver with REDUCE MOTION)
+    const charging = f.state === 'attack' && f.chargeFrames > 0 && !!f.move?.charge && f.moveFrame === f.move.charge.frame;
+    const shake = f.hitlag > 0 && f.state === 'hitstun' ? ((tick & 1) === 0 ? 1.5 : -1.5) : charging ? ((tick & 1) === 0 ? 1 : -1) * (0.3 + 1.2 * f.chargeFrac) * (settings.reduceMotion ? 0.3 : 1) : 0;
     // the sprite body is drawn BODY_SHIFT px left of the frame centre (weapon reach); re-centre it on the hurtbox
     s.setPosition(this.x + shake + f.facing * BODY_SHIFT * (f.data.sprite.frameSize / 64) * f.data.sprite.pixelScale * f.sizeMul, this.y + 1);
     s.setFlipX(f.facing < 0);
@@ -360,7 +366,7 @@ export class FighterView {
       else if (this.baseTint !== undefined) s.setTint(this.baseTint);
       else s.clearTint();
     }
-    else if (f.hitlag > 0 && f.state === 'hitstun' && (tick & 3) < 2) s.setTintFill(HIT_FLASH[f.lastHitFx] ?? 0xffffff); // impact flash during hit-stop, coloured by the hit's element
+    else if (f.hitlag > 0 && f.state === 'hitstun' && this.flashOn(tick)) s.setTintFill(HIT_FLASH[f.lastHitFx] ?? 0xffffff); // impact flash during hit-stop, coloured by the hit's element
     else if (this.baseTint !== undefined) s.setTint(this.baseTint);
     else s.clearTint();
     if (aegis) {
@@ -378,8 +384,10 @@ export class FighterView {
       glowCol = 0x4ab8ff;
       glowA = (0.1 + 0.06 * Math.ceil(st.soak / 120)) * (0.75 + 0.25 * Math.sin(tick * 0.35));
     } else if (f.chargeFrames > 0 && f.state === 'attack') {
-      glowCol = 0xffe9a0;
-      glowA = 0.12 + 0.18 * (0.5 + 0.5 * Math.sin(tick * 0.7)) + Math.min(0.15, f.chargeFrames / 300);
+      // a held smash glows brighter (and warmer toward white-hot) the longer it charges
+      const k = f.chargeFrac;
+      glowCol = mixColor(0xffe9a0, 0xffffff, k);
+      glowA = 0.12 + 0.2 * k + (0.08 + 0.1 * k) * (0.5 + 0.5 * Math.sin(tick * (0.7 + 0.5 * k)));
     } else if (f.boostFrames > 0) {
       // Overdrive: a hot red pulse
       glowCol = 0xff4a3a;
@@ -486,6 +494,32 @@ export class FighterView {
       return null;
     }
     return top;
+  }
+
+  /** Strength of the last hit taken (0 weak .. 3 a KO launch) and the sim tick it landed on: how long the body flashes white. */
+  private flashTier = 1;
+  private flashTick = -99;
+
+  /** A hit landed on this fighter (`tier` 0 weak, 1 medium, 2 strong, 3 a KO launch): sets how the body flashes. */
+  hitFlash(tier: number): void {
+    this.flashTier = tier;
+    this.flashTick = this.fighter.hitlag > 0 ? -1 : -99;
+  }
+
+  /** Is the hit-stop flash showing this tick? Weak hits flash for a tick, medium ones briefly, strong ones through the hit-stop. */
+  private flashOn(tick: number): boolean {
+    if (this.flashTick === -1) this.flashTick = tick;
+    const age = tick - this.flashTick;
+    if (this.flashTick < 0) return (tick & 3) < 2;
+    if (settings.reduceFlashes) return age < (this.flashTier >= 2 ? 3 : 2) && (age & 1) === 0;
+    switch (this.flashTier) {
+      case 0:
+        return age < 2;
+      case 1:
+        return age < 4;
+      default:
+        return (tick & 3) < 2 || age < 3;
+    }
   }
 
   /** A hit on the shield: a ripple runs across the bubble (`k` = strength, about 0.5..1.6). */
@@ -746,6 +780,22 @@ export class FighterView {
       if (this.ghostLife[i] <= 0) g.setVisible(false);
       else g.setAlpha(0.5 * (this.ghostLife[i] / 7));
     }
+    // aerials leave a faint after-image or two through their strike (basic.ghosts, default 2); a basic move can leave a tinted
+    // afterglow where it started (basic.afterglow)
+    const m = f.move;
+    if (f.state === 'attack' && m) {
+      if (m !== this.ghostMove) {
+        this.ghostMove = m;
+        this.ghostsLeft = m.kind === 'aerial' ? (basicOf(f)?.ghosts ?? 2) : 0;
+        const glow = basicOf(f)?.afterglow;
+        if (glow !== undefined && BASIC_KINDS.has(m.kind)) this.afterimage(this.x, this.y, color(glow, { fx: null as never, shake: () => {}, f, tick }), 9);
+      }
+      if (this.ghostsLeft > 0 && f.attackPhase >= 3 && f.attackPhase <= 4 && f.hitlag === 0 && tick - this.lastGhostTick >= 2) {
+        this.ghostsLeft--;
+        this.lastGhostTick = tick;
+        this.afterimage(this.x - f.vx, this.y - f.vy, this.trailTint ?? fighterTrailColor(f, tick), 5);
+      }
+    } else this.ghostMove = null;
     const speed = Math.hypot(f.vx, f.vy);
     const fast = f.state === 'dash' || (f.state === 'attack' && (speed > 3.2 || (!!f.move?.view?.ghosts && f.attackPhase >= 3 && f.attackPhase <= 4))) || (f.state === 'hitstun' && speed > 9);
     if (fast && tick - this.lastGhostTick >= 2 && f.hitlag === 0) {

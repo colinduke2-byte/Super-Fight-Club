@@ -149,8 +149,6 @@ const jabCross = (reach = 18, h = -12): PoseSpec => C(K(1, 1, [8, -10], [-6, -6]
 const shove = (reach = 18, h = -8): PoseSpec => C(K(-4, 4, [-4, -4], [-6, -4], [6, 0], [-8, 0], { tw: -1 }), K(9, 5, [reach, h], [reach - 4, h + 2], [14, 0], [-10, 0]), K(3, 3, [8, -6], [4, -6], [9, 0], [-8, 0]));
 /** A horizontal hook: the fist wound out wide behind, slung round at head height with the shoulders turning through. */
 const hookArc = (reach = 18, h = -16): PoseSpec => C(K(-6, 3, [-12, -10], [4, -12], [8, 0], [-8, 0], { tw: 2.5 }), K(6, 3, [reach, h], [-6, -8], [11, 0], [-9, 0], { tw: -2.5 }), K(2, 2, [8, -8], [-2, -8], [8, 0], [-7, 0]));
-/** A smash haymaker: a huge coil (leaning back, fist far behind), then the full-body lunge through. */
-const haymaker = (reach = 22, h = -14): PoseSpec => C(K(-9, 5, [-18, -14], [6, -14], [9, 0], [-10, 0], { tw: 3.5, hx: -1 }), K(10, 5, [reach, h], [-10, -6], [15, 0], [-11, 0], { tw: -3 }), K(4, 3, [12, -8], [-6, -6], [11, 0], [-9, 0], { tw: -1 }));
 /** A shoulder charge: tucked behind the lead shoulder, then the whole body thrown forward through it. */
 const shoulderCharge = (): PoseSpec => C(K(-6, 6, [2, -10], [-4, -8], [9, 0], [-10, 0], { tw: -2 }), K(12, 4, [10, -14], [6, -12], [16, 0], [-13, 0], { tw: 2.5, hx: 1 }), K(5, 3, [6, -10], [2, -8], [10, 0], [-8, 0]));
 /** A long rocket punch: coiled low, then the fist driven out at full stretch with a deep lunge. */
@@ -169,13 +167,16 @@ const splitSlam = (): PoseSpec => C(K(0, 2, [6, -34], [-6, -34], [6, 0], [-6, 0]
 type Entry = PoseSpec | ((own: PoseSpec | undefined) => PoseSpec);
 export const POSE_BOOK: Record<string, Record<string, Entry>> = {
   brick: {
+    // the smash is a committed two-fisted hammer from over the head, not the hook scaled up; the stomp lifts a knee first
+    fsmash: C(K(-10, 2, [-6, -38], [-10, -34], [9, 0], [-10, 0], { tw: 1, hy: -1 }), K(12, 7, [20, 2], [16, 4], [16, 0], [-13, 0], { hx: 1.5 }), K(5, 5, [12, 6], [8, 6], [12, 0], [-10, 0])),
+    dsmash: C(K(-2, 0, [8, -20], [-6, -18], [6, 16], [-5, 0], { hy: -1 }), K(4, 9, [14, 8], [-12, 8], [12, 0], [-11, 0], { hy: 1.5 }), K(2, 6, [8, 4], [-8, 4], [10, 0], [-10, 0])),
+    dashAttack: shoulderCharge(),
     jab1: jabLead(16, -12),
     jab2: jabCross(18, -12),
     jab3: shove(18, -8),
     ftilt: hookArc(18, -16),
     utilt: upSweep(-40),
     dtilt: legSweep(24),
-    fsmash: haymaker(22, -14),
     neutralB: shoulderCharge(),
     sideB: lungePunch(24, -12),
     nair: nairStar(14, -10),
@@ -185,6 +186,9 @@ export const POSE_BOOK: Record<string, Record<string, Entry>> = {
     dair: dairStomp(),
   },
   vex: {
+    // the second slash comes back the other way, rising off the rear hand; the dash attack is a long low slide
+    jab2: C(K(-2, 1, [4, -6], [-8, -2], [5, 0], [-5, 0], { tw: 1 }), K(5, 3, [-2, -6], [18, -14], [8, 0], [-6, 0], { tw: 2.5 }), K(2, 2, [2, -6], [8, -10], [6, 0], [-5, 0])),
+    dashAttack: C(K(-4, 4, [-8, -6], [6, -8], [8, 0], [-8, 0], { tw: 1.5 }), K(10, 8, [24, -2], [-12, -6], [20, 0], [-14, 2], { tw: -2 }), K(4, 6, [12, 0], [-8, -4], [13, 0], [-10, 0])),
     neutralB: C(K(-4, 2, [-14, -20], [4, -8], [6, 0], [-6, 0], { tw: 2 }), K(6, 2, [22, -18], [-6, -6], [10, 0], [-7, 0], { tw: -2 }), K(2, 1, [10, -8], [-4, -6], [7, 0], [-6, 0])),
     sideB: C(K(-6, 4, [-14, -10], [6, -10], [8, 0], [-8, 0], { tw: 2 }), K(14, 6, [26, 0], [-14, -8], [18, 0], [-16, 2], { tw: -2 }), K(5, 4, [12, -2], [-8, -6], [11, 0], [-10, 0])),
     usmash: C(K(-1, 7, [6, 6], [-2, 6], [7, 0], [-7, 0]), K(-3, 0, [4, -44], [-4, -42], [4, 0], [-4, 0], { hy: -1 }), K(-1, 1, [6, -26], [-4, -24], [5, 0], [-5, 0])),
@@ -202,6 +206,10 @@ export const POSE_BOOK: Record<string, Record<string, Entry>> = {
     dair: dairSlam([2, -32], 18),
   },
   gizmo: {
+    // the combo: a poke, a backhand swipe, then the wrench brought down overhead; the smash is a full wound-up swing
+    jab2: C(K(-5, 2, [-10, -8], [4, -6], [6, 0], [-6, 0], { tw: 2 }), K(5, 3, [16, -16], [-4, -4], [9, 0], [-7, 0], { tw: -2 }), K(2, 2, [8, -8], [-2, -4], [7, 0], [-6, 0])),
+    jab3: C(K(-6, 1, [-2, -34], [-4, -20], [6, 0], [-6, 0], { hy: -1 }), K(8, 6, [18, 10], [10, 6], [11, 0], [-8, 0], { hy: 1 }), K(3, 4, [10, 6], [4, 2], [8, 0], [-6, 0])),
+    fsmash: C(K(-10, 3, [-16, -30], [2, -12], [8, 0], [-9, 0], { tw: 3, hx: -1 }), K(12, 5, [24, 0], [-8, -6], [15, 0], [-12, 0], { tw: -3 }), K(5, 3, [14, 4], [-4, -4], [10, 0], [-8, 0])),
     dashAttack: C(K(-4, 4, [-6, -6], [4, -8], [8, 0], [-8, 0]), K(12, 6, [20, 2], [8, -4], [14, 0], [-12, 3]), K(4, 3, [10, -2], [4, -4], [9, 0], [-8, 0])),
     usmash: C(K(-1, 8, [4, 4], [-2, 4], [7, 0], [-7, 0]), K(-2, 0, [2, -44], [-4, -42], [4, 0], [-4, 0], { hy: -1 }), K(-1, 1, [2, -28], [-3, -26], [5, 0], [-5, 0])),
     neutralB: C(K(-4, 3, [-8, -16], [4, -8], [5, 0], [-5, 0], { tw: 2 }), K(4, 2, [18, -14], [-6, -6], [8, 0], [-6, 0], { tw: -2 }), K(1, 1, [8, -6], [-4, -4], [6, 0], [-5, 0])),
@@ -228,6 +236,9 @@ export const POSE_BOOK: Record<string, Record<string, Entry>> = {
     dair: dairSlam([2, -12], 14),
   },
   riptide: {
+    // the anchor smash goes up behind the head in both hands and comes down far out in front; the dash attack is a dive
+    fsmash: C(K(-10, 0, [-8, -40], [-12, -36], [8, 0], [-9, 0], { tw: 2, hy: -1.5 }), K(13, 9, [28, 8], [22, 8], [16, 0], [-13, 0], { tw: -1, hy: 1.5 }), K(6, 7, [18, 8], [12, 8], [12, 0], [-10, 0])),
+    dashAttack: C(K(-6, 6, [2, -10], [-6, -8], [9, 0], [-10, 0], { tw: -1.5 }), K(14, 6, [18, -6], [10, -4], [18, 0], [-14, 4], { tw: 2, hx: 1 }), K(5, 4, [10, -4], [4, -4], [11, 0], [-9, 0])),
     jab1: jabLead(15, -10),
     jab2: jabCross(17, -10),
     neutralB: shove(18, -12),
@@ -238,12 +249,13 @@ export const POSE_BOOK: Record<string, Record<string, Entry>> = {
     dair: dairStomp(),
   },
   obelisk: {
+    // the palm drives up from the hip; the smash coils down by the floor and erupts into a full-stretch punch
+    jab3: C(K(-4, 5, [-2, 4], [-6, 2], [6, 0], [-8, 0], { tw: 1 }), K(10, 2, [20, -18], [14, -12], [14, 0], [-10, 0], { tw: -1, hy: -0.5 }), K(4, 2, [10, -10], [6, -8], [9, 0], [-8, 0])),
     jab1: jabLead(16, -12),
     jab2: jabCross(18, -12),
-    jab3: shove(20, -10),
     ftilt: hookArc(20, -14),
     dtilt: legSweep(24),
-    fsmash: haymaker(28, -12),
+    fsmash: C(K(-10, 9, [-14, 4], [6, -10], [10, 0], [-11, 0], { tw: 3.5, hx: -1 }), K(14, 4, [30, -10], [-10, -4], [18, 0], [-14, 1], { tw: -3, hx: 1.5 }), K(6, 4, [16, -4], [-6, -4], [13, 0], [-11, 0], { tw: -1 })),
     dsmash: splitSlam(),
     neutralB: groundSlam(),
     sideB: shoulderCharge(),
@@ -254,6 +266,8 @@ export const POSE_BOOK: Record<string, Record<string, Entry>> = {
     dair: dairStomp(),
   },
   rime: {
+    // the smash crosses both kunai high over the shoulder and slashes them out together
+    fsmash: C(K(-6, 3, [-10, -28], [-4, -30], [8, 0], [-9, 0], { tw: 3 }), K(12, 6, [26, -4], [20, 8], [16, 0], [-13, 0], { tw: -3 }), K(5, 4, [14, 0], [10, 4], [11, 0], [-9, 0])),
     dashAttack: C(K(-2, 6, [4, -8], [-4, -6], [8, 0], [-8, 0]), K(-6, 9, [-6, -6], [-10, -2], [24, 4], [-6, 10], { tw: -1 }), K(-2, 6, [0, -6], [-6, -4], [14, 2], [-6, 6])),
     sideB: C(K(-6, 4, [-14, -10], [6, -10], [8, 0], [-8, 0], { tw: 2 }), K(14, 6, [26, 2], [-14, -8], [18, 0], [-16, 3], { tw: -2 }), K(5, 4, [12, -2], [-8, -6], [11, 0], [-10, 0])),
     counterStrike: C(K(-4, 2, [6, -26], [-4, -10], [5, 0], [-6, 0], { tw: 1 }), K(10, 4, [26, -12], [-10, -10], [14, 0], [-12, 0], { tw: -2 }), K(3, 2, [12, -8], [-6, -6], [9, 0], [-8, 0])),
@@ -265,6 +279,8 @@ export const POSE_BOOK: Record<string, Record<string, Entry>> = {
     dair: dairStomp(),
   },
   havoc: {
+    // the third hit is a real knee: both hands clinch and pull down as the knee drives up
+    jab3: C(K(-2, 1, [8, -14], [2, -12], [5, 0], [-5, 0]), K(-4, 0, [12, -8], [6, -6], [10, 18], [-4, 0], { tw: -1, hy: -0.5 }), K(-1, 1, [8, -10], [2, -8], [8, 6], [-5, 0])),
     // the ultimate: braced, one arm flung up pointing the strike in, the other hand at the radio by the ear
     ultimate: C(K(0, 3, [4, -12], [-2, -20], [6, 0], [-6, 0], { hx: 0.5 }), K(-4, 2, [18, -34], [0, -24], [9, 0], [-8, 0], { tw: -1, hy: -1 }), K(-2, 1, [14, -30], [0, -22], [8, 0], [-7, 0])),
     detonateC4: C(K(0, 1, [6, -12], [0, -8], [6, 0], [-6, 0]), K(4, 4, [15, -16], [2, -10], [9, 0], [-7, 0], { hy: 0.5 }), K(2, 2, [10, -14], [0, -8], [7, 0], [-6, 0])),

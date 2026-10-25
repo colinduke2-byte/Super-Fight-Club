@@ -419,6 +419,128 @@
     "op": "shake",
     "amount": 5
    }
+  ],
+  "scan": [
+   {
+    "op": "flash",
+    "x": 6,
+    "yh": 0.95,
+    "power": 1.2,
+    "color": {
+     "from": "res:enrage",
+     "colors": [
+      "#efe4ff",
+      "#ffb070"
+     ]
+    }
+   },
+   {
+    "op": "ring",
+    "x": 6,
+    "yh": 0.95,
+    "radius": 18,
+    "color": {
+     "from": "res:enrage",
+     "colors": [
+      "#b685ff",
+      "#ff4a2a"
+     ]
+    },
+    "life": 0.35
+   },
+   {
+    "op": "trail",
+    "x": 8,
+    "yh": 0.95,
+    "to": {
+     "x": 70,
+     "y": -2
+    },
+    "color": {
+     "from": "res:enrage",
+     "colors": [
+      "#cbb0ff",
+      "#ff6a3a"
+     ]
+    }
+   },
+   {
+    "op": "trail",
+    "x": 8,
+    "yh": 0.95,
+    "to": {
+     "x": 70,
+     "yh": 0.95
+    },
+    "color": {
+     "from": "res:enrage",
+     "colors": [
+      "#efe4ff",
+      "#ffb070"
+     ]
+    }
+   },
+   {
+    "op": "ring",
+    "x": 70,
+    "y": -2,
+    "radius": 14,
+    "color": {
+     "from": "res:enrage",
+     "colors": [
+      "#b685ff",
+      "#ff4a2a"
+     ]
+    },
+    "life": 0.4
+   }
+  ],
+  "spires": [
+   {
+    "op": "dust",
+    "count": 10,
+    "dir": 1
+   },
+   {
+    "op": "burst",
+    "x": 40,
+    "y": -4,
+    "count": 10,
+    "speed": 120,
+    "color": "#8a8296",
+    "life": 0.6,
+    "size": 3
+   },
+   {
+    "op": "burst",
+    "x": 80,
+    "y": -4,
+    "count": 10,
+    "speed": 120,
+    "color": "#8a8296",
+    "life": 0.6,
+    "size": 3
+   },
+   {
+    "op": "burst",
+    "x": 60,
+    "y": -6,
+    "count": 8,
+    "speed": 90,
+    "color": {
+     "from": "res:enrage",
+     "colors": [
+      "#cbb0ff",
+      "#ff6a3a"
+     ]
+    },
+    "life": 0.4,
+    "size": 2
+   },
+   {
+    "op": "shake",
+    "amount": 3
+   }
   ]
  },
  "rules": [
@@ -566,6 +688,144 @@
      "additive": true
     }
    ]
+  },
+  {
+   "when": {
+    "moves": [
+     "fsmash",
+     "usmash",
+     "dsmash"
+    ],
+    "phase": "active"
+   },
+   "every": 3,
+   "ops": [
+    {
+     "op": "flash",
+     "x": 5,
+     "yh": 0.95,
+     "power": 0.9,
+     "color": {
+      "from": "res:enrage",
+      "colors": [
+       "#efe4ff",
+       "#ffb070"
+      ]
+     }
+    }
+   ]
+  },
+  {
+   "when": {
+    "moves": [
+     "sideB"
+    ],
+    "phase": "startup"
+   },
+   "every": 4,
+   "ops": [
+    {
+     "op": "flash",
+     "x": 5,
+     "yh": 0.95,
+     "power": 0.5,
+     "color": {
+      "from": "res:enrage",
+      "colors": [
+       "#b685ff",
+       "#ff4a2a"
+      ]
+     }
+    }
+   ]
+  },
+  {
+   "when": {
+    "moves": [
+     "upB"
+    ],
+    "phase": "active"
+   },
+   "every": 2,
+   "ops": [
+    {
+     "op": "emit",
+     "yh": 0.5,
+     "jx": 10,
+     "jy": 14,
+     "vy": 30,
+     "jvx": 10,
+     "life": 0.4,
+     "color": {
+      "from": "res:enrage",
+      "colors": [
+       "#cbb0ff",
+       "#ff6a3a"
+      ]
+     },
+     "size": 2,
+     "additive": true
+    }
+   ]
   }
- ]
+ ],
+ "basic": {
+  "weapon": "claw",
+  "weaponMoves": [
+   "jab",
+   "ftilt",
+   "utilt",
+   "dtilt",
+   "dashAttack",
+   "fsmash",
+   "usmash",
+   "dsmash",
+   "nair",
+   "fair",
+   "bair",
+   "uair",
+   "dair"
+  ],
+  "trail2": "#f4ecdc",
+  "impact": {
+   "colors": [
+    "#cbb0ff",
+    "#f4ecdc"
+   ],
+   "p": "shard"
+  },
+  "emitters": [
+   {
+    "p": "mote",
+    "at": "head",
+    "every": 1,
+    "count": 1,
+    "dir": "out",
+    "speed": 20,
+    "jitter": 20,
+    "life": 0.4,
+    "size": 2,
+    "color": [
+     "@trail",
+     "#f4ecdc"
+    ]
+   },
+   {
+    "p": "shard",
+    "on": "hit",
+    "count": 4,
+    "dir": "random",
+    "speed": 90,
+    "jitter": 40,
+    "life": 0.55,
+    "size": 4,
+    "gravity": 200,
+    "spin": 8,
+    "color": [
+     "@trail",
+     "#f4ecdc"
+    ]
+   }
+  ]
+ }
 }

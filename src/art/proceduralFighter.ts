@@ -4,6 +4,7 @@ import type { CharacterData, PlaceholderLook } from '../engine/types';
 import { poseFor, setMovePoses, type Pose, type V2 } from './poses';
 import { detailPass, type Anchors } from './spriteDetail';
 import { animFrameIndex, sheetDims, sheetLayout } from './sheetLayout';
+import { FLOW_FRAMES, flowOrder } from '../engine/movePoses';
 export { animFrameIndex, sheetDims };
 import { hasHeroArt } from './hero';
 import { packedHeroSheet, sheetSpec, type PackedSheet } from './sheetPixels';
@@ -888,7 +889,9 @@ export function registerAnimations(scene: Phaser.Scene, data: CharacterData): vo
     if (scene.anims.exists(animKey)) scene.anims.remove(animKey);
     scene.anims.create({
       key: animKey,
-      frames: Array.from({ length: def.frames }, (_, c) => ({ key, frame: L.start[name] + c })),
+      // flowing attack rows store their extra beats after the six classic slots: played as an animation (menu demos) they
+      // run in the order the move shows them
+      frames: (name.startsWith('mv_') && def.frames >= FLOW_FRAMES ? flowOrder(def.frames) : Array.from({ length: def.frames }, (_, c) => c)).map((c) => ({ key, frame: L.start[name] + c })),
       frameRate: def.fps,
       repeat: def.loop ? -1 : 0,
     });

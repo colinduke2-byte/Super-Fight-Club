@@ -7,6 +7,12 @@ type V2 = [number, number];
  */
 export type Key = [number, number, V2, V2, V2, V2, number?, number?, number?, number?, number?, number?];
 
+/** A basic move drawn as a flowing action (poses.ts flowFrame): its weight 0 (a snappy jab) .. 1 (a committed smash), and whether it is an aerial. */
+export interface Flow {
+  w: number;
+  air?: boolean;
+}
+
 const FF: V2 = [4, 0];
 const BF: V2 = [-4, 0];
 const FH: V2 = [2, 0];

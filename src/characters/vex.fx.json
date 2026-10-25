@@ -448,5 +448,60 @@
     }
    ]
   }
- ]
+ ],
+ "basic": {
+  "afterglow": "#a070ff",
+  "impact": {
+   "colors": [
+    "#5a2a8a",
+    "#ff4fa8"
+   ],
+   "p": "wisp"
+  },
+  "emitters": [
+   {
+    "p": "wisp",
+    "at": "tail",
+    "every": 2,
+    "count": 1,
+    "dir": "up",
+    "speed": 14,
+    "jitter": 14,
+    "spread": 6,
+    "life": 0.6,
+    "size": 8,
+    "gravity": -16,
+    "additive": false,
+    "color": [
+     "#2a1240",
+     "#4a2070"
+    ]
+   },
+   {
+    "p": "mote",
+    "at": "head",
+    "every": 1,
+    "count": 1,
+    "dir": "out",
+    "speed": 10,
+    "jitter": 14,
+    "life": 0.35,
+    "size": 2,
+    "color": "#ff7fc8"
+   },
+   {
+    "p": "wisp",
+    "on": "hit",
+    "count": 3,
+    "dir": "random",
+    "speed": 30,
+    "jitter": 20,
+    "life": 0.6,
+    "size": 8,
+    "gravity": -10,
+    "additive": false,
+    "color": "#3a1a5a"
+   }
+  ]
+ }
 }

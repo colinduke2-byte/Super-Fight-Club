@@ -8,7 +8,10 @@ import type { Fighter } from '../engine/fighter';
 import type { Match } from '../engine/match';
 import { flawlessWin, koEndsMatch, styleOf } from '../audio/matchCalls';
 import type { World, WorldEventType } from '../engine/world';
-import { playRecipe, runOps, type FxContext } from '../fx/runner';
+import { basicHitFx, color, fighterTrailColor, playRecipe, runOps, type FxContext } from '../fx/runner';
+import { basicOf } from '../fx/basicFx';
+import { predictLaunch } from '../engine/physics';
+import { settings } from '../settings';
 import type { Effects } from '../ui/Effects';
 import type { FighterView } from '../ui/FighterView';
 
@@ -53,6 +56,8 @@ const MULTI_KO_MS = 1200;
 const GRUNT_GAP = { voxAttack: 2200, voxHurt: 1600, voxKo: 0, voxTaunt: 600 } as const;
 /** Damage from which a hit draws a hurt grunt. */
 const HURT_DAMAGE = 14;
+/** Scratch for the KO guess on a hit (predictLaunch writes the path into it). */
+const LAUNCH_PATH: number[] = [];
 
 export class WorldEventFx {
   /** Where each fighter was last struck (world space; NaN = never): the game-winning KO punches in there. */
@@ -365,15 +370,27 @@ export class WorldEventFx {
         this.host.shake(3);
         break;
       case 'hit': {
-        // bigger hits: more sparks, bigger shake (hitstop itself is the fighters' hitlag)
+        // the impact scales with the hit: a small spark, a starburst with a white flash on the victim, a ring with debris
+        // thrown along the launch, and for a hit that will KO a bigger flash, a camera punch-in and lingering debris
         const dmg = extra;
-        this.host.rumble(f, 0.15 + dmg * 0.04, 0.3 + dmg * 0.03, 60 + dmg * 8);
-        e.flash(x, y, 0.8 + Math.min(2.2, dmg * 0.09), dmg > 12 ? 0xffffff : 0xfff3b0);
-        e.burst(x, y, 10 + Math.min(16, dmg), 80 + mag * 0.4, dmg > 12 ? 0xffffff : 0xffe14a, 0.3 + Math.min(0.3, dmg * 0.012), dmg > 12 ? 4 : 3);
-        this.host.shake(Math.min(9, 1 + dmg * 0.3 + mag * 0.01));
-        if (dmg >= 10) this.host.punch(Math.min(0.06, dmg * 0.0035));
-        this.impactLines(f, x, y, dmg, mag);
-        if (dmg >= 14) this.host.slow(0.55, 7);
+        const tier = this.hitTier(f, dmg, mag);
+        const atk = f.lastHitBy >= 0 ? this.host.world.fighters[f.lastHitBy] : undefined;
+        this.host.rumble(f, 0.15 + dmg * 0.04 + tier * 0.1, 0.3 + dmg * 0.03, 60 + dmg * 8 + tier * 40);
+        this.host.views()[f.id]?.hitFlash?.(tier);
+        const hot = dmg > 12 || tier >= 2 ? 0xffffff : 0xfff3b0;
+        if (tier === 0) {
+          e.flash(x, y, 0.55 + Math.min(0.4, dmg * 0.06), 0xfff3b0);
+          e.burst(x, y, 5 + Math.min(4, dmg), 60 + mag * 0.3, 0xffe14a, 0.22, 2);
+        } else {
+          e.flash(x, y, (tier === 3 ? 2.6 : tier === 2 ? 1.6 : 1.05) + Math.min(1.4, dmg * 0.06), hot);
+          e.burst(x, y, 10 + Math.min(16, dmg) + tier * 4, 80 + mag * 0.4, dmg > 12 ? 0xffffff : 0xffe14a, 0.3 + Math.min(0.3, dmg * 0.012), dmg > 12 ? 4 : 3);
+        }
+        if (atk) basicHitFx(atk, e, this.host.world.tick, x, y);
+        this.host.shake(Math.min(tier === 3 ? 11 : 9, 1 + dmg * 0.3 + mag * 0.01 + tier));
+        if (tier === 3) this.host.punch(settings.reduceMotion ? 0.02 : 0.085);
+        else if (dmg >= 10) this.host.punch(Math.min(0.06, dmg * 0.0035));
+        this.impactLines(f, x, y, dmg, mag, tier, atk);
+        if (dmg >= 14 || tier === 3) this.host.slow(0.55, tier === 3 ? 10 : 7);
         break;
       }
       case 'parry':
@@ -525,22 +542,43 @@ export class WorldEventFx {
     }
   }
 
+  /** 0 weak, 1 medium, 2 strong, 3 a launch that will reach a blast zone (no DI: a presentation guess, never the sim's call). */
+  private hitTier(f: Fighter, dmg: number, kb: number): number {
+    if (dmg >= 5 && kb >= 55 && f.state === 'hitstun' && predictLaunch(f, this.host.world, LAUNCH_PATH, 200, 8) === 'ko') return 3;
+    if (dmg >= 12 || kb >= 95) return 2;
+    return dmg >= 5.5 ? 1 : 0;
+  }
+
   /**
-   * Directional impact lines: sparks thrown along the victim's launch direction (longer for stronger launches), a shockwave ring on
-   * heavy hits and ground debris when the victim is standing.
+   * Directional impact lines: sparks thrown along the victim's launch direction (longer for stronger launches), a shockwave ring
+   * and angled debris for strong hits (more, and lingering, for a KO), and ground debris when the victim is standing.
    */
-  private impactLines(f: Fighter, x: number, y: number, dmg: number, kb: number): void {
+  private impactLines(f: Fighter, x: number, y: number, dmg: number, kb: number, tier: number, atk: Fighter | undefined): void {
     const e = this.host.effects;
     const sp = Math.hypot(f.vx, f.vy);
     const ang = Math.atan2(f.vy, f.vx);
-    const lines = Math.max(2, Math.min(6, Math.round(2 + dmg / 4)));
+    const lines = tier === 0 ? 2 : Math.max(2, Math.min(7, Math.round(2 + dmg / 4) + tier));
     const colour = dmg > 12 ? 0xffffff : 0xfff3b0;
     for (let i = 0; i < lines; i++) {
       const a = ang + (Math.random() - 0.5) * 0.9;
-      const len = 12 + Math.random() * 10 + Math.min(28, sp * 2 + kb * 0.04);
+      const len = (tier === 0 ? 8 : 12) + Math.random() * 10 + Math.min(28, sp * 2 + kb * 0.04);
       e.trail(x, y, x + Math.cos(a) * len, y + Math.sin(a) * len, colour);
     }
-    if (dmg >= 10) e.ring(x, y, 18 + dmg * 1.2, 0xffffff, 0.22);
+    if (tier >= 2) {
+      e.ring(x, y, tier === 3 ? 34 + dmg * 1.4 : 18 + dmg * 1.2, 0xffffff, tier === 3 ? 0.32 : 0.22);
+      if (tier === 3) e.ring(x, y, 20 + dmg, atk ? fighterTrailColor(atk, this.host.world.tick) : 0xffe14a, 0.4);
+      // debris flung along the launch: chunks for a strong hit, a longer-lived spray for a KO
+      const tint = atk ? basicOf(atk)?.impact : undefined;
+      const look = tint?.p ?? 'debris';
+      const n = Math.round((tier === 3 ? 12 : 6) * e.density) || 1;
+      for (let i = 0; i < n; i++) {
+        const a = ang + (Math.random() - 0.5) * 0.8;
+        const v = 110 + Math.random() * 120 + sp * 6;
+        const cols = tint?.colors;
+        const c = cols && atk ? color(cols[i % cols.length], { fx: e, shake: () => {}, f: atk, tick: this.host.world.tick }) : i % 3 ? 0xd8d0c8 : 0xffffff;
+        e.shaped(x, y, Math.cos(a) * v, Math.sin(a) * v, tier === 3 ? 0.9 + Math.random() * 0.6 : 0.45, c, `fx-p-${look}`, 4, 220, 9 * (Math.random() < 0.5 ? -1 : 1), false, Math.random() * 6.3);
+      }
+    } else if (dmg >= 10) e.ring(x, y, 18 + dmg * 1.2, 0xffffff, 0.22);
     if (f.grounded && dmg >= 6) e.dust(f.x, f.y, 3 + Math.round(dmg / 4), Math.sign(f.vx));
   }
 

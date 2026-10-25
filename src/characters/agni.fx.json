@@ -1336,48 +1336,68 @@
      "amount": 0.04
     }
    ]
-  },
-  {
-   "when": {
-    "states": [
-     "attack"
-    ],
-    "kinds": [
-     "jab",
-     "tilt",
-     "smash",
-     "aerial",
-     "dashAttack"
-    ],
-    "phase": "active"
-   },
-   "every": 1,
-   "ops": [
-    {
-     "op": "emit",
-     "x": 16,
-     "yh": 0.5,
-     "jx": 22,
-     "jy": 18,
-     "vy": -34,
-     "jvx": 26,
-     "life": 0.32,
-     "color": "#ffb030",
-     "size": 2
-    },
-    {
-     "op": "emit",
-     "x": 12,
-     "yh": 0.45,
-     "jx": 16,
-     "jy": 14,
-     "vy": -22,
-     "jvx": 18,
-     "life": 0.26,
-     "color": "#ff5a1a",
-     "size": 2
-    }
-   ]
   }
- ]
+ ],
+ "basic": {
+  "ribbon": true,
+  "impact": {
+   "colors": [
+    "#ffb040",
+    "#ff6a20",
+    "#fff0a0"
+   ],
+   "p": "ember"
+  },
+  "emitters": [
+   {
+    "p": "ember",
+    "at": "head",
+    "every": 1,
+    "count": 1.4,
+    "dir": "up",
+    "speed": 34,
+    "jitter": 30,
+    "spread": 6,
+    "life": 0.5,
+    "size": 3,
+    "gravity": -60,
+    "spin": 2,
+    "color": [
+     "#ffb040",
+     "#ff6a20",
+     "#fff0a0"
+    ]
+   },
+   {
+    "p": "mote",
+    "at": "tail",
+    "every": 2,
+    "count": 1,
+    "dir": "up",
+    "speed": 24,
+    "jitter": 20,
+    "spread": 8,
+    "life": 0.4,
+    "size": 2,
+    "gravity": -40,
+    "color": "#ff5a1a"
+   },
+   {
+    "p": "ember",
+    "on": "hit",
+    "count": 6,
+    "dir": "random",
+    "speed": 70,
+    "jitter": 40,
+    "life": 0.55,
+    "size": 3,
+    "gravity": -50,
+    "spin": 3,
+    "color": [
+     "#ffb040",
+     "#fff0a0"
+    ]
+   }
+  ]
+ }
 }

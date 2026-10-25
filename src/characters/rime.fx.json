@@ -275,5 +275,70 @@
     }
    ]
   }
- ]
+ ],
+ "basic": {
+  "weapon": "blade",
+  "weaponMoves": [
+   "ftilt",
+   "utilt",
+   "fsmash",
+   "usmash",
+   "fair",
+   "dsmash"
+  ],
+  "impact": {
+   "colors": [
+    "#bfeaff",
+    "#ffffff"
+   ],
+   "p": "crystal"
+  },
+  "emitters": [
+   {
+    "p": "crystal",
+    "at": "head",
+    "every": 2,
+    "count": 1,
+    "dir": "out",
+    "speed": 4,
+    "jitter": 6,
+    "spread": 4,
+    "life": 0.75,
+    "size": 7,
+    "gravity": 10,
+    "spin": 0.6,
+    "color": [
+     "#e8fbff",
+     "#9fe0ff"
+    ]
+   },
+   {
+    "p": "mote",
+    "at": "tail",
+    "every": 1,
+    "count": 1,
+    "dir": "out",
+    "speed": 6,
+    "jitter": 8,
+    "spread": 6,
+    "life": 0.6,
+    "size": 2,
+    "gravity": 8,
+    "color": "#ffffff"
+   },
+   {
+    "p": "crystal",
+    "on": "hit",
+    "count": 4,
+    "dir": "random",
+    "speed": 40,
+    "jitter": 20,
+    "life": 0.7,
+    "size": 7,
+    "gravity": 30,
+    "spin": 2,
+    "color": "#e8fbff"
+   }
+  ]
+ }
 }

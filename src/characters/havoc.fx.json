@@ -177,5 +177,70 @@
     }
    ]
   }
- ]
+ ],
+ "basic": {
+  "weapon": "stock",
+  "weaponMoves": [
+   "ftilt",
+   "dashAttack"
+  ],
+  "shapes": {
+   "dashAttack": "lunge"
+  },
+  "impact": {
+   "colors": [
+    "#d8d0c8",
+    "#ffd08a"
+   ],
+   "p": "debris"
+  },
+  "emitters": [
+   {
+    "p": "flash",
+    "at": "head",
+    "on": "start",
+    "size": 0.75,
+    "color": "#ffe9a8"
+   },
+   {
+    "p": "spark",
+    "at": "head",
+    "on": "start",
+    "count": 5,
+    "speed": 120,
+    "life": 0.18,
+    "size": 2,
+    "color": "#ffd08a"
+   },
+   {
+    "p": "casing",
+    "at": "body",
+    "on": "start",
+    "count": 1,
+    "dir": "back",
+    "speed": 40,
+    "jitter": 20,
+    "life": 0.9,
+    "size": 3,
+    "gravity": 380,
+    "spin": 14,
+    "additive": false,
+    "color": "#e8b84a"
+   },
+   {
+    "p": "mote",
+    "at": "head",
+    "every": 2,
+    "count": 1,
+    "dir": "up",
+    "speed": 16,
+    "jitter": 12,
+    "life": 0.45,
+    "size": 3,
+    "gravity": -12,
+    "additive": false,
+    "color": "#8a8680"
+   }
+  ]
+ }
 }

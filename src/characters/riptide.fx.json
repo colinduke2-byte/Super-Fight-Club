@@ -260,38 +260,6 @@
   {
    "when": {
     "states": [
-     "attack"
-    ],
-    "kinds": [
-     "jab",
-     "tilt",
-     "smash",
-     "aerial",
-     "dashAttack"
-    ],
-    "phase": "active"
-   },
-   "every": 2,
-   "ops": [
-    {
-     "op": "emit",
-     "x": 18,
-     "yh": 0.5,
-     "jx": 24,
-     "jy": 16,
-     "vy": -30,
-     "jvx": 30,
-     "life": 0.4,
-     "color": 3848447,
-     "size": 2,
-     "additive": false,
-     "gravity": 200
-    }
-   ]
-  },
-  {
-   "when": {
-    "states": [
      "run",
      "dash"
     ]
@@ -367,5 +335,77 @@
    "additive": false,
    "gravity": 200
   }
- ]
+ ],
+ "basic": {
+  "weapon": "anchor",
+  "weaponMoves": [
+   "ftilt",
+   "utilt",
+   "fsmash",
+   "usmash",
+   "dsmash",
+   "fair"
+  ],
+  "impact": {
+   "colors": [
+    "#3ab8ff",
+    "#e6fbff"
+   ],
+   "p": "drop"
+  },
+  "emitters": [
+   {
+    "p": "drop",
+    "at": "head",
+    "every": 1,
+    "count": 1.5,
+    "dir": "out",
+    "speed": 60,
+    "jitter": 50,
+    "spread": 4,
+    "life": 0.5,
+    "size": 3,
+    "gravity": 420,
+    "additive": false,
+    "color": [
+     "#3ab8ff",
+     "#8adcff",
+     "#e6fbff"
+    ]
+   },
+   {
+    "p": "mote",
+    "at": "tail",
+    "every": 1,
+    "count": 1,
+    "dir": "swing",
+    "speed": -20,
+    "jitter": 30,
+    "spread": 6,
+    "life": 0.35,
+    "size": 2,
+    "gravity": 200,
+    "color": "#e6fbff"
+   },
+   {
+    "p": "drop",
+    "on": "hit",
+    "count": 8,
+    "dir": "random",
+    "speed": 120,
+    "jitter": 60,
+    "life": 0.55,
+    "size": 3,
+    "gravity": 420,
+    "additive": false,
+    "color": [
+     "#3ab8ff",
+     "#e6fbff"
+    ]
+   }
+  ],
+  "shapes": {
+   "usmash": "fan"
+  }
+ }
 }

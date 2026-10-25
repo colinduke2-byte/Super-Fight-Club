@@ -5,6 +5,7 @@ import { InputBuffer } from './inputBuffer';
 import { computeKnockback, hitstunFrames, launchVelocity, LAUNCH_DRAG, type LaunchVector } from './knockback';
 import { executeMoveEvent, ledgeTakeable, takeLedge } from './actions';
 import { moveTotal, type MoveDef, type StatusApply } from './moves';
+import { movePoseFrame } from './movePoses';
 import type { Ledge, Platform } from './platform';
 import type { CharacterData, CharacterStats } from './types';
 import { derivedMove, GENERIC_MOVES } from './genericMoves';
@@ -638,6 +639,12 @@ export class Fighter implements Body {
     if (this.moveFrame <= m.startup + m.active) return 3;
     const r = (this.moveFrame - m.startup - m.active) / Math.max(1, m.recovery);
     return r < 0.3 ? 4 : 5;
+  }
+
+  /** The frame of the attack's animation row to draw now (display only; see movePoseFrame). */
+  get attackFrame(): number {
+    const m = this.move;
+    return m ? movePoseFrame(m, this.moveFrame, this.data.sprite.animations[m.anim]?.frames ?? 3) : 0;
   }
 
   get isAirborne(): boolean {

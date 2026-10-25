@@ -272,34 +272,6 @@
   {
    "when": {
     "states": [
-     "attack"
-    ],
-    "kinds": [
-     "smash",
-     "aerial",
-     "dashAttack"
-    ],
-    "phase": "active"
-   },
-   "every": 3,
-   "ops": [
-    {
-     "op": "emit",
-     "x": 16,
-     "yh": 0.5,
-     "jx": 20,
-     "jy": 16,
-     "vy": -30,
-     "jvx": 30,
-     "life": 0.35,
-     "color": 11036896,
-     "size": 2
-    }
-   ]
-  },
-  {
-   "when": {
-    "states": [
      "run",
      "dash"
     ]
@@ -371,5 +343,56 @@
    "additive": false,
    "gravity": 220
   }
- ]
+ ],
+ "basic": {
+  "impact": {
+   "colors": [
+    "#c898f6",
+    "#f0e2ff",
+    "#7a4ab8"
+   ],
+   "p": "shard"
+  },
+  "emitters": [
+   {
+    "p": "shard",
+    "at": "head",
+    "every": 1,
+    "count": 1.2,
+    "dir": "out",
+    "speed": 60,
+    "jitter": 40,
+    "spread": 4,
+    "life": 0.5,
+    "size": 4,
+    "gravity": 220,
+    "spin": 7,
+    "color": [
+     "#c898f6",
+     "#f0e2ff",
+     "#a868e0"
+    ]
+   },
+   {
+    "p": "shard",
+    "on": "hit",
+    "count": 6,
+    "dir": "random",
+    "speed": 110,
+    "jitter": 40,
+    "life": 0.6,
+    "size": 4,
+    "gravity": 260,
+    "spin": 9,
+    "color": [
+     "#c898f6",
+     "#f0e2ff"
+    ]
+   }
+  ],
+  "shapes": {
+   "dsmash": "split",
+   "usmash": "fan"
+  }
+ }
 }

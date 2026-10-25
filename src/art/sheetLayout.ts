@@ -40,10 +40,17 @@ export function sheetDims(data: CharacterData): { width: number; height: number 
   const L = sheetLayout(data);
   return { width: L.cols * (data.sprite.frameWidth ?? data.sprite.frameSize), height: L.rows * data.sprite.frameSize };
 }
-/** Sheet frame index for (animation, frame). */
+/**
+ * Sheet frame index for (animation, frame). A flowing attack row (movePoses.ts) ends on the fighter's shared settle frame,
+ * asked for as the frame just past the row (grounded) or the one after that (airborne).
+ */
 export function animFrameIndex(data: CharacterData, anim: string, frame: number): number {
   const L = sheetLayout(data);
-  const def = data.sprite.animations[anim];
-  return (L.start[anim] ?? 0) + Math.min(frame, (def?.frames ?? 1) - 1);
+  const n = data.sprite.animations[anim]?.frames ?? 1;
+  if (frame >= n && n >= 8) {
+    const settle = L.start.mvSettle;
+    if (settle !== undefined) return settle + Math.min(1, frame - n);
+  }
+  return (L.start[anim] ?? 0) + Math.min(frame, n - 1);
 }
 

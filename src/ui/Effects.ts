@@ -12,6 +12,8 @@ const MOTE = 0;
 const STREAK = 1;
 /** A streak of fixed length (speed lines, impact lines): `len` world units, drifting slowly along itself. */
 const LINE = 2;
+/** A shaped sprite (ember, crystal, feather, shell casing...: the 'fx-p-*' textures) that tumbles with its own spin. */
+const SHAPE = 3;
 
 /** Mix two 0xRRGGBB colours (t = 0 -> a, 1 -> b). */
 function mix(a: number, b: number, t: number): number {
@@ -63,6 +65,7 @@ export class Effects {
   private readonly baseScale = new Float32Array(POOL);
   private readonly kind = new Uint8Array(POOL);
   private readonly len = new Float32Array(POOL);
+  private readonly spin = new Float32Array(POOL);
   private next = 0;
 
   private readonly flashes: Phaser.GameObjects.Image[] = [];
@@ -135,6 +138,27 @@ export class Effects {
     return QUALITY_SCALE[q];
   }
 
+  /** Particle density 0..1 (the quality setting and the adaptive cap): callers that emit one by one thin out by it. */
+  get density(): number {
+    return this.quality;
+  }
+
+  /**
+   * A shaped particle: texture `tex` (an 'fx-p-*' key; a plain mote when it is missing) `size` art pixels across, tinted,
+   * spinning `spin` radians a second, with gravity and a little air drag.
+   */
+  shaped(x: number, y: number, vx: number, vy: number, life: number, color: number, tex: string, size: number, gravity: number, spin: number, additive: boolean, rot = 0): void {
+    const has = this.scene.textures.exists(tex);
+    const i = this.next;
+    this.spawn(x, y, vx, vy, life, color, size, gravity, additive, has ? SHAPE : MOTE, has ? 1.2 : 0);
+    if (!has) return;
+    const s = this.sprites[i];
+    const fw = s.setTexture(tex).frame?.width || 8;
+    this.baseScale[i] = (size * 0.5) / fw;
+    this.spin[i] = spin;
+    s.setOrigin(0.5, 0.5).setRotation(rot).setScale(this.baseScale[i]);
+  }
+
   emit(x: number, y: number, vx: number, vy: number, life: number, color: number, size: number, gravity: number, additive = false): void {
     this.spawn(x, y, vx, vy, life, color, size, gravity, additive, MOTE, 0);
   }
@@ -158,7 +182,7 @@ export class Effects {
     this.life[i] = this.maxLife[i] = life;
     this.grav[i] = gravity;
     this.drag[i] = drag;
-    if (kind !== MOTE) this.orient(i, s, 1);
+    if (kind === STREAK || kind === LINE) this.orient(i, s, 1);
   }
 
   /** Point a streak along its velocity, stretched by its speed. */
@@ -302,7 +326,10 @@ export class Effects {
       s.y += this.vy[i] * dt;
       const t = this.life[i] / this.maxLife[i];
       s.setAlpha(Math.min(1, t * 1.6));
-      if (this.kind[i] !== MOTE) this.orient(i, s, t);
+      if (this.kind[i] === SHAPE) {
+        if (this.spin[i] !== 0) s.rotation += this.spin[i] * dt;
+        s.setScale(this.baseScale[i] * (0.6 + 0.4 * t));
+      } else if (this.kind[i] !== MOTE) this.orient(i, s, t);
       else s.setScale(this.baseScale[i] * (0.5 + 0.5 * t));
     }
     for (let i = 0; i < FLASHES; i++) {

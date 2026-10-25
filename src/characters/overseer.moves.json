@@ -44,7 +44,7 @@
    },
    "look": {
     "shape": "orb",
-    "color": "#6ae8ff",
+    "color": "#c8a0ff",
     "size": 1.3
    }
   },
@@ -68,7 +68,7 @@
    },
    "look": {
     "shape": "beam",
-    "color": "#6ae8ff"
+    "color": "#c8a0ff"
    }
   },
   "pillar": {

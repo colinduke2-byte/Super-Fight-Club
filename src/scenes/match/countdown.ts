@@ -14,7 +14,7 @@ export const COUNTDOWN = COUNT_STEP * 3 + 40;
 
 /** How each fighter arrives during READY (visual only: the sim is frozen until GO). */
 type Entrance = 'slam' | 'jet' | 'blink' | 'rune' | 'flame' | 'glide' | 'splash' | 'erupt' | 'fade';
-const ENTRANCES: Record<string, Entrance> = { brick: 'slam', gizmo: 'jet', vex: 'blink', nova: 'rune', agni: 'flame', halcyon: 'glide', riptide: 'splash', obelisk: 'erupt', rime: 'blink', havoc: 'slam' };
+const ENTRANCES: Record<string, Entrance> = { brick: 'slam', gizmo: 'jet', vex: 'blink', nova: 'rune', agni: 'flame', halcyon: 'glide', riptide: 'splash', obelisk: 'erupt', rime: 'blink', havoc: 'slam', overseer: 'rune', 'overseer-versus': 'rune' };
 
 /** The pre-match READY / 3 / 2 / 1 / GO! sequence and the fighters' entrances during it. */
 export class Countdown {

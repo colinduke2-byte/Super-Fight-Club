@@ -709,5 +709,83 @@
     }
    ]
   }
- ]
+ ],
+ "basic": {
+  "impact": {
+   "colors": [
+    "#a89a8c",
+    "#d8cabc",
+    "#ffb02e"
+   ],
+   "p": "debris"
+  },
+  "emitters": [
+   {
+    "p": "spark",
+    "at": "head",
+    "on": "start",
+    "limbs": [
+     "fist"
+    ],
+    "count": 6,
+    "speed": 110,
+    "life": 0.25,
+    "size": 2,
+    "color": "#ffb02e"
+   },
+   {
+    "p": "debris",
+    "at": "head",
+    "every": 1,
+    "limbs": [
+     "fist"
+    ],
+    "count": 1,
+    "dir": "out",
+    "speed": 40,
+    "jitter": 40,
+    "life": 0.45,
+    "size": 4,
+    "gravity": 160,
+    "spin": 6,
+    "additive": false,
+    "color": [
+     "#a89a8c",
+     "#d8cabc"
+    ]
+   },
+   {
+    "p": "mote",
+    "at": "tail",
+    "every": 2,
+    "limbs": [
+     "fist"
+    ],
+    "count": 1,
+    "dir": "up",
+    "speed": 12,
+    "jitter": 16,
+    "spread": 6,
+    "life": 0.5,
+    "size": 3,
+    "gravity": -10,
+    "additive": false,
+    "color": "#b8ac9e"
+   },
+   {
+    "p": "spark",
+    "at": "head",
+    "every": 2,
+    "limbs": [
+     "foot",
+     "body"
+    ],
+    "count": 3,
+    "speed": 80,
+    "life": 0.22,
+    "size": 2,
+    "color": "#ffd27a"
+   }
+  ]
+ }
 }

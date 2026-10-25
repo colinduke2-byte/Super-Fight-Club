@@ -328,6 +328,39 @@ function buildFxTextures(add: (key: string, c: HTMLCanvasElement) => void): void
     }
     add('fx-smoke', c);
   }
+  buildParticleShapes(add);
+}
+
+/**
+ * Small shaped particles for the basic-move touches (embers, frost crystals, shards, droplets, shell casings, feathers, glyphs,
+ * scrap bolts, wisps, debris): pixel maps in greys so the effect tints them. '#' white, '+' light, '-' mid, '.' dark grey.
+ */
+const PARTICLE_SHAPES: Record<string, readonly string[]> = {
+  'fx-p-ember': [' + ', ' #+', '+##', '###', '+#+', ' + '],
+  'fx-p-crystal': ['   +   ', ' + # + ', '  ###  ', '+##+##+', '  ###  ', ' + # + ', '   +   '],
+  'fx-p-shard': [' + ', ' #+', '+#+', '##-', '#+-', '+#-', ' +.', ' . '],
+  'fx-p-drop': [' + ', '+#+', '###', '#++', ' + '],
+  'fx-p-casing': ['+#+', '###', '#+-', '#+-', '#+-', '+--', '...'],
+  'fx-p-feather': ['  ++++   ', ' +####+  ', '#########', '  -++++  '],
+  'fx-p-glyph': [' +###+ ', '+  #  +', '#  #  #', '# ### #', '# # # #', '+#   #+', ' +###+ '],
+  'fx-p-bolt': [' +#+ ', '+#-#+', '#- -#', '+#-#+', ' +#+ '],
+  'fx-p-wisp': ['  ..--  ', ' .-++-. ', '.-+##+-.', '-+####+-', '-+####+-', '.-+##+-.', ' .-++-. ', '  .--.  '],
+  'fx-p-debris': [' +# ', '+##-', '#+--', ' -. '],
+};
+const SHADE: Record<string, string> = { '#': '#ffffff', '+': '#d4d4d4', '-': '#a2a2a2', '.': '#707070' };
+
+function buildParticleShapes(add: (key: string, c: HTMLCanvasElement) => void): void {
+  for (const [key, rows] of Object.entries(PARTICLE_SHAPES)) {
+    const w = Math.max(...rows.map((r) => r.length));
+    const [c, g] = mk(w, rows.length);
+    rows.forEach((row, y) => {
+      for (let x = 0; x < row.length; x++) {
+        const col = SHADE[row[x]];
+        if (col) px(g, col, x, y);
+      }
+    });
+    add(key, c);
+  }
 }
 
 /**
@@ -962,23 +995,27 @@ function artCrescent(): HTMLCanvasElement {
   return P.canvas(null);
 }
 
+/** The Overseer's orb: a small floating eye of its own (violet halo, an ivory ring turning round it, a white-hot pupil). */
 function artVoidOrb(): HTMLCanvasElement {
   const P = new Painter(52, 52);
   const c = 26;
   const ring = (front: boolean): void =>
     P.each(c - 22, c - 8, c + 22, c + 8, (x, y, u, v) => {
       const d = Math.hypot((u - c) / 20, (v - c - (u - c) * 0.18) / 6);
-      if (Math.abs(d - 1) < 0.1 && v - (u - c) * 0.18 > c === front) P.put(x, y, rgb(front ? '#ffb0be' : '#c03048'), 1, true);
+      if (Math.abs(d - 1) < 0.1 && v - (u - c) * 0.18 > c === front) P.put(x, y, rgb(front ? '#f4ecdc' : '#6a4aa8'), 1, true);
     });
-  P.halo(c, c, 26, rgb('#ff2a4a'), 0.5);
+  P.halo(c, c, 26, rgb('#9a5aff'), 0.5);
   ring(false);
-  P.ball(c, c, 13, 13, R('#08020a', '#1a0610', '#3a0a1a', '#6a1428', '#c03048'));
+  P.ball(c, c, 13, 13, R('#06040e', '#140a24', '#2a1648', '#4a2a7a', '#8a5ad0'));
   P.each(c - 13, c - 13, c + 13, c + 13, (x, y, u, v) => {
     const d = Math.hypot(u - c, v - c) / 13;
-    if (d > 0.78 && d <= 1) P.put(x, y, rgb('#ff4a6a'), (d - 0.78) * 3.2, true);
+    if (d > 0.78 && d <= 1) P.put(x, y, rgb('#cbb0ff'), (d - 0.78) * 3.2, true);
+    // the iris: a violet ring around the pupil
+    if (d > 0.3 && d < 0.46) P.put(x, y, rgb('#b685ff'), 0.9, true);
   });
   ring(true);
-  P.twinkle(21, 21, 2, rgb('#ffffff'));
+  P.twinkle(c, c, 3, rgb('#ffffff'));
+  P.twinkle(21, 21, 1, rgb('#ffffff'));
   return P.canvas(null);
 }
 
@@ -1445,6 +1482,8 @@ export const PROJ_ART: Record<string, ProjArt> = {
   'overseer:drone_shot': { key: 'pa-shot-drone', frames: 1, size: 1, orient: 'vel' },
   'overseer:orb': { key: 'pa-voidorb', frames: 1, size: 1.3, orient: 'spin' },
   'overseer:quake': { key: 'pa-crescent', frames: 1, size: 1.3, orient: 'flip' },
+  'overseer-versus:orb': { key: 'pa-voidorb', frames: 1, size: 1.3, orient: 'spin' },
+  'overseer-versus:quake': { key: 'pa-crescent', frames: 1, size: 1.3, orient: 'flip' },
   'item:raygun': { key: 'pa-raylaser', frames: 1, size: 1, orient: 'vel' },
   'item:drone': { key: 'pa-shot-assist', frames: 1, size: 0.8, orient: 'vel' },
 };

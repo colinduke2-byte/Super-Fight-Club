@@ -37,12 +37,13 @@ const DRAWERS: Partial<Record<PlaceholderLook['build']['helmet'], (r: Raster, k:
 export function renderHeroImage(W: number, H: number, look: PlaceholderLook, pose: HeroPose, phase: number): ImageData {
   let r = new Raster(W, H);
   // the fighter's own motion style (idle, gaits, double jump, results) for rows that have one
-  const posed = stylePose(pose as Pose, look.build.helmet) as HeroPose & { lying?: boolean };
+  const posed = stylePose(pose as Pose, look.build.helmet) as HeroPose & { lying?: boolean; ph?: number };
   const lying = !!posed.lying;
   // knocked down: drawn upright in the sprawl pose with gravity along the body's back, then laid on its back, so hair,
   // flames and cloth fall (or rise) the right way once it is down
   const stand: HeroPose = lying ? { ...posed, bob: 0, crouch: 0, lean: 0, laid: true, grav: posed.grav ?? [-1, 0] } : posed;
-  const k = skeleton(look, stand, W, H, phase);
+  // attack rows carry their own sway phase (Pose.ph), so cloth and hair move on smoothly through the action
+  const k = skeleton(look, stand, W, H, posed.ph ?? phase);
   DRAWERS[look.build.helmet]?.(r, k, look);
   // (the boss keeps its own lying placement)
   if (lying) r = r.lyingDown(H - 4, W / 2 - 5 * (H / 64), look.build.helmet === 'monolith' ? undefined : k.torso.x + 2);

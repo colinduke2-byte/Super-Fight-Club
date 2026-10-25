@@ -1,20 +1,13 @@
 import type Phaser from 'phaser';
-import { hitboxEnd, hitboxStart } from '../engine/moves';
-import { hitboxActive, hitboxRect } from '../engine/combat';
 import type { Fighter } from '../engine/fighter';
 import type { World } from '../engine/world';
-import { fighterTrailColor } from '../fx/runner';
+import { basicOf, makeSwing, swingOf, swingVisible, type Swing } from '../fx/basicFx';
+import { fighterColor, fighterTrailColor } from '../fx/runner';
 import { fastShapes } from './fastShapes';
+import { CRACK_TICKS, drawCrack, drawSwing, glint, type Deco } from './MoveFx';
 
-const r4 = [0, 0, 0, 0];
-const N = 14;
-/** t^1.1 for t = i / N (the trail's taper), computed once. */
-const TAPER = Array.from({ length: N + 1 }, (_, i) => Math.pow(i / N, 1.1));
-/** Scratch polygons reused every redraw (Graphics.fillPoints reads them immediately). */
-const ARC: { x: number; y: number }[] = Array.from({ length: 2 * (N + 1) }, () => ({ x: 0, y: 0 }));
-const NEEDLE: { x: number; y: number }[] = Array.from({ length: 4 }, () => ({ x: 0, y: 0 }));
-/** Scratch polylines for the hairline and the volt bolt (strokePoints reads them immediately). */
-const HAIR: { x: number; y: number }[] = Array.from({ length: N + 1 }, () => ({ x: 0, y: 0 }));
+/** Scratch polyline for the volt bolt and the flame ribbon (strokePoints reads it immediately). */
+const HAIR: { x: number; y: number }[] = Array.from({ length: 16 }, () => ({ x: 0, y: 0 }));
 
 /** Trail looks. A character picks one with `fx.slash`; otherwise its sound style decides (heavy = sparks, blade = blade, ...). */
 export type SlashStyle = 'plain' | 'fire' | 'water' | 'spark' | 'blade' | 'arcane' | 'volt' | 'gale' | 'crystal' | 'frost';
@@ -39,10 +32,14 @@ export function slashStyle(f: Fighter): SlashStyle {
   return (fx?.slash as SlashStyle | undefined) ?? BY_SOUND[fx?.sound ?? ''] ?? 'plain';
 }
 
+/** Fighter slots tracked for floor cracks. */
+const SLOTS = 8;
+
 /**
- * Tapered crescent "swoosh" drawn along each live hitbox: a bright head sweeps an arc around the fighter's chest with a long
- * fading tail (soft coloured glow outside, bright core inside), dressed per fighter (flames, spray, sparks, a blade's glint,
- * arcane stars, crackling volts, feathers). Redrawn every render frame from the sim state; purely visual.
+ * Swing trails drawn along each live hitbox, shaped by the kind of move (see fx/basicFx and ui/MoveFx: jab streaks, punch
+ * thrusts with a shock ring, kick sweeps, up-attack fans, the down-smash's twin floor arcs and crack, nair rings, dair spikes,
+ * fair / bair arcs, dash-attack lunges, weapon heads) and dressed per fighter (flames and ribbons, spray, sparks, a blade's
+ * glint, arcane stars, crackling volts, feathers, shards, snow). Redrawn when the sim steps; purely visual.
  */
 export class SlashArcs {
   private readonly g: Phaser.GameObjects.Graphics;
@@ -53,6 +50,14 @@ export class SlashArcs {
   private readonly accent: [number, number, number][] = [[1.5, 0, 0.35], [1, 0, 0.7], [0.45, 0xffffff, 0.95]];
   /** Pooled trail-edge points handed to `decorate`. */
   private readonly deco: Deco[] = Array.from({ length: 8 }, () => ({ x: 0, y: 0, t: 0, nx: 0, ny: 0 }));
+  private readonly swing: Swing = makeSwing();
+  /** Floor cracks per fighter slot: start tick (-1 none), x, y, length, colour; and the move that made it. */
+  private readonly crackT = new Int32Array(SLOTS).fill(-1);
+  private readonly crackX = new Float32Array(SLOTS);
+  private readonly crackY = new Float32Array(SLOTS);
+  private readonly crackL = new Float32Array(SLOTS);
+  private readonly crackC = new Uint32Array(SLOTS);
+  private readonly crackMove: (object | null)[] = new Array(SLOTS).fill(null);
 
   constructor(scene: Phaser.Scene, layer: Phaser.GameObjects.Layer) {
     this.g = fastShapes(scene.add.graphics().setDepth(50).setBlendMode(1 /* ADD */));
@@ -62,171 +67,78 @@ export class SlashArcs {
   update(world: World): void {
     const tick = world.tick;
     if (world === this.lastWorld && tick === this.lastTick) return;
+    if (world !== this.lastWorld) this.crackT.fill(-1);
     this.lastWorld = world;
     this.lastTick = tick;
     const g = this.g;
     g.clear();
     for (const f of world.fighters) {
+      const slot = f.id % SLOTS;
+      if (this.crackT[slot] >= 0) {
+        const age = tick - this.crackT[slot];
+        if (age < 0 || age >= CRACK_TICKS) this.crackT[slot] = -1;
+        else drawCrack(g, this.crackX[slot], this.crackY[slot], age, this.crackL[slot], this.crackC[slot]);
+      }
       const m = f.move;
-      if (f.state !== 'attack' || !m) continue;
+      if (f.state !== 'attack' || !m) {
+        this.crackMove[slot] = null;
+        continue;
+      }
       const style = slashStyle(f);
       const col = fighterTrailColor(f, tick);
       let layers: Layers | undefined = FIXED[style];
       if (!layers) {
         this.accent[0][1] = col;
         this.accent[1][1] = col;
+        // two-tone trails: basic.trail2 colours the hot core (default white)
+        const t2 = basicOf(f)?.trail2;
+        this.accent[2][1] = t2 !== undefined ? fighterColor(f, t2, tick) : 0xffffff;
         layers = this.accent;
       }
       const wMul = WIDTH[style] ?? 1;
-      const chestX = f.x;
-      const chestY = f.y - f.h * 0.55;
+      const basic = basicOf(f);
       let drawn = 0;
       for (const hb of m.hitboxes) {
-        if (drawn >= 2 || hb.grab || hb.throw || hb.travel) continue;
-        const a0 = hitboxStart(m, hb);
-        const a1 = hitboxEnd(m, hb);
-        const live = hitboxActive(f, m, hb);
-        // keep the tail visible a few frames after the hitbox ends
-        const after = f.moveFrame - a1;
-        if (!live && !(after > 0 && after <= 5) && !(f.moveFrame >= a0 - 1 && f.moveFrame < a0)) continue;
+        if (drawn >= 2) break;
+        if (!swingVisible(f, m, hb)) continue;
+        const s = swingOf(f, m, hb, this.swing);
+        const shape = s.look.shape;
+        if (shape === 'none') break;
         drawn++;
-        hitboxRect(f, hb, r4);
-        const dx = (r4[0] + r4[2] / 2 - chestX) * f.facing;
-        const dy = r4[1] + r4[3] / 2 - chestY;
-        const r = Math.max(m.view?.arc === 'ring' ? 24 : 10, Math.hypot(dx, dy));
-        const centre = Math.atan2(dy, dx);
-        const span = m.view?.arc === 'ring' ? Math.PI * 0.98 : Math.min(1.25, Math.max(0.5, (Math.max(r4[2], r4[3]) * 0.95) / (r + 6)));
-        const prog = after > 0 ? 1 : a1 > a0 ? Math.min(1, Math.max(0, (f.moveFrame - a0) / (a1 - a0 + 1))) : 0.6;
-        const shape = m.view?.arc ?? 'curve';
-        if (shape === 'none') continue;
-        const fade = after > 0 ? 1 - after / 6 : 1;
-        const deco = this.deco;
-        let nd = 0;
-        if (shape === 'line') {
-          // straight streak (punches, thrusts, pokes): a tapered needle from behind the fist to its tip
-          const ux = dx / r;
-          const uy = dy / r;
-          const reach = r + Math.max(r4[2], r4[3]) * 0.3;
-          const hx = chestX + ux * reach * f.facing;
-          const hy = chestY + uy * reach;
-          const len = (16 + Math.min(r4[2], 44) * 0.7) * (0.45 + 0.55 * prog);
-          const tx = hx - ux * len * f.facing;
-          const ty = hy - uy * len;
-          const px = -uy * f.facing;
-          const py = ux;
-          const wid = Math.min(10, Math.max(4, Math.min(r4[2], r4[3]) * 0.4)) * wMul;
-          const q = NEEDLE;
-          for (let li = 0; li < layers.length; li++) {
-            const L = layers[li];
-            const w = (wid * L[0] * 0.93) / 2;
-            g.fillStyle(L[1], L[2] * fade);
-            q[0].x = tx;
-            q[0].y = ty;
-            q[1].x = hx + px * w;
-            q[1].y = hy + py * w;
-            q[2].x = hx + ux * f.facing * 4;
-            q[2].y = hy + uy * 4;
-            q[3].x = hx - px * w;
-            q[3].y = hy - py * w;
-            g.fillPoints(q as Phaser.Geom.Point[], true);
-          }
-          for (let i = 1; i <= 4; i++) {
-            const t = i / 5;
-            const d = deco[nd++];
-            d.x = tx + (hx - tx) * t;
-            d.y = ty + (hy - ty) * t;
-            d.t = t;
-            d.nx = px;
-            d.ny = py;
-          }
-          decorate(g, style, deco, nd, fade, tick, col, hx, hy);
-          continue;
+        // ring, fan and split are whole-move shapes: once per move, from its first live hitbox
+        const once = shape === 'ring' || shape === 'fan' || shape === 'split' || shape === 'lunge';
+        const nd = drawSwing(g, f, s, layers, wMul, tick, this.deco, layers[1][1]);
+        if (style === 'fire' && basic?.ribbon && (shape === 'arc' || shape === 'sweep' || shape === 'fan')) ribbon(g, this.deco, nd, s.fade, tick);
+        decorate(g, style, this.deco, nd, s.fade, tick, col, s.hx, s.hy);
+        if (shape === 'split' && s.live && f.grounded && basic?.crack !== false && this.crackMove[slot] !== m) {
+          // the floor cracks under a down-smash (once per use)
+          this.crackMove[slot] = m;
+          this.crackT[slot] = tick;
+          this.crackX[slot] = f.x;
+          this.crackY[slot] = f.y;
+          this.crackL[slot] = Math.max(18, s.r * 1.1);
+          this.crackC[slot] = layers[1][1];
         }
-        const dir = m.kind === 'aerial' && hb.y > 0 ? -1 : 1;
-        const head = centre + span * (2 * prog - 1) * dir;
-        const tail = Math.max(centre - span, Math.min(centre + span, head - span * 1.5 * dir));
-        const heavy = hb.damage >= 12 || m.kind === 'smash';
-        const width = Math.min(13, Math.max(5, Math.min(r4[2], r4[3]) * 0.5 + (heavy ? 3 : 0))) * wMul;
-        const pts = ARC;
-        for (let li = 0; li < layers.length; li++) {
-          const L = layers[li];
-          // outer edge tail -> head, then the inner edge head -> tail, written straight into the scratch polygon
-          for (let i = 0; i <= N; i++) {
-            const ang = tail + ((head - tail) * i) / N;
-            const w = width * L[0] * TAPER[i];
-            const cx = Math.cos(ang);
-            const cy = Math.sin(ang);
-            const o = pts[i];
-            o.x = chestX + cx * (r + w / 2) * f.facing;
-            o.y = chestY + cy * (r + w / 2);
-            const n = pts[2 * N + 1 - i];
-            n.x = chestX + cx * (r - w / 2) * f.facing;
-            n.y = chestY + cy * (r - w / 2);
-          }
-          g.fillStyle(L[1], L[2] * fade);
-          g.fillPoints(pts as Phaser.Geom.Point[], true);
-        }
-        if (heavy) {
-          // a heavy swing throws a second, thinner shock arc just outside the first: the air it displaces, led by the head
-          const sr = r + width * 0.95;
-          const sw = width * 0.32;
-          const sTail = head - (head - tail) * 0.6;
-          for (let i = 0; i <= N; i++) {
-            const ang = sTail + ((head - sTail) * i) / N;
-            const w = sw * TAPER[i];
-            const cx = Math.cos(ang);
-            const cy = Math.sin(ang);
-            const o = pts[i];
-            o.x = chestX + cx * (sr + w / 2) * f.facing;
-            o.y = chestY + cy * (sr + w / 2);
-            const n = pts[2 * N + 1 - i];
-            n.x = chestX + cx * (sr - w / 2) * f.facing;
-            n.y = chestY + cy * (sr - w / 2);
-          }
-          g.fillStyle(layers[1][1], 0.45 * fade);
-          g.fillPoints(pts as Phaser.Geom.Point[], true);
-        }
-        if (style !== 'blade') {
-          // a crisp hot hairline along the leading half of the outer edge: the cut itself, so even soft styles read sharp
-          // (strokePoints records the same beginPath / moveTo / lineTo... / strokePath)
-          g.lineStyle(1, 0xffffff, 0.7 * fade);
-          let nh = 0;
-          for (let i = N >> 1; i <= N; i++) {
-            const ang = tail + ((head - tail) * i) / N;
-            const w = width * layers[layers.length - 1][0] * TAPER[i];
-            const p = HAIR[nh++];
-            p.x = chestX + Math.cos(ang) * (r + w / 2) * f.facing;
-            p.y = chestY + Math.sin(ang) * (r + w / 2);
-          }
-          g.strokePoints(HAIR as Phaser.Geom.Point[], false, false, nh);
-        }
-        for (let i = 3; i <= N; i += 2) {
-          const t = i / N;
-          const ang = tail + (head - tail) * t;
-          const w = width * TAPER[i];
-          const cx = Math.cos(ang);
-          const cy = Math.sin(ang);
-          const d = deco[nd++];
-          d.x = chestX + cx * (r + w / 2) * f.facing;
-          d.y = chestY + cy * (r + w / 2);
-          d.t = t;
-          d.nx = cx * f.facing;
-          d.ny = cy;
-        }
-        const hAng = head;
-        decorate(g, style, deco, nd, fade, tick, col, chestX + Math.cos(hAng) * r * f.facing, chestY + Math.sin(hAng) * r);
+        if (once) break;
       }
     }
   }
 }
 
-/** A point on the outer edge of a trail: `t` 0 (tail) .. 1 (head), (nx, ny) the outward direction. */
-interface Deco {
-  x: number;
-  y: number;
-  t: number;
-  nx: number;
-  ny: number;
+/** A flame ribbon: a sinuous thin streamer licking off just outside the trail's edge. */
+function ribbon(g: Phaser.GameObjects.Graphics, pts: readonly Deco[], n: number, fade: number, tick: number): void {
+  if (n < 3) return;
+  for (let k = 0; k < 2; k++) {
+    for (let i = 0; i < n; i++) {
+      const p = pts[i];
+      const off = 4 + k * 3 + Math.sin(tick * 0.7 + i * 1.4 + k * 2) * 2.2;
+      const h = HAIR[i];
+      h.x = p.x + p.nx * off;
+      h.y = p.y + p.ny * off - (1 - p.t) * (2 + k * 2);
+    }
+    g.lineStyle(k ? 1 : 1.5, k ? 0xffe08a : 0xff6a1a, (k ? 0.6 : 0.75) * fade);
+    g.strokePoints(HAIR as Phaser.Geom.Point[], false, false, n);
+  }
 }
 
 /** Per-style dressing along the first `n` points of the trail's outer edge plus an accent at its head (hx, hy). */
@@ -338,14 +250,4 @@ function decorate(g: Phaser.GameObjects.Graphics, style: SlashStyle, pts: readon
     default:
       break;
   }
-}
-
-/** Four-point sparkle. */
-function glint(g: Phaser.GameObjects.Graphics, x: number, y: number, s: number, c: number, a: number): void {
-  if (s <= 0.3) return;
-  g.fillStyle(c, a);
-  g.fillTriangle(x - s, y, x + s, y, x, y - s * 0.25);
-  g.fillTriangle(x - s, y, x + s, y, x, y + s * 0.25);
-  g.fillTriangle(x, y - s, x, y + s, x - s * 0.25, y);
-  g.fillTriangle(x, y - s, x, y + s, x + s * 0.25, y);
 }

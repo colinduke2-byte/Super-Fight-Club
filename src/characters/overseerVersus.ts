@@ -8,6 +8,9 @@ import movesJson from './overseerVersus.moves.json';
 
 const json = movesJson as unknown as CharacterJson;
 
+/** Frame size of the playable Overseer's sheet: 15 x 15 cells of it fit the 4096px texture limit. */
+const VERSUS_FRAME = 272;
+
 /** Roster id of the playable Overseer (the boss keeps the id `overseer`). */
 export const OVERSEER_VERSUS_ID = 'overseer-versus';
 
@@ -56,12 +59,15 @@ export const overseerVersus: CharacterData = {
   // the boss's body (36 x 54) at a fighter's scale
   body: { width: 22, height: 34, footHalfWidth: 9 },
   sprite: {
-    // the boss's own frames (the hero drawer works at a fixed pixel size), shown at 1/1.6 of the boss's 0.25
-    frameSize: 320,
-    pixelScale: 0.25 / 1.6,
+    // the boss's body at its own pixel size, shown at 1/1.6 of the boss's 0.25 world size; the frame is shorter than the
+    // boss's 320 (the drawer gives this body a compact crown in it) so a fighter's full set of rows fits in one sheet
+    frameSize: VERSUS_FRAME,
+    pixelScale: (0.25 / 1.6) * (320 / VERSUS_FRAME),
     portrait: overseer.sprite.portrait,
     animations: standardAnimations(['castF', 'castU', 'castD', 'raid']),
-    placeholder: { ...overseer.sprite.placeholder },
+    // a fighter's build of the same body: shorter in the leg and torso, the head (and its eye) a size up, so it stands in
+    // its frame with the crown clear of the top and reads at a fighter's size
+    placeholder: { ...overseer.sprite.placeholder, build: { ...overseer.sprite.placeholder.build, shoulderW: 28, torsoH: 22, legH: 18, headSize: 8.5, armLen: 20 } },
   },
   moves,
   projectiles: json.projectiles,
@@ -72,8 +78,8 @@ export const overseerVersus: CharacterData = {
 };
 
 applyMovePoses(overseerVersus);
-// the boss's transition and results rows (not the full motion set: 320px frames keep the sheet inside 12 x 12 cells, so the
-// normals share the boss's attack rows and only the forward, back and down airs have rows of their own)
+// the boss's transition and results rows; every move (each jab, tilt, smash, aerial, throw and special, and its own taunt)
+// has a row of its own in overseerVersus.moves.json, drawn wind-up, anticipation, strike, follow-through and recovery
 Object.assign(overseerVersus.sprite.animations, {
   land: { frames: 2, fps: 20, loop: false },
   getup: { frames: 3, fps: 10, loop: false },

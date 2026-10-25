@@ -141,33 +141,6 @@
  "rules": [
   {
    "when": {
-    "kinds": [
-     "tilt",
-     "jab"
-    ],
-    "phase": "active"
-   },
-   "every": 2,
-   "ops": [
-    {
-     "op": "emit",
-     "x": 30,
-     "jx": 12,
-     "yh": 0.55,
-     "jy": 10,
-     "vx": 50,
-     "jvx": 40,
-     "vy": -40,
-     "jvy": 40,
-     "life": 0.3,
-     "color": 16769354,
-     "size": 2,
-     "gravity": 120
-    }
-   ]
-  },
-  {
-   "when": {
     "res": {
      "key": "mech",
      "min": 1
@@ -802,5 +775,59 @@
     }
    ]
   }
- ]
+ ],
+ "basic": {
+  "impact": {
+   "colors": [
+    "#9aa4b0",
+    "#d8dee6",
+    "#5fe8ff"
+   ],
+   "p": "bolt"
+  },
+  "emitters": [
+   {
+    "p": "bolt",
+    "at": "head",
+    "every": 2,
+    "count": 1,
+    "dir": "out",
+    "speed": 60,
+    "jitter": 50,
+    "life": 0.6,
+    "size": 5,
+    "gravity": 300,
+    "spin": 10,
+    "additive": false,
+    "color": [
+     "#9aa4b0",
+     "#d8dee6"
+    ]
+   },
+   {
+    "p": "spark",
+    "at": "head",
+    "every": 2,
+    "count": 2,
+    "speed": 90,
+    "life": 0.16,
+    "size": 1,
+    "color": "#5fe8ff"
+   },
+   {
+    "p": "bolt",
+    "on": "hit",
+    "count": 4,
+    "dir": "random",
+    "speed": 110,
+    "jitter": 40,
+    "life": 0.7,
+    "size": 5,
+    "gravity": 320,
+    "spin": 12,
+    "additive": false,
+    "color": "#c8ced6"
+   }
+  ]
+ }
 }

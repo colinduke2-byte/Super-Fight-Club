@@ -733,5 +733,59 @@
     }
    ]
   }
- ]
+ ],
+ "basic": {
+  "impact": {
+   "colors": [
+    "@trail",
+    "#ffffff"
+   ],
+   "p": "glyph"
+  },
+  "emitters": [
+   {
+    "p": "glyph",
+    "at": "head",
+    "every": 2,
+    "count": 1,
+    "dir": "out",
+    "speed": 22,
+    "jitter": 20,
+    "spread": 6,
+    "life": 0.55,
+    "size": 7,
+    "gravity": -20,
+    "spin": 1.5,
+    "color": "@trail"
+   },
+   {
+    "p": "mote",
+    "at": "head",
+    "every": 1,
+    "count": 1,
+    "dir": "random",
+    "speed": 30,
+    "spread": 6,
+    "life": 0.3,
+    "size": 2,
+    "color": [
+     "@trail",
+     "#ffffff"
+    ]
+   },
+   {
+    "p": "glyph",
+    "on": "hit",
+    "count": 3,
+    "dir": "random",
+    "speed": 50,
+    "jitter": 20,
+    "life": 0.6,
+    "size": 7,
+    "gravity": -10,
+    "spin": 2,
+    "color": "@trail"
+   }
+  ]
+ }
 }

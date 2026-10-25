@@ -1,6 +1,6 @@
 /** Animation poses for the generated sprite sheets: a pose per (animation, frame), from templates or a move's key poses. No Phaser or DOM, so it also runs in the sheet workers. */
 import type { PoseSpec } from '../engine/moves';
-import { buildKeys, type Key } from './poseTemplates';
+import { buildKeys, type Flow, type Key } from './poseTemplates';
 
 export type V2 = [number, number];
 
@@ -24,6 +24,8 @@ export interface Pose {
   head?: V2;
   /** Torso twist (units): + pulls the near shoulder back and the far one forward (hit recoil, a turned air dodge). */
   twist?: number;
+  /** Cloth / hair sway phase for this frame (attack rows set it so loose parts move on smoothly instead of jittering per frame). */
+  ph?: number;
   /** Set by poseFor: the row and frame this pose was made for (lets the hero renderer apply a fighter's own motion style). */
   anim?: string;
   f?: number;
@@ -34,11 +36,18 @@ const REST: Pose = { bob: 0, crouch: 0, lean: 0, frontFoot: [4, 0], backFoot: [-
 
 /** Key poses of the move-specific animations (`mv_<id>`) of the character whose sheet is being drawn. */
 let moveKeys: Record<string, [Key, Key, Key]> = {};
+/** Flowing basic moves (see movePoses.ts): their weight, and whether they are aerials. */
+let moveFlows: Record<string, Flow> = {};
 
 /** Load the key poses of a character's move animations before drawing its sheet. */
 export function setMovePoses(poses: Iterable<{ anim: string; pose: PoseSpec }>): void {
   moveKeys = {};
-  for (const m of poses) moveKeys[m.anim] = buildKeys(m.pose);
+  moveFlows = {};
+  for (const m of poses) {
+    moveKeys[m.anim] = buildKeys(m.pose);
+    const fl = (m.pose as PoseSpec & { flow?: Flow }).flow;
+    if (fl) moveFlows[m.anim] = fl;
+  }
 }
 
 // ---- motion styles ------------------------------------------------------------------------------------------------
@@ -664,6 +673,13 @@ export function poseFor(anim: string, f: number, frames: number, style?: string)
       p.backHand = [p.backHand[0], p.backHand[1] + b * 0.6];
       break;
     }
+    case 'mvSettle':
+      // the shared last beat of every flowing attack: weight settling back into the stance (0, grounded) or opening out of the
+      // strike in the air (1), loose cloth and hair still swinging a little past plumb before the idle takes over
+      applyKey(p, f === 0 ? SETTLE_GROUND : SETTLE_AIR);
+      p.grav = [0.14, 1];
+      p.ph = 10;
+      break;
     case 'down':
     case 'ko':
       applyKey(p, SPRAWL);
@@ -874,6 +890,14 @@ function attackPose(anim: string, f: number, p: Pose, frames = 3): void {
   };
   const row = moveKeys[anim] ?? T[anim];
   if (!row) return;
+  const fl = moveFlows[anim];
+  if (fl && frames >= 8 && row.length === 3) {
+    const fr = flowFrame(row as [Key, Key, Key], fl, f);
+    set(fr.key);
+    p.grav = fr.grav;
+    p.ph = fr.ph;
+    return;
+  }
   if (frames >= 6 && row.length === 3) {
     // six frames from three key poses: wind-up, an exaggerated anticipation (pulls back past the wind-up), the fast
     // in-between, the strike, follow-through and recovery. Frame 3 is the active pose.
@@ -889,4 +913,206 @@ function attackPose(anim: string, f: number, p: Pose, frames = 3): void {
     return;
   }
   set(row[Math.min(f, row.length - 1)]);
+}
+
+// ---- flowing attacks ------------------------------------------------------------------------------------------------
+//
+// A basic move's row is drawn from its three key poses (wind-up A, strike B, recovery C) as a full action: an optional
+// lift (heavies), the wind-up, the anticipation coil, a breakdown and a fast in-between travelling on arcs, the strike, a
+// late-active extension, the overshoot, the recovery and (heavies) a mid-recovery beat. Frames 0..5 keep the meaning the
+// six-pose rows always had (0 wind-up, 1 anticipation, 2 in-between, 3 strike, 4 follow-through, 5 recovery) so effects
+// keyed on them still line up; the extra beats sit after them. The shared settle frame lives in the `mvSettle` row.
+
+/** Row slots of a flowing move (see movePoses.ts FLOW_*). */
+export const FLOW_SLOT = { wind: 0, coil: 1, smear: 2, strike: 3, over: 4, recover: 5, breakdown: 6, extend: 7, lift: 8, settleMid: 9 } as const;
+
+const SETTLE_GROUND: Key = [0.5, 1.5, [3, 0.5], [-3, 0.5], [5, 0], [-5, 0], undefined, undefined, 0.3, 0.3];
+const SETTLE_AIR: Key = [0, 0, [8, -10], [-7, -9], [7, 5], [-6, 7], undefined, undefined, 0, -0.3];
+const STANCE: Key = [0, 1, [2, 0], [-2, 0], [4, 0], [-4, 0]];
+const AIR_STANCE: Key = [0, 0, [7, -8], [-6, -8], [6, 6], [-5, 8]];
+
+const q = (v: number): number => Math.round(v * 2) / 2;
+const qa = (v: number): number => Math.round(v * 10) / 10;
+/** Approximate shoulder / hip pivots in each limb's offset space (units): hands swing round the shoulder, feet round the hip. */
+const PIVOT: V2[] = [[-6, -20], [4, -18], [0, 18], [0, 18]];
+
+/** Limb offset from a to b at t, travelling round `pivot` (radius and angle eased separately) so swings are arcs, not lines. */
+function arc(a: V2, b: V2, t: number, pivot: V2): V2 {
+  const ax = a[0] - pivot[0];
+  const ay = a[1] - pivot[1];
+  const bx = b[0] - pivot[0];
+  const by = b[1] - pivot[1];
+  const ra = Math.hypot(ax, ay);
+  const rb = Math.hypot(bx, by);
+  // too close to the pivot (or barely moving) for an angle to mean anything: a straight line
+  if (ra < 3 || rb < 3 || Math.hypot(bx - ax, by - ay) < 3) return [mixN(a[0], b[0], t), mixN(a[1], b[1], t)];
+  const a0 = Math.atan2(ay, ax);
+  let da = Math.atan2(by, bx) - a0;
+  if (da > Math.PI) da -= TAU;
+  if (da < -Math.PI) da += TAU;
+  const ang = a0 + da * t;
+  const r = mixN(ra, rb, t);
+  return [pivot[0] + Math.cos(ang) * r, pivot[1] + Math.sin(ang) * r];
+}
+const lim = (k: Key, i: number): V2 => k[i] as V2;
+const num = (v: number | undefined): number => v ?? 0;
+/** b + (b - a) * k (an overshoot / a pull back past a pose). */
+const past = (a: number, b: number, k: number): number => b + (b - a) * k;
+const pastV = (a: V2, b: V2, k: number): V2 => [past(a[0], b[0], k), past(a[1], b[1], k)];
+
+interface FlowFrame {
+  key: Key;
+  grav: V2;
+  ph: number;
+}
+/** Which limb (2 front hand, 3 back hand, 4 front foot, 5 back foot) travels furthest from wind-up to strike. */
+function leadLimb(A: Key, B: Key): number {
+  let best = 2;
+  let d = -1;
+  for (let i = 2; i <= 5; i++) {
+    const v = Math.hypot(lim(B, i)[0] - lim(A, i)[0], lim(B, i)[1] - lim(A, i)[1]);
+    if (v > d + 0.5) {
+      d = v;
+      best = i;
+    }
+  }
+  return best;
+}
+
+/** One frame of a flowing move row (see FLOW_SLOT). */
+function flowFrame(row: [Key, Key, Key], fl: Flow, f: number): FlowFrame {
+  const [A, B0, C0] = row;
+  const w = Math.max(0, Math.min(1, fl.w));
+  const air = !!fl.air;
+  const L = leadLimb(A, B0);
+  const d: V2 = [lim(B0, L)[0] - lim(A, L)[0], lim(B0, L)[1] - lim(A, L)[1]];
+  const dl = Math.hypot(d[0], d[1]) || 1;
+  const u: V2 = [d[0] / dl, d[1] / dl];
+  // the strike turns the chest into it (a lead hand brings the near shoulder through, a rear hand the far one), unless
+  // the key already says how; a mostly vertical strike turns less
+  const side = L === 2 ? -1 : L === 3 ? 1 : L === 4 ? -0.5 : 0.5;
+  const horiz = Math.abs(u[0]);
+  const twS = B0[8] ?? q(side * (1 + 1.6 * w) * (0.35 + 0.65 * horiz) * Math.sign(u[0] || 1));
+  const B: Key = [...B0] as Key;
+  B[8] = twS;
+  if (B[10] === undefined) B[10] = qa(u[0] * 0.5 * (0.5 + w)); // the head leans into it
+  const C: Key = [...C0] as Key;
+  if (C[8] === undefined) C[8] = qa(twS * 0.3);
+  C[1] = C0[1] + (air ? 0 : 1.5 * w); // weight sinks into the recovery on heavies
+  // anticipation: everything pulled back past the wind-up, away from the strike; the coil turns the chest the other way
+  const ka = 0.14 + 0.24 * w;
+  const coil = (k: number): Key => {
+    const o = [...A] as Key;
+    o[0] = q(past(B[0], A[0], k * 1.2));
+    o[1] = air ? A[1] : q(A[1] + 1 + 2.5 * w * (k / ka));
+    for (let i = 2; i <= 5; i++) {
+      const grounded = !air && i >= 4 && lim(A, i)[1] <= 0.5 && lim(B, i)[1] <= 0.5;
+      const kk = i === L ? k : grounded ? k * 0.15 : k * 0.5;
+      const v = pastV(lim(B, i), lim(A, i), kk);
+      o[i] = [q(v[0]), grounded ? 0 : q(v[1])] as V2;
+    }
+    o[8] = qa(num(A[8]) - twS * (0.4 + 0.5 * w) * (k / ka));
+    o[9] = qa(num(A[9]) + (air ? 0 : 0.6 * w));
+    o[10] = qa(num(A[10]) - u[0] * 0.4 * (k / ka));
+    return o;
+  };
+  const A1 = coil(ka);
+  // travel from the coil to the strike: the body leads (lean / twist arrive early), the striking limb whips round on an arc
+  const travel = (t: number): Key => {
+    const tb = 1 - (1 - t) ** 1.6;
+    const tl = t ** 1.25;
+    const o: Key = [q(mixN(A1[0], B[0], tb)), q(mixN(A1[1], B[1], tb)), [0, 0], [0, 0], [0, 0], [0, 0], mixO(A1[6], B[6], tl), mixO(A1[7], B[7], tb), qa(mixN(num(A1[8]), num(B[8]), tb)), qa(mixN(num(A1[9]), num(B[9]), tb)), qa(mixN(num(A1[10]), num(B[10]), t) - u[0] * 0.5 * Math.sin(t * Math.PI)), qa(mixN(num(A1[11]), num(B[11]), t))];
+    for (let i = 2; i <= 5; i++) {
+      const v = arc(lim(A1, i), lim(B, i), i === L ? tl : t, PIVOT[i - 2]);
+      o[i] = [q(v[0]), q(v[1])] as V2;
+    }
+    if (o[6] !== undefined) o[6] = Math.round(o[6]);
+    return o;
+  };
+  // overshoot: the striking limb and the body carry on past the strike, more on heavies; the head snaps through last
+  const ko = 0.1 + 0.22 * w;
+  const over = (k: number): Key => {
+    const o = [...B] as Key;
+    o[0] = q(past(A1[0], B[0], k * 0.6));
+    o[1] = air ? B[1] : q(B[1] + 1.5 * w * (k / ko));
+    for (let i = 2; i <= 5; i++) {
+      const grounded = !air && i >= 4 && lim(B, i)[1] <= 0.5;
+      const kk = i === L ? k : grounded ? 0 : k * 0.35;
+      const v = i === L ? arc(lim(A1, i), lim(B, i), 1 + kk, PIVOT[i - 2]) : pastV(lim(A1, i), lim(B, i), kk);
+      o[i] = [q(v[0]), grounded ? 0 : q(v[1])] as V2;
+    }
+    if (B[6] !== undefined && A1[6] !== undefined) o[6] = Math.round(past(A1[6], B[6], Math.min(0.25, k)));
+    o[8] = qa(twS * (1 + 0.5 * (k / ko)));
+    o[10] = qa(num(B[10]) + u[0] * 0.8 * (k / ko));
+    o[11] = qa(num(B[11]) + u[1] * 0.6 * (k / ko));
+    return o;
+  };
+  const stance = air ? AIR_STANCE : STANCE;
+  // per slot: the key, and how hard loose parts trail the motion (+ streams behind, - swings on past)
+  let key: Key;
+  let lag: number;
+  let ph: number;
+  switch (f) {
+    case FLOW_SLOT.lift: {
+      key = mixKey(stance, A, 0.45);
+      key[1] = air ? key[1] : key[1] - 0.5;
+      key[9] = -0.5;
+      lag = 0;
+      ph = 0;
+      break;
+    }
+    case FLOW_SLOT.wind:
+      key = coil(ka * 0.35);
+      lag = -0.2;
+      ph = 1;
+      break;
+    case FLOW_SLOT.coil:
+      key = A1;
+      lag = -0.4;
+      ph = 2;
+      break;
+    case FLOW_SLOT.breakdown:
+      key = travel(0.38);
+      lag = 0.35;
+      ph = 3;
+      break;
+    case FLOW_SLOT.smear:
+      key = travel(0.78);
+      lag = 0.85;
+      ph = 4;
+      break;
+    case FLOW_SLOT.strike:
+      key = B;
+      lag = 0.75;
+      ph = 5;
+      break;
+    case FLOW_SLOT.extend:
+      key = over(ko * 0.45);
+      lag = 0.4;
+      ph = 6;
+      break;
+    case FLOW_SLOT.over:
+      key = over(ko);
+      lag = -0.35;
+      ph = 7;
+      break;
+    case FLOW_SLOT.recover:
+      key = C;
+      lag = 0.2;
+      ph = 8;
+      break;
+    default: {
+      // settleMid: halfway home, still low
+      key = mixKey(C, stance, 0.5);
+      if (!air) key[1] += 0.8 * w;
+      lag = -0.1;
+      ph = 9;
+      break;
+    }
+  }
+  const s = lag * (0.55 + 0.65 * w);
+  // loose parts trail opposite the strike's motion (u), turned into the direction gravity hangs them
+  const gx = -u[0] * s;
+  const gy = 1 - u[1] * s * 0.6;
+  return { key, grav: [qa(gx), qa(Math.max(0.2, gy))], ph };
 }

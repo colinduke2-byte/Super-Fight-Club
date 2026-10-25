@@ -3,6 +3,7 @@ import { DEFAULT_CAMERA, MultiTargetCamera, type CamPoint } from '../../engine/c
 import type { Fighter } from '../../engine/fighter';
 import type { MatchScene } from '../MatchScene';
 import { stagePhase } from '../../stages/express';
+import { settings } from '../../settings';
 
 /** What the world camera shows this frame. */
 export interface CameraFrame {
@@ -148,7 +149,8 @@ export class MatchCamera {
 
     const sx = st.shake > 0 ? (Math.random() - 0.5) * st.shake * 2 : 0;
     const sy = st.shake > 0 ? (Math.random() - 0.5) * st.shake * 2 : 0;
-    const zp = zoom * (1 + st.punch);
+    // the impact punch-in (heavy hits, a KO launch): a quarter as strong with REDUCE MOTION
+    const zp = zoom * (1 + st.punch * (settings.reduceMotion ? 0.25 : 1));
     s.worldCam.setZoom(zp);
     s.worldCam.centerOn(cx + sx, cy + sy);
     // what the world camera shows this frame (its worldView only catches up in its pre-render, a frame late, so screen-space

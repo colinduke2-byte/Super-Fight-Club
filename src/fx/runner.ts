@@ -1,7 +1,9 @@
 import type { Fighter } from '../engine/fighter';
 import type { CharacterFx, FxColor, FxNum, FxOp, FxPos, FxRule, FxWhen } from '../engine/fxTypes';
+import type { MoveDef } from '../engine/moves';
 import type { World } from '../engine/world';
 import type { Effects } from '../ui/Effects';
+import { BASIC_KINDS, basicOf, makeSwing, swingOf, swingVisible, validateBasic, type BasicEmitter, type BasicFx, type Swing } from './basicFx';
 import { ALWAYS_RULES, DEFAULT_RULES, LIBRARY_RECIPES } from './library';
 
 /** What a recipe needs to play: the particle pool, camera shake / punch callbacks and the fighter it belongs to. */
@@ -19,8 +21,15 @@ export interface FxContext {
   extra?: number;
 }
 
+/** '#rrggbb' -> 0xRRGGBB, memoised (colours are resolved every frame; slicing a new string each time is garbage). */
+const HEX = new Map<string, number>();
 function hex(s: string): number {
-  return parseInt(s.slice(1), 16);
+  let v = HEX.get(s);
+  if (v === undefined) {
+    v = parseInt(s.slice(1), 16);
+    HEX.set(s, v);
+  }
+  return v;
 }
 
 /** Read a number source for the fighter. */
@@ -68,10 +77,22 @@ export function color(col: FxColor | undefined, c: FxContext): number {
 }
 
 /** Colour of a fighter's slash arcs / trails. */
+const TRAIL_CTX: FxContext = { fx: null as unknown as Effects, shake: () => {}, f: null as unknown as Fighter, tick: 0 };
 export function fighterTrailColor(f: Fighter, tick = 0): number {
   const t = f.data.fx?.trail;
   if (t === undefined || t === '@trail') return hex(f.data.sprite.placeholder.accent);
-  return color(t, { fx: null as unknown as Effects, shake: () => {}, f, tick });
+  if (typeof t === 'number') return t;
+  // (one reused context: this runs for every trail, smear and spark every frame)
+  TRAIL_CTX.f = f;
+  TRAIL_CTX.tick = tick;
+  return color(t, TRAIL_CTX);
+}
+
+/** Resolve any fx colour for a fighter without allocating (one reused context). */
+export function fighterColor(f: Fighter, col: FxColor, tick = 0): number {
+  TRAIL_CTX.f = f;
+  TRAIL_CTX.tick = tick;
+  return color(col, TRAIL_CTX);
 }
 
 function pos(p: FxPos | undefined, c: FxContext, out: { x: number; y: number }): void {
@@ -165,6 +186,15 @@ export function playRecipe(name: string, c: FxContext): boolean {
   return true;
 }
 
+/** `id` is in the list, or is a listed id's variant (`<listed>_<suffix>`): no closures or template strings (runs every tick). */
+function idListed(list: readonly string[], id: string): boolean {
+  for (let i = 0; i < list.length; i++) {
+    const l = list[i];
+    if (id === l || (id.length > l.length && id.charCodeAt(l.length) === 95 /* _ */ && id.startsWith(l))) return true;
+  }
+  return false;
+}
+
 function whenOk(w: FxWhen | undefined, f: Fighter): boolean {
   if (!w) return f.hitlag === 0;
   if (f.hitlag > 0 && !w.hitlag) return false;
@@ -175,7 +205,7 @@ function whenOk(w: FxWhen | undefined, f: Fighter): boolean {
   if (w.kinds || w.moves || w.phase || w.frames) {
     if (f.state !== 'attack' || !m) return false;
     if (w.kinds && !w.kinds.includes(m.kind)) return false;
-    if (w.moves && !w.moves.includes(m.id) && !w.moves.some((id) => m.id.startsWith(`${id}_`))) return false;
+    if (w.moves && !idListed(w.moves, m.id)) return false;
     if (w.frames && (f.moveFrame < w.frames[0] || f.moveFrame > w.frames[1])) return false;
     if (w.phase) {
       const live = f.moveFrame > m.startup && f.moveFrame <= m.startup + m.active;
@@ -199,10 +229,18 @@ function hasChargeRule(fx: CharacterFx | undefined): boolean {
 }
 
 /** Per-tick auras, trails and charge effects for every fighter (once per sim tick; purely visual). */
+/** One context reused for every fighter's per-tick rules (no allocation per fighter per tick). */
+const RULE_CTX: FxContext = { fx: null as unknown as Effects, shake: () => {}, f: null as unknown as Fighter, tick: 0 };
+
 export function updateFighterFx(world: World, fx: Effects, tick: number, shake: (n: number) => void): void {
+  updateBasicFx(world, fx, tick);
   for (const f of world.fighters) {
     if (f.state === 'ko') continue;
-    const c: FxContext = { fx, shake, f, tick };
+    const c = RULE_CTX;
+    c.fx = fx;
+    c.shake = shake;
+    c.f = f;
+    c.tick = tick;
     const rules: readonly FxRule[] = f.data.fx?.rules ?? [];
     for (const r of rules) {
       if (!whenOk(r.when, f)) continue;
@@ -223,4 +261,261 @@ export function updateFighterFx(world: World, fx: Effects, tick: number, shake: 
       }
     }
   }
+}
+
+// ---------------------------------------------------------------------------------------------
+// Basic moves (jabs, tilts, smashes, dash attacks, aerials): character touches, charge sparks gathering at the striking limb,
+// the flash on release, surface dust under ground moves and dash-attack speed lines. See fx/basicFx for the `basic` data.
+// ---------------------------------------------------------------------------------------------
+const SLOTS = 8;
+const SW: Swing = makeSwing();
+const B_CTX: FxContext = { fx: null as unknown as Effects, shake: () => {}, f: null as unknown as Fighter, tick: 0 };
+let basicWorld: World | null = null;
+const bMove: (MoveDef | null)[] = new Array(SLOTS).fill(null);
+const bStarted = new Uint8Array(SLOTS);
+const bHeld = new Uint8Array(SLOTS);
+const bHeldFrac = new Float32Array(SLOTS);
+const bLimbX = new Float32Array(SLOTS);
+const bLimbY = new Float32Array(SLOTS);
+const checked = new WeakSet<object>();
+/** Fractional particle budget carried between ticks (density below 1 thins emitters without rounding them away). */
+let budget = 0;
+
+function basicFor(f: Fighter): BasicFx | undefined {
+  const b = basicOf(f);
+  if (b && !checked.has(b)) {
+    validateBasic(f.data.id, b);
+    checked.add(b);
+  }
+  return b;
+}
+
+function passes(e: BasicEmitter, m: MoveDef, s: Swing | null): boolean {
+  if (e.kinds && !e.kinds.includes(m.kind)) return false;
+  if (e.moves && !idListed(e.moves, m.id)) return false;
+  if (e.limbs && (!s || !e.limbs.includes(s.look.limb))) return false;
+  return true;
+}
+
+/** Run one emitter at the swing `s` (or, with no swing, around the body / at the limb point). */
+function fire(e: BasicEmitter, f: Fighter, s: Swing | null, fx: Effects, tick: number, lx: number, ly: number): void {
+  const c = B_CTX;
+  c.fx = fx;
+  c.f = f;
+  c.tick = tick;
+  const sm = f.sizeMul;
+  let x: number;
+  let y: number;
+  switch (e.at ?? 'head') {
+    case 'tail':
+      x = s ? s.tx : f.x;
+      y = s ? s.ty : f.y - f.h * sm * 0.5;
+      break;
+    case 'feet':
+      x = f.x;
+      y = f.y;
+      break;
+    case 'body':
+      x = f.x;
+      y = f.y - f.h * sm * 0.5;
+      break;
+    case 'back':
+      x = f.x - f.facing * f.hw * sm;
+      y = f.y - f.h * sm * 0.55;
+      break;
+    case 'limb':
+      x = lx;
+      y = ly;
+      break;
+    default:
+      x = s ? s.hx : lx;
+      y = s ? s.hy : ly;
+  }
+  const n0 = (e.count ?? 1) * fx.density;
+  budget += n0;
+  let n = Math.floor(budget);
+  budget -= n;
+  if (e.p === 'spark' || e.p === 'flash' || e.p === 'ring') n = n0 > 0 ? 1 : 0;
+  const speed = e.speed ?? 30;
+  const jit = e.jitter ?? 0;
+  const spread = e.spread ?? 0;
+  const cols = e.color;
+  for (let i = 0; i < n; i++) {
+    let dx = 0;
+    let dy = 0;
+    switch (e.dir ?? 'out') {
+      case 'up':
+        dy = -1;
+        break;
+      case 'back':
+        dx = -f.facing;
+        break;
+      case 'swing':
+        if (s) {
+          dx = -s.ny;
+          dy = s.nx;
+          if (s.head < s.tail) {
+            dx = -dx;
+            dy = -dy;
+          }
+        }
+        break;
+      case 'random': {
+        const a = Math.random() * Math.PI * 2;
+        dx = Math.cos(a);
+        dy = Math.sin(a);
+        break;
+      }
+      default:
+        dx = s ? s.nx : f.facing;
+        dy = s ? s.ny : 0;
+    }
+    const vx = dx * speed + (jit ? (Math.random() - 0.5) * jit : 0);
+    const vy = dy * speed + (jit ? (Math.random() - 0.5) * jit : 0);
+    const px = x + (spread ? (Math.random() - 0.5) * spread : 0);
+    const py = y + (spread ? (Math.random() - 0.5) * spread : 0);
+    const col = color(Array.isArray(cols) ? cols[(tick + i) % cols.length] : cols, c);
+    const life = e.life ?? 0.35;
+    const size = e.size ?? 2;
+    const grav = e.gravity ?? 0;
+    const add = e.additive ?? true;
+    switch (e.p) {
+      case 'mote':
+        fx.emit(px, py, vx, vy, life, col, size, grav, add);
+        break;
+      case 'spark':
+        fx.burst(px, py, e.count ?? 3, speed, col, life, size);
+        break;
+      case 'line':
+        fx.trail(px, py, px + vx * 0.12, py + vy * 0.12, col);
+        break;
+      case 'flash':
+        fx.flash(px, py, size, col);
+        break;
+      case 'ring':
+        fx.ring(px, py, size, col, life);
+        break;
+      default: {
+        const sp = e.spin ?? 0;
+        fx.shaped(px, py, vx, vy, life * (0.8 + Math.random() * 0.4), col, `fx-p-${e.p}`, size, grav, sp ? sp * (Math.random() < 0.5 ? -1 : 1) * (0.6 + Math.random() * 0.8) : 0, add, Math.random() * Math.PI * 2);
+      }
+    }
+  }
+}
+
+function fireAll(b: BasicFx | undefined, on: string, f: Fighter, m: MoveDef, s: Swing | null, fx: Effects, tick: number, lx: number, ly: number): void {
+  const list = b?.emitters;
+  if (!list) return;
+  for (const e of list) {
+    if ((e.on ?? 'active') !== on) continue;
+    if ((on === 'active' || on === 'charge') && tick % Math.max(1, e.every ?? 1) !== 0) continue;
+    if (!passes(e, m, s)) continue;
+    fire(e, f, s, fx, tick, lx, ly);
+  }
+}
+
+const DUST_COUNT: Record<string, number> = { jab: 2, tilt: 3, dashAttack: 4, smash: 6 };
+
+/** Per-tick basic-move effects for every fighter (once per sim tick; purely visual). */
+export function updateBasicFx(world: World, fx: Effects, tick: number): void {
+  if (world !== basicWorld) {
+    basicWorld = world;
+    bMove.fill(null);
+    bHeld.fill(0);
+    bStarted.fill(0);
+  }
+  for (const f of world.fighters) {
+    const slot = f.id % SLOTS;
+    const m = f.move;
+    if (f.state !== 'attack' || !m || !BASIC_KINDS.has(m.kind)) {
+      bMove[slot] = null;
+      bHeld[slot] = 0;
+      continue;
+    }
+    if (m !== bMove[slot]) {
+      bMove[slot] = m;
+      bStarted[slot] = 0;
+      bHeld[slot] = 0;
+    }
+    const b = basicFor(f);
+    // the swing on show this tick (first visible hitbox), and the striking limb / weapon point
+    let s: Swing | null = null;
+    let first: (typeof m.hitboxes)[number] | null = null;
+    for (const hb of m.hitboxes) {
+      if (hb.grab || hb.throw) continue;
+      if (!first) first = hb;
+      if (swingVisible(f, m, hb)) {
+        s = swingOf(f, m, hb, SW);
+        break;
+      }
+    }
+    if (!first) continue;
+    if (!s && m.charge) swingOf(f, m, first, SW);
+    const lx = s ? s.hx : SW.rect[0] + SW.rect[2] / 2;
+    const ly = s ? s.hy : SW.rect[1] + SW.rect[3] / 2;
+    const held = !!m.charge && f.chargeFrames > 0 && f.moveFrame === m.charge.frame;
+    if (held) {
+      bLimbX[slot] = lx;
+      bLimbY[slot] = ly;
+      bHeldFrac[slot] = f.chargeFrac;
+      if (f.hitlag === 0) chargeSparks(f, fx, tick, lx, ly, f.chargeFrac);
+      fireAll(b, 'charge', f, m, s, fx, tick, lx, ly);
+    } else if (bHeld[slot]) {
+      // released: a flash at the striking limb, as bright as the charge was long
+      const k = bHeldFrac[slot];
+      const hot = fighterTrailColor(f, tick);
+      fx.flash(bLimbX[slot], bLimbY[slot], 0.8 + 1.4 * k, hot);
+      fx.ring(bLimbX[slot], bLimbY[slot], 10 + 16 * k, 0xffffff, 0.22);
+      fireAll(b, 'release', f, m, s, fx, tick, bLimbX[slot], bLimbY[slot]);
+    }
+    bHeld[slot] = held ? 1 : 0;
+    if (f.hitlag > 0 || !s) continue;
+    if (s.live && !bStarted[slot]) {
+      bStarted[slot] = 1;
+      if (f.grounded && b?.dust !== false && m.kind !== 'aerial') {
+        // ground moves kick up dust coloured by the floor underfoot (both ways for a down-smash)
+        const n = DUST_COUNT[m.kind] ?? 2;
+        if (s.look.shape === 'split') {
+          fx.dust(f.x - 14, f.y, n, -1);
+          fx.dust(f.x + 14, f.y, n, 1);
+        } else fx.dust(f.x + f.facing * 6, f.y, n, m.kind === 'dashAttack' ? -f.facing : f.facing);
+      }
+      fireAll(b, 'start', f, m, s, fx, tick, lx, ly);
+    }
+    if (s.live) {
+      fireAll(b, 'active', f, m, s, fx, tick, lx, ly);
+      if (m.kind === 'dashAttack' && tick % 2 === 0) {
+        // dash attacks leave speed lines behind them
+        const yy = f.y - f.h * f.sizeMul * (0.2 + 0.6 * ((tick * 0.37) % 1));
+        fx.trail(f.x - f.facing * 10, yy, f.x - f.facing * (30 + (tick % 3) * 6), yy, fighterTrailColor(f, tick));
+      }
+    }
+  }
+}
+
+/** Sparks drawn in to the striking limb while a smash charges: more, faster and hotter as the charge builds. */
+function chargeSparks(f: Fighter, fx: Effects, tick: number, lx: number, ly: number, k: number): void {
+  const n0 = (1 + k * 2) * fx.density;
+  budget += n0;
+  let n = Math.floor(budget);
+  budget -= n;
+  const col = fighterTrailColor(f, tick);
+  for (; n > 0; n--) {
+    const a = Math.random() * Math.PI * 2;
+    const r = 12 + Math.random() * 10;
+    const px = lx + Math.cos(a) * r;
+    const py = ly + Math.sin(a) * r;
+    const pull = 4.2 + k * 2;
+    fx.emit(px, py, (lx - px) * pull, (ly - py) * pull, 0.2, (tick + n) % 3 === 0 ? 0xffffff : col, 2, 0, true);
+  }
+  if (k >= 1 && tick % 4 === 0) fx.flash(lx, ly, 0.45, col);
+}
+
+/** A landed hit's character touch (emitters with `on: 'hit'`), at the hit point. */
+export function basicHitFx(attacker: Fighter, fx: Effects, tick: number, x: number, y: number): void {
+  const m = attacker.move;
+  if (attacker.state !== 'attack' || !m || !BASIC_KINDS.has(m.kind)) return;
+  const b = basicFor(attacker);
+  if (!b?.emitters) return;
+  fireAll(b, 'hit', attacker, m, null, fx, tick, x, y);
 }
