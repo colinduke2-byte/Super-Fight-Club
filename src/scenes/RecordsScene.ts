@@ -33,7 +33,7 @@ import { DIFFICULTY_NAMES } from '../game/ladder';
 import { footerHint } from '../input/prompts';
 import type { MenuEvent } from '../input/menuInput';
 import { STAGES, STAGE_LIST } from '../stages';
-import { COLORS, MenuList, MenuScene, PANEL, drawPanel, text, textPx, type MenuBackdrop, type MenuItem } from '../ui/menuKit';
+import { COLORS, MenuList, MenuScene, PANEL, drawPanel, tapMin, text, textPx, type MenuBackdrop, type MenuItem } from '../ui/menuKit';
 
 const PAGES = ['FIGHTERS', 'ARCADE', 'RUNS', 'STATS', 'MATCHUPS', 'RIVALS', 'STAGES', 'HISTORY', 'TRIALS'] as const;
 /** History rows shown at once (older / newer pages through the rest). */
@@ -46,7 +46,9 @@ interface PanelTable {
 }
 const STAR = 0xffd84a;
 const accentOf = (c: { sprite: { placeholder: { accent: string } } }): number => parseInt(c.sprite.placeholder.accent.slice(1), 16);
-const short = (name: string): string => name.toUpperCase().slice(0, 3);
+/** A fighter's name without a leading "The" (THE OVERSEER -> OVERSEER), so narrow columns keep the part that names them. */
+const bare = (name: string): string => name.replace(/^the /i, '');
+const short = (name: string): string => bare(name).toUpperCase().slice(0, 3);
 
 /** Remembered page between visits (and the fighter on the RIVALS page). */
 let lastPage = 0;
@@ -210,7 +212,7 @@ export class RecordsScene extends MenuScene {
       const best = bestTargetTime(c.id);
       const far = bestLaunch(c.id);
       this.stars.push(arcadeStars(arc[c.id]));
-      return `${c.name.slice(0, 9).padEnd(10)}${String(r.played).padStart(7)}${String(r.wins).padStart(6)}${pct.padStart(6)}${String(r.kos).padStart(6)}${String(r.falls).padStart(7)}${(best !== null ? formatTicks(best) : '-').padStart(10)}${(far !== null ? `${far.toFixed(1)}M` : '-').padStart(9)}  ${' '.repeat(6)}`;
+      return `${bare(c.name).slice(0, 9).padEnd(10)}${String(r.played).padStart(7)}${String(r.wins).padStart(6)}${pct.padStart(6)}${String(r.kos).padStart(6)}${String(r.falls).padStart(7)}${(best !== null ? formatTicks(best) : '-').padStart(10)}${(far !== null ? `${far.toFixed(1)}M` : '-').padStart(9)}  ${' '.repeat(6)}`;
     });
     this.starCol = head.length - 6;
     this.table(head, lines);
@@ -222,8 +224,8 @@ export class RecordsScene extends MenuScene {
     const lines = CHARACTER_LIST.map((c) => {
       const a = arc[c.id];
       this.stars.push(arcadeStars(a));
-      if (!a) return `${c.name.slice(0, 9).padEnd(10)}${'-'.padStart(7)}${'-'.padStart(11)}${'-'.padStart(12)}${'-'.padStart(9)}${'-'.padStart(10)}  ${' '.repeat(6)}`;
-      return `${c.name.slice(0, 9).padEnd(10)}${String(a.clears).padStart(7)}${(a.bestSec ? formatSec(a.bestSec) : '-').padStart(11)}${String(a.bestScore).padStart(12)}${String(a.noContinue).padStart(9)}${(DIFFICULTY_LABELS[a.hardestClear] ?? '-').padStart(10)}  ${' '.repeat(6)}`;
+      if (!a) return `${bare(c.name).slice(0, 9).padEnd(10)}${'-'.padStart(7)}${'-'.padStart(11)}${'-'.padStart(12)}${'-'.padStart(9)}${'-'.padStart(10)}  ${' '.repeat(6)}`;
+      return `${bare(c.name).slice(0, 9).padEnd(10)}${String(a.clears).padStart(7)}${(a.bestSec ? formatSec(a.bestSec) : '-').padStart(11)}${String(a.bestScore).padStart(12)}${String(a.noContinue).padStart(9)}${(DIFFICULTY_LABELS[a.hardestClear] ?? '-').padStart(10)}  ${' '.repeat(6)}`;
     });
     this.starCol = head.length - 6;
     this.table(head, lines);
@@ -330,7 +332,7 @@ export class RecordsScene extends MenuScene {
     const rows = CHARACTER_LIST.filter((c) => c.id !== me.id || ms.has(c.id))
       .map((c) => ({ c, m: ms.get(c.id) ?? { opponent: c.id, w: 0, l: 0 } }))
       .sort((a, b) => b.m.w + b.m.l - (a.m.w + a.m.l));
-    this.table2(`${'OPPONENT'.padEnd(11)}${'WINS'.padStart(6)}${'LOSSES'.padStart(8)}${'WIN%'.padStart(7)}`, rows.map(({ c, m }) => ({ text: `${c.name.slice(0, 10).padEnd(11)}${String(m.w).padStart(6)}${String(m.l).padStart(8)}${this.pct(m.w, m.w + m.l).padStart(7)}`, tint: accentOf(c), bar: m.w + m.l ? m.w / (m.w + m.l) : null, color: accentOf(c) })));
+    this.table2(`${'OPPONENT'.padEnd(11)}${'WINS'.padStart(6)}${'LOSSES'.padStart(8)}${'WIN%'.padStart(7)}`, rows.map(({ c, m }) => ({ text: `${bare(c.name).slice(0, 10).padEnd(11)}${String(m.w).padStart(6)}${String(m.l).padStart(8)}${this.pct(m.w, m.w + m.l).padStart(7)}`, tint: accentOf(c), bar: m.w + m.l ? m.w / (m.w + m.l) : null, color: accentOf(c) })));
   }
 
   /** Matches and wins per stage (human matches). */
@@ -339,8 +341,8 @@ export class RecordsScene extends MenuScene {
     const ids = [...STAGE_LIST.map((st) => st.id), ...[...rates.keys()].filter((k) => !STAGE_LIST.some((st) => st.id === k))];
     const rows = ids.map((id) => ({ id, r: rates.get(id) ?? { stage: id, played: 0, wins: 0 } })).sort((a, b) => b.r.played - a.r.played);
     this.table2(
-      `${'STAGE'.padEnd(16)}${'PLAYED'.padStart(7)}${'WINS'.padStart(6)}${'WIN%'.padStart(6)}`,
-      rows.map(({ id, r }) => ({ text: `${(STAGES[id]?.name ?? id).slice(0, 15).padEnd(16)}${String(r.played).padStart(7)}${String(r.wins).padStart(6)}${this.pct(r.wins, r.played).padStart(6)}`, tint: r.played ? COLORS.text : COLORS.dim, bar: r.played ? r.wins / r.played : null, color: COLORS.good })),
+      `${'STAGE'.padEnd(17)}${'PLAYED'.padStart(7)}${'WINS'.padStart(6)}${'WIN%'.padStart(6)}`,
+      rows.map(({ id, r }) => ({ text: `${(STAGES[id]?.name ?? id).slice(0, 16).padEnd(17)}${String(r.played).padStart(7)}${String(r.wins).padStart(6)}${this.pct(r.wins, r.played).padStart(6)}`, tint: r.played ? COLORS.text : COLORS.dim, bar: r.played ? r.wins / r.played : null, color: COLORS.good })),
     );
   }
 
@@ -352,7 +354,7 @@ export class RecordsScene extends MenuScene {
       const d = new Date(ms);
       return ms ? `${two(d.getMonth() + 1)}/${two(d.getDate())} ${two(d.getHours())}:${two(d.getMinutes())}` : '--/-- --:--';
     };
-    const nm = (id: string): string => (CHARACTER_LIST.find((c) => c.id === id)?.name ?? id).slice(0, 7);
+    const nm = (id: string): string => bare(CHARACTER_LIST.find((c) => c.id === id)?.name ?? id).slice(0, 7);
     const rows = all.slice(this.histAt, this.histAt + HISTORY_ROWS).map((h) => {
       const who = h.fighters.map((f) => `${f.placement === 1 ? '*' : ''}${nm(f.character)}`).join(h.fighters.length > 2 ? ',' : ' VS ');
       return { text: `${when(h.date)}  ${h.mode.slice(0, 9).padEnd(10)}${who.slice(0, 30).padEnd(31)}${(STAGES[h.stage]?.name ?? h.stage).slice(0, 12).padEnd(13)}${h.result.slice(0, 22).padEnd(23)}${formatSec(h.sec).padStart(6)}`, tint: h.fighters.some((f) => f.type === 'human' && f.placement === 1) ? COLORS.good : COLORS.text };
@@ -369,7 +371,7 @@ export class RecordsScene extends MenuScene {
       CHARACTER_LIST.map((c) => {
         const all = trialsFor(c.id);
         const n = all.filter((t) => done.has(`${c.id}:${t.id}`)).length;
-        return { text: `${c.name.slice(0, 10).padEnd(11)}${`${n}/${all.length}`.padStart(7)}`, tint: accentOf(c), bar: all.length ? n / all.length : null, color: n === all.length ? STAR : accentOf(c) };
+        return { text: `${bare(c.name).slice(0, 10).padEnd(11)}${`${n}/${all.length}`.padStart(7)}`, tint: accentOf(c), bar: all.length ? n / all.length : null, color: n === all.length ? STAR : accentOf(c) };
       }),
     );
     // the challenges: medal counts, then the best medals won (as many as fit beside the trials; the rest are counted)
@@ -439,10 +441,12 @@ export class RecordsScene extends MenuScene {
     this.title.setScale(Math.min(u * 4, (w * 0.9) / Math.max(1, textPx(this.title)))).setPosition(w / 2, h * 0.08);
     const footTop = this.placeFooter(this.hint);
     // bottom up: hint, menu (3-4 rows), tally; the page fills what is left under the title
-    const menuH = this.list.items.length * 18 * u;
+    // (rows are a finger tall on a touch screen: see MenuList.layout)
+    const menuH = this.list.items.length * Math.max(18 * u, tapMin(this));
     const menuTop = footTop - 6 * u - menuH;
-    this.list.layout(w / 2, menuTop + 4 * u, u, 150);
-    this.chal.setScale(u).setPosition(w / 2, menuTop - 10 * u);
+    this.list.layout(w / 2, menuTop + 4 * u, u, 150, footTop);
+    // (finger-tall touch rows pad the menu's plate further up: the tally stays clear of it, and on the screen)
+    this.chal.setScale(Math.min(u, (w * 0.94) / Math.max(1, textPx(this.chal)))).setPosition(w / 2, menuTop - 10 * u - Math.max(0, tapMin(this) - 18 * u) / 2);
     this.sub.setScale(u * 1.2).setPosition(w / 2, this.title.y + this.title.displayHeight / 2 + 7 * u);
     const top = this.sub.y + 8 * u;
     const bottom = this.chal.y - 7 * u;

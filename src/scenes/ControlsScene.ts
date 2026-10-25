@@ -114,7 +114,8 @@ export class ControlsScene extends MenuScene {
     const rows: MenuItem[] = [
       { label: 'DEVICE', value: () => PROFILE_NAME[this.profile], onLeft: cyc(-1), onRight: cyc(1), onConfirm: cyc(1) },
       {
-        label: 'TAP-JUMP',
+        // a keyboard's own switch is W / Up jumping (the same setting as Settings > W / UP JUMPS (KEYBOARD))
+        label: this.isKb ? 'W / UP JUMPS' : 'TAP-JUMP',
         value: () => ((this.isKb ? settings.upJumpKeyboard : settings.tapJump) ? 'ON' : 'OFF'),
         onLeft: tap,
         onRight: tap,
@@ -349,7 +350,8 @@ export class ControlsScene extends MenuScene {
     const top = this.title.y + this.title.displayHeight / 2 + 10 * u;
     // the rows keep their size and the list scrolls when they do not all fit above the footer
     const footTop = this.placeFooter(this.hint);
-    this.list.layout(w / 2, top, u, 250, footTop - 6 * u);
+    // (wide enough for GAMEPAD (XBOX / PS / GENERIC) beside DEVICE)
+    this.list.layout(w / 2, top, u, 350, footTop - 6 * u);
   }
 
   protected override backdrop(): MenuBackdrop {

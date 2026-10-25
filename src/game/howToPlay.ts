@@ -215,6 +215,16 @@ const PAGES: HowToPage[] = [
     demo: ['gizmo', ['idle', 'run', 'mv_fsmash', 'idle']],
   },
   {
+    title: 'MORE ITEMS',
+    rows: [
+      [ITEM_NAMES.bat, 'Attack swings it. A charged ground swing KOs early. 6 swings.'],
+      [ITEM_NAMES.mine, 'Attack throws it, Down drops it. Armed, it blows on a rival.'],
+      [ITEM_NAMES.drone, 'Used on touch: hovers by you and shoots the nearest rival.'],
+      ['ITEM SWITCH', 'Versus Setup turns single items on or off.'],
+    ],
+    demo: ['havoc', ['idle', 'run', 'mv_fsmash', 'idle']],
+  },
+  {
     title: 'STAGES',
     rows: [
       ['STAGE HAZARDS', 'Lightning, spouts, avalanches: mind the warning.'],
@@ -243,6 +253,7 @@ const PAGES: HowToPage[] = [
       ['OBELISK', 'Builder. Raise pillars, then smash them into rivals.'],
       ['RIME', 'Frost ninja. Hits stack FROSTBITE: six freeze them solid.'],
       ['HAVOC', 'Soldier. Steer the missile, down special again sets off C4.'],
+      ['THE OVERSEER', 'Arena AI. Claws, an eye beam, and spires that burst up.'],
       ['OUTFITS', 'Up / Down on character select: 2 outfits, 8 looks each.'],
     ],
     demo: ['rime', ['idle', 'mv_ftilt', 'mv_fsmash', 'idle']],

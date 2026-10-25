@@ -11,6 +11,12 @@ const TAP_UP_RELEASE = -0.4;
 /** Ticks a tap-jump waits for Attack / Special / Smash: pressed in that window, the flick means an up attack, not a jump. */
 export const TAP_JUMP_WINDOW = 2;
 const UP_MOVE_BUTTONS = Button.Attack | Button.Special | Button.Smash;
+/**
+ * With W / Up jumping, a keyboard's up is reported as this firm-but-not-full tilt: still "up" for up-tilt, up-special,
+ * up-throw and climbing (all below -0.7), but short of the engine's flick threshold (-0.8), so W + Attack is an up-tilt
+ * instead of always reading as a flick up-smash. Up-smash on a keyboard is the Smash key, like the other smashes.
+ */
+const KEYBOARD_UP = -0.75;
 
 /**
  * Turns a device's raw sample into the per-tick FighterInput the sim consumes:
@@ -44,9 +50,9 @@ export class PlayerInput {
     if (raw.held !== 0 && d.kind === 'gamepad') notePad((d as { padId?: string }).padId ?? '');
     let held = raw.held;
     const sx = raw.stickX;
-    const sy = raw.stickY;
+    const sy = d.kind === 'keyboard' && settings.upJumpKeyboard ? Math.max(raw.stickY, KEYBOARD_UP) : raw.stickY;
 
-    // per device kind: keyboards have their own setting (default off), pads and touch use `tapJump` (default on)
+    // per device kind: keyboards have their own setting (W / Up jumps, default on), pads and touch use `tapJump` (default on)
     if (d.kind === 'keyboard' ? settings.upJumpKeyboard : settings.tapJump) {
       const freshMove = (raw.held & ~this.prevRawHeld & UP_MOVE_BUTTONS) !== 0;
       if (sy < TAP_UP_THRESHOLD && this.prevStickY >= TAP_UP_THRESHOLD) {

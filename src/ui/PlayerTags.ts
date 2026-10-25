@@ -5,6 +5,7 @@ import type { FighterView } from './FighterView';
 import { drawPortShape, portOfColor } from './menuKit';
 import { settings } from '../settings';
 import { profileLabel } from '../game/profiles';
+import { placeTag } from './tagPlacement';
 
 /**
  * A tag's text. CPUs keep the name their HUD plate shows ('CPU3', not 'C3') so the tag and the plate read as the same
@@ -110,22 +111,8 @@ export class PlayerTags {
       // stacks it above (a thin leader keeps it tied to its fighter)
       const headX = sx;
       const headY = sy;
-      let tx = sx;
-      for (let k = 0; k < placed.length; k += 3) {
-        if (owners[k / 3] === f.id) continue; // its own readout: the eased lift above already clears it
-        const px = placed[k];
-        const py = placed[k + 1];
-        const phw = placed[k + 2];
-        const need = hw + phw - Math.abs(px - tx);
-        if (need > 0 && Math.abs(py - sy) < 11 * u) {
-          if (need < hw * 0.6 && tx === sx) tx += px <= tx ? need : -need;
-          else {
-            tx = sx;
-            sy = py - 11 * u;
-          }
-          k = -3; // re-check against everything with the new spot
-        }
-      }
+      const [tx, ty] = placeTag(placed, owners, f.id, sx, sy, hw, 11 * u);
+      sy = ty;
       placed.push(tx, sy, hw);
       const on = f.state !== 'ko' && this.entA[f.id] > 0.05 && headX > 0 && headX < sw && sy > 8 * u && headY < sh;
       t.setVisible(on);

@@ -127,6 +127,8 @@ export class TargetsMode implements MatchModeHooks {
     const s = this.scene;
     this.drawGhost();
     this.summary?.layout();
+    // the summary panel repeats the end banner and sits over it: the banner steps aside while it shows
+    if (this.summary?.visible) s.hud.banner.setVisible(false);
     const ts = s.world.targets;
     const left = ts.filter((t) => t.alive).length;
     const done = s.runner.targetTicks;

@@ -106,7 +106,9 @@ export function controlsLine(d: InputDevice | null = helpDevice): string {
   if (kind === 'touch') return 'STICK: MOVE   TAP THE LABELLED BUTTONS TO JUMP, ATTACK, SPECIAL, SHIELD AND GRAB';
   const p = (a: Parameters<typeof promptFor>[0]): string => promptFor(a, d);
   const move = kind === 'keyboard' ? moveLabel(schemeOf(d)) : 'STICK';
-  return `MOVE ${move}  JUMP ${p('jump')}  ATTACK ${p('attack')}  SPECIAL ${p('special')}  SHIELD ${p('shield')}  GRAB ${p('grab')}  SMASH ${p('smash')}`;
+  // W / Up jumps on a keyboard by default (settings.upJumpKeyboard): name it beside the jump key, as the lessons do
+  const jump = kind === 'keyboard' && settings.upJumpKeyboard ? `${p('up')} / ${p('jump')}` : p('jump');
+  return `MOVE ${move}  JUMP ${jump}  ATTACK ${p('attack')}  SPECIAL ${p('special')}  SHIELD ${p('shield')}  GRAB ${p('grab')}  SMASH ${p('smash')}`;
 }
 
 /**
@@ -1037,6 +1039,7 @@ export class TrainingTools {
       else if (o.behaviour === 'playback' && !this.tutorial) lines.push(this.recording.length ? `PLAYBACK ${this.recording.seconds.toFixed(1)} S` : 'PLAYBACK: NOTHING RECORDED');
       if (o.lockPercent && !this.tutorial) lines.push(`DUMMY % LOCKED AT ${o.percent}`);
       if (st.slowMo) lines.push('SPEED 1/4');
+      else if (this.demo) lines.push(`DEMO PLAYING  (${menuKeyLabel()} STOPS)`); // (a demo holds the practice in step mode)
       else if (st.stepMode && !this.menuOpen) lines.push('FRAME STEP (B)');
       else if (o.speed === '1/2') lines.push('SPEED 1/2');
       st.trainReport = up(lines.join('\n'));

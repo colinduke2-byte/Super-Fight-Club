@@ -111,7 +111,7 @@ const lastRows: number[] = GROUPS.map(() => 0);
 /** The first-launch tutorial offer is shown once per session at most. */
 let offered = false;
 
-/** Main menu: the modes in four groups (SMASH / SOLO / VAULT / OPTIONS), switched with left / right or the tabs. */
+/** Main menu: the modes in five groups (SMASH / ARCADE / SOLO / VAULT / OPTIONS), switched with left / right or the tabs. */
 export class ModeSelectScene extends MenuScene {
   private list!: MenuList;
   private title!: Phaser.GameObjects.BitmapText;

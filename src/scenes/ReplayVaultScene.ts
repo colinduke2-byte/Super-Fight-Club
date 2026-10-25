@@ -7,7 +7,7 @@ import { isPlayable, onVaultChange, VAULT_NAME_MAX, VAULT_RECENT, VAULT_STARS, v
 import { session } from '../game/session';
 import type { MenuEvent } from '../input/menuInput';
 import { STAGES } from '../stages';
-import { COLORS, MenuList, MenuScene, drawPanel, text, textPx, type MenuBackdrop, type MenuItem } from '../ui/menuKit';
+import { COLORS, MenuList, MenuScene, drawPanel, tapMin, text, textPx, type MenuBackdrop, type MenuItem } from '../ui/menuKit';
 
 const FILTERS = ['ALL', 'FAVOURITES', 'RECENT', 'VERSUS', 'ARCADE', 'CHALLENGE'] as const;
 type Filter = (typeof FILTERS)[number];
@@ -406,12 +406,13 @@ export class ReplayVaultScene extends MenuScene {
     const listW = wide ? Math.min(300, (w / u) * 0.6) : Math.min(300, w / u - 16);
     const detailH = wide ? 0 : 58 * u;
     const listX = wide ? 8 * u + (listW * u) / 2 + 6 * u : w / 2;
-    this.list.layout(listX, top + 4 * u, u, listW, bottom - detailH);
+    // (touch rows are taller and the plate grows upward with them: start them lower so it clears the counts line)
+    this.list.layout(listX, top + 4 * u + Math.max(0, tapMin(this) - 18 * u) / 2, u, listW, bottom - detailH);
     const g = this.plate.clear();
     this.panel = wide ? { x: listX + (listW * u) / 2 + 12 * u, y: top, w: w - (listX + (listW * u) / 2 + 12 * u) - 8 * u, h: bottom - top } : { x: 8 * u, y: bottom - detailH + 4 * u, w: w - 16 * u, h: detailH - 4 * u };
     drawPanel(g, this.panel.x, this.panel.y, this.panel.w, this.panel.h, u, 0.9);
     this.detail.setPosition(this.panel.x + 6 * u, this.panel.y + 6 * u);
-    if (this.acting) this.actions.layout(this.panel.x + this.panel.w / 2, this.panel.y + this.panel.h * 0.45, u, Math.min(150, this.panel.w / u - 12));
+    if (this.acting) this.actions.layout(this.panel.x + this.panel.w / 2, this.panel.y + this.panel.h * 0.45, u, Math.min(200, this.panel.w / u - 12)); // (wide enough for STAR (KEEP FOR GOOD))
     this.fillDetail(u);
   }
 

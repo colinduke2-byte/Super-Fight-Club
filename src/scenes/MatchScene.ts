@@ -422,7 +422,7 @@ export class MatchScene extends Phaser.Scene {
       const lad = session.mode === 'arcade' ? session.ladder : null;
       const fight = lad ? currentFight(lad) : null;
       const chal = setup.chal;
-      const head = session.demo ? 'DEMO PLAY' : rep ? 'REPLAY' : fight ? `FIGHT ${fight.index + 1}\n${fight.title}` : this.mode ? this.mode.intro : chal ? `CHALLENGE\n${chal.title}` : 'READY?';
+      const head = session.demo ? 'DEMO PLAY' : rep ? 'REPLAY' : fight ? `FIGHT ${fight.index + 1}\n${fight.title}` : this.mode ? this.mode.intro : chal ? (/CHALLENGE/i.test(chal.title) ? chal.title : `CHALLENGE\n${chal.title}`) : 'READY?';
       this.countdownSeq.begin(up(head));
     }
 

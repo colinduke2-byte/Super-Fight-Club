@@ -186,7 +186,9 @@ export class StoryScene extends MenuScene {
     // the partner stands a step behind and beside the player
     if (this.mate) {
       const mx = c.art === 'boss' ? 16 : c.art === 'duel' ? 20 : c.right ? 30 : 56;
-      this.mate.setScale(s * 0.9 * kOf(this.mate)).setPosition(x + mx * s, base - 3 * s).setFlipX(false);
+      this.mate.setScale(s * 0.9 * kOf(this.mate));
+      // a wide partner (Brick) would spill over the card's left frame: its body is ~half its frame's width
+      this.mate.setPosition(Math.max(x + mx * s, x + 2 * s + this.mate.displayWidth * 0.28), base - 3 * s).setFlipX(false);
       if (this.left) this.ui.moveBelow(this.mate, this.left);
     }
     if (c.art === 'boss') {

@@ -9,7 +9,7 @@ import { footerHint } from '../input/prompts';
 import { STAGE_LIST } from '../stages';
 import { FORM_NAMES, STAGE_FORMS } from '../stages/forms';
 import { MODIFIERS, MODIFIER_HINTS, MODIFIER_NAMES } from '../game/modifiers';
-import { COLORS, MenuList, MenuScene, drawPanel, text, textPx, type MenuBackdrop, type MenuItem } from '../ui/menuKit';
+import { COLORS, MenuList, MenuScene, drawPanel, tapMin, text, textPx, type MenuBackdrop, type MenuItem } from '../ui/menuKit';
 
 /** The saved rules are applied once per run (on the first visit). */
 let rulesRestored = false;
@@ -326,7 +326,8 @@ export class VersusSetupScene extends MenuScene {
     this.chipLabels.forEach((t, i) => t.setScale(u * 2).setPosition(this.chipBox.x + i * (cw + gap) + cw / 2, this.chipBox.y + 10 * u));
     this.chipInfo.forEach((t, i) => t.setPosition(this.chipBox.x + i * (cw + gap) + cw / 2, this.chipBox.y + 27 * u));
     const footTop = this.placeFooter(this.hint, this.desc);
-    this.list.layout(w / 2, this.chipBox.y + ch + 14 * u, u, 220, footTop - 10 * u);
+    // (finger-tall touch rows pad their plate further down: keep it off the row description)
+    this.list.layout(w / 2, this.chipBox.y + ch + 14 * u, u, 220, footTop - 10 * u - Math.max(0, tapMin(this) - 18 * u) / 2);
   }
 
   /** The chips: lit for each slot that plays (team colours in 2 v 2), with what each fighter starts with. */

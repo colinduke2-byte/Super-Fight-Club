@@ -144,6 +144,9 @@ export function victoryLine(id: string, losers: readonly string[] = [], rand: ()
 }
 
 export function nameOf(id: string): string {
+  // the roster's own name (the playable Overseer's id is overseer-versus: never show the id)
+  const c = characterById(id);
+  if (c && c.id === id && c.name) return c.name;
   return id === 'overseer' ? 'The Overseer' : id.charAt(0).toUpperCase() + id.slice(1);
 }
 

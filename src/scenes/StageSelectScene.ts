@@ -68,6 +68,8 @@ function outfitWants(): PaletteWant[] {
 export class StageSelectScene extends MenuScene {
   private list!: MenuList;
   private title!: Phaser.GameObjects.BitmapText;
+  /** The stage form every pick uses (LEFT / RIGHT changes it), under the title. */
+  private formLine!: Phaser.GameObjects.BitmapText;
   private hint!: Phaser.GameObjects.BitmapText;
   private blurb!: Phaser.GameObjects.BitmapText;
   private tags!: Phaser.GameObjects.BitmapText;
@@ -124,10 +126,11 @@ export class StageSelectScene extends MenuScene {
       const f = STAGE_FORMS[(Math.max(0, i) + d + STAGE_FORMS.length) % STAGE_FORMS.length];
       session.rules.stageForm = f === 'normal' ? undefined : f;
     };
-    const formValue = (): string => (session.rules.stageForm && session.rules.stageForm !== 'normal' ? FORM_NAMES[session.rules.stageForm] : '');
+    // the form is named once, under the title (a value on every row cut the stage names short: SKYLINE.. / SKYLINE EX..)
+    this.formLine = text(this, this.ui, '', COLORS.accent).setOrigin(0.5);
     this.list = new MenuList(this, this.ui, [
-      ...STAGE_LIST.map((s) => ({ label: s.name, value: formValue, onLeft: form(-1), onRight: form(1), onConfirm: () => this.pick(s.id, false) })),
-      { label: 'RANDOM', value: formValue, onLeft: form(-1), onRight: form(1), onConfirm: () => this.pick(randomStage(session.rules.stagePool), true) },
+      ...STAGE_LIST.map((s) => ({ label: s.name, onLeft: form(-1), onRight: form(1), onConfirm: () => this.pick(s.id, false) })),
+      { label: 'RANDOM', onLeft: form(-1), onRight: form(1), onConfirm: () => this.pick(randomStage(session.rules.stagePool), true) },
     ]);
     this.requested.clear();
     this.thumb = this.add.image(0, 0, '__WHITE').setOrigin(0, 0).setVisible(false);
@@ -175,7 +178,8 @@ export class StageSelectScene extends MenuScene {
     const lu = Math.max(0.8, Math.min(u, (w * 0.43) / 202));
     // the list stops a clear gap above the controls hint (short windows shrink its rows)
     const footTop = this.placeFooter(this.hint);
-    const listTop = Math.max(h * 0.22, this.title.y + this.title.displayHeight / 2 + 14 * u);
+    this.formLine.setScale(u).setPosition(w / 2, this.title.y + this.title.displayHeight / 2 + 6 * u);
+    const listTop = Math.max(h * 0.22, this.formLine.y + 3.5 * u + 10 * u);
     this.list.layout(w * 0.035 + 101 * lu, listTop, lu, 190, footTop - 10 * u);
     const aw = w * 0.46;
     const ah = Math.min(aw * (9 / 16), h * 0.42);
@@ -195,6 +199,8 @@ export class StageSelectScene extends MenuScene {
   }
 
   protected override tick(time: number): void {
+    const formNow = `STAGE FORM: ${FORM_NAMES[session.rules.stageForm ?? 'normal']}`;
+    if (formNow !== this.formLine.text) this.formLine.setText(formNow);
     const hint = this.waiting ? 'PREPARING FIGHTERS...' : footerHint(FOOTER);
     if (hint !== this.hint.text) this.hint.setText(hint);
     this.list.update(time);

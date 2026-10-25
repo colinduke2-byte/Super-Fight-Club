@@ -86,3 +86,22 @@ describe('W jumps, up moves still come out', () => {
     expect(me.jumpsLeft).toBe(jumps);
   });
 });
+
+describe('W + Attack on a keyboard is the up-tilt, the Smash key gives the up-smash', () => {
+  const first = (char: string, held: number) => {
+    const { me, tick } = setup(char);
+    tick(-1, held);
+    let id = '';
+    for (let i = 0; i < 8 && !id; i++) {
+      tick(-1, held);
+      if (me.move) id = me.move.id;
+    }
+    return id;
+  };
+  it('W + J: up-tilt', () => {
+    expect(first('brick', Button.Attack)).toBe('utilt');
+  });
+  it('W + Smash key: up-smash', () => {
+    expect(first('brick', Button.Smash)).toBe('usmash');
+  });
+});

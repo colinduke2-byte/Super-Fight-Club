@@ -443,7 +443,8 @@ export class ReplayControls {
     this.hint.setScale(Math.min(Math.max(1, Math.round(u * 0.8)), (s.scale.width * 0.96) / Math.max(1, textPx(this.hint))));
     this.status.setScale(Math.min(Math.max(1, Math.round(u)), (s.scale.width * 0.94) / Math.max(1, textPx(this.status))));
     const g = this.g.clear();
-    const pw = this.bar.w + 12 * u;
+    // the plate also spans the controls line under the buttons (wider than the bar on a keyboard's long footer)
+    const pw = Math.min(s.scale.width, Math.max(this.bar.w + 12 * u, this.hint.displayWidth + 12 * u));
     const top = this.panelTop;
     drawPanel(g, s.scale.width / 2 - pw / 2, top, pw, this.hint.y + 6 * u - top, u, 0.78);
     // scrub bar: played part, KOs (each fallen fighter's port shape), the playhead (and where a drag would land)

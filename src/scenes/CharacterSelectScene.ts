@@ -137,7 +137,7 @@ export class CharacterSelectScene extends MenuScene {
     });
     if (fixed >= 0) this.lobby.slots.forEach((s) => (s.character = fixed));
     else this.restorePicks();
-    const title = session.mode === 'versus' ? 'CHOOSE YOUR FIGHTERS' : session.mode === 'arcade' ? 'CHOOSE YOUR CHAMPION' : session.mode === 'targets' ? 'TARGET SMASH' : session.mode === 'launch' ? 'LAUNCH CONTEST' : session.mode === 'challenge' ? `CHALLENGE: ${challengeById(session.challenge)?.title ?? ''}` : 'TRAINING: CHOOSE A FIGHTER';
+    const title = session.mode === 'versus' ? 'CHOOSE YOUR FIGHTERS' : session.mode === 'arcade' ? 'CHOOSE YOUR CHAMPION' : session.mode === 'targets' ? 'TARGET SMASH' : session.mode === 'launch' ? 'LAUNCH CONTEST' : session.mode === 'challenge' ? challengeHead(challengeById(session.challenge)?.title ?? '') : 'TRAINING: CHOOSE A FIGHTER';
     this.title = this.add.bitmapText(0, 0, PIXEL_FONT, title).setOrigin(0.5).setTint(COLORS.title);
     this.ui.add(this.title);
     this.cardG = fastShapes(this.add.graphics());
@@ -1018,4 +1018,9 @@ function legible(k: number): number {
 
 function up(s: string): string {
   return s.toUpperCase();
+}
+
+/** The lobby heading for a challenge: 'CHALLENGE: FIRST BLOOD', but not 'CHALLENGE: DAILY CHALLENGE'. */
+function challengeHead(title: string): string {
+  return /CHALLENGE/i.test(title) ? title : `CHALLENGE: ${title}`;
 }

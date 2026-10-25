@@ -124,6 +124,8 @@ export class LaunchMode implements MatchModeHooks {
     const lc = this.lc;
     const s = this.scene;
     this.summary?.layout();
+    // the summary panel repeats the end banner and sits over it: the banner steps aside while it shows
+    if (this.summary?.visible) s.hud.banner.setVisible(false);
     const bag = s.fighters[1];
     const head = `ATTEMPT ${Math.min(lc.total, lc.attempt + 1)}/${lc.total}`;
     const best = lc.distance > 0 ? `   BEST ${m1(lc.distance)}` : '';

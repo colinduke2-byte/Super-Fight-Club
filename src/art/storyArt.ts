@@ -40,7 +40,8 @@ function skyline(p: Pen, seed: number, base: number, color: number, lit: number,
   const r = rng(seed);
   let x = 0;
   while (x < CARD_W) {
-    const w = 6 + Math.floor(r() * 10);
+    // (the last building is cut at the card's right edge: it used to poke out past the frame)
+    const w = Math.min(6 + Math.floor(r() * 10), CARD_W - x);
     const h = 8 + Math.floor(r() * 26);
     rect(p, x, base - h, w, CARD_H - (base - h), color);
     if (r() < 0.5) rect(p, x + w / 2 - 1, base - h - 3, 2, 3, color); // antenna
