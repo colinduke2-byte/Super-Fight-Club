@@ -2212,17 +2212,17 @@
    "recovery": 18,
    "helpless": true,
    "noLedge": 8,
-   "gravityScale": 0.5,
+   "gravityScale": 0.45,
    "motion": [
     {
      "frame": 6,
      "vy": -11,
-     "vx": 3.4
+     "vx": 3.8
     },
     {
      "frame": 18,
-     "vy": -5,
-     "vx": 2.6
+     "vy": -7,
+     "vx": 3.4
     }
    ],
    "events": [
@@ -2234,7 +2234,7 @@
     {
      "frame": 14,
      "action": "ledgeSnap",
-     "range": 90
+     "range": 104
     }
    ],
    "hitboxes": [
@@ -2327,7 +2327,8 @@
    "view": {
     "arc": "none",
     "ghosts": true
-   }
+   },
+   "airDrift": 2.1
   },
   "ultimate": {
    "name": "Cataclysm",

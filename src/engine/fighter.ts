@@ -195,7 +195,12 @@ const GRAB_STRUGGLE = 4;
 const ULT_GAIN_DEALT = 0.6;
 const ULT_GAIN_TAKEN = 0.9;
 const ULT_COST = 100;
-const HELPLESS_DRIFT = 0.55;
+/** Air drift while helpless (after an up special): enough to steer onto the ledge, not enough to come back from far out. */
+const HELPLESS_DRIFT = 0.8;
+/** Air ledge grab window: how far past the corner the body centre may be (beyond the half width), and how far below the
+ * ledge the top of the head may be (a generous catch from a little under the ledge; still no invincibility on the grab). */
+const LEDGE_GRAB_OUT = 24;
+const LEDGE_GRAB_BELOW = 34;
 const GROUND_STATES: ReadonlySet<FighterState> = new Set<FighterState>(['dash', 'frozen', 'stunned', 'idle', 'run', 'crouch', 'landing', 'jumpsquat', 'shield', 'shieldstun', 'downed', 'tech', 'spotdodge', 'roll', 'holding']);
 
 export interface HitParams {
@@ -2389,9 +2394,9 @@ export class Fighter implements Body {
         trumped = o;
       }
       const outside = (this.x - l.x) * l.side; // + when beyond the corner, away from the stage
-      if (outside < -this.hw * 0.5 || outside > this.hw + 18) continue;
+      if (outside < -this.hw * 0.5 || outside > this.hw + LEDGE_GRAB_OUT) continue;
       const head = this.y - this.h - l.y;
-      if (head < -10 || head > 24) continue;
+      if (head < -10 || head > LEDGE_GRAB_BELOW) continue;
       const towardStage = -l.side;
       if (this.facing !== towardStage && Math.sign(inp.stickX) !== towardStage) continue;
       if (trumped) trumped.getTrumped(l, world);

@@ -1596,7 +1596,7 @@
     {
      "frame": 10,
      "action": "teleport",
-     "dist": 70,
+     "dist": 95,
      "dir": "up8"
     },
     {
@@ -1607,13 +1607,13 @@
     {
      "frame": 12,
      "action": "ledgeSnap",
-     "range": 70
+     "range": 88
     }
    ],
    "motion": [
     {
      "frame": 11,
-     "vx": 1.4,
+     "vx": 1.8,
      "mode": "add"
     }
    ],
@@ -1705,7 +1705,8 @@
     "stretch": 1.16,
     "ghosts": true,
     "arc": "none"
-   }
+   },
+   "airDrift": 1.5
   },
   "downB": {
    "name": "Cycle",

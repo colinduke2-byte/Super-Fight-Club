@@ -162,10 +162,10 @@ describe('stage hazards', () => {
 });
 
 describe('recoveries', () => {
-  it('every fighter can get back from 170 px out level with the ledge, and the up special alone covers 135 px', () => {
+  it('every fighter can get back from 240 px out level with the ledge (about two thirds of the way to the side blast zone), and the up special alone covers 150 px', () => {
     for (const id of Object.keys(CHARACTERS).filter((c) => c !== 'overseer')) {
-      expect(recoveryReach(id, 0), id).toBeGreaterThanOrEqual(170);
-      expect(recoveryReach(id, 0, 'classic', true), `${id} up special`).toBeGreaterThanOrEqual(135);
+      expect(recoveryReach(id, 0), id).toBeGreaterThanOrEqual(240);
+      expect(recoveryReach(id, 0, 'classic', true), `${id} up special`).toBeGreaterThanOrEqual(150);
     }
   }, 120_000);
 

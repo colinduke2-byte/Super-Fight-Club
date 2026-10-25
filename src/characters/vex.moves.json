@@ -724,7 +724,7 @@
      "damage": 10.92,
      "angle": 40,
      "base": 36.7,
-     "scaling": 0.864,
+     "scaling": 0.89,
      "dir": "away",
      "fx": "slash"
     },
@@ -736,7 +736,7 @@
      "damage": 10.92,
      "angle": 40,
      "base": 36.7,
-     "scaling": 0.864,
+     "scaling": 0.89,
      "dir": "away",
      "fx": "slash"
     }
@@ -893,7 +893,7 @@
      "damage": 10,
      "angle": 40,
      "base": 39,
-     "scaling": 0.74,
+     "scaling": 0.77,
      "window": [
       1,
       3
@@ -962,7 +962,7 @@
      "damage": 9,
      "angle": 140,
      "base": 35,
-     "scaling": 0.76,
+     "scaling": 0.79,
      "fx": "kick"
     }
    ],
@@ -1426,7 +1426,7 @@
     {
      "frame": 4,
      "action": "teleport",
-     "dist": 78,
+     "dist": 86,
      "dir": "up8",
      "leaveMarker": "marker"
     },
@@ -1438,7 +1438,7 @@
     {
      "frame": 6,
      "action": "ledgeSnap",
-     "range": 110
+     "range": 116
     }
    ],
    "hitboxes": [],

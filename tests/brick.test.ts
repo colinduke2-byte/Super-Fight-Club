@@ -274,7 +274,7 @@ describe('Grapple Slam', () => {
 describe('Whirling Jet', () => {
   it('in the air: a fast spinning climb that hits several times, then helpless', () => {
     const r = rig(400);
-    r.a.spawn(300, -200, -1); // well away from everything
+    r.a.spawn(300, -200, 1); // well away from everything, drifting further away
     r.a.grounded = false;
     r.a.setState('air');
     r.tick(press(Button.Special, { stickY: -1 }));

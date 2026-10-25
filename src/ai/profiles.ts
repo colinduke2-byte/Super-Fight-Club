@@ -98,7 +98,7 @@ function lerpParams(a: LevelParams, b: LevelParams, t: number, skill: number): L
 }
 
 /** Parameters of every skill 1..9 (index 0 unused). */
-export const SKILLS: readonly LevelParams[] = [ANCHORS[1], ...[1, 2, 3, 4, 5, 6, 7, 8, 9].map((s) => (s === 1 || s === 5 || s === 9 ? ANCHORS[s] : s < 5 ? lerpParams(ANCHORS[1], ANCHORS[5], (s - 1) / 4, s) : lerpParams(ANCHORS[5], ANCHORS[9], Math.pow((s - 5) / 4, 0.9), s)))];
+export const SKILLS: readonly LevelParams[] = [ANCHORS[1], ...[1, 2, 3, 4, 5, 6, 7, 8, 9].map((s) => (s === 1 || s === 5 || s === 9 ? ANCHORS[s] : s < 5 ? lerpParams(ANCHORS[1], ANCHORS[5], (s - 1) / 4, s) : lerpParams(ANCHORS[5], ANCHORS[9], Math.pow((s - 5) / 4, 0.875), s)))];
 
 /** The skill a lobby level plays at. */
 export function skillForLevel(level: CpuLevel): CpuSkill {
@@ -201,7 +201,7 @@ export const CHARACTER_AI: Record<string, CharacterAi> = {
     // Vent's burst grows with the Heat it spends (see brickHeat.ventPower): the CPU values it by the Heat it has
     spender: { slot: 'downB', key: 'heat', min: 50, scale: ventPower },
     grabBonus: 3,
-    recovery: { slot: 'upB', up: 90, out: 70, aim: 'fixed' },
+    recovery: { slot: 'upB', up: 120, out: 110, aim: 'fixed' },
     ultimateRange: 60,
     spacing: 36,
   },
@@ -213,7 +213,7 @@ export const CHARACTER_AI: Record<string, CharacterAi> = {
     closerRange: [45, 115],
     setups: ['downB'],
     finishers: ['usmash', 'fsmash', 'fair', 'uair'],
-    recovery: { slot: 'upB', up: 110, out: 110, aim: 'stick8' },
+    recovery: { slot: 'upB', up: 118, out: 118, aim: 'stick8' },
     ultimateRange: 70,
     spacing: 30,
     style: 'hitandrun',
@@ -229,7 +229,7 @@ export const CHARACTER_AI: Record<string, CharacterAi> = {
     defensive: 'downB',
     cycle: 'downB',
     holds: { neutralB: 12, downB: 30 },
-    recovery: { slot: 'upB', up: 100, out: 100, aim: 'stick8' },
+    recovery: { slot: 'upB', up: 125, out: 125, aim: 'stick8' },
     ultimateRange: 240,
     spacing: 70,
   },
@@ -238,7 +238,7 @@ export const CHARACTER_AI: Record<string, CharacterAi> = {
     ranged: ['sideB'],
     setups: ['neutralB'],
     finishers: ['fsmash', 'usmash', 'bair', 'dair'],
-    recovery: { slot: 'upB', up: 130, out: 90, aim: 'tether' },
+    recovery: { slot: 'upB', up: 145, out: 100, aim: 'tether' },
     buff: { slot: 'downB', key: 'scrap', min: 5, deployable: 'turret', range: 170 },
     ultimateRange: 400,
     spacing: 50,
@@ -250,7 +250,7 @@ CHARACTER_AI.agni = {
   ranged: ['neutralB'],
   closers: ['sideB'],
   finishers: ['fsmash', 'usmash', 'fair', 'bair'],
-  recovery: { slot: 'upB', up: 95, out: 45, aim: 'fixed' },
+  recovery: { slot: 'upB', up: 115, out: 65, aim: 'fixed' },
   spender: { slot: 'downB', key: 'level', min: 2 },
   sideRecovery: 'sideB',
   ultimateRange: 320,
@@ -262,7 +262,7 @@ CHARACTER_AI.halcyon = {
   ranged: ['neutralB'],
   closers: ['sideB'],
   finishers: ['fsmash', 'usmash', 'fair', 'bair'],
-  recovery: { slot: 'upB', up: 100, out: 55, aim: 'fixed' },
+  recovery: { slot: 'upB', up: 110, out: 70, aim: 'fixed' },
   dive: 'downB',
   sideRecovery: 'sideB',
   ultimateRange: 70,
@@ -280,7 +280,7 @@ CHARACTER_AI.riptide = {
   // the lunge only carries ~80 px: fired from further out it just whiffs (and can carry him off the stage)
   closerRange: [40, 100],
   grabBonus: 9,
-  recovery: { slot: 'upB', up: 95, out: 40, aim: 'fixed' },
+  recovery: { slot: 'upB', up: 115, out: 65, aim: 'fixed' },
   ultimateRange: 70,
   spacing: 36,
 };
@@ -292,7 +292,7 @@ CHARACTER_AI.obelisk = {
   ranged: ['sideB'],
   setups: ['neutralB'],
   finishers: ['fsmash', 'usmash', 'fair', 'bair'],
-  recovery: { slot: 'upB', up: 90, out: 34, aim: 'fixed' },
+  recovery: { slot: 'upB', up: 110, out: 55, aim: 'fixed' },
   ultimateRange: 70,
   spacing: 44,
   strike: { reach: 34 },
@@ -307,7 +307,7 @@ CHARACTER_AI.rime = {
   finishers: ['usmash', 'fsmash', 'bair', 'uair'],
   defensive: 'downB',
   holds: { neutralB: 18 },
-  recovery: { slot: 'upB', up: 96, out: 96, aim: 'stick8' },
+  recovery: { slot: 'upB', up: 104, out: 104, aim: 'stick8' },
   ultimateRange: 70,
   spacing: 28,
   style: 'hitandrun',
@@ -324,7 +324,7 @@ CHARACTER_AI.havoc = {
   finishers: ['fsmash', 'usmash', 'utilt', 'bair', 'uair'],
   // the missile is steered while Special is held (see CpuController.steerShot), so hold it for its whole flight
   holds: { sideB: 56 },
-  recovery: { slot: 'upB', up: 110, out: 50, aim: 'fixed' },
+  recovery: { slot: 'upB', up: 125, out: 75, aim: 'fixed' },
   ultimateRange: 200,
   spacing: 40,
   detonate: { slot: 'downB', range: 400 },
@@ -339,7 +339,7 @@ CHARACTER_AI['overseer-versus'] = {
   ranged: ['sideB'],
   spender: { slot: 'downB', key: 'enrage', min: 0 },
   finishers: ['fsmash', 'usmash', 'dsmash', 'bair'],
-  recovery: { slot: 'upB', up: 100, out: 60, aim: 'fixed' },
+  recovery: { slot: 'upB', up: 125, out: 90, aim: 'fixed' },
   ultimateRange: 130,
   spacing: 46,
 };

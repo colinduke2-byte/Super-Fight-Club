@@ -499,8 +499,8 @@
      "h": 18,
      "damage": 14.83,
      "angle": 38,
-     "base": 28,
-     "scaling": 0.921,
+     "base": 32,
+     "scaling": 0.98,
      "window": [
       4,
       6
@@ -597,7 +597,7 @@
      "damage": 12,
      "angle": 361,
      "base": 34,
-     "scaling": 0.834,
+     "scaling": 0.86,
      "status": {
       "type": "chill",
       "frames": 300,
@@ -613,7 +613,7 @@
      "damage": 12,
      "angle": 361,
      "base": 34,
-     "scaling": 0.834,
+     "scaling": 0.86,
      "status": {
       "type": "chill",
       "frames": 300,
@@ -817,7 +817,7 @@
      "damage": 11.2,
      "angle": 140,
      "base": 34,
-     "scaling": 0.834,
+     "scaling": 0.89,
      "hitlag": 1.15,
      "fx": "kick"
     }
@@ -1240,7 +1240,7 @@
     {
      "frame": 7,
      "action": "teleport",
-     "dist": 96,
+     "dist": 104,
      "dir": "stick8"
     },
     {
@@ -1251,7 +1251,7 @@
     {
      "frame": 9,
      "action": "ledgeSnap",
-     "range": 100
+     "range": 108
     }
    ],
    "pose": {

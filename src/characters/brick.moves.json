@@ -1177,11 +1177,13 @@
    "motion": [
     {
      "frame": 5,
-     "vy": -5.9
+     "vy": -7.3,
+     "vx": 2.2,
+     "mode": "set"
     },
     {
      "frame": 20,
-     "vy": -3
+     "vy": -4.6
     }
    ],
    "events": [
@@ -1193,7 +1195,7 @@
     {
      "frame": 14,
      "action": "ledgeSnap",
-     "range": 80
+     "range": 96
     }
    ],
    "hitboxes": [
@@ -1248,7 +1250,7 @@
     "ghosts": true,
     "arc": "ring"
    },
-   "airDrift": 1.35
+   "airDrift": 2
   },
   "upB_g": {
    "name": "Whirling Jet",

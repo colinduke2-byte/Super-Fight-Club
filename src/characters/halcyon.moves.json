@@ -3104,7 +3104,7 @@
     {
      "frame": 11,
      "action": "ledgeSnap",
-     "range": 90
+     "range": 100
     }
    ],
    "pose": {
@@ -3187,7 +3187,8 @@
     "smear": 1.5,
     "ghosts": true,
     "arc": "none"
-   }
+   },
+   "airDrift": 1.3
   },
   "downB": {
    "name": "Falcon Dive",

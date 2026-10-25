@@ -173,6 +173,26 @@ describe('CPU recovery', () => {
     Object.assign(me, { x: l.x + 60, y: l.y + 60, grounded: false, groundPlat: null, state: 'air' });
     expect(pickLedge(me, world, null)).toBe(l);
   });
+  it('a hop across a Skyhold gap that falls short recovers to the platform it was heading for, not back to the island', () => {
+    // regression: an Easy Brick hopping from the left island toward a rival on the bridge went back for the nearer island
+    // ledge behind it, climbed up, hopped again and looped there for ever (the stronger Whirling Jet could reach it)
+    const { world, fighters } = arena(['brick', 'riptide'], 'skyhold');
+    const [me, rival] = fighters;
+    rival.spawn(-200, -1, -1);
+    const main = world.platforms[0];
+    const cpu = new CpuController(1, 3);
+    const ins = [makeInput(), makeInput()];
+    for (let i = 0; i < 60; i++) world.step(ins);
+    Object.assign(me, { x: -360, y: -20, vx: 2, vy: 1, grounded: false, groundPlat: null, state: 'air', invuln: 0, jumpsLeft: 0, facing: 1 });
+    let home: string | null = null;
+    for (let t = 0; t < 300 && !home; t++) {
+      cpu.update(me, world, ins[0]);
+      world.step(ins);
+      // the bridge (or a platform over it) is home; the island lies left of the gap
+      if (me.state === 'ledge' || me.grounded) home = me.x > main.x - 30 ? 'main' : 'island';
+    }
+    expect(home).toBe('main');
+  });
   it('mashes out of grabs at a human pace, faster with skill', () => {
     const presses = (skill: number): number => {
       const { world, fighters } = arena(['brick', 'vex']);

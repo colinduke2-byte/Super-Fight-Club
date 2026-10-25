@@ -1,5 +1,5 @@
 import type { Fighter } from '../engine/fighter';
-import { Ledge } from '../engine/platform';
+import { Ledge, type Platform } from '../engine/platform';
 import type { World } from '../engine/world';
 import type { CharacterAi, LevelParams } from './profiles';
 import { NO_POLICY, policyDirs, policyStick, simulateRecovery, type RecPolicy } from './recoveryPlan';
@@ -54,9 +54,15 @@ export interface RecoveryEpisode {
   waitFire: number;
   /** Winged / jet fighter: holds Jump to glide / hover once the jumps are spent. */
   float: boolean;
+  /**
+   * The platform the fighter was heading for when it left the ground on its own (a hop across a gap to a rival on another
+   * platform): its ledges win over a nearer one behind, so the CPU does not turn round and fly back to where it jumped from
+   * (and loop there for ever). Dropped as soon as no simulated attempt reaches it.
+   */
+  prefer: Platform | null;
 }
 
-export function newEpisode(world: World, p: LevelParams, rnd: () => number): RecoveryEpisode {
+export function newEpisode(world: World, p: LevelParams, rnd: () => number, prefer: Platform | null = null): RecoveryEpisode {
   const sloppy = 1 - p.recovery;
   const r = rnd();
   const mix = p.recoveryMix ?? 0;
@@ -80,6 +86,7 @@ export function newEpisode(world: World, p: LevelParams, rnd: () => number): Rec
     decision: 'none',
     waitFire: -1,
     float: false,
+    prefer,
   };
 }
 
@@ -223,6 +230,9 @@ export function ledgeOpen(f: Fighter, world: World, l: Ledge): boolean {
   return !world.allied(f.id, l.occupant);
 }
 
+/** How much nearer (px of pickLedge cost) a ledge of the platform a hop was heading for counts. */
+const PREFER_BONUS = 160;
+
 const cornerCache = new WeakMap<World, Ledge[]>();
 
 /**
@@ -248,9 +258,12 @@ export function bareCorners(world: World): Ledge[] {
   return out;
 }
 
-/** The best ledge to aim for: nearest to the fighter (a trumpable one costs a little extra), preferring ones it can reach. */
-export function pickLedge(f: Fighter, world: World, keep: Ledge | null): Ledge | null {
-  const cost = (l: Ledge): number => Math.abs(l.x + l.side * (f.hw + 4) - f.x) + Math.abs(l.y + f.h * 0.9 - f.y) * 1.6 + (l.occupant !== -1 && l.occupant !== f.id ? 30 : 0);
+/**
+ * The best ledge to aim for: nearest to the fighter (a trumpable one costs a little extra), preferring ones it can reach.
+ * Ledges of `prefer` (the platform a voluntary hop was heading for) count as much nearer.
+ */
+export function pickLedge(f: Fighter, world: World, keep: Ledge | null, prefer: Platform | null = null): Ledge | null {
+  const cost = (l: Ledge): number => Math.abs(l.x + l.side * (f.hw + 4) - f.x) + Math.abs(l.y + f.h * 0.9 - f.y) * 1.6 + (l.occupant !== -1 && l.occupant !== f.id ? 30 : 0) - (prefer && l.platform === prefer ? PREFER_BONUS : 0);
   let best: Ledge | null = null;
   let bestD = Infinity;
   // keep the current choice unless another one became much nearer
@@ -283,7 +296,7 @@ export function recoveryStep(f: Fighter, world: World, ai: CharacterAi, ep: Reco
   out.special = false;
   out.dodge = false;
   out.steering = false;
-  ep.ledge = pickLedge(f, world, ep.ledge);
+  ep.ledge = pickLedge(f, world, ep.ledge, ep.prefer);
   const l = ep.ledge;
   if (!l) return;
   const guard = edgeGuarder(f, world, l);
@@ -376,7 +389,13 @@ export function recoveryStep(f: Fighter, world: World, ai: CharacterAi, ep: Reco
     ep.decision = planRecovery(f, world, l, ai, ep);
     // nothing reaches from here: look again a little later (the plain rules below steer meanwhile)
     if (ep.decision === 'none') ep.nextPlan = t + Math.max(4, ep.planEvery);
-    if (ep.decision === 'none' && due) ep.decision = 'special';
+    // the platform the hop was heading for is out of reach after all: go for the nearest ledge instead (next frame)
+    if (ep.decision === 'none' && ep.prefer && l.platform === ep.prefer) {
+      ep.prefer = null;
+      ep.ledge = null; // no keep bias for it either
+      ep.nextPlan = t + 1;
+    }
+    if (ep.decision === 'none' && due && ep.ledge) ep.decision = 'special';
     if (ep.decision !== 'wait') ep.waitFire = -1;
   } else if (ep.decision !== 'wait' && ep.decision !== 'none') ep.decision = 'wait';
   if (ep.decision !== 'none') {

@@ -129,7 +129,7 @@ const PAGES: HowToPage[] = [
       ['TILT STICK', 'Walk. A sharp flick bursts into a dash.'],
       ['FLICK BACK', 'Turn on the spot while dashing (dash-dance).'],
       ['JUMP', 'Tap for a short hop, hold for a full jump.'],
-      ['JUMP IN AIR', 'Double jump. Up + Special is your recovery (together, it keeps your double jump).'],
+      ['JUMP IN AIR', 'Double jump. Up + Special recovers (together: keeps the jump).'],
       ['DOWN IN AIR', 'Fast fall, even in the middle of an aerial.'],
       ['DOWN ON PLATFORM', 'Drop through a thin platform.'],
       ['NEAR A LEDGE', 'Grab it. You can be hit while hanging: climb, jump or roll.'],

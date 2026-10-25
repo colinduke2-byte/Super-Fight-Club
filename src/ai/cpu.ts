@@ -127,6 +127,11 @@ export class CpuController implements Controller {
   /** Platform we are jumping across a gap to, and until when that attempt counts (then recovery takes over). */
   private cross: Platform | null = null;
   private crossUntil = 0;
+  /** The last platform hopped toward (a gap jump) and when: a recovery that starts soon after aims for it (RecoveryEpisode.prefer). */
+  private hopPlat: Platform | null = null;
+  private hopAt = -1e9;
+  /** Tick of the last frame in hitstun (a recovery soon after it follows a launch, not a hop). */
+  private launchedAt = -1e9;
 
   private sx = 0;
   private sy = 0;
@@ -317,7 +322,7 @@ export class CpuController implements Controller {
     if (offstage(self, world)) {
       if (this.mode !== 'recover') {
         this.mode = 'recover';
-        this.episode = newEpisode(world, this.params, this.rnd);
+        this.episode = newEpisode(world, this.params, this.rnd, this.hopHeading(self, world, tgt));
       }
       this.recover(self, world, ai, tgt);
       return;
@@ -624,6 +629,18 @@ export class CpuController implements Controller {
   /** True when a move's lunge (its motion steps) would carry us past the end of the platform toward `dir`. */
   private lungesOff(self: Fighter, dist: number, dir: number): boolean {
     return dist > 0 && dist > this.roomAhead(self, dir) - 8;
+  }
+
+  /**
+   * Off the stage on our own (no launch just now): the platform we were heading for, if it has ledges to aim for (a hop
+   * across a gap, or toward a rival standing on another platform). Null after a launch: then the nearest ledge is home.
+   */
+  private hopHeading(self: Fighter, world: World, tgt: Fighter | null): Platform | null {
+    if (world.tick - this.launchedAt < 30) return null;
+    const ok = (p: Platform | null): Platform | null => (p && p.kind === 'solid' && world.ledges.some((l) => l.platform === p) ? p : null);
+    if (this.hopPlat && world.tick - this.hopAt < 240 && ok(this.hopPlat)) return this.hopPlat;
+    if (tgt && tgt.grounded && tgt.groundPlat && Math.sign(tgt.x - self.x) === Math.sign(self.vx)) return ok(tgt.groundPlat);
+    return null;
   }
 
   /** Drift onto platform `pl` across a gap, spending the double jump once we sink toward its top. */
@@ -963,6 +980,7 @@ export class CpuController implements Controller {
 
   // ---- involuntary states ----------------------------------------------------------------------
   private hitstun(self: Fighter, world: World): void {
+    this.launchedAt = world.tick;
     if (self.stateFrame <= this.lastHitstunFrame) this.techTried = false; // new hit
     this.lastHitstunFrame = self.stateFrame;
     if (self.stateFrame <= 1 && !this.diStick.on) {
@@ -2082,6 +2100,8 @@ export class CpuController implements Controller {
       this.hopTarget = true;
       this.cross = tgt.groundPlat;
       this.crossUntil = world.tick + 150;
+      this.hopPlat = tgt.groundPlat;
+      this.hopAt = world.tick;
       return;
     }
     // a step or low wall in the way (Sunken Temple's centre tier): hop up onto it instead of running into it forever

@@ -1285,13 +1285,13 @@
    "motion": [
     {
      "frame": 5,
-     "vy": -6.4,
+     "vy": -6.8,
      "mode": "set",
-     "vx": 0.9
+     "vx": 1.6
     },
     {
      "frame": 16,
-     "vy": -3.6,
+     "vy": -4,
      "mode": "set"
     }
    ],
@@ -1304,7 +1304,7 @@
     {
      "frame": 12,
      "action": "ledgeSnap",
-     "range": 92
+     "range": 104
     }
    ],
    "cancels": [
@@ -1428,7 +1428,7 @@
      "fx": "punch"
     }
    ],
-   "airDrift": 1.25
+   "airDrift": 1.6
   },
   "downB": {
    "name": "C4",

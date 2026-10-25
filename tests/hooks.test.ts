@@ -422,6 +422,7 @@ describe('movement primitives', () => {
   it('a tether latches a ledge and pulls the fighter onto it', () => {
     const r = rig(400);
     r.a.spawn(190, 40, -1);
+    r.a.vy = -3; // still rising: the plain air ledge grab does not take it first, the hook does
     r.a.startMove('hook', null, r.world);
     r.run(5);
     expect(r.a.state).toBe('tether');

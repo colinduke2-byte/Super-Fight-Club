@@ -1521,13 +1521,13 @@
    "motion": [
     {
      "frame": 7,
-     "vy": -6,
-     "vx": 1,
+     "vy": -6.6,
+     "vx": 1.8,
      "mode": "set"
     },
     {
      "frame": 14,
-     "vy": -4.6,
+     "vy": -5,
      "mode": "set"
     }
    ],
@@ -1540,7 +1540,7 @@
     {
      "frame": 12,
      "action": "ledgeSnap",
-     "range": 86
+     "range": 100
     }
    ],
    "hitboxes": [
@@ -1655,7 +1655,7 @@
     "smear": 1.3,
     "ghosts": true
    },
-   "airDrift": 1.3
+   "airDrift": 1.9
   },
   "downB": {
    "name": "Whirlpool",

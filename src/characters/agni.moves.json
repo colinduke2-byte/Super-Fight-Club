@@ -1964,8 +1964,8 @@
    "motion": [
     {
      "frame": 6,
-     "vy": -6.6,
-     "vx": 1.2,
+     "vy": -6.9,
+     "vx": 1.8,
      "mode": "set"
     }
    ],
@@ -1978,7 +1978,7 @@
     {
      "frame": 10,
      "action": "ledgeSnap",
-     "range": 92
+     "range": 104
     }
    ],
    "hitboxes": [
@@ -2034,7 +2034,7 @@
     1,
     5
    ],
-   "airDrift": 1.5
+   "airDrift": 1.9
   },
   "upB_1": {
    "name": "Rising Flare",
@@ -2048,8 +2048,8 @@
    "motion": [
     {
      "frame": 6,
-     "vy": -6.8,
-     "vx": 1.2,
+     "vy": -7.1,
+     "vx": 1.8,
      "mode": "set"
     }
    ],
@@ -2062,7 +2062,7 @@
     {
      "frame": 10,
      "action": "ledgeSnap",
-     "range": 92
+     "range": 104
     }
    ],
    "hitboxes": [
@@ -2118,7 +2118,7 @@
     1,
     5
    ],
-   "airDrift": 1.5
+   "airDrift": 1.9
   },
   "upB_2": {
    "name": "Rising Flare",
@@ -2132,8 +2132,8 @@
    "motion": [
     {
      "frame": 6,
-     "vy": -7,
-     "vx": 1.2,
+     "vy": -7.3,
+     "vx": 1.8,
      "mode": "set"
     }
    ],
@@ -2146,7 +2146,7 @@
     {
      "frame": 10,
      "action": "ledgeSnap",
-     "range": 92
+     "range": 104
     }
    ],
    "hitboxes": [
@@ -2202,7 +2202,7 @@
     "smear": 1.5999999999999999,
     "ghosts": true
    },
-   "airDrift": 1.5
+   "airDrift": 1.9
   },
   "upB_3": {
    "name": "Rising Flare",
@@ -2216,8 +2216,8 @@
    "motion": [
     {
      "frame": 6,
-     "vy": -7.6,
-     "vx": 1.2,
+     "vy": -7.9,
+     "vx": 1.8,
      "mode": "set"
     }
    ],
@@ -2230,7 +2230,7 @@
     {
      "frame": 10,
      "action": "ledgeSnap",
-     "range": 92
+     "range": 104
     }
    ],
    "hitboxes": [
@@ -2296,7 +2296,7 @@
     "smear": 1.7,
     "ghosts": true
    },
-   "airDrift": 1.5
+   "airDrift": 1.9
   },
   "downB_0": {
    "name": "Flare Burst",

@@ -42,7 +42,7 @@ export const CRATE = { hp: 18, hw: 10, h: 18, volatileChance: 0.35, fuse: 40, ra
  * held; in the air a quick swing with the forward / neutral aerial. The full-charge ground swing is the one item hit that
  * KOs a middleweight at about 100% (the uncharged one from about 125%); air swings are light. Burns out after `swings`.
  */
-export const BAT = { swings: 6, reach: 34, damage: 17, base: 38, scaling: 0.98, angle: 40, chargeDamage: 1.25, chargeKb: 1.06, hitlag: 1.4, air: { damage: 8, base: 26, scaling: 0.6, angle: 45 } };
+export const BAT = { swings: 6, reach: 34, damage: 17, base: 38, scaling: 0.98, angle: 40, chargeDamage: 1.25, chargeKb: 1.1, hitlag: 1.4, air: { damage: 8, base: 26, scaling: 0.6, angle: 45 } };
 /**
  * Proximity Mine: carried and thrown (Attack: forward lob; stick down: dropped at the feet). It sticks where it lands, arms
  * after `arm` frames (blinking) and goes off when a rival steps over it (never its thrower or their team); a planted mine
