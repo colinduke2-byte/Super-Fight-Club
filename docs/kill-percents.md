@@ -23,7 +23,7 @@ Lowest damage percent (steps of 5) at which the move KOs the victim on Skyline C
 | agni | u-smash 125T | 145 | 135B / 135S (140) | 125T | 185B / 185S (195) |
 | halcyon | u-smash 130T | 142.5 | 135B / 135S (140) | 130T | 60T |
 | riptide | f-smash 130B / 130S (135) | 140 | 130B / 130S (135) | 130T | 60T |
-| obelisk | u-smash 120T | 140 | 130B / 130S (135) | 120T | 70T |
+| obelisk | u-smash 115T | 137.5 | 125B / 125S (130) | 115T | 70T |
 | rime | f-smash 125B / 125S (135) | 137.5 | 125B / 125S (135) | 125T | 55T |
 | havoc | u-smash 120T | 150 | 135B / 135S (140) | 120T | 225T |
 | overseer-versus | u-smash 125T | 137.5 | 135B / 135S (140) | 125T | 65T |
@@ -84,10 +84,10 @@ Blast zone of the strict (pure launch) kills over every non-ultimate cell: top 2
 | riptide | fair | 185S | 145S | 205T | 160B / 160B (170) | 245B / 245S (270) | 185B / 185B (220) | hitbox 9.5d 48deg b34 s0.742 |
 | riptide | bthrow | 165S | 130S | 190B / 190S (195) | 140B / 140B (155) | 220B / 220B (250) | 165B / 165B (200) | hitbox 9.22d 135deg b42 s0.742 |
 | riptide | ultimate | 45T | 20S | 60T | 40B / 40S (45) | 115B / 120S (135) | 60B / 60B (90) | cinematic, 35.9d total |
-| obelisk | f-smash | 110S | 85S | 130B / 130S (135) | 90B / 90B (105) | 150B / 150B (170) | 110B / 110B (135) | hitbox 15.02d 40deg b38 s0.989 |
-| obelisk | u-smash | 105T | 105T | 120T | 120T | 185T | 185T | hitbox 13.61d 90deg b40 s0.906 |
-| obelisk | d-smash | 135S | 105S | 155B / 155S (160) | 115B / 115B (130) | 180B / 180B (210) | 135B / 135B (165) | hitbox 11.74d 42deg b40 s0.845 |
-| obelisk | bair | 130S | 105S | 150B / 150S (155) | 105B / 105B (125) | 170B / 170B (195) | 125B / 125B (160) | hitbox 10.8d 140deg b38 s0.886 |
+| obelisk | f-smash | 110S | 85S | 125B / 125S (130) | 90B / 90B (105) | 145B / 145B (170) | 105B / 105B (135) | hitbox 15.5d 40deg b40 s0.99 |
+| obelisk | u-smash | 105T | 105T | 115T | 115T | 180T | 180T | hitbox 14d 90deg b41 s0.92 |
+| obelisk | d-smash | 135S | 105S | 150B / 150S (160) | 110B / 110B (125) | 175B / 175B (200) | 130B / 130B (165) | hitbox 12d 42deg b41 s0.86 |
+| obelisk | bair | 130S | 105S | 150B / 150S (155) | 105B / 105B (125) | 170B / 170B (195) | 125B / 125B (160) | hitbox 11d 140deg b38 s0.886 |
 | obelisk | fair | 160S | 130S | 190S | 140B / 140S (150) | 215B / 215B (240) | 160B / 160B (195) | hitbox 10.8d 45deg b36 s0.783 |
 | obelisk | uthrow | 135T | 135T | 150T | 150T | 240T | 240T | hitbox 6.57d 90deg b52 s0.68 |
 | obelisk | ultimate | 50S | 20S | 70T | 30B / 30B (40) | 105B / 110S (130) | 55B / 55B (85) | cinematic, 33d total |

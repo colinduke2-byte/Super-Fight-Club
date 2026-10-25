@@ -1625,6 +1625,18 @@ export class CpuController implements Controller {
       }
     }
 
+    // raise a pillar right under a rival standing on the spot (Obelisk's Crystal Spire): the rise pops them up for a follow-up
+    const sp = ai.spire;
+    if (sp && grounded && self.facing === dir && tgt.grounded && Math.abs(dy) < 12 && tgt.invuln <= 0) {
+      const at = self.x + dir * sp.x;
+      // where they will be when it comes up (the Spire's startup)
+      const tx = tgt.x + tgt.vx * 9;
+      if (Math.abs(tx - at) < 12 && this.rnd() < 0.1 + 0.2 * p.punish && !this.cooldownBusy('spire', 150)) {
+        this.startPlan(world, 'spire', Button.Special, 0, 0);
+        this.runPlan(self, world);
+        return true;
+      }
+    }
     if (grounded && this.slidingOffEdge(self) && this.mode !== 'edgeguard') {
       this.sx = 0; // stop first: attacking out of a dash at the stage edge slides the CPU off the stage
       return true;
@@ -1951,7 +1963,7 @@ export class CpuController implements Controller {
     }
     if (Math.abs(dy) < 70 && !(stalled && dist < 260)) {
       for (const slot of ai.ranged) {
-        if (dist > 90 && dist < 340 && usable(slot) && this.rnd() < 0.5 * p.aggression && !this.cooldownBusy(`r${slot}`, 40 + p.thinkEvery)) {
+        if (dist > 90 && dist < 340 && usable(slot) && this.rnd() < (ai.rangedChance ?? 0.5) * p.aggression && !this.cooldownBusy(`r${slot}`, 40 + p.thinkEvery)) {
           fire(slot, slot, false);
           return true;
         }

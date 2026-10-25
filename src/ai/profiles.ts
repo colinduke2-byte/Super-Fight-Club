@@ -148,6 +148,13 @@ export interface CharacterAi {
   oos?: 'upB';
   /** Knock our own pillar into a rival standing beyond it (Obelisk): smash it when it sits within `reach` px in front. */
   strike?: { reach: number };
+  /**
+   * A special that raises a pillar `x` px in front (Obelisk's Crystal Spire): also fired with a grounded rival standing on
+   * that spot, so the rising pillar pops them up into a follow-up.
+   */
+  spire?: { slot: string; x: number };
+  /** Chance scale of the ranged specials (default 0.5, times aggression): a bruiser that should not live on its pokes. */
+  rangedChance?: number;
   /** A storable charge special (Brick's Charge Shoulder): wound up fully and banked with Shield when the rival is far away. */
   bank?: { slot: string; key: string; frames: number };
   /** Distance band (px between centres) in which the closers are used; default 120..320. A short lunge wants it shorter. */
@@ -285,17 +292,24 @@ CHARACTER_AI.riptide = {
   spacing: 36,
 };
 
-// Obelisk: the terrain builder. Raises a Crystal Spire between itself and the rival when there is room (a wall against
-// zoners and a launcher), fires Shard Volleys at range, stomps pillars into shards up close, recovers with Upheaval.
+// Obelisk: the heavy-hitting terrain builder. Raises a Crystal Spire between itself and the rival when there is room (a wall
+// against zoners), or right under a rival standing on the spot (the rise pops them up); smashes its pillars into rivals beyond
+// them, stomps them into shards up close, covers the approach with Shard Volleys and recovers with Upheaval.
 CHARACTER_AI.obelisk = {
   ...GENERIC,
   ranged: ['sideB'],
   setups: ['neutralB'],
-  finishers: ['fsmash', 'usmash', 'fair', 'bair'],
-  recovery: { slot: 'upB', up: 110, out: 55, aim: 'fixed' },
+  finishers: ['usmash', 'fsmash', 'dsmash', 'bair', 'fair'],
+  // Bedrock Stomp is a close-range move too (hits both sides; no cost: the `none` resource is always 0 >= 0)
+  spender: { slot: 'downB', key: 'none', min: 0 },
+  // a heavy hitter: Shard Volleys are a poke to cover the approach, not the game plan
+  rangedChance: 0.3,
+  recovery: { slot: 'upB', up: 110, out: 70, aim: 'fixed' },
   ultimateRange: 70,
-  spacing: 44,
-  strike: { reach: 34 },
+  spacing: 40,
+  // the Spire comes up 38 px ahead: a smash from right behind it reaches it
+  strike: { reach: 52 },
+  spire: { slot: 'neutralB', x: 38 },
   detonate: { slot: 'downB', range: 120 },
 };
 

@@ -11,10 +11,10 @@
     "y": 0,
     "w": 1,
     "h": 1,
-    "damage": 4.4,
+    "damage": 5.2,
     "angle": 45,
-    "base": 26,
-    "scaling": 0.42,
+    "base": 30,
+    "scaling": 0.5,
     "hitlag": 0.9,
     "fx": "crystal"
    },
@@ -58,17 +58,17 @@
    "limit": 2,
    "replaceOldest": true,
    "pillar": {
-    "riseFrames": 9,
+    "riseFrames": 6,
     "sinkFrames": 14,
     "riseHit": {
-     "damage": 7,
+     "damage": 8,
      "base": 46,
      "scaling": 0.55,
      "angle": 84
     },
     "shards": {
      "projectile": "shard",
-     "count": 5,
+     "count": 6,
      "speed": 5.6
     }
    },
@@ -229,7 +229,7 @@
    "anim": "smashF",
    "startup": 7,
    "active": 4,
-   "recovery": 13,
+   "recovery": 12,
    "cancels": [
     {
      "button": "grab",
@@ -555,7 +555,7 @@
    "anim": "smashF",
    "startup": 15,
    "active": 4,
-   "recovery": 28,
+   "recovery": 27,
    "charge": {
     "frame": 8,
     "max": 60,
@@ -575,10 +575,10 @@
      "y": -14,
      "w": 40,
      "h": 30,
-     "damage": 15.02,
+     "damage": 15.5,
      "angle": 40,
-     "base": 38,
-     "scaling": 0.989,
+     "base": 40,
+     "scaling": 0.99,
      "hitlag": 1.25,
      "fx": "crystal"
     }
@@ -601,6 +601,11 @@
     "squash": 0.9,
     "smear": 1.6,
     "ghosts": true
+   },
+   "armor": {
+    "from": 4,
+    "to": 12,
+    "threshold": 8
    }
   },
   "usmash": {
@@ -609,7 +614,7 @@
    "anim": "smashU",
    "startup": 12,
    "active": 6,
-   "recovery": 28,
+   "recovery": 26,
    "charge": {
     "frame": 6,
     "max": 60,
@@ -629,10 +634,10 @@
      "y": -42,
      "w": 44,
      "h": 40,
-     "damage": 13.61,
+     "damage": 14,
      "angle": 90,
-     "base": 40,
-     "scaling": 0.906,
+     "base": 41,
+     "scaling": 0.92,
      "fx": "crystal"
     },
     {
@@ -640,7 +645,7 @@
      "y": -14,
      "w": 48,
      "h": 20,
-     "damage": 8.45,
+     "damage": 9,
      "angle": 80,
      "base": 35,
      "scaling": 0.721,
@@ -728,7 +733,7 @@
    "anim": "sweep",
    "startup": 11,
    "active": 5,
-   "recovery": 26,
+   "recovery": 25,
    "charge": {
     "frame": 6,
     "max": 60,
@@ -748,10 +753,10 @@
      "y": -6,
      "w": 46,
      "h": 14,
-     "damage": 11.74,
+     "damage": 12,
      "angle": 42,
-     "base": 40,
-     "scaling": 0.845,
+     "base": 41,
+     "scaling": 0.86,
      "fx": "crystal"
     },
     {
@@ -759,10 +764,10 @@
      "y": -6,
      "w": 46,
      "h": 14,
-     "damage": 11.74,
+     "damage": 12,
      "angle": 42,
-     "base": 40,
-     "scaling": 0.845,
+     "base": 41,
+     "scaling": 0.86,
      "fx": "crystal",
      "dir": "away"
     }
@@ -908,8 +913,8 @@
    "anim": "aerialF",
    "startup": 8,
    "active": 4,
-   "recovery": 17,
-   "landingLag": 12,
+   "recovery": 16,
+   "landingLag": 11,
    "autocancel": [
     [
      1,
@@ -974,7 +979,7 @@
      "y": -14,
      "w": 32,
      "h": 26,
-     "damage": 10.8,
+     "damage": 11,
      "angle": 140,
      "base": 38,
      "scaling": 0.886,
@@ -1049,10 +1054,10 @@
    "name": "Meteor Stomp",
    "kind": "aerial",
    "anim": "aerialD",
-   "startup": 14,
+   "startup": 13,
    "active": 5,
    "recovery": 18,
-   "landingLag": 14,
+   "landingLag": 13,
    "autocancel": [
     [
      1,
@@ -1293,19 +1298,19 @@
    "name": "Crystal Spire",
    "kind": "special",
    "anim": "castD",
-   "startup": 11,
+   "startup": 9,
    "active": 2,
-   "recovery": 20,
+   "recovery": 16,
    "events": [
     {
-     "frame": 11,
+     "frame": 9,
      "action": "deploy",
      "id": "pillar",
      "x": 38,
      "y": 0
     },
     {
-     "frame": 11,
+     "frame": 9,
      "action": "fx",
      "name": "rubble"
     }
@@ -1400,7 +1405,7 @@
     {
      "frame": 8,
      "vy": -7.3,
-     "vx": 1.6,
+     "vx": 2.4,
      "mode": "set"
     },
     {
@@ -1536,18 +1541,18 @@
     "smear": 1.3,
     "ghosts": true
    },
-   "airDrift": 1.6
+   "airDrift": 2.1
   },
   "downB": {
    "name": "Bedrock Stomp",
    "kind": "special",
    "anim": "castD",
-   "startup": 12,
+   "startup": 11,
    "active": 4,
-   "recovery": 24,
+   "recovery": 22,
    "events": [
     {
-     "frame": 12,
+     "frame": 11,
      "action": "custom",
      "name": "shatter",
      "args": [
@@ -1555,7 +1560,7 @@
      ]
     },
     {
-     "frame": 12,
+     "frame": 11,
      "action": "fx",
      "name": "quake"
     }
@@ -1566,10 +1571,10 @@
      "y": -5,
      "w": 46,
      "h": 12,
-     "damage": 7.52,
+     "damage": 8.6,
      "angle": 75,
-     "base": 40,
-     "scaling": 0.639,
+     "base": 44,
+     "scaling": 0.7,
      "fx": "heavy"
     },
     {
@@ -1577,10 +1582,10 @@
      "y": -5,
      "w": 46,
      "h": 12,
-     "damage": 7.52,
+     "damage": 8.6,
      "angle": 75,
-     "base": 40,
-     "scaling": 0.639,
+     "base": 44,
+     "scaling": 0.7,
      "fx": "heavy",
      "dir": "away"
     }
