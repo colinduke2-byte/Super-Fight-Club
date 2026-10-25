@@ -3,7 +3,7 @@ import { DEFAULT_SETTINGS, parseSettings, resetSettings, settings, validateSetti
 
 describe('accessibility settings', () => {
   it('defaults keep the classic look: classic colours, shapes on, 100% text, motion and flashes as designed', () => {
-    expect(DEFAULT_SETTINGS).toMatchObject({ playerPalette: 'classic', portShapes: true, uiScale: 1, reduceMotion: false, reduceFlashes: false, renderQuality: 'sharp', tapJumpKeyboard: false });
+    expect(DEFAULT_SETTINGS).toMatchObject({ playerPalette: 'classic', portShapes: true, uiScale: 1, reduceMotion: false, reduceFlashes: false, renderQuality: 'sharp', upJumpKeyboard: true });
   });
 
   it('validates the new fields: unknown palettes fall back, text size is clamped, wrong types are dropped', () => {

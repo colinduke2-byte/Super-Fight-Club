@@ -105,7 +105,7 @@ export class ControlsScene extends MenuScene {
       this.refresh();
     };
     const tap = () => {
-      if (this.isKb) settings.tapJumpKeyboard = !settings.tapJumpKeyboard;
+      if (this.isKb) settings.upJumpKeyboard = !settings.upJumpKeyboard;
       else settings.tapJump = !settings.tapJump;
       saveSettings();
     };
@@ -115,7 +115,7 @@ export class ControlsScene extends MenuScene {
       { label: 'DEVICE', value: () => PROFILE_NAME[this.profile], onLeft: cyc(-1), onRight: cyc(1), onConfirm: cyc(1) },
       {
         label: 'TAP-JUMP',
-        value: () => ((this.isKb ? settings.tapJumpKeyboard : settings.tapJump) ? 'ON' : 'OFF'),
+        value: () => ((this.isKb ? settings.upJumpKeyboard : settings.tapJump) ? 'ON' : 'OFF'),
         onLeft: tap,
         onRight: tap,
         onConfirm: tap,

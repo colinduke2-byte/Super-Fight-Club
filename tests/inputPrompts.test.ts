@@ -4,7 +4,7 @@ import { BindingStore, bindings } from '../src/input/bindings';
 import { KeyboardDevice } from '../src/input/keyboard';
 import { footerHint, keyLabel, menuPrompt, moveLabel, padButtonLabel, padStyleForId, promptFor } from '../src/input/prompts';
 import { lastInput, notePad, noteTouch } from '../src/input/lastDevice';
-import { PlayerInput } from '../src/input/playerInput';
+import { PlayerInput, TAP_JUMP_WINDOW } from '../src/input/playerInput';
 import { Button, makeInput } from '../src/engine/buttons';
 import { settings } from '../src/settings';
 import type { InputDevice, RawInput } from '../src/input/device';
@@ -133,31 +133,64 @@ describe('tap-jump per device kind', () => {
     readonly label = 'fake';
     readonly connected = true;
     stickY = 0;
+    held = 0;
     constructor(readonly kind: InputDevice['kind']) {}
     sample(out: RawInput): void {
       out.stickX = 0;
       out.stickY = this.stickY;
-      out.held = 0;
+      out.held = this.held;
     }
   }
-  const flick = (kind: InputDevice['kind']) => {
+  /** Runs a script of [stickY, held] ticks; returns per-tick (pressed Jump, held Jump, pressed buttons). */
+  const run = (kind: InputDevice['kind'], ticks: [number, number][]) => {
     const d = new Fake(kind);
     const p = new PlayerInput(d);
     const out = makeInput();
-    p.sample(out);
-    d.stickY = -1;
-    p.sample(out);
-    return (out.pressed & Button.Jump) !== 0;
+    return ticks.map(([y, h]) => {
+      d.stickY = y;
+      d.held = h;
+      p.sample(out);
+      return { jumpPressed: (out.pressed & Button.Jump) !== 0, jumpHeld: (out.held & Button.Jump) !== 0, pressed: out.pressed };
+    });
   };
+  /** A flick up, held: did a jump come out within the tap window? */
+  const flick = (kind: InputDevice['kind']) => run(kind, [[0, 0], ...Array.from({ length: TAP_JUMP_WINDOW + 1 }, (): [number, number] => [-1, 0])]).some((t) => t.jumpPressed);
 
-  it('keyboards default off, pads and touch on', () => {
-    expect(settings.tapJumpKeyboard ?? false).toBe(false);
+  it('W / up jumps on keyboards by default, and on pads and touch', () => {
+    expect(settings.upJumpKeyboard).toBe(true);
     expect(settings.tapJump).toBe(true);
-    expect(flick('keyboard')).toBe(false);
+    expect(flick('keyboard')).toBe(true);
     expect(flick('gamepad')).toBe(true);
     expect(flick('touch')).toBe(true);
-    settings.tapJumpKeyboard = true;
-    expect(flick('keyboard')).toBe(true);
-    settings.tapJumpKeyboard = false;
+    settings.upJumpKeyboard = false;
+    expect(flick('keyboard')).toBe(false);
+    settings.upJumpKeyboard = true;
+  });
+
+  it('a held flick is a full hop, a quick tap still jumps (short hop)', () => {
+    const held = run('keyboard', [[0, 0], [-1, 0], [-1, 0], [-1, 0], [-1, 0]]);
+    expect(held.filter((t) => t.jumpPressed).length).toBe(1);
+    expect(held[held.length - 1].jumpHeld).toBe(true);
+    const tap = run('keyboard', [[0, 0], [-1, 0], [0, 0], [0, 0], [0, 0]]);
+    expect(tap.filter((t) => t.jumpPressed).length).toBe(1);
+    expect(tap[tap.length - 1].jumpHeld).toBe(false);
+  });
+
+  it('up + Attack or Special within the window is the up move, not a jump', () => {
+    for (const b of [Button.Attack, Button.Special, Button.Smash]) {
+      for (let lag = 0; lag < TAP_JUMP_WINDOW; lag++) {
+        const script: [number, number][] = [[0, 0], [-1, lag === 0 ? b : 0]];
+        for (let i = 1; i <= lag; i++) script.push([-1, i === lag ? b : 0]);
+        script.push([-1, b], [-1, b], [-1, b]);
+        const ticks = run('keyboard', script);
+        expect(ticks.some((t) => t.jumpPressed || t.jumpHeld)).toBe(false);
+        expect(ticks.some((t) => (t.pressed & b) !== 0)).toBe(true);
+      }
+    }
+  });
+
+  it('a button pressed after the window does not cancel the jump (jump then aerial / up-special)', () => {
+    const ticks = run('keyboard', [[0, 0], [-1, 0], [-1, 0], [-1, 0], [-1, Button.Special]]);
+    expect(ticks.some((t) => t.jumpPressed)).toBe(true);
   });
 });

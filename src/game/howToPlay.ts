@@ -1,4 +1,5 @@
 import { CELL_METER, CORE_METER } from '../engine/items';
+import { settings } from '../settings';
 import type { InputDevice } from '../input/device';
 import { lastInput } from '../input/lastDevice';
 import { menuPrompt, moveLabel, promptFor } from '../input/prompts';
@@ -41,7 +42,7 @@ function keyRows(side: string, scheme: KeyboardSchemeId): [string, string][] {
   const d = kb(scheme);
   const P = (a: Parameters<typeof promptFor>[0]): string => boxKey(promptFor(a, d));
   return [
-    [`${side}: ${moveLabel(scheme)}`, `Move. ${P('jump')} jump, ${P('attack')} attack.`],
+    [`${side}: ${moveLabel(scheme)}`, `Move. ${settings.upJumpKeyboard ? `${P('up')} or ${P('jump')}` : P('jump')} jump, ${P('attack')} attack.`],
     [`${side} BUTTONS`, `${P('special')} special, ${P('shield')} shield, ${P('grab')} grab.`],
     [`${side} MORE`, `${P('smash')} smash, ${P('ultimate')} ultimate, ${P('pause')} pause.`],
   ];
@@ -128,7 +129,7 @@ const PAGES: HowToPage[] = [
       ['TILT STICK', 'Walk. A sharp flick bursts into a dash.'],
       ['FLICK BACK', 'Turn on the spot while dashing (dash-dance).'],
       ['JUMP', 'Tap for a short hop, hold for a full jump.'],
-      ['JUMP IN AIR', 'Double jump. Up + Special is your recovery.'],
+      ['JUMP IN AIR', 'Double jump. Up + Special is your recovery (together, it keeps your double jump).'],
       ['DOWN IN AIR', 'Fast fall, even in the middle of an aerial.'],
       ['DOWN ON PLATFORM', 'Drop through a thin platform.'],
       ['NEAR A LEDGE', 'Grab it. You can be hit while hanging: climb, jump or roll.'],

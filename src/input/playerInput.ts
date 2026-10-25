@@ -8,19 +8,29 @@ export const fightActivity = { at: -1e9 };
 
 const TAP_UP_THRESHOLD = -0.7;
 const TAP_UP_RELEASE = -0.4;
+/** Ticks a tap-jump waits for Attack / Special / Smash: pressed in that window, the flick means an up attack, not a jump. */
+export const TAP_JUMP_WINDOW = 2;
+const UP_MOVE_BUTTONS = Button.Attack | Button.Special | Button.Smash;
 
 /**
  * Turns a device's raw sample into the per-tick FighterInput the sim consumes:
  * edge detection (pressed/released), keyboard-stick deadzone, and tap-jump.
  *
  * Tap-jump: a fresh upward flick presses Jump, and holding up keeps Jump "held" (so a held flick
- * is a full hop and a quick tap is a short hop, same as the dedicated button).
+ * is a full hop and a quick tap is a short hop, same as the dedicated button). The jump waits TAP_JUMP_WINDOW ticks:
+ * if Attack, Special or Smash is pressed by then the flick was the start of an up-tilt / up-smash / up-special (in
+ * the air: up-special without spending the double jump), so no jump is sent at all.
  */
 export class PlayerInput {
   private readonly raw: RawInput = makeRaw();
   private prevHeld = 0;
   private prevStickY = 0;
+  private prevRawHeld = 0;
   private tapJumpHeld = false;
+  /** Ticks left before a fresh flick turns into a jump (0 = none pending). */
+  private tapPending = 0;
+  /** The flick was let go while pending: send a one-tick jump (a short hop). */
+  private tapTapped = false;
 
   constructor(public device: InputDevice) {}
 
@@ -37,13 +47,28 @@ export class PlayerInput {
     const sy = raw.stickY;
 
     // per device kind: keyboards have their own setting (default off), pads and touch use `tapJump` (default on)
-    if (d.kind === 'keyboard' ? settings.tapJumpKeyboard : settings.tapJump) {
-      if (sy < TAP_UP_THRESHOLD && this.prevStickY >= TAP_UP_THRESHOLD) this.tapJumpHeld = true;
+    if (d.kind === 'keyboard' ? settings.upJumpKeyboard : settings.tapJump) {
+      const freshMove = (raw.held & ~this.prevRawHeld & UP_MOVE_BUTTONS) !== 0;
+      if (sy < TAP_UP_THRESHOLD && this.prevStickY >= TAP_UP_THRESHOLD) {
+        this.tapJumpHeld = false;
+        this.tapTapped = false;
+        this.tapPending = freshMove ? 0 : TAP_JUMP_WINDOW;
+      } else if (this.tapPending > 0) {
+        if (freshMove) this.tapPending = 0; // up + attack / special: the move, no jump
+        else if (sy > TAP_UP_RELEASE) this.tapTapped = true;
+        if (this.tapPending > 0 && --this.tapPending === 0) {
+          if (this.tapTapped) held |= Button.Jump; // let go already: one tick of Jump, a short hop
+          else this.tapJumpHeld = true;
+          this.tapTapped = false;
+        }
+      }
       if (sy > TAP_UP_RELEASE) this.tapJumpHeld = false;
       if (this.tapJumpHeld) held |= Button.Jump;
     } else {
       this.tapJumpHeld = false;
+      this.tapPending = 0;
     }
+    this.prevRawHeld = raw.held;
 
     out.stickX = sx;
     out.stickY = sy;
@@ -58,5 +83,8 @@ export class PlayerInput {
     this.prevHeld = 0;
     this.prevStickY = 0;
     this.tapJumpHeld = false;
+    this.tapPending = 0;
+    this.tapTapped = false;
+    this.prevRawHeld = 0;
   }
 }

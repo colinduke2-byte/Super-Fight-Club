@@ -212,12 +212,13 @@ export function resetSettings(keys: readonly (keyof Settings)[] = Object.keys(DE
 }
 
 // ---- Input (src/input owns this block): per-device-kind tap-jump. ----
-// `tapJump` above is the setting for gamepads and touch (default ON); keyboards get their own, default OFF (a keyboard
-// has a jump key under a finger, and W / Up should not hop by accident). Optional so DEFAULT_SETTINGS above needs no
-// edit; defaulted here so validateSettings / parseSettings keep it like any other field.
+// `tapJump` above is the setting for gamepads and touch (default ON). Keyboards have their own: W / Up jumps by default
+// (Up + Attack / Special still give up-tilt, up-smash and up-special, see PlayerInput). The old `tapJumpKeyboard`
+// (default OFF) is retired: saves that stored it are ignored, so every keyboard player gets W-jumps once. Optional so
+// DEFAULT_SETTINGS above needs no edit; defaulted here so validateSettings / parseSettings keep it like any other field.
 export interface Settings {
-  /** Tap-jump for keyboard players: pressing up also jumps. */
-  tapJumpKeyboard?: boolean;
+  /** Keyboard players: pressing up (W / Up arrow) also jumps. */
+  upJumpKeyboard?: boolean;
 }
-DEFAULT_SETTINGS.tapJumpKeyboard = false;
-settings.tapJumpKeyboard ??= false;
+DEFAULT_SETTINGS.upJumpKeyboard = true;
+settings.upJumpKeyboard ??= true;

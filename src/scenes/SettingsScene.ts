@@ -30,7 +30,7 @@ const TABS: { id: SettingsTab; label: string }[] = [
 const TAB_KEYS: Record<SettingsTab, (keyof Settings)[]> = {
   audio: ['masterVolume', 'sfxVolume', 'musicVolume', 'announcer', 'ambience', ...(['voices'] as unknown as (keyof Settings)[])],
   video: ['renderQuality', 'particleQuality', 'autoQuality', 'showPerf', 'screenShake', 'killCam'],
-  gameplay: ['tapJump', 'tapJumpKeyboard', 'smashMode', 'deadzone', 'rumble', 'touchSize', 'touchOpacity', 'touchLeftHanded', 'touchStickX', 'touchStickY', 'touchBtnX', 'touchBtnY'],
+  gameplay: ['tapJump', 'upJumpKeyboard', 'smashMode', 'deadzone', 'rumble', 'touchSize', 'touchOpacity', 'touchLeftHanded', 'touchStickX', 'touchStickY', 'touchBtnX', 'touchBtnY'],
   access: ['playerPalette', 'portShapes', 'uiScale', 'reduceMotion', 'reduceFlashes'],
 };
 
@@ -123,7 +123,7 @@ export class SettingsScene extends MenuScene {
       settings[key] = list[clamp(i + d, 0, list.length - 1)];
       saveSettings();
     };
-    const toggle = (key: 'tapJump' | 'tapJumpKeyboard' | 'showPerf' | 'autoQuality' | 'rumble' | 'reduceFlashes' | 'killCam' | 'announcer' | 'ambience' | 'portShapes' | 'reduceMotion' | 'touchLeftHanded') => () => {
+    const toggle = (key: 'tapJump' | 'upJumpKeyboard' | 'showPerf' | 'autoQuality' | 'rumble' | 'reduceFlashes' | 'killCam' | 'announcer' | 'ambience' | 'portShapes' | 'reduceMotion' | 'touchLeftHanded') => () => {
       settings[key] = !settings[key];
       saveSettings();
     };
@@ -213,7 +213,7 @@ export class SettingsScene extends MenuScene {
             },
           },
           sw('tapJump', 'TAP-JUMP (PAD / TOUCH)', 'Controllers and touch: pushing the stick up also jumps. Off: only the Jump button.'),
-          sw('tapJumpKeyboard', 'TAP-JUMP (KEYBOARD)', 'Keyboards: pressing Up also jumps. Off by default, so Up never hops by accident.'),
+          sw('upJumpKeyboard', 'W / UP JUMPS (KEYBOARD)', 'Keyboards: pressing Up (W) jumps. Up + Attack or Special still gives up attacks and up-special.'),
           {
             label: 'SMASH ATTACKS', hint: 'Flick: a fast stick tap + Attack smashes. Button: only the Smash button.',
             value: () => (settings.smashMode === 'flick' ? 'STICK FLICK' : 'BUTTON ONLY'),
