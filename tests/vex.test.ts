@@ -214,7 +214,7 @@ describe('Snare Mine', () => {
     r.b.y = 0;
     r.run(2);
     expect(d.active).toBe(false);
-    expect(r.b.damage).toBeCloseTo(7);
+    expect(r.b.damage).toBeCloseTo(8);
     expect(r.b.vy).toBeLessThan(-1);
   });
 

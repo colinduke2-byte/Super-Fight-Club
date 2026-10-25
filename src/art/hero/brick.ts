@@ -51,6 +51,26 @@ export function drawBrick(r: Raster, k: Skel, look: PlaceholderLook): void {
   // a hand pulled in re-solves its elbow, so the arm folds naturally instead of stretching to the old joint
   const elbowF = clampV(handF === k.handF ? k.elbowF : solveLimb(k.shF, handF, k.armBone, 1).mid, 14, r.w - 13, 12, r.h - 12);
   const elbowB = clampV(handB === k.handB ? k.elbowB : solveLimb(k.shB, handB, k.armBone, 1).mid, 14, r.w - 13, 12, r.h - 12);
+  // attack rows: an arm asked to reach past its bones telescopes, the forearm piston driving the fist out the rest of the way
+  const atk = k.pose.hit !== undefined;
+  const hit = k.pose.hit ?? 0;
+  const tw = k.pose.twist ?? 0;
+  const wantF: V2 = [k.shF[0] + 14 + k.pose.frontHand[0] * 2, k.shF[1] + k.armLen + k.pose.frontHand[1] * 2 + 4];
+  const wantB: V2 = [k.shB[0] - 8 + k.pose.backHand[0] * 2, k.shB[1] + k.armLen - 4 + k.pose.backHand[1] * 2];
+  const extF = atk ? piston(k.shF, wantF, k.armBone) : 0;
+  // a rear cross: with the chest turned square, the far arm comes across in front of the body (drawn after the chest)
+  const cross = atk && tw >= 1.5 && wantB[0] > x0FromK(k) + k.torso.w * 0.55;
+  let shB2: V2 = k.shB;
+  let elbowB2 = elbowB;
+  let handB2 = handB;
+  let extB = 0;
+  if (cross) {
+    shB2 = [k.shB[0] + tw * 5, k.shB[1] - 1];
+    const sv = solveLimb(shB2, wantB, k.armBone, 1);
+    handB2 = clampV(sv.end, 19, r.w - 20, 17, r.h - 17);
+    elbowB2 = solveLimb(shB2, handB2, k.armBone, 1).mid;
+    extB = piston(shB2, wantB, k.armBone);
+  }
   const kneeF = clampV(k.kneeF, 14, r.w - 14, 0, r.h - 16);
   const kneeB = clampV(k.kneeB, 14, r.w - 14, 0, r.h - 16);
   const hx = k.head.x;
@@ -77,6 +97,20 @@ export function drawBrick(r: Raster, k: Skel, look: PlaceholderLook): void {
       [Math.max(bx - 8, 11), by - 10],
       [Math.max(bx + 1, 16), by - 14],
     ];
+    // lunges fire the stacks: a jet of flame out of each pipe mouth, streaming back from the drive
+    const flare = atk ? Math.max(0, Math.min(1, (k.pose.lean - 3) / 8)) * Math.max(0, hit - 0.2) * 1.25 : 0;
+    if (flare > 0.15) {
+      const hot = r.part([255, 168, 60], { emissive: true });
+      const core = r.part([255, 244, 200], { emissive: true });
+      for (const [mx, my] of tips) {
+        const L = 6 + flare * 16;
+        const ex = mx - L * 0.8;
+        const ey = my - L * 0.55;
+        r.seg(M.accent, mx, my - 1, ex, ey, 6 + flare * 2, 2);
+        r.seg(hot, mx, my - 1, mx - L * 0.55, my - 1 - L * 0.38, 4 + flare * 1.5, 1.5);
+        r.seg(core, mx, my - 1.5, mx - L * 0.25, my - 1.5 - L * 0.18, 2.6, 1);
+      }
+    } else
     // exhaust: puffs of smoke rising off the pipe mouths and drifting back, cycling with the animation
     tips.forEach(([mx, my], i0) => {
       for (let i = 0; i < 2; i++) {
@@ -98,7 +132,7 @@ export function drawBrick(r: Raster, k: Skel, look: PlaceholderLook): void {
   }
 
   // ---- back arm (in shadow): frame upper arm, gunmetal elbow, a shadowed gauntlet ----
-  arm(r, M, k.shB, elbowB, handB, true);
+  if (!cross) arm(r, M, k.shB, elbowB, handB, true, atk ? piston(k.shB, wantB, k.armBone) : 0);
   // ---- back leg ----
   leg(r, M, k.hipB, kneeB, ankleB, true);
   // ---- back pauldron: only its rear dome shows past the chest, bulking out the shoulder line ----
@@ -138,7 +172,7 @@ export function drawBrick(r: Raster, k: Skel, look: PlaceholderLook): void {
     plate(r, M.G, (m) => m.ellipse(0, rx, ry, 11.5, 11.5), { line: M.line, round: true });
     r.ellipse(M.deep, rx, ry, 8.5, 8.5);
     r.ellipse(M.accent, rx, ry, 7, 7);
-    r.ellipse(M.glow, rx + 0.5, ry - 0.5, 3.6 + pulse * 0.6, 3.6 + pulse * 0.6);
+    r.ellipse(M.glow, rx + 0.5, ry - 0.5, 3.6 + pulse * 0.6 + hit * 2, 3.6 + pulse * 0.6 + hit * 2);
   }
   // the belt, with a hazard band across the back of it (the front is covered by the tasset)
   plate(r, M.D, (m) => m.rect(0, x0 + 1, top + h - 11, w - 2, 10), { line: M.line });
@@ -153,16 +187,18 @@ export function drawBrick(r: Raster, k: Skel, look: PlaceholderLook): void {
   }
 
   // ---- head ----
-  if (o === 1) helmSiege(r, M, hx, hy, hs, pulse);
+  if (o === 1) helmSiege(r, M, hx, hy, hs, hit >= 0.6 ? 2 : pulse);
   else if (o === 2) helmDiver(r, M, hx, hy, hs, top, glass);
-  else helmVisor(r, M, hx, hy, hs, k.phase);
+  else helmVisor(r, M, hx, hy, hs, k.phase, hit);
   // the gorget: a collar lip in front of the neck, so the helm sits down in the suit instead of on top of it
   if (o !== 2) {
     plate(r, M.A, (m) => m.poly(0, [[hx + 4, top + 1], [hx + hs + 6, top - 1], [hx + hs + 10, top + 5], [hx + hs + 6, top + 9], [hx + 6, top + 9]]), { line: M.line });
   }
 
+  // ---- the rear cross, driven across the front of the chest ----
+  if (cross) arm(r, M, shB2, elbowB2, handB2, false, extB, hit, true);
   // ---- front arm and its pauldron ----
-  arm(r, M, k.shF, elbowF, handF, false);
+  arm(r, M, k.shF, elbowF, handF, false, extF, hit);
   {
     const px = Math.min(k.shF[0] + 1, r.w - 22);
     const py = k.shF[1];
@@ -293,7 +329,7 @@ function plate(r: Raster, R: Ramp, draw: (m: Raster) => void, o: { line?: number
 }
 
 /** Upper arm, elbow, bell gauntlet and fist (the far arm `back` takes the shadowed armour). */
-function arm(r: Raster, M: Mats, sh: V2, el: V2, hand: V2, back: boolean): void {
+function arm(r: Raster, M: Mats, sh: V2, el: V2, hand: V2, back: boolean, ext = 0, hit = 0, across = false): void {
   const [hx, hy] = hand;
   let dx = hx - el[0];
   let dy = hy - el[1];
@@ -301,10 +337,37 @@ function arm(r: Raster, M: Mats, sh: V2, el: V2, hand: V2, back: boolean): void 
   dx /= l;
   dy /= l;
   const wr: V2 = [hx - dx * 8, hy - dy * 8];
-  plate(r, M.F, (m) => m.seg(0, sh[0], sh[1], el[0], el[1], 15, 13), { line: M.line });
+  // the piston: the fist rides out on a gunmetal ram past the end of the forearm shell (kept inside the frame)
+  const out = clampV([hx + dx * ext, hy + dy * ext], 19, r.w - 20, 17, r.h - 17);
+  const e = Math.hypot(out[0] - hx, out[1] - hy);
+  // (an arm thrown across the chest shows its upper arm in gunmetal: the dark frame would read as a hole in the chest)
+  plate(r, across ? M.GD : M.F, (m) => m.seg(0, sh[0], sh[1], el[0], el[1], 15, 13), { line: M.line });
+  if (e > 3) {
+    const tip: V2 = [out[0] - dx * 9, out[1] - dy * 9];
+    plate(r, back ? M.GD : M.G, (m) => m.seg(0, wr[0], wr[1], tip[0], tip[1], 9, 8), { line: M.line });
+    // a polished line down the ram, and a glowing seal ring where it leaves the shell
+    const nx = -dy;
+    const ny = dx;
+    r.seg(back ? M.G[3] : M.G[4], wr[0] - nx * 2.2, wr[1] - ny * 2.2, tip[0] - nx * 2.2, tip[1] - ny * 2.2, 1.3, 1.3);
+    if (!back || hit > 0) r.seg(M.accent, wr[0] + dx * 2 - nx * 4.5, wr[1] + dy * 2 - ny * 4.5, wr[0] + dx * 2 + nx * 4.5, wr[1] + dy * 2 + ny * 4.5, 1.6, 1.6);
+  }
   plate(r, back ? M.D : M.A, (m) => m.seg(0, el[0], el[1], wr[0], wr[1], 16, 21), { line: M.line, round: true });
   plate(r, back ? M.GD : M.G, (m) => m.ellipse(0, el[0], el[1], 5, 4.5), { line: M.line, round: true });
-  fist(r, M, hand, [dx, dy], back);
+  if (e > 3 && hit >= 0.6) {
+    // the ram vents: a hot glow at the gauntlet's rear port
+    r.ellipse(M.accent, wr[0] - dx * 9, wr[1] - dy * 9 - 3, 2.2, 1.6);
+  }
+  fist(r, M, e > 3 ? out : hand, [dx, dy], back);
+}
+
+/** How far (px) a fist has to ride out on its piston to reach `want` from the shoulder (0 when the bones reach). */
+function piston(sh: V2, want: V2, bone: number): number {
+  const d = Math.hypot(want[0] - sh[0], want[1] - sh[1]);
+  return Math.max(0, Math.min(26, d - bone * 2 * 0.999));
+}
+
+function x0FromK(k: Skel): number {
+  return k.torso.x;
 }
 
 /**
@@ -362,7 +425,7 @@ function leg(r: Raster, M: Mats, hip: V2, kn: V2, ankle: V2, back: boolean): voi
 }
 
 /** The standard helm: a rounded shell with a low crest, a wide visor slot that runs out to the front edge, a jaw plate. */
-function helmVisor(r: Raster, M: Mats, hx: number, hy: number, hs: number, phase: number): void {
+function helmVisor(r: Raster, M: Mats, hx: number, hy: number, hs: number, phase: number, hit = 0): void {
   plate(r, M.D, (m) => m.poly(0, [[hx + 5, hy + 2], [hx + 9, hy - 5], [hx + hs - 7, hy - 5], [hx + hs - 2, hy + 2]]), { line: M.line });
   plate(
     r,
@@ -386,8 +449,17 @@ function helmVisor(r: Raster, M: Mats, hx: number, hy: number, hs: number, phase
   // the visor: a dark slot cut through to the front edge, the glowing band in it and a bright glint that sweeps along it
   r.poly(M.deep, [[hx + 9, hy + 9], [hx + hs + 6, hy + 8], [hx + hs + 6, hy + 18], [hx + 11, hy + 18]]);
   r.rect(M.accent, hx + 12, hy + 11, hs - 6, 5);
-  const g = hx + 13 + ((phase * 4) % (hs - 12));
-  r.rect(M.glow, g, hy + 12, 5, 3);
+  if (hit >= 0.6) {
+    // striking: the whole visor burns white-hot and a glint flares off its front edge
+    r.rect(M.glow, hx + 12, hy + 11, hs - 6, 5);
+    const fl = Math.round(2 + hit * 6);
+    r.rect(M.glow, hx + hs + 6, hy + 12, fl, 2);
+    r.rect(M.accent, hx + hs + 6, hy + 11, Math.max(1, fl - 3), 1);
+    r.rect(M.accent, hx + hs + 6, hy + 14, Math.max(1, fl - 3), 1);
+  } else {
+    const g = hx + 13 + ((phase * 4) % (hs - 12));
+    r.rect(M.glow, g, hy + 12, 5, 3);
+  }
   // the side bolt that holds the visor hinge
   plate(r, M.G, (m) => m.ellipse(0, hx + 5, hy + 16, 4.5, 4.5), { line: M.line, round: true });
 }

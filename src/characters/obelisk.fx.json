@@ -388,6 +388,63 @@
      "#c898f6",
      "#f0e2ff"
     ]
+   },
+   {
+    "p": "ring",
+    "at": "feet",
+    "on": "start",
+    "moves": [
+     "dsmash",
+     "dtilt"
+    ],
+    "size": 30,
+    "life": 0.3,
+    "color": "#c898f6"
+   },
+   {
+    "p": "debris",
+    "at": "feet",
+    "on": "start",
+    "moves": [
+     "dsmash",
+     "dtilt",
+     "fsmash"
+    ],
+    "count": 5,
+    "dir": "up",
+    "speed": 80,
+    "jitter": 80,
+    "spread": 28,
+    "life": 0.55,
+    "size": 4,
+    "gravity": 300,
+    "spin": 8,
+    "additive": false,
+    "color": [
+     "#6e6470",
+     "#9a8e9c"
+    ]
+   },
+   {
+    "p": "crystal",
+    "at": "limb",
+    "on": "charge",
+    "every": 3,
+    "kinds": [
+     "smash"
+    ],
+    "count": 1,
+    "dir": "random",
+    "speed": 20,
+    "spread": 20,
+    "life": 0.5,
+    "size": 3,
+    "gravity": -20,
+    "spin": 4,
+    "color": [
+     "#c898f6",
+     "#f0e2ff"
+    ]
    }
   ],
   "shapes": {

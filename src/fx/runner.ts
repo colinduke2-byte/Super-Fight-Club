@@ -331,7 +331,10 @@ function fire(e: BasicEmitter, f: Fighter, s: Swing | null, fx: Effects, tick: n
       x = s ? s.hx : lx;
       y = s ? s.hy : ly;
   }
-  const n0 = (e.count ?? 1) * fx.density;
+  // a resource-scaled touch (e.g. heat glow): silent at 0, full at resMax
+  const rk = e.res ? Math.min(1, Math.max(0, (f.res[e.res] ?? 0) / (e.resMax ?? 100))) : 1;
+  if (rk <= 0) return;
+  const n0 = (e.count ?? 1) * fx.density * rk;
   budget += n0;
   let n = Math.floor(budget);
   budget -= n;
@@ -376,7 +379,7 @@ function fire(e: BasicEmitter, f: Fighter, s: Swing | null, fx: Effects, tick: n
     const py = y + (spread ? (Math.random() - 0.5) * spread : 0);
     const col = color(Array.isArray(cols) ? cols[(tick + i) % cols.length] : cols, c);
     const life = e.life ?? 0.35;
-    const size = e.size ?? 2;
+    const size = (e.size ?? 2) * (e.res && (e.p === 'flash' || e.p === 'ring') ? 0.4 + 0.6 * rk : 1);
     const grav = e.gravity ?? 0;
     const add = e.additive ?? true;
     switch (e.p) {

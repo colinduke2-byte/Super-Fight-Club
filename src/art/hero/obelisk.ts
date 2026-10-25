@@ -156,7 +156,9 @@ export function drawObelisk(r: Raster, k: Skel, look: PlaceholderLook): void {
     r.poly(P.crystalD, [[px - 4, hy - 7], [px + 1, hy - 8], [px + 5, hy - 1], [px + 3, hy + 7], [px - 1, hy + 8], [px - 5, hy + 1]]);
     r.poly(P.crystal, [[px + 1, hy - 8], [px + 5, hy - 1], [px + 1, hy]]);
     r.poly(P.glow, [[px - 1, hy - 4], [px + 2, hy - 1], [px + 1, hy + 4], [px - 2, hy + 1]]);
-    r.ellipse(P.core, px, hy, 1 + pulse, 1.2 + pulse);
+    // the crown's heart flares as a strike lands
+    const hot = (k.pose.hit ?? 0) >= 0.6 ? 1.5 : 0;
+    r.ellipse(P.core, px, hy, 1 + pulse + hot, 1.2 + pulse + hot);
     // glowing amethyst cracks spreading from the heart across the stone
     const crack = (pts: V2[]): void => r.inlay(P.stone, P.vein, (set) => line(set, pts));
     crack([[px + 6, hy + 3], [px + 9, hy + 7], [px + 8, hy + 11], [px + 12, hy + 16], [edgeAt(hy + 20, 1) - 2, hy + 21]]);

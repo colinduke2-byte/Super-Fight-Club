@@ -402,6 +402,41 @@
      "#3ab8ff",
      "#e6fbff"
     ]
+   },
+   {
+    "p": "ring",
+    "at": "feet",
+    "on": "start",
+    "moves": [
+     "dsmash",
+     "fsmash",
+     "dtilt"
+    ],
+    "size": 28,
+    "life": 0.3,
+    "color": "#8adcff"
+   },
+   {
+    "p": "drop",
+    "at": "limb",
+    "on": "charge",
+    "every": 2,
+    "kinds": [
+     "smash"
+    ],
+    "count": 1,
+    "dir": "up",
+    "speed": 40,
+    "jitter": 40,
+    "spread": 14,
+    "life": 0.4,
+    "size": 3,
+    "gravity": 300,
+    "additive": false,
+    "color": [
+     "#3ab8ff",
+     "#e6fbff"
+    ]
    }
   ],
   "shapes": {

@@ -153,8 +153,6 @@ const hookArc = (reach = 18, h = -16): PoseSpec => C(K(-6, 3, [-12, -10], [4, -1
 const shoulderCharge = (): PoseSpec => C(K(-6, 6, [2, -10], [-4, -8], [9, 0], [-10, 0], { tw: -2 }), K(12, 4, [10, -14], [6, -12], [16, 0], [-13, 0], { tw: 2.5, hx: 1 }), K(5, 3, [6, -10], [2, -8], [10, 0], [-8, 0]));
 /** A long rocket punch: coiled low, then the fist driven out at full stretch with a deep lunge. */
 const lungePunch = (reach = 24, h = -12): PoseSpec => C(K(-7, 4, [-10, -10], [4, -10], [10, 0], [-10, 0], { tw: 2 }), K(12, 3, [reach, h], [-8, -8], [17, 0], [-14, 0], { tw: -3 }), K(5, 2, [12, -10], [-4, -8], [11, 0], [-9, 0]));
-/** A rising back-hand arc overhead (anti-air): dipped low, then the far arm swept up past the head. */
-const upSweep = (h = -40): PoseSpec => C(K(2, 5, [4, -6], [8, 2], [7, 0], [-7, 0]), K(-4, 0, [2, -12], [6, h], [5, 0], [-5, 0], { tw: 2, hy: -1 }), K(-1, 1, [3, -8], [4, h * 0.6], [5, 0], [-5, 0]));
 /** A low leg sweep along the floor from a deep crouch. */
 const legSweep = (reach = 24): PoseSpec => C(K(-2, 8, [4, -6], [-6, -4], [8, 0], [-8, 0]), K(4, 11, [0, -4], [-10, -2], [reach, 1], [-9, 0], { tw: -1 }), K(1, 7, [4, -4], [-6, -2], [13, 0], [-8, 0]));
 /** A one-fist ground slam from overhead into the floor in front. */
@@ -167,22 +165,38 @@ const splitSlam = (): PoseSpec => C(K(0, 2, [6, -34], [-6, -34], [6, 0], [-6, 0]
 type Entry = PoseSpec | ((own: PoseSpec | undefined) => PoseSpec);
 export const POSE_BOOK: Record<string, Record<string, Entry>> = {
   brick: {
-    // the smash is a committed two-fisted hammer from over the head, not the hook scaled up; the stomp lifts a knee first
-    fsmash: C(K(-10, 2, [-6, -38], [-10, -34], [9, 0], [-10, 0], { tw: 1, hy: -1 }), K(12, 7, [20, 2], [16, 4], [16, 0], [-13, 0], { hx: 1.5 }), K(5, 5, [12, 6], [8, 6], [12, 0], [-10, 0])),
-    dsmash: C(K(-2, 0, [8, -20], [-6, -18], [6, 16], [-5, 0], { hy: -1 }), K(4, 9, [14, 8], [-12, 8], [12, 0], [-11, 0], { hy: 1.5 }), K(2, 6, [8, 4], [-8, 4], [10, 0], [-10, 0])),
-    dashAttack: shoulderCharge(),
-    jab1: jabLead(16, -12),
-    jab2: jabCross(18, -12),
-    jab3: shove(18, -8),
-    ftilt: hookArc(18, -16),
-    utilt: upSweep(-40),
-    dtilt: legSweep(24),
+    // Brick's arms are short under huge pauldrons, so every move is built on a different big shape: the fists ride out on
+    // forearm pistons (hero/brick.ts) past what the bones reach, the rear cross comes across in front of the chest, and the
+    // chunky body squashes, stretches and tips with the strike (Pose.flex).
+    // jab 1: a lead piston jab at head height, the near shoulder driving through it, the rear fist up at the chin
+    jab1: C(K(-3, 2, [2, -16], [8, -22], [5, 0], [-6, 0], { tw: 1 }), K(7, 2, [26, -20], [10, -24], [10, 0], [-7, 0], { tw: -2.5, hx: 1 }), K(2, 2, [10, -16], [8, -22], [7, 0], [-6, 0])),
+    // jab 2: the rear cross: the chest turns square and the far fist rams across the front at head height
+    jab2: C(K(2, 2, [8, -18], [-6, -10], [7, 0], [-6, 0], { tw: -1 }), K(8, 3, [-2, -14], [44, -18], [11, 0], [-8, 0], { tw: 3.5, hx: 1 }), K(3, 2, [4, -16], [20, -16], [8, 0], [-7, 0], { tw: 1.5 })),
+    // jab 3: both pistons fired together, up and out at head height from a dip, the whole body rising behind them
+    jab3: C(K(-4, 6, [-4, 2], [0, 4], [6, 0], [-9, 0], { tw: 1 }), K(8, 1, [24, -28], [36, -30], [13, 0], [-11, 0], { tw: 2, hx: 1, hy: -1 }), K(4, 3, [12, -14], [16, -14], [10, 0], [-9, 0], { tw: 1 })),
+    // ftilt: a wide hook at chest height swung round from far behind, the shoulders turning right through it
+    ftilt: C(K(-8, 3, [-18, -10], [8, -18], [8, 0], [-9, 0], { tw: 3 }), K(9, 4, [27, -12], [-12, -6], [13, 0], [-10, 0], { tw: -3, hx: 1 }), K(3, 3, [12, -8], [-4, -10], [9, 0], [-8, 0], { tw: -1 })),
+    // utilt: a rising piston uppercut, the fist driven straight up past the helm, leaning back off it
+    utilt: C(K(3, 6, [8, 8], [6, -16], [6, 0], [-7, 0], { tw: 1 }), K(-5, 0, [8, -54], [-10, -4], [6, 0], [-6, 0], { tw: -1, hy: -1 }), K(-2, 1, [6, -30], [-6, -8], [5, 0], [-5, 0])),
+    // dtilt: crouched right down, a low piston jab skimming the floor at shin height
+    dtilt: C(K(-2, 9, [-2, 4], [6, -14], [9, 0], [-9, 0], { tw: 1 }), K(8, 12, [28, 18], [4, -24], [14, 0], [-11, 0], { tw: -2, hy: 1 }), K(3, 9, [12, 10], [6, -10], [10, 0], [-9, 0])),
+    // dash attack: head down behind the lead pauldron, both fists tucked, the stacks firing as he barrels through
+    dashAttack: C(K(-6, 7, [4, -14], [6, -16], [9, 0], [-11, 0], { tw: -2, hy: 1 }), K(15, 6, [16, -18], [20, -16], [18, 0], [-17, 6], { tw: -2.5, hx: 2, hy: 1.5 }), K(6, 4, [10, -14], [10, -14], [11, 0], [-9, 0])),
+    // fsmash: a two-fisted hammer: both fists hauled high up behind the head, then brought down into the floor in front
+    fsmash: C(K(-11, 0, [-10, -48], [-14, -44], [9, 0], [-10, 0], { tw: 1, hy: -1.5, bob: -1 }), K(13, 6, [27, 0], [40, 4], [17, 0], [-13, 0], { tw: 2, hx: 2, hy: 1.5 }), K(6, 6, [16, 6], [24, 8], [12, 0], [-10, 0], { tw: 1 })),
+    // usmash: coiled right down with both fists by the floor, then the whole body launched upward, both fists overhead
+    usmash: C(K(1, 10, [6, 12], [10, 12], [8, 0], [-8, 0], { hy: 1 }), K(-2, 0, [4, -54], [12, -54], [4, 6], [-5, 9], { bob: -3, hy: -1.5 }), K(-1, 1, [4, -32], [8, -32], [5, 0], [-5, 0], { bob: -1 })),
+    // dsmash: up on the toes with both fists high, then a ground pound: one fist into the floor each side of him
+    dsmash: C(K(0, 0, [6, -50], [-4, -50], [5, 0], [-5, 0], { bob: -2, hy: -1 }), K(1, 12, [24, 22], [-24, 22], [12, 0], [-12, 0], { hy: 2 }), K(0, 8, [14, 14], [-14, 14], [10, 0], [-10, 0])),
     neutralB: shoulderCharge(),
     sideB: lungePunch(24, -12),
-    nair: nairStar(14, -10),
-    fair: fairArm([0, -36], [16, 10], {}, 'both'),
-    bair: bairArm(18, -10),
-    uair: uairArm(8, -42),
+    nair: nairStar(16, -10),
+    // fair: an airborne hammer, both fists brought over the top and down in front
+    fair: fairArm([-2, -42], [22, 12], {}, 'both'),
+    // bair: the rear piston rammed straight out behind
+    bair: C(K(-2, 0, [6, -14], [6, -16], [5, 12], [0, 14], { tw: 1.5 }), K(8, 0, [10, -12], [-26, -14], [6, 10], [-6, 9], { tw: -3, hx: -1.5 }), K(4, 0, [8, -10], [-12, -10], [6, 10], [-4, 11], { tw: -1 })),
+    // uair: both pistons punched straight up
+    uair: uairArm(6, -54, true),
     dair: dairStomp(),
   },
   vex: {
@@ -199,6 +213,7 @@ export const POSE_BOOK: Record<string, Record<string, Entry>> = {
     dair: dairStomp(),
   },
   nova: {
+    jab2: C(K(-2, 1, [4, -6], [-6, -4], [5, 0], [-5, 0], { tw: 1 }), K(5, 3, [16, -20], [-4, -8], [8, 0], [-6, 0], { tw: 2 }), K(2, 2, [8, -12], [-4, -6], [6, 0], [-5, 0])),
     nair: nairStar(15, -10),
     fair: fairArm([-10, -26], [21, 6]),
     bair: bairWeapon([-60, 178, -120]),
@@ -210,8 +225,10 @@ export const POSE_BOOK: Record<string, Record<string, Entry>> = {
     jab2: C(K(-5, 2, [-10, -8], [4, -6], [6, 0], [-6, 0], { tw: 2 }), K(5, 3, [16, -16], [-4, -4], [9, 0], [-7, 0], { tw: -2 }), K(2, 2, [8, -8], [-2, -4], [7, 0], [-6, 0])),
     jab3: C(K(-6, 1, [-2, -34], [-4, -20], [6, 0], [-6, 0], { hy: -1 }), K(8, 6, [18, 10], [10, 6], [11, 0], [-8, 0], { hy: 1 }), K(3, 4, [10, 6], [4, 2], [8, 0], [-6, 0])),
     fsmash: C(K(-10, 3, [-16, -30], [2, -12], [8, 0], [-9, 0], { tw: 3, hx: -1 }), K(12, 5, [24, 0], [-8, -6], [15, 0], [-12, 0], { tw: -3 }), K(5, 3, [14, 4], [-4, -4], [10, 0], [-8, 0])),
-    dashAttack: C(K(-4, 4, [-6, -6], [4, -8], [8, 0], [-8, 0]), K(12, 6, [20, 2], [8, -4], [14, 0], [-12, 3]), K(4, 3, [10, -2], [4, -4], [9, 0], [-8, 0])),
-    usmash: C(K(-1, 8, [4, 4], [-2, 4], [7, 0], [-7, 0]), K(-2, 0, [2, -44], [-4, -42], [4, 0], [-4, 0], { hy: -1 }), K(-1, 1, [2, -28], [-3, -26], [5, 0], [-5, 0])),
+    dashAttack: C(K(-4, 4, [-6, -6], [4, -8], [8, 0], [-8, 0]), K(14, 2, [-8, -4], [-12, -2], [12, 6], [-16, 10], { hx: 2, hy: 1 }), K(4, 4, [10, 0], [-4, -6], [9, 0], [-8, 0])),
+    usmash: C(K(-1, 8, [4, 4], [-2, 4], [7, 0], [-7, 0]), K(-2, 0, [2, -44], [-4, -42], [4, 5], [-4, 7], { hy: -1, bob: -2 }), K(-1, 1, [2, -28], [-3, -26], [5, 0], [-5, 0])),
+    // the tilt is one-handed: the wrench flicked up in front, the free hand thrown out behind for balance
+    utilt: C(K(1, 4, [10, 2], [-4, -2], [6, 0], [-6, 0]), K(-5, 1, [6, -40], [-12, 2], [6, 0], [-6, 0], { tw: -1 }), K(-1, 2, [8, -18], [-6, -2], [5, 0], [-5, 0])),
     neutralB: C(K(-4, 3, [-8, -16], [4, -8], [5, 0], [-5, 0], { tw: 2 }), K(4, 2, [18, -14], [-6, -6], [8, 0], [-6, 0], { tw: -2 }), K(1, 1, [8, -6], [-4, -4], [6, 0], [-5, 0])),
     nair: nairStar(12, -8),
     fair: fairArm([-6, -6], [22, -8]),
@@ -238,7 +255,7 @@ export const POSE_BOOK: Record<string, Record<string, Entry>> = {
   riptide: {
     // the anchor smash goes up behind the head in both hands and comes down far out in front; the dash attack is a dive
     fsmash: C(K(-10, 0, [-8, -40], [-12, -36], [8, 0], [-9, 0], { tw: 2, hy: -1.5 }), K(13, 9, [28, 8], [22, 8], [16, 0], [-13, 0], { tw: -1, hy: 1.5 }), K(6, 7, [18, 8], [12, 8], [12, 0], [-10, 0])),
-    dashAttack: C(K(-6, 6, [2, -10], [-6, -8], [9, 0], [-10, 0], { tw: -1.5 }), K(14, 6, [18, -6], [10, -4], [18, 0], [-14, 4], { tw: 2, hx: 1 }), K(5, 4, [10, -4], [4, -4], [11, 0], [-9, 0])),
+    dashAttack: C(K(-6, 6, [2, -10], [-6, -8], [9, 0], [-10, 0], { tw: -1.5 }), K(15, 5, [-12, -2], [-16, 0], [18, 0], [-16, 8], { tw: 1, hx: 2.5, hy: 1 }), K(5, 4, [2, -6], [-4, -4], [11, 0], [-9, 0])),
     jab1: jabLead(15, -10),
     jab2: jabCross(17, -10),
     neutralB: shove(18, -12),
@@ -255,14 +272,17 @@ export const POSE_BOOK: Record<string, Record<string, Entry>> = {
     jab2: jabCross(18, -12),
     ftilt: hookArc(20, -14),
     dtilt: legSweep(24),
-    fsmash: C(K(-10, 9, [-14, 4], [6, -10], [10, 0], [-11, 0], { tw: 3.5, hx: -1 }), K(14, 4, [30, -10], [-10, -4], [18, 0], [-14, 1], { tw: -3, hx: 1.5 }), K(6, 4, [16, -4], [-6, -4], [13, 0], [-11, 0], { tw: -1 })),
+    fsmash: C(K(-10, 9, [-14, 4], [6, -10], [10, 0], [-11, 0], { tw: 3.5, hx: -1 }), K(14, 6, [30, -4], [-18, -24], [18, 0], [-14, 1], { tw: -3, hx: 1.5 }), K(6, 5, [16, -2], [-10, -14], [13, 0], [-11, 0], { tw: -1 })),
     dsmash: splitSlam(),
+    // the charge is shoulder first, both arms tucked in to the body, the back foot kicking up
+    dashAttack: C(K(-4, 5, [-4, -6], [6, -10], [6, 0], [-8, 0], { tw: -1 }), K(14, 7, [4, -14], [0, -16], [16, 0], [-16, 6], { tw: -2, hx: 1.5 }), K(4, 3, [4, -8], [2, -8], [8, 0], [-7, 0])),
     neutralB: groundSlam(),
     sideB: shoulderCharge(),
     nair: nairStar(18, -8),
     fair: fairArm([-4, -34], [20, 10], {}, 'both'),
     bair: bairArm(22, -12),
-    uair: uairArm(4, -42, true),
+    // the crystal horn is a headbutt: arms swept down and back, the crown driven straight up
+    uair: C(K(1, 2, [6, -8], [-6, -8], [5, 13], [0, 14]), K(-1, 0, [-6, 8], [-12, 6], [3, 6], [-5, 9], { bob: -1.5, hy: -2.5 }), K(0, 0, [2, 0], [-6, 0], [5, 8], [-4, 10], { hy: -1 })),
     dair: dairStomp(),
   },
   rime: {
@@ -286,7 +306,10 @@ export const POSE_BOOK: Record<string, Record<string, Entry>> = {
     detonateC4: C(K(0, 1, [6, -12], [0, -8], [6, 0], [-6, 0]), K(4, 4, [15, -16], [2, -10], [9, 0], [-7, 0], { hy: 0.5 }), K(2, 2, [10, -14], [0, -8], [7, 0], [-6, 0])),
     jab1: jabLead(15, -12),
     jab2: jabCross(16, -12),
-    ftilt: C(K(-5, 3, [-6, -14], [-10, -12], [8, 0], [-9, 0], { tw: 2 }), K(8, 3, [20, -14], [14, -12], [12, 0], [-10, 0], { tw: -1 }), K(3, 2, [10, -10], [6, -10], [8, 0], [-7, 0])),
+    // the rifle butt is a rising butt-stroke: the rifle hauled down by the hip, then the stock driven up at the jaw
+    ftilt: C(K(-5, 4, [-8, 4], [-12, 2], [8, 0], [-9, 0], { tw: 3 }), K(9, 3, [20, -24], [12, -26], [13, 0], [-10, 0], { tw: -2, hy: -0.5 }), K(3, 2, [10, -14], [6, -14], [8, 0], [-7, 0])),
+    // the rising kick goes all the way up: the front boot snapped up past the head off the planted leg
+    utilt: C(K(1, 3, [6, -12], [0, -10], [5, 0], [-5, 0]), K(-10, 0, [10, -4], [-10, -8], [8, 44], [-6, 0], { tw: -1, hy: 0.5 }), K(-4, 1, [6, -8], [-4, -6], [8, 20], [-6, 0])),
     dashAttack: shoulderCharge(),
     fsmash: C(K(2, 6, [10, -16], [4, -16], [10, 0], [-11, 0]), K(-8, 5, [14, -18], [8, -17], [11, 0], [-12, 0], { hx: -1.5, tw: 1 }), K(-3, 4, [12, -16], [6, -15], [9, 0], [-10, 0])),
     nair: nairStar(16, -10),

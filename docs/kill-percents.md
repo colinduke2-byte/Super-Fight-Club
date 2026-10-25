@@ -45,8 +45,8 @@ Blast zone of the strict (pure launch) kills over every non-ultimate cell: top 2
 | vex | f-smash | 110S | 85S | 120T | 100S | 160B / 165S (175) | 115B / 115B (140) | hitbox 12.06d 50deg b52.3 s0.994 (+6.5% earlier hits) |
 | vex | u-smash | 115T | 115T | 130T | 130T | 200T | 200T | hitbox 13.11d 88deg b38 s0.85 |
 | vex | d-smash | 130S | 105S | 150B / 150S (155) | 110B / 110B (125) | 170B / 170B (195) | 130B / 130B (160) | hitbox 10.92d 40deg b36.7 s0.89 |
+| vex | bair | 145S | 115S | 165B / 165S (175) | 120B / 120B (140) | 190B / 190B (215) | 145B / 145B (175) | hitbox 9.5d 140deg b35 s0.82 |
 | vex | fair | 150S | 120S | 170B / 170S (180) | 125B / 125B (145) | 200B / 200B (225) | 145B / 145B (185) | hitbox 10d 40deg b39 s0.77 |
-| vex | bair | 150S | 120S | 175B / 175S (180) | 125B / 125B (145) | 200B / 200B (225) | 150B / 150B (185) | hitbox 9d 140deg b35 s0.79 |
 | vex | bthrow | 165S | 125S | 195S | 135B / 135B (150) | 225B / 225B (255) | 165B / 165B (205) | hitbox 7d 135deg b54.3 s0.679 |
 | vex | ultimate | 45T | 30S | 60T | 50S | 130B / 130S (145) | 70B / 75B (100) | cinematic, 34.5d total |
 | nova | f-smash | 120S | 95S | 135B / 135S (145) | 95B / 95B (115) | 160B / 160B (190) | 115B / 115B (150) | hitbox 17.3d 38deg b41.8 s0.856 |

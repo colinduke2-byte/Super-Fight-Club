@@ -263,6 +263,8 @@ export function drawHavoc(r: Raster, k: Skel, look: PlaceholderLook): void {
       r.rect(P.web, hx + hs * 0.74, hy + 2, 1, 5); // the bridge
       r.rect(P.glow, hx + hs * 0.52, hy + 3, 2, 1);
       r.rect(P.glow, hx + hs * 0.8, hy + 3, 2, 1);
+      // striking: the lenses catch the light right across
+      if ((k.pose.hit ?? 0) >= 0.6) r.rect(P.glow, hx + hs * 0.5, hy + 4, hs * 0.5, 1);
     }
   }
 

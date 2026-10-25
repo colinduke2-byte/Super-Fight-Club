@@ -240,6 +240,59 @@
     "gravity": -12,
     "additive": false,
     "color": "#8a8680"
+   },
+   {
+    "p": "wisp",
+    "at": "back",
+    "on": "start",
+    "moves": [
+     "fsmash"
+    ],
+    "count": 6,
+    "dir": "back",
+    "speed": 90,
+    "jitter": 50,
+    "spread": 10,
+    "life": 0.7,
+    "size": 5,
+    "gravity": -20,
+    "additive": false,
+    "color": [
+     "#8a8680",
+     "#c8c0b8"
+    ]
+   },
+   {
+    "p": "line",
+    "on": "hit",
+    "count": 4,
+    "dir": "random",
+    "speed": 160,
+    "color": "#ffe9a8"
+   },
+   {
+    "p": "debris",
+    "at": "feet",
+    "on": "start",
+    "moves": [
+     "dtilt",
+     "dsmash",
+     "dashAttack"
+    ],
+    "count": 3,
+    "dir": "up",
+    "speed": 60,
+    "jitter": 60,
+    "spread": 20,
+    "life": 0.45,
+    "size": 3,
+    "gravity": 300,
+    "spin": 8,
+    "additive": false,
+    "color": [
+     "#7a7260",
+     "#a89a80"
+    ]
    }
   ]
  }

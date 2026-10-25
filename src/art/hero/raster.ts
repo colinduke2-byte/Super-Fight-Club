@@ -21,6 +21,10 @@ export interface PartDef {
 const mix = (a: RGB, b: RGB, t: number): RGB => [a[0] + (b[0] - a[0]) * t, a[1] + (b[1] - a[1]) * t, a[2] + (b[2] - a[2]) * t];
 const mul = (c: RGB, k: number): RGB => [Math.min(255, c[0] * k), Math.min(255, c[1] * k), Math.min(255, c[2] * k)];
 
+/** Scratch copies for Raster.flex (one frame's worth, reused). */
+let flexId: Uint16Array | null = null;
+let flexOver: Uint32Array | null = null;
+
 export class Raster {
   readonly id: Uint16Array;
   readonly parts: PartDef[] = [{ color: [0, 0, 0] }];
@@ -176,6 +180,61 @@ export class Raster {
       }
     }
     return out;
+  }
+
+  /**
+   * Bend the drawn body in place (nearest-neighbour, so it stays crisp): scale it by `sx` / `sy` about column `cx` and the
+   * floor row `base` (a squash or stretch that keeps the feet planted), then shear everything above the (scaled) hip row
+   * forward by `tilt` pixels per pixel of height, so the chest tips over the hips. The shear is held back so nothing is
+   * pushed out of the frame. A no-op for the identity.
+   */
+  flex(cx: number, base: number, hipY: number, sx: number, sy: number, tilt: number): void {
+    if (sx === 1 && sy === 1 && tilt === 0) return;
+    const W = this.w;
+    const H = this.h;
+    if (!flexId || flexId.length !== W * H) {
+      flexId = new Uint16Array(W * H);
+      flexOver = new Uint32Array(W * H);
+    }
+    const sid = flexId;
+    const sov = flexOver!;
+    sid.set(this.id);
+    sov.set(this.over);
+    let minX = W;
+    let maxX = -1;
+    let minY = H;
+    for (let y = 0; y < H; y++)
+      for (let x = 0; x < W; x++)
+        if (sid[y * W + x]) {
+          if (x < minX) minX = x;
+          if (x > maxX) maxX = x;
+          if (y < minY) minY = y;
+        }
+    if (maxX < 0) return;
+    const hy = base - (base - hipY) * sy;
+    const top = base - (base - minY) * sy;
+    // room left in the frame on the side the shear pushes toward (after the scale)
+    const ex0 = cx + (minX - cx) * sx;
+    const ex1 = cx + (maxX - cx) * sx;
+    const room = tilt > 0 ? W - 2 - ex1 : ex0 - 1;
+    const rise = Math.max(1, hy - top);
+    const t = Math.sign(tilt) * Math.min(Math.abs(tilt), Math.max(0, room) / rise);
+    this.id.fill(0);
+    this.over.fill(0);
+    for (let y = 0; y < H; y++) {
+      const ys = Math.round(base - (base - y - 0.5) / sy - 0.5);
+      if (ys < 0 || ys >= H) continue;
+      const sh = y < hy ? (hy - y) * t : 0;
+      for (let x = 0; x < W; x++) {
+        const xs = Math.round(cx + (x + 0.5 - sh - cx) / sx - 0.5);
+        if (xs < 0 || xs >= W) continue;
+        const i = ys * W + xs;
+        const v = sid[i];
+        if (!v) continue;
+        this.id[y * W + x] = v;
+        this.over[y * W + x] = sov[i];
+      }
+    }
   }
 
   /** Light every part pixel by its edge distance (see the file comment) and write RGBA into `out` (alpha 255 where painted). */

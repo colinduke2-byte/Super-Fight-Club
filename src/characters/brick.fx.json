@@ -785,6 +785,126 @@
     "life": 0.22,
     "size": 2,
     "color": "#ffd27a"
+   },
+   {
+    "p": "wisp",
+    "at": "tail",
+    "on": "start",
+    "limbs": [
+     "fist"
+    ],
+    "count": 3,
+    "dir": "back",
+    "speed": 55,
+    "jitter": 30,
+    "spread": 6,
+    "life": 0.5,
+    "size": 4,
+    "gravity": -40,
+    "additive": false,
+    "color": [
+     "#e8ecf2",
+     "#b8bcc8"
+    ]
+   },
+   {
+    "p": "ring",
+    "at": "feet",
+    "on": "start",
+    "moves": [
+     "dsmash",
+     "fsmash"
+    ],
+    "size": 34,
+    "life": 0.3,
+    "color": "#ffd9a0"
+   },
+   {
+    "p": "debris",
+    "at": "feet",
+    "on": "start",
+    "moves": [
+     "dsmash",
+     "fsmash"
+    ],
+    "count": 6,
+    "dir": "up",
+    "speed": 90,
+    "jitter": 90,
+    "spread": 30,
+    "life": 0.6,
+    "size": 4,
+    "gravity": 300,
+    "spin": 8,
+    "additive": false,
+    "color": [
+     "#a89a8c",
+     "#d8cabc"
+    ]
+   },
+   {
+    "p": "ember",
+    "at": "limb",
+    "on": "charge",
+    "every": 2,
+    "kinds": [
+     "smash"
+    ],
+    "count": 2,
+    "dir": "up",
+    "speed": 30,
+    "jitter": 30,
+    "spread": 14,
+    "life": 0.5,
+    "size": 3,
+    "gravity": -30,
+    "res": "heat",
+    "color": [
+     "#ff7a2e",
+     "#ffb02e",
+     "#ff4a1e"
+    ]
+   },
+   {
+    "p": "mote",
+    "at": "body",
+    "on": "charge",
+    "every": 3,
+    "kinds": [
+     "smash"
+    ],
+    "count": 2,
+    "dir": "random",
+    "speed": 14,
+    "spread": 22,
+    "life": 0.35,
+    "size": 4,
+    "res": "heat",
+    "color": [
+     "#ff7a2e",
+     "#ff4a1e"
+    ]
+   },
+   {
+    "p": "ring",
+    "at": "limb",
+    "on": "release",
+    "kinds": [
+     "smash"
+    ],
+    "size": 26,
+    "life": 0.25,
+    "res": "heat",
+    "color": "#ff7a2e"
+   },
+   {
+    "p": "spark",
+    "on": "hit",
+    "count": 8,
+    "speed": 150,
+    "life": 0.22,
+    "size": 2,
+    "color": "#ffd27a"
    }
   ]
  }

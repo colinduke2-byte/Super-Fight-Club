@@ -477,7 +477,7 @@
    "name": "Staff Thrust",
    "kind": "tilt",
    "anim": "jab",
-   "startup": 8,
+   "startup": 7,
    "active": 3,
    "recovery": 12,
    "cancels": [

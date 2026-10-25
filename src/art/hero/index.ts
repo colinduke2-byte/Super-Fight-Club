@@ -33,6 +33,9 @@ const DRAWERS: Partial<Record<PlaceholderLook['build']['helmet'], (r: Raster, k:
   goggles: drawHavoc,
 };
 
+/** Builds whose drawers take the attack rows' squash / stretch and tilt (Pose.flex): the bulky ones, whose limbs alone barely change the silhouette. */
+const FLEX = new Set<string>(['visor', 'geode', 'goggles', 'fin']);
+
 /** The same frame as pixels (lit, not yet outlined), without a canvas round trip: the sheet builder finishes it in place. */
 export function renderHeroImage(W: number, H: number, look: PlaceholderLook, pose: HeroPose, phase: number): ImageData {
   let r = new Raster(W, H);
@@ -45,6 +48,9 @@ export function renderHeroImage(W: number, H: number, look: PlaceholderLook, pos
   // attack rows carry their own sway phase (Pose.ph), so cloth and hair move on smoothly through the action
   const k = skeleton(look, stand, W, H, posed.ph ?? phase);
   DRAWERS[look.build.helmet]?.(r, k, look);
+  // the chunky builds bend through their attacks: squashed into the coil, stretched along the strike, tipped into a lunge
+  const fx = posed.flex;
+  if (fx && !lying && FLEX.has(look.build.helmet)) r.flex(k.cx, k.base, k.hipY, fx[0], fx[1], fx[2]);
   // (the boss keeps its own lying placement)
   if (lying) r = r.lyingDown(H - 4, W / 2 - 5 * (H / 64), look.build.helmet === 'monolith' ? undefined : k.torso.x + 2);
   const img = new ImageData(W, H);

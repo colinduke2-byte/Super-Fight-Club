@@ -72,6 +72,7 @@ export const brick: CharacterData = {
   toughness: TOUGH,
   sprite: {
     frameSize: 160,
+    frameWidth: 208, // room for the piston punches
     pixelScale: 0.29,
     animations: {
       idle: { frames: 6, fps: 7, loop: true },

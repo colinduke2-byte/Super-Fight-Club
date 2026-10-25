@@ -215,6 +215,8 @@ export function drawRiptide(r: Raster, k0: Skel, look: PlaceholderLook): void {
     if (o !== 2) {
       r.poly(P.eye, [[hx + hs * 0.6, hy + hs * 0.42], [hx + hs * 0.86, hy + hs * 0.4], [hx + hs * 0.8, hy + hs * 0.5], [hx + hs * 0.62, hy + hs * 0.5]]);
       r.rect(P.mouth, hx + hs * 0.74, hy + hs * 0.41, 1.5, hs * 0.09);
+      // striking: the eye flashes, a glint streaking off it
+      if ((k0.pose.hit ?? 0) >= 0.6) r.rect(P.eye, hx + hs * 0.86, hy + hs * 0.42, 3 + (k0.pose.hit ?? 0) * 4, 1);
     }
     // gill marks behind the jaw
     for (let i = 0; i < 2; i++) r.seg(P.gill, hx + 4 + i * 3, hy + hs * 0.55, hx + 3 + i * 3, hy + hs - 3, 1.2, 1);

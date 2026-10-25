@@ -26,6 +26,13 @@ export interface Pose {
   twist?: number;
   /** Cloth / hair sway phase for this frame (attack rows set it so loose parts move on smoothly instead of jittering per frame). */
   ph?: number;
+  /**
+   * Flowing attack rows: body squash / stretch and tilt for the drawers that bend a chunky body (hero/index.ts FLEX):
+   * [sx, sy, tilt] (scale about the feet, then a forward shear above the hips per pixel of height).
+   */
+  flex?: [number, number, number];
+  /** Flowing attack rows: how hard this frame is striking, 0 .. 1 (visor flares, jets, glowing fittings). */
+  hit?: number;
   /** Set by poseFor: the row and frame this pose was made for (lets the hero renderer apply a fighter's own motion style). */
   anim?: string;
   f?: number;
@@ -896,6 +903,8 @@ function attackPose(anim: string, f: number, p: Pose, frames = 3): void {
     set(fr.key);
     p.grav = fr.grav;
     p.ph = fr.ph;
+    p.flex = fr.flex;
+    p.hit = fr.hit;
     return;
   }
   if (frames >= 6 && row.length === 3) {
@@ -964,6 +973,8 @@ interface FlowFrame {
   key: Key;
   grav: V2;
   ph: number;
+  flex: [number, number, number];
+  hit: number;
 }
 /** Which limb (2 front hand, 3 back hand, 4 front foot, 5 back foot) travels furthest from wind-up to strike. */
 function leadLimb(A: Key, B: Key): number {
@@ -1114,5 +1125,57 @@ function flowFrame(row: [Key, Key, Key], fl: Flow, f: number): FlowFrame {
   // loose parts trail opposite the strike's motion (u), turned into the direction gravity hangs them
   const gx = -u[0] * s;
   const gy = 1 - u[1] * s * 0.6;
-  return { key, grav: [qa(gx), qa(Math.max(0.2, gy))], ph };
+  // squash and stretch: squashed into the coil, stretched along the strike (tall for a rising strike, flattened for one
+  // driven down into the floor), squashed again by the impact of the overshoot; airborne bodies flex less
+  const up = Math.max(0, -u[1]);
+  const down = Math.max(0, u[1]);
+  const strikeSy = 1 + w * (0.08 * up - 0.09 * down - 0.02 * (1 - up - down));
+  let sy: number;
+  let hit: number;
+  switch (f) {
+    case FLOW_SLOT.lift:
+      sy = 1 + 0.03 * w;
+      hit = 0;
+      break;
+    case FLOW_SLOT.wind:
+      sy = 1 - 0.03 * w;
+      hit = 0;
+      break;
+    case FLOW_SLOT.coil:
+      sy = 1 - 0.08 * w - 0.02;
+      hit = 0.1;
+      break;
+    case FLOW_SLOT.breakdown:
+      sy = 1 - 0.02 * w;
+      hit = 0.25;
+      break;
+    case FLOW_SLOT.smear:
+      sy = 1 + (0.03 + 0.04 * w) * (up > 0.5 ? 1.4 : 1) - 0.06 * down * w;
+      hit = 0.6;
+      break;
+    case FLOW_SLOT.strike:
+      sy = strikeSy;
+      hit = 1;
+      break;
+    case FLOW_SLOT.extend:
+      sy = mixN(strikeSy, 1, 0.3);
+      hit = 0.8;
+      break;
+    case FLOW_SLOT.over:
+      sy = 1 - 0.05 * w - 0.01;
+      hit = 0.45;
+      break;
+    case FLOW_SLOT.recover:
+      sy = 1 - 0.02 * w;
+      hit = 0.1;
+      break;
+    default:
+      sy = 1 - 0.01 * w;
+      hit = 0;
+  }
+  if (air) sy = 1 + (sy - 1) * 0.6;
+  const sx = 1 + (1 - sy) * 0.7;
+  // the chest tips over the hips with the lean (a heavy body rotates into a lunge instead of only sliding along)
+  const tilt = Math.max(-0.22, Math.min(0.3, key[0] * (0.014 + 0.008 * w)));
+  return { key, grav: [qa(gx), qa(Math.max(0.2, gy))], ph, flex: [Math.round(sx * 1000) / 1000, Math.round(sy * 1000) / 1000, Math.round(tilt * 1000) / 1000], hit };
 }

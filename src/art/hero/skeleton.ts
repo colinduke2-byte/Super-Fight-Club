@@ -20,6 +20,12 @@ export interface HeroPose {
   head?: V2;
   /** Torso twist (units): + pulls the near shoulder back and brings the far one forward. */
   twist?: number;
+  /** Attack rows: squash / stretch and tilt [sx, sy, tilt] (see poses.ts Pose.flex). */
+  flex?: [number, number, number];
+  /** Attack rows: how hard this frame strikes, 0 .. 1. */
+  hit?: number;
+  /** The row this pose was made for (set by poseFor). */
+  anim?: string;
 }
 
 /**

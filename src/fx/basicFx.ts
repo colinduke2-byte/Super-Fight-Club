@@ -53,6 +53,12 @@ export interface BasicEmitter {
   /** One colour or a list cycled per particle ('@trail' follows the current element / trail colour). */
   color: FxColor | FxColor[];
   additive?: boolean;
+  /**
+   * Scale by one of the fighter's resources (`f.res[res]`, e.g. Brick's 'heat'): the count (and a flash's size) grows with
+   * res / resMax (default 100), and the emitter is silent at 0.
+   */
+  res?: string;
+  resMax?: number;
   /** Filters. */
   kinds?: string[];
   moves?: string[];
@@ -366,6 +372,8 @@ export function validateBasic(owner: string, b: BasicFx | undefined): void {
     }
     if (e.at && !['head', 'tail', 'limb', 'feet', 'body', 'back'].includes(e.at)) throw new Error(`${owner}.fx.basic.emitters[${i}]: bad 'at'`);
     if (e.on && !['active', 'start', 'charge', 'release', 'hit'].includes(e.on)) throw new Error(`${owner}.fx.basic.emitters[${i}]: bad 'on'`);
+    if (e.res !== undefined && (typeof e.res !== 'string' || !e.res)) throw new Error(`${owner}.fx.basic.emitters[${i}]: bad 'res'`);
+    if (e.resMax !== undefined && !(e.resMax > 0)) throw new Error(`${owner}.fx.basic.emitters[${i}]: 'resMax' must be > 0`);
   });
   if (b.trail2 !== undefined && typeof b.trail2 === 'string' && !/^#[0-9a-fA-F]{6}$/.test(b.trail2) && b.trail2 !== '@accent') throw new Error(`${owner}.fx.basic.trail2: bad colour`);
   if (b.ghosts !== undefined && !(b.ghosts >= 0 && b.ghosts <= 2)) throw new Error(`${owner}.fx.basic.ghosts: 0..2`);
