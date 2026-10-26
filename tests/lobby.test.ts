@@ -11,6 +11,31 @@ describe('Lobby', () => {
     expect(l.humans()).toBe(2);
   });
 
+  it('a growing (versus) lobby opens another slot when everyone is a player, up to four', () => {
+    const l = new Lobby(2, 4, { grow: true });
+    expect(l.join('kb1')).toBe(0);
+    expect(l.join('kb2')).toBe(1);
+    expect(l.join('pad0')).toBe(2);
+    expect(l.playerCount).toBe(3);
+    expect(l.join('pad1')).toBe(3);
+    expect(l.join('pad2')).toBe(-1);
+    expect(l.playerCount).toBe(4);
+    // a fixed-size lobby stays full
+    const f = new Lobby(2, 4);
+    f.join('kb1');
+    f.join('kb2');
+    expect(f.join('pad0')).toBe(-1);
+    expect(f.playerCount).toBe(2);
+  });
+
+  it('a joining player takes a CPU slot before the lobby grows', () => {
+    const l = new Lobby(2, 4, { grow: true });
+    l.join('kb1');
+    l.fillWithCpu();
+    expect(l.join('kb2')).toBe(1);
+    expect(l.playerCount).toBe(2);
+  });
+
   it('confirm joins first, then locks; back unlocks, then leaves', () => {
     const l = new Lobby(2, 4);
     expect(l.confirm('kb1')).toBe(true);

@@ -68,9 +68,9 @@ interface Card {
 /** How long the lobby waits once everyone is locked in before the fight starts by itself (seconds). */
 export const AUTO_START_SEC = 1.5;
 
-/** The versus setup chips along the top of the lobby: rules, the stage strip and its form, every stage, the CPUs. */
-type ChipId = 'rules' | 'stage' | 'form' | 'all' | 'cpu';
-const CHIP_IDS: readonly ChipId[] = ['rules', 'stage', 'form', 'all', 'cpu'];
+/** The versus setup chips along the top of the lobby: how many fight, rules, the stage strip and its form, every stage, the CPUs. */
+type ChipId = 'players' | 'rules' | 'stage' | 'form' | 'all' | 'cpu';
+const CHIP_IDS: readonly ChipId[] = ['players', 'rules', 'stage', 'form', 'all', 'cpu'];
 
 /**
  * The lobby as it was when it opened another screen (the full rules, every stage) or rebuilt itself for a new player
@@ -174,7 +174,7 @@ export class CharacterSelectScene extends MenuScene {
     if (session.mode === 'versus') prepareVersus();
     // a challenge with a set fighter: the cursor starts (and stays) on them (and there is no RANDOM tile)
     const fixed = this.fixedFighter();
-    this.lobby = new Lobby(session.playerCount, CHARACTER_LIST.length, { random: fixed < 0, palettes: (ci) => (CHARACTER_LIST[ci] ? paletteCount(CHARACTER_LIST[ci].id) : 1) });
+    this.lobby = new Lobby(session.playerCount, CHARACTER_LIST.length, { random: fixed < 0, grow: session.mode === 'versus', palettes: (ci) => (CHARACTER_LIST[ci] ? paletteCount(CHARACTER_LIST[ci].id) : 1) });
     const versus = session.mode === 'versus';
     this.lobby.teams = versus && session.rules.teams;
     this.lobby.stockRule = session.rules.mode !== 'time';
@@ -343,11 +343,41 @@ export class CharacterSelectScene extends MenuScene {
     return skills.size === 1 ? `LV ${[...skills][0]}` : 'MIXED';
   }
 
+  /** The PLAYERS chip: the match size (1V1 / 3-WAY / 4-WAY / 2V2), short so the chips keep to one row. */
+  private playersLabel(): string {
+    const n = session.playerCount;
+    if (n <= 2) return '< 1V1 >';
+    if (session.rules.teams) return n === 4 ? '< 2V2 >' : `< ${n} TEAMS >`;
+    return `< ${n}-WAY >`;
+  }
+
+  /** Step the match size (2-4, never fewer slots than players joined); the lobby rebuilds with everyone's picks kept. */
+  private stepPlayers(dir: number): void {
+    const lo = Math.max(2, this.lobby.humans());
+    let n = session.playerCount + dir;
+    if (n > 4) n = lo;
+    else if (n < lo) n = 4;
+    this.setPlayerCount(n);
+  }
+
+  /** A new match size: saved with the rules, and the lobby rebuilt for it (everyone's picks are kept). */
+  private setPlayerCount(n: number): void {
+    if (n === session.playerCount) return;
+    session.playerCount = n;
+    const r = session.rules;
+    if (r.teamOf && r.teamOf.length !== n) r.teamOf = undefined;
+    if (n < 3) r.teams = false;
+    saveLastRules(r, n);
+    this.leaveFor('CharacterSelect');
+  }
+
   private chipLabel(id: ChipId): string {
     const r = session.rules;
     switch (id) {
+      case 'players':
+        return this.playersLabel();
       case 'rules':
-        return `RULES: ${lobbyPresetName(r, this.savedRules)}  ${rulesSummary(r)}`;
+        return `${lobbyPresetName(r, this.savedRules)}: ${rulesSummary(r)}`;
       case 'stage': {
         const pick = this.stagePick();
         return `< ${pick === 'random' ? 'RANDOM STAGE' : (STAGE_LIST.find((st) => st.id === pick)?.name ?? pick).toUpperCase()} >`;
@@ -390,7 +420,7 @@ export class CharacterSelectScene extends MenuScene {
     // whole-pixel text, as large as the chip's height allows
     let k = Math.max(1, Math.floor(Math.min(u * 1.25, (h * 0.55) / 7)));
     const right = w - 5 * u;
-    const widthsAt = (kk: number): number[] => this.chips.map((c) => Math.max(textPx(c.t) * kk + 10 * u, tap));
+    const widthsAt = (kk: number): number[] => this.chips.map((c) => Math.max(textPx(c.t) * kk + 7 * u, tap));
     let widths = widthsAt(k);
     // a landscape screen keeps the chips on one row (smaller text) rather than taking a second row from the cards
     if (w > this.scale.height * 1.4) {
@@ -428,7 +458,7 @@ export class CharacterSelectScene extends MenuScene {
         const c = this.chips[j];
         const cw = widths[j] * fit;
         c.box = { x, y: r.y, w: cw, h };
-        c.t.setScale(Math.min(k, (cw - 6 * u) / Math.max(1, textPx(c.t)))).setPosition(x + cw / 2, r.y + h / 2);
+        c.t.setScale(Math.min(k, (cw - 4 * u) / Math.max(1, textPx(c.t)))).setPosition(x + cw / 2, r.y + h / 2);
         x += cw + gap;
       }
     }
@@ -446,11 +476,11 @@ export class CharacterSelectScene extends MenuScene {
     }
     this.chips.forEach((c, i) => {
       const sel = focusBy.has(i) || this.chipHover === i;
-      const accent = c.id === 'rules' ? COLORS.title : c.id === 'cpu' ? COLORS.dim : COLORS.accent;
+      const accent = c.id === 'rules' || c.id === 'players' ? COLORS.title : c.id === 'cpu' ? COLORS.dim : COLORS.accent;
       drawButton(g, c.box.x, c.box.y, c.box.w, c.box.h, u, { sel, accent, glow: settings.reduceMotion ? 1 : 0.6 + 0.4 * Math.sin(time * 6) });
       const col = focusBy.get(i);
       if (col !== undefined && col !== COLORS.hot) g.lineStyle(u, col, 1).strokeRect(c.box.x - 2 * u, c.box.y - 2 * u, c.box.w + 4 * u, c.box.h + 4 * u);
-      c.t.setTint(sel ? COLORS.hot : c.id === 'rules' ? COLORS.title : COLORS.text).setAlpha(this.panel ? 0.5 : 1);
+      c.t.setTint(sel ? COLORS.hot : c.id === 'rules' || c.id === 'players' ? COLORS.title : COLORS.text).setAlpha(this.panel ? 0.5 : 1);
     });
   }
 
@@ -460,6 +490,9 @@ export class CharacterSelectScene extends MenuScene {
     if (!c) return;
     this.countdownAt = null;
     switch (c.id) {
+      case 'players':
+        this.stepPlayers(dir);
+        break;
       case 'rules':
         this.openPanel('rules', dev);
         break;
@@ -495,6 +528,7 @@ export class CharacterSelectScene extends MenuScene {
         const d = e.action === 'up' ? -1 : 1;
         if (c.id === 'stage') this.stepStage(d);
         else if (c.id === 'form') this.stepForm(d);
+        else if (c.id === 'players') this.stepPlayers(-d);
         this.refreshChips();
         break;
       }
@@ -584,14 +618,7 @@ export class CharacterSelectScene extends MenuScene {
     if (at >= 0) this.lists.splice(at, 1);
     for (const o of [p.g, p.head, p.desc]) o.destroy();
     this.refreshChips();
-    if (apply && p.kind === 'rules' && this.pendingCount !== session.playerCount) {
-      session.playerCount = this.pendingCount;
-      const r = session.rules;
-      if (r.teamOf && r.teamOf.length !== session.playerCount) r.teamOf = undefined;
-      if (session.playerCount < 3) r.teams = false;
-      saveLastRules(r, session.playerCount);
-      this.leaveFor('CharacterSelect');
-    }
+    if (apply && p.kind === 'rules') this.setPlayerCount(this.pendingCount);
   }
 
   private layoutPanel(): void {
@@ -862,6 +889,11 @@ export class CharacterSelectScene extends MenuScene {
   protected override tick(time: number): void {
     this.now = time;
     const l = this.lobby;
+    // a player joined a full lobby and opened another slot: rebuild the cards for the bigger match
+    if (l.playerCount !== this.cards.length && session.mode === 'versus') {
+      if (l.playerCount !== session.playerCount) this.setPlayerCount(l.playerCount);
+      return;
+    }
     this.syncProfiles();
     const editors = this.editors(time);
     this.cards.forEach((c, i) => {
@@ -1034,7 +1066,7 @@ export class CharacterSelectScene extends MenuScene {
     const card = d ? l.focusOf(d.id) : -1;
     const touch = deviceKind(d) === 'touch';
     // a touch screen has no "alt" button: CPUs are set up from a keyboard or pad
-    const cpus: [MenuVerb, string][] = session.mode === 'versus' && !touch ? [['alt', 'RULES, STAGE, CPUS']] : [];
+    const cpus: [MenuVerb, string][] = session.mode === 'versus' && !touch ? [['alt', 'PLAYERS, RULES, STAGE']] : [];
     if (this.panel) return footerHint([['updown', 'MOVE'], ['leftright', 'CHANGE'], ['confirm', 'SELECT'], ['back', 'CLOSE']], d);
     if (d && this.chipFocus.has(d.id)) return footerHint([['leftright', 'CHOOSE'], ['updown', 'CHANGE'], ['confirm', 'PRESS'], ['back', 'DONE']], d);
     if (d && i >= 0 && card !== i) return footerHint([['updown', 'ROW'], ['leftright', 'CHANGE'], ['confirm', 'NEXT CARD'], ['back', 'DONE']], d);
@@ -1269,7 +1301,7 @@ export class CharacterSelectScene extends MenuScene {
       this.lastDevice = dev;
       const b = this.chips[ci].box;
       // the stage chip's left part goes back a stage, the rest forward
-      this.useChip(ci, dev, this.chips[ci].id === 'stage' && q.x < b.x + b.w * 0.35 ? -1 : 1);
+      this.useChip(ci, dev, (this.chips[ci].id === 'stage' || this.chips[ci].id === 'players') && q.x < b.x + b.w * 0.35 ? -1 : 1);
       return;
     }
     // the CONTINUE button (a finger's margin around it)

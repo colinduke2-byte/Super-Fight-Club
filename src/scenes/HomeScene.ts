@@ -4,7 +4,7 @@ import { ensureFightersReady, ensurePalette, fighterAnimKey, fighterTextureKey, 
 import { characterById } from '../characters';
 import { sfx } from '../audio/sfx';
 import { lastFighter } from '../game/quick';
-import { loadLastSetup, prepareVersus, startLastSetup } from '../game/lastSetup';
+import { loadLastSetup, prepareOneVsOne, startLastSetup } from '../game/lastSetup';
 import { markTutorialOffered, shouldOfferTutorial, startTutorial } from '../game/tutorial';
 import type { InputDevice } from '../input/device';
 import type { MenuEvent } from '../input/menuInput';
@@ -92,7 +92,7 @@ export class HomeScene extends MenuScene {
     const stage = last ? (last.stage === 'random' ? 'RANDOM STAGE' : STAGES[last.stage]?.name) : undefined;
     const subs: Record<TileId, string> = {
       play: last && names.length ? `${names.join(' VS ')}${stage ? `  -  ${stage}` : ''}` : 'PICK A FIGHTER AND GO',
-      battle: 'VERSUS: 2-4 PLAYERS OR CPUS',
+      battle: '1 VS 1: A FRIEND OR A CPU, UP TO 4',
       more: 'ARCADE, SOLO, EXTRAS',
     };
     this.labels.clear();
@@ -404,9 +404,9 @@ export class HomeScene extends MenuScene {
     this.go(key, data);
   }
 
-  /** BATTLE: versus with the last rules, at character select. */
+  /** BATTLE: a 1 vs 1 with the last rules, at character select (more players join there, or the size chip adds slots). */
   private battle(): void {
-    prepareVersus();
+    prepareOneVsOne();
     this.go('CharacterSelect');
   }
 

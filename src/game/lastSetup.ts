@@ -279,6 +279,13 @@ export function prepareVersus(s: Session = session): void {
 }
 let versusPrepared = false;
 
+/** BATTLE: a versus lobby that opens as a 1 vs 1 (the last rules kept, teams off); more players join there. */
+export function prepareOneVsOne(s: Session = session): void {
+  prepareVersus(s);
+  s.playerCount = 2;
+  s.rules = { ...s.rules, teams: false, teamOf: undefined };
+}
+
 /** Tests: forget that a versus lobby was prepared this run. */
 export function resetPrepareForTest(): void {
   versusPrepared = false;

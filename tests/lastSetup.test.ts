@@ -2,7 +2,7 @@ import { beforeEach, describe, expect, it } from 'vitest';
 import type { InputDevice } from '../src/input/device';
 import { CHARACTER_LIST } from '../src/characters';
 import { STAGE_LIST } from '../src/stages';
-import { LAST_SETUP_KEY, applySetup, devicesFor, loadLastSetup, prepareVersus, resetPrepareForTest, sanitizeSetup, saveLastSetup, setupFromSession, startLastSetup, versusTitle } from '../src/game/lastSetup';
+import { LAST_SETUP_KEY, applySetup, devicesFor, loadLastSetup, prepareOneVsOne, prepareVersus, resetPrepareForTest, sanitizeSetup, saveLastSetup, setupFromSession, startLastSetup, versusTitle } from '../src/game/lastSetup';
 import { Lobby } from '../src/game/lobby';
 import { LOBBY_PRESETS, PRESETS, applyLobbyPreset, lobbyPresetName, loadSavedRules, resetRulesRestoreForTest, rulesSummary, saveLastRules } from '../src/game/rulesets';
 import { DEFAULT_RULES, newSession, session, type Session } from '../src/game/session';
@@ -155,6 +155,18 @@ describe('last setup (PLAY repeats the last versus setup)', () => {
     s.rules.stocks = 2;
     prepareVersus(s);
     expect(s.rules.stocks).toBe(2); // once per run
+  });
+
+  it('prepareOneVsOne (BATTLE): opens a 1 vs 1 even after a saved 4-player team battle, keeping the other rules', () => {
+    resetPrepareForTest();
+    resetRulesRestoreForTest();
+    saveLastRules({ ...DEFAULT_RULES, stocks: 4, teams: true }, 4);
+    const s = newSession();
+    prepareOneVsOne(s);
+    expect(s.mode).toBe('versus');
+    expect(s.playerCount).toBe(2);
+    expect(s.rules.teams).toBe(false);
+    expect(s.rules.stocks).toBe(4);
   });
 
   it('versusTitle names the rules', () => {

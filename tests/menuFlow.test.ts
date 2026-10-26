@@ -67,7 +67,7 @@ describe('Home', () => {
   it('PLAY starts the last setup, falling back to versus character select; BATTLE and MORE lead on', () => {
     const home = src('scenes/HomeScene.ts');
     expect(home).toMatch(/startLastSetup\(this,/);
-    expect(home).toMatch(/prepareVersus\(\);\s*this\.go\('CharacterSelect'\)/);
+    expect(home).toMatch(/prepareOneVsOne\(\);\s*this\.go\('CharacterSelect'\)/);
     expect(home).toContain("this.go('ModeSelect')");
     expect(home).toContain('markTutorialOffered()');
   });

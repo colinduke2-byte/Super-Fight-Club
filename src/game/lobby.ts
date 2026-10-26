@@ -59,6 +59,8 @@ export interface LobbyOptions {
   random?: boolean;
   /** Outfits per roster index (for cycling palettes); default 1. */
   palettes?: (character: number) => number;
+  /** A device joining a lobby whose every slot is a human's opens another slot (up to MAX_SLOTS): versus. */
+  grow?: boolean;
 }
 
 /** Default team per slot (the same layout as session.defaultTeams). */
@@ -75,6 +77,7 @@ export class Lobby {
   /** Cards offer handicap rows (versus). */
   handicaps = true;
   readonly random: boolean;
+  private readonly grow: boolean;
   private readonly paletteCount: (character: number) => number;
 
   constructor(
@@ -84,6 +87,7 @@ export class Lobby {
     opts: LobbyOptions = {},
   ) {
     this.random = !!opts.random;
+    this.grow = !!opts.grow;
     this.paletteCount = opts.palettes ?? (() => 1);
     this.slots = Array.from({ length: MAX_SLOTS }, (_, i) => ({
       kind: 'empty' as SlotKind,
@@ -129,9 +133,16 @@ export class Lobby {
     if (idx < 0) {
       // a CPU slot can be taken over by a human
       const cpu = this.active.findIndex((s) => s.kind === 'cpu');
-      if (cpu < 0) return -1;
-      this.claim(cpu, deviceId);
-      return cpu;
+      if (cpu >= 0) {
+        this.claim(cpu, deviceId);
+        return cpu;
+      }
+      // every slot is a player's: one more joining opens another slot (the scene rebuilds its cards for it)
+      if (!this.grow || this.playerCount >= MAX_SLOTS) return -1;
+      const add = this.playerCount++;
+      Object.assign(this.slots[add], { character: 0, palette: 0, damage: 0, stock: 0, team: defaultTeam(add, this.playerCount) });
+      this.claim(add, deviceId);
+      return add;
     }
     this.claim(idx, deviceId);
     return idx;
