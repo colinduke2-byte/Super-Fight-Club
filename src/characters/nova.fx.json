@@ -122,6 +122,26 @@
     "life": 0.7,
     "size": 3
    }
+  ],
+  "sprintStart": [
+   {
+    "x": -4,
+    "yh": 0.5,
+    "radius": 14,
+    "color": 11832575,
+    "life": 0.3,
+    "op": "ring"
+   },
+   {
+    "x": -4,
+    "yh": 0.5,
+    "count": 8,
+    "speed": 50,
+    "color": 14205183,
+    "life": 0.35,
+    "size": 2,
+    "op": "burst"
+   }
   ]
  },
  "rules": [
@@ -730,6 +750,49 @@
     {
      "op": "punch",
      "amount": 0.04
+    }
+   ]
+  },
+  {
+   "when": {
+    "sprinting": true
+   },
+   "every": 2,
+   "ops": [
+    {
+     "x": -6,
+     "yh": 0.5,
+     "jx": 6,
+     "jy": 20,
+     "vx": -14,
+     "vy": -12,
+     "jvx": 10,
+     "jvy": 10,
+     "life": 0.6,
+     "color": {
+      "from": "res:element",
+      "colors": [
+       16742954,
+       9430783,
+       16773482
+      ]
+     },
+     "size": 2,
+     "additive": true,
+     "op": "emit"
+    },
+    {
+     "x": -8,
+     "yh": 0.55,
+     "jy": 16,
+     "vx": -20,
+     "vy": -6,
+     "jvy": 8,
+     "life": 0.5,
+     "color": 11832575,
+     "size": 2,
+     "additive": true,
+     "op": "emit"
     }
    ]
   }

@@ -2,12 +2,13 @@ import Phaser from 'phaser';
 import { PIXEL_FONT, up } from '../art/pixelFont';
 import { sfx } from '../audio/sfx';
 import type { MenuEvent } from '../input/menuInput';
-import { resetSettings, saveSettings, settings, type ParticleQuality, type RenderQuality, type Settings, type SmashMode } from '../settings';
+import { resetSettings, saveSettings, settings, type ParticleQuality, type RenderQuality, type Settings, type SmashMode, SPRINT_LABEL, stepSprint } from '../settings';
 import { applySize, fullscreenSupported, isIosBrowser, showHomeScreenTip } from '../display';
 import { COLORS, MenuList, MenuScene, PORT_SHAPES, drawButton, drawPortShape, playerColors, pointerXY, tapMin, text, textPx, type MenuBackdrop, type MenuItem } from '../ui/menuKit';
 
 const QUALITY: ParticleQuality[] = ['low', 'medium', 'high'];
 const SMASH: SmashMode[] = ['flick', 'button'];
+
 const UI_SCALES = [0.75, 1, 1.25, 1.5];
 const TOUCH_SIZES = [0.75, 0.875, 1, 1.15, 1.3, 1.5];
 const TOUCH_OPACITY = [0.2, 0.35, 0.5, 0.6, 0.75, 0.9];
@@ -30,7 +31,7 @@ const TABS: { id: SettingsTab; label: string }[] = [
 const TAB_KEYS: Record<SettingsTab, (keyof Settings)[]> = {
   audio: ['masterVolume', 'sfxVolume', 'musicVolume', 'announcer', 'ambience', ...(['voices'] as unknown as (keyof Settings)[])],
   video: ['renderQuality', 'particleQuality', 'autoQuality', 'showPerf', 'screenShake', 'killCam'],
-  gameplay: ['tapJump', 'upJumpKeyboard', 'smashMode', 'deadzone', 'rumble', 'touchSize', 'touchOpacity', 'touchLeftHanded', 'touchStickX', 'touchStickY', 'touchBtnX', 'touchBtnY'],
+  gameplay: ['tapJump', 'upJumpKeyboard', 'sprintKeyboard', 'sprintPad', 'smashMode', 'deadzone', 'rumble', 'touchSize', 'touchOpacity', 'touchLeftHanded', 'touchStickX', 'touchStickY', 'touchBtnX', 'touchBtnY'],
   access: ['playerPalette', 'portShapes', 'uiScale', 'reduceMotion', 'reduceFlashes'],
 };
 
@@ -214,6 +215,20 @@ export class SettingsScene extends MenuScene {
           },
           sw('tapJump', 'TAP-JUMP (PAD / TOUCH)', 'Controllers and touch: pushing the stick up also jumps. Off: only the Jump button.'),
           sw('upJumpKeyboard', 'W / UP JUMPS (KEYBOARD)', 'Keyboards: pressing Up (W) jumps. Up + Attack or Special still gives up attacks and up-special.'),
+          {
+            label: 'SPRINT (KEYBOARD)', hint: 'DOUBLE-TAP: tap a direction twice and hold to sprint; one press just runs. FLICK: every press bursts into a sprint. BOTH: either.',
+            value: () => SPRINT_LABEL[settings.sprintKeyboard],
+            onLeft: () => stepSprint('sprintKeyboard', -1),
+            onRight: () => stepSprint('sprintKeyboard', 1),
+            onConfirm: () => stepSprint('sprintKeyboard', 1),
+          },
+          {
+            label: 'SPRINT (PAD / TOUCH)', hint: 'FLICK: a sharp flick of the stick bursts into a sprint. DOUBLE-TAP: push the stick out twice. BOTH: either.',
+            value: () => SPRINT_LABEL[settings.sprintPad],
+            onLeft: () => stepSprint('sprintPad', -1),
+            onRight: () => stepSprint('sprintPad', 1),
+            onConfirm: () => stepSprint('sprintPad', 1),
+          },
           {
             label: 'SMASH ATTACKS', hint: 'Flick: a fast stick tap + Attack smashes. Button: only the Smash button.',
             value: () => (settings.smashMode === 'flick' ? 'STICK FLICK' : 'BUTTON ONLY'),

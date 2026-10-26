@@ -1,4 +1,4 @@
-import { Button, type FighterInput } from '../engine/buttons';
+import { Button, INPUT_MASK, type FighterInput } from '../engine/buttons';
 import type { Fighter } from '../engine/fighter';
 import type { World } from '../engine/world';
 
@@ -19,7 +19,7 @@ export function clearInput(out: FighterInput): void {
 export function applyHeld(out: FighterInput, held: number, prev: number): void {
   out.held = held;
   out.pressed = held & ~prev;
-  out.released = ~held & prev & 0xff;
+  out.released = ~held & prev & INPUT_MASK;
 }
 
 export class NullController implements Controller {

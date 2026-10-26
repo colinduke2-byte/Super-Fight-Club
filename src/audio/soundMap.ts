@@ -15,6 +15,8 @@ export const SOUND_NAMES = [
   'stepMetal', 'stepStone', 'stepWood', 'stepSnow', 'stepGrass', 'stepCrystal',
   // the crowd and a parry's glint
   'crowd', 'glint',
+  // sprinting: the push-off whoosh and the skid's scrape
+  'sprint', 'skid',
   // items
   'swordSwing', 'swordHit', 'rayShot', 'crateBreak', 'crateBoom', 'coreGet',
   // fighter voices (formant-synth grunts, flavoured per fighter by the sound style)
@@ -86,6 +88,11 @@ export function soundFor(type: WorldEventType, mag: number, extra: number, tag?:
       return { name: 'ledge', intensity: 0.5 };
     case 'dodge':
       return { name: 'dodge', intensity: 0.45 };
+    case 'sprint':
+      return { name: 'sprint', intensity: 0.5 };
+    case 'skid':
+      // mag: the speed the skid starts from
+      return { name: 'skid', intensity: clamp(mag / 6, 0.3, 0.7) };
     case 'grab':
       return { name: 'grab', intensity: 0.6 };
     case 'throw':

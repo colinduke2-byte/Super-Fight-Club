@@ -322,7 +322,7 @@ export function flipsOnDoubleJump(helmet: string): boolean {
 }
 
 /** Rows a fighter's motion style changes (idle, gaits, double jump, results); everything else is shared. */
-const STYLED = new Set(['idle', 'run', 'walk', 'dash', 'jump2', 'victory', 'victoryHold', 'lose', 'hurt', 'hurtL', 'hurtU', 'hurtD', 'shield', 'ledge', 'held', 'dizzy', 'airdodge']);
+const STYLED = new Set(['idle', 'run', 'walk', 'dash', 'sprint', 'jump2', 'victory', 'victoryHold', 'lose', 'hurt', 'hurtL', 'hurtU', 'hurtD', 'shield', 'ledge', 'held', 'dizzy', 'airdodge']);
 /** Reaction rows scaled by the style's `amp` (bigger bodies need bigger offsets to read the same). */
 const AMPED = new Set(['hurt', 'hurtL', 'hurtU', 'hurtD', 'shield', 'ledge', 'held', 'dizzy', 'airdodge']);
 
@@ -472,6 +472,17 @@ export function poseFor(anim: string, f: number, frames: number, style?: string)
       p.crouch += 2.5;
       p.frontHand = [p.frontHand[0] * 0.6 - 3, p.frontHand[1] + 1];
       p.backHand = [p.backHand[0] * 0.6 - 5, p.backHand[1] + 1.5];
+      break;
+    }
+    case 'sprint': {
+      // the sustained sprint: longer, lower strides than the run with the body pitched well forward, the knees driving high
+      // and the arms pumping hard (the back fist punching past the hip), the head held level and forward
+      const g = S.gait;
+      stride(p, ph, { stride: g.stride + 5, lift: g.lift + 4, arms: g.arms * 1.2, lean: g.lean + 13, bounce: g.bounce * 1.2 });
+      p.crouch += 3.5;
+      p.frontHand = [p.frontHand[0] * 0.9 + 2, p.frontHand[1] - 1];
+      p.backHand = [p.backHand[0] * 0.9 - 3, p.backHand[1] + 1];
+      p.head = [3, 1];
       break;
     }
     case 'crouch':

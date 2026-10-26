@@ -223,7 +223,7 @@ export class HowToPlayScene extends MenuScene {
       this.poseAt = time;
       const pose = poses[this.poseIdx++ % poses.length];
       const key = this.anims.exists(fighterAnimKey(c.id, pose)) ? fighterAnimKey(c.id, pose) : fighterAnimKey(c.id, 'idle');
-      const loops = pose === 'idle' || pose === 'run' || pose === 'dash' || pose === 'fall' || pose === 'walk' || pose === 'glide';
+      const loops = pose === 'idle' || pose === 'run' || pose === 'dash' || pose === 'sprint' || pose === 'fall' || pose === 'walk' || pose === 'glide';
       this.sprite.setTexture(fighterTextureKey(c.id), 0);
       this.sprite.play(loops ? key : { key, frameRate: 10, repeat: 0 });
     }

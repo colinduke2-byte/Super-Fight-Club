@@ -1,4 +1,4 @@
-import type { FighterInput } from './buttons';
+import { Button, INPUT_MASK, type FighterInput } from './buttons';
 import { CRATE, ITEM_KINDS, type ItemKind } from './items';
 import type { Fighter } from './fighter';
 import { hitboxFrames, moveTotal, type MoveDef } from './moves';
@@ -292,7 +292,7 @@ export const RECORD_MAX = 600;
 export class InputRecording {
   private sx = new Float32Array(RECORD_MAX);
   private sy = new Float32Array(RECORD_MAX);
-  private held = new Uint8Array(RECORD_MAX);
+  private held = new Uint16Array(RECORD_MAX);
   length = 0;
   private cursor = 0;
   private prev = 0;
@@ -308,7 +308,7 @@ export class InputRecording {
     if (this.length >= RECORD_MAX) return false;
     this.sx[this.length] = inp.stickX;
     this.sy[this.length] = inp.stickY;
-    this.held[this.length] = inp.held & 0x7f; // never Pause
+    this.held[this.length] = inp.held & INPUT_MASK & ~Button.Pause; // never Pause (the sprint flags are kept)
     this.length++;
     return this.length < RECORD_MAX;
   }
@@ -330,7 +330,7 @@ export class InputRecording {
     const held = this.held[i];
     out.held = held;
     out.pressed = held & ~this.prev;
-    out.released = ~held & this.prev & 0xff;
+    out.released = ~held & this.prev & INPUT_MASK;
     this.prev = held;
     return true;
   }

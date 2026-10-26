@@ -604,8 +604,8 @@
    },
    "armor": {
     "from": 4,
-    "to": 12,
-    "threshold": 8
+    "to": 10,
+    "threshold": 6
    }
   },
   "usmash": {

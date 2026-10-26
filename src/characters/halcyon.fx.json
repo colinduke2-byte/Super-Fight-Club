@@ -94,6 +94,28 @@
     "color": 16769914,
     "size": 2
    }
+  ],
+  "sprintStart": [
+   {
+    "x": -6,
+    "yh": 0.6,
+    "count": 10,
+    "speed": 70,
+    "color": 16769658,
+    "life": 0.35,
+    "size": 2,
+    "op": "burst"
+   },
+   {
+    "x": -6,
+    "yh": 0.85,
+    "to": {
+     "x": -52,
+     "yh": 0.85
+    },
+    "color": 16777215,
+    "op": "trail"
+   }
   ]
  },
  "cinematicHit": [
@@ -256,6 +278,39 @@
      "color": 16777215,
      "life": 0.35,
      "size": 3
+    }
+   ]
+  },
+  {
+   "when": {
+    "sprinting": true
+   },
+   "every": 2,
+   "ops": [
+    {
+     "x": -8,
+     "yh": 0.72,
+     "to": {
+      "x": -40,
+      "yh": 0.72
+     },
+     "color": 16773824,
+     "op": "trail"
+    },
+    {
+     "x": -10,
+     "yh": 0.6,
+     "jy": 12,
+     "vx": -40,
+     "vy": -10,
+     "jvx": 16,
+     "jvy": 16,
+     "life": 0.5,
+     "color": 16777215,
+     "size": 2,
+     "gravity": 30,
+     "additive": false,
+     "op": "emit"
     }
    ]
   }

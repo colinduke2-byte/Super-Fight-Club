@@ -7,6 +7,7 @@ import { inputManager } from '../input/inputManager';
 import { lastInput } from '../input/lastDevice';
 import { promptFor } from '../input/prompts';
 import { session } from './session';
+import { sprintHow } from './howToPlay';
 
 /**
  * First-run tutorial: eight short lessons played in a training match on the sandbox (the training scene drives it;
@@ -47,7 +48,7 @@ function words(d?: InputDevice | null) {
 }
 
 export const LESSONS: Lesson[] = [
-  { id: 'move', title: 'MOVE', goal: (d) => `RUN TO BOTH EDGES OF THE STAGE  (${words(d).sides})`, count: 2, dummy: 'stand', dummyPercent: 0 },
+  { id: 'move', title: 'MOVE', goal: (d) => `RUN TO BOTH EDGES OF THE STAGE  (${words(d).sides})  -  ${sprintHow(deviceKind(d)).toUpperCase()} TO SPRINT`, count: 2, dummy: 'stand', dummyPercent: 0 },
   { id: 'jump', title: 'JUMP', goal: (d) => { const { P, kind } = words(d); const j = kind === 'keyboard' && settings.upJumpKeyboard ? P('up') : P('jump'); return `PRESS ${j} TO JUMP, THEN ${j} AGAIN IN THE AIR TO DOUBLE JUMP`; }, count: 2, dummy: 'stand', dummyPercent: 0 },
   { id: 'attack', title: 'ATTACK', goal: (d) => `HIT THE DUMMY 3 TIMES WITH ${words(d).P('attack')}  (HOLD A DIRECTION FOR OTHER MOVES)`, count: 3, dummy: 'stand', dummyPercent: 0 },
   { id: 'special', title: 'SPECIALS', goal: (d) => { const { P } = words(d); return `USE 2 DIFFERENT SPECIALS: ${P('special')}, AND ${P('special')} + A DIRECTION`; }, count: 2, dummy: 'stand', dummyPercent: 0 },

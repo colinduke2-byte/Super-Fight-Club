@@ -141,6 +141,8 @@ export const LOUDNESS_TARGET: Record<SoundName, number> = {
   doubleJump: -31,
   land: -31,
   dodge: -32,
+  sprint: -31,
+  skid: -31,
   ledge: -30,
   tech: -27,
   landBounce: -24,
@@ -242,7 +244,7 @@ export const LEVEL_DB: Record<SoundName, number> = {
   menuOk: 2.9, menuBack: 3.4, slice: 10.1, gust: 11.5, spawn: 5.6, pickup: 4.9, ready: 2.3, ultimate: 1.4, go: 1.3,
   taunt: 8, roar: 1.4, thunder: 0, avalanche: -0.7, geyser: -2.0, waterSpout: 2.7, stalactite: -0.8,
   stepMetal: 1.5, stepStone: 1.7, stepWood: -2.8, stepSnow: 5.5, stepGrass: -5.1, stepCrystal: 1.8, crowd: 7.9,
-  glint: 4.1, swordSwing: 6.1, swordHit: 3.6, rayShot: 3.4, crateBreak: 4.9, crateBoom: 4.6, coreGet: 2.3,
+  glint: 4.1, sprint: 6.0, skid: -0.5, swordSwing: 6.1, swordHit: 3.6, rayShot: 3.4, crateBreak: 4.9, crateBoom: 4.6, coreGet: 2.3,
   voxAttack: -6.4, voxHurt: -5.1, voxKo: -8.8, voxTaunt: -7.1, callReady: -4.5, callGo: -2.9, callGame: -2.4, callTime: -1.5, callKo: -2.9,
 };
 
@@ -1292,6 +1294,19 @@ export class Sfx {
         // a quick 'shff' of evasion
         this.noiseBurst(d, 'bandpass', 1400, 500, 0.15, 0.32 * k, 0, { attack: 0.03 });
         this.noiseBurst(d, 'highpass', 3600, 5000, 0.1, 0.06 * k, 0.01, { attack: 0.03 });
+        break;
+      case 'sprint':
+        // pushing off into a sprint: a gritty scuff of the back foot, then the air rushing past (a rising band sweep)
+        this.click(d, 0.06 * k, 0, 1800);
+        this.noiseBurst(d, 'lowpass', 1300, 300, 0.07, 0.26 * k, 0, { attack: 0.004 });
+        this.noiseBurst(d, 'bandpass', 520, 2600, 0.2, 0.28 * k, 0.02, { attack: 0.05, q: 1.4 });
+        this.noiseBurst(d, 'highpass', 4200, 6500, 0.12, 0.05 * k, 0.05, { attack: 0.04 });
+        break;
+      case 'skid':
+        // braking out of a sprint: soles scraping along the floor, a rough band of noise falling in pitch as it slows
+        this.noiseBurst(d, 'bandpass', 2600, 900, 0.3, 0.3 * k, 0, { attack: 0.012, q: 2.2, drive: true });
+        this.noiseBurst(d, 'lowpass', 900, 250, 0.24, 0.18 * k, 0.01, { attack: 0.01 });
+        this.tone(d, 'sawtooth', 210, 150, 0.2, 0.03 * k, 0.01);
         break;
       case 'grab':
         // a grip on cloth: a muffled 'fwump' and a snap

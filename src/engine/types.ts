@@ -134,6 +134,8 @@ export interface CharacterStats {
   /** Heavier = launched less. Typical 70..130. */
   weight: number;
   runSpeed: number; // px / frame
+  /** Sustained sprint speed as a multiple of runSpeed (default SPRINT_SPEED_MULT, 1.25). */
+  sprintMul?: number;
   airSpeed: number; // px / frame, max horizontal air speed
   groundAccel: number;
   groundFriction: number;

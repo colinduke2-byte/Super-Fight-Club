@@ -722,8 +722,12 @@ export class TrainingTools {
     this.chalTracker?.beforeStep(s.world);
     if (this.swallow > 0) {
       const i0 = inputs[0];
-      if (i0.held === 0 || --this.swallow === 0) this.swallow = 0;
-      else i0.held = i0.pressed = 0;
+      // (the buttons only: the sprint flags above them say how the device sprints, not that a button is down)
+      if ((i0.held & 0xff) === 0 || --this.swallow === 0) this.swallow = 0;
+      else {
+        i0.held &= ~0xff;
+        i0.pressed &= ~0xff;
+      }
     }
     if (this.runner?.running) {
       const i = inputs[0];

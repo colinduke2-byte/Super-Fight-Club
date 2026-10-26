@@ -57,6 +57,8 @@ export interface FxWhen {
   charging?: boolean;
   /** Jet-hovering this tick (CharacterData.hover). */
   jetting?: boolean;
+  /** Sprinting on the ground this tick (burst or sustained, not a skid turn). Thinned by the particle setting and REDUCE MOTION. */
+  sprinting?: boolean;
   /** Smash / special charge fraction at least this (0..1). */
   chargeMin?: number;
   /** Also run during hit-stop (default: skipped). */

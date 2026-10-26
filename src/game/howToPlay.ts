@@ -30,7 +30,16 @@ export const ITEM_NAMES: Record<string, string> = {
   drone: 'ASSIST DRONE',
 };
 
+const cap = (t: string): string => t.charAt(0).toUpperCase() + t.slice(1);
+
 const kb = (scheme: KeyboardSchemeId): InputDevice => ({ id: `keyboard:${scheme}`, label: '', kind: 'keyboard', connected: true, scheme, sample: () => undefined }) as InputDevice;
+
+/** How a sprint starts on this kind of device, by the SPRINT setting (Settings > Gameplay): "double-tap", "flick"... */
+export function sprintHow(kind: 'keyboard' | 'gamepad' | 'touch'): string {
+  const m = kind === 'keyboard' ? settings.sprintKeyboard : settings.sprintPad;
+  const tap = kind === 'keyboard' ? 'double-tap' : 'double-tap the stick';
+  return m === 'doubletap' ? tap : m === 'flick' ? (kind === 'keyboard' ? 'any press' : 'a sharp flick') : kind === 'keyboard' ? 'any press' : 'a flick or a double-tap';
+}
 
 /** A key name that is a lone punctuation mark reads better boxed: "[,] ATTACK" rather than ", ATTACK". */
 function boxKey(k: string): string {
@@ -54,8 +63,8 @@ function keyboardPage(): HowToPage {
     rows: [
       ...keyRows('P1', 'kb1'),
       ...keyRows('P2', 'kb2'),
-      ['MENUS', `${menuPrompt('confirm', kb('kb1'))} picks, ${menuPrompt('back', kb('kb1'))} goes back. Mouse works too.`],
-      ['REBIND / PADS', 'Options > Controls. A pad joins with any button.'],
+      ['SPRINT', `Hold a direction to run. ${cap(sprintHow('keyboard'))} it to sprint.`],
+      ['MENUS / REBIND', `${menuPrompt('confirm', kb('kb1'))} picks, ${menuPrompt('back', kb('kb1'))} back. Rebind: Options > Controls.`],
     ],
     demo: ['brick', ['idle', 'mv_jab1', 'mv_fsmash', 'mv_usmash']],
   };
@@ -67,6 +76,7 @@ function padPage(): HowToPage {
     title: 'CONTROLLER',
     rows: [
       ['STICK / D-PAD', 'Move. A sharp flick dashes, or smashes with Attack.'],
+      ['SPRINT', `${cap(sprintHow('gamepad'))} and hold: a sprint.`],
       [`${P('jump')}`, 'Jump (pushing up jumps too with TAP-JUMP on).'],
       [`${P('attack')} / ${P('special')}`, 'Attack / Special.'],
       [`${P('shield')} / ${P('grab')}`, 'Shield / Grab.'],
@@ -82,7 +92,7 @@ function touchPage(): HowToPage {
   return {
     title: 'TOUCH',
     rows: [
-      ['STICK (LEFT SIDE)', 'Drag to move. A sharp flick dashes or smashes.'],
+      ['STICK (LEFT SIDE)', `Drag to move. ${cap(sprintHow('touch'))} sprints.`],
       ['ATTACK / SPECIAL', 'The big buttons on the right.'],
       ['JUMP', 'Tap for a short hop, hold for a full jump.'],
       ['SHIELD', 'Hold to block. Add a direction to roll or dodge.'],
@@ -126,15 +136,16 @@ const PAGES: HowToPage[] = [
   {
     title: 'MOVING',
     rows: [
-      ['TILT STICK', 'Walk. A sharp flick bursts into a dash.'],
-      ['FLICK BACK', 'Turn on the spot while dashing (dash-dance).'],
+      ['MOVE', 'Hold a direction to run (tilt the stick a little to walk).'],
+      ['DOUBLE-TAP TO SPRINT', 'Double-tap and hold (pads: a flick too) to sprint.'],
+      ['TAP BACK', 'Double-tap back mid-sprint to skid round and turn.'],
       ['JUMP', 'Tap for a short hop, hold for a full jump.'],
       ['JUMP IN AIR', 'Double jump. Up + Special recovers (together: keeps the jump).'],
       ['DOWN IN AIR', 'Fast fall, even in the middle of an aerial.'],
       ['DOWN ON PLATFORM', 'Drop through a thin platform.'],
       ['NEAR A LEDGE', 'Grab it. You can be hit while hanging: climb, jump or roll.'],
     ],
-    demo: ['vex', ['run', 'dash', 'jump', 'fall']],
+    demo: ['vex', ['run', 'sprint', 'jump', 'fall']],
   },
   {
     title: 'ATTACKING',

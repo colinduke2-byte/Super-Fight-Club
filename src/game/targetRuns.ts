@@ -1,4 +1,7 @@
-import type { FighterInput } from '../engine/buttons';
+import { Button, INPUT_MASK, type FighterInput } from '../engine/buttons';
+
+/** Every input bit but Pause (the buttons and the sprint flags). */
+const TAPE_MASK = INPUT_MASK & ~Button.Pause;
 import type { MatchConfig } from '../engine/match';
 import type { StageData } from '../engine/types';
 import { courseFor, targetCourseById, type TargetCourse } from '../stages/targetCourses';
@@ -46,7 +49,7 @@ export class InputTape {
   private last = [NaN, NaN, NaN, NaN, NaN];
 
   record(inp: FighterInput): void {
-    const v = [Math.round(inp.stickX * STICK_STEPS), Math.round(inp.stickY * STICK_STEPS), inp.held & 0x7f, inp.pressed & 0x7f, inp.released & 0x7f];
+    const v = [Math.round(inp.stickX * STICK_STEPS), Math.round(inp.stickY * STICK_STEPS), inp.held & TAPE_MASK, inp.pressed & TAPE_MASK, inp.released & TAPE_MASK];
     const l = this.last;
     if (v[0] !== l[0] || v[1] !== l[1] || v[2] !== l[2] || v[3] !== l[3] || v[4] !== l[4]) {
       this.data.push(this.ticks, ...v);

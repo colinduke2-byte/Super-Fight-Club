@@ -3,6 +3,7 @@ import type { CharacterFx, FxColor, FxNum, FxOp, FxPos, FxRule, FxWhen } from '.
 import type { MoveDef } from '../engine/moves';
 import type { World } from '../engine/world';
 import type { Effects } from '../ui/Effects';
+import { settings } from '../settings';
 import { BASIC_KINDS, basicOf, makeSwing, swingOf, swingVisible, validateBasic, type BasicEmitter, type BasicFx, type Swing } from './basicFx';
 import { ALWAYS_RULES, DEFAULT_RULES, LIBRARY_RECIPES } from './library';
 
@@ -201,6 +202,7 @@ function whenOk(w: FxWhen | undefined, f: Fighter): boolean {
   if (w.states && !w.states.includes(f.state)) return false;
   if (w.charging !== undefined && (f.state === 'attack' && f.chargeFrames > 0) !== w.charging) return false;
   if (w.jetting !== undefined && f.jetting !== w.jetting) return false;
+  if (w.sprinting !== undefined && sprintingNow(f) !== w.sprinting) return false;
   const m = f.move;
   if (w.kinds || w.moves || w.phase || w.frames) {
     if (f.state !== 'attack' || !m) return false;
@@ -229,6 +231,60 @@ function hasChargeRule(fx: CharacterFx | undefined): boolean {
 }
 
 /** Per-tick auras, trails and charge effects for every fighter (once per sim tick; purely visual). */
+/** On the ground in a sprint this tick (the burst or the sustained run; not a skid turn): for `when.sprinting` and the sprint fx. */
+export function sprintingNow(f: Fighter): boolean {
+  return f.sprinting && f.grounded && f.state === 'run' && f.sprintTurn === 0 && f.hitlag === 0;
+}
+
+/** Sprint row timing (common.ts addMotionRows): fps by frame count. */
+function sprintFps(n: number): number {
+  return n <= 6 ? 17 : 21;
+}
+
+const S_CTX: FxContext = { fx: null as unknown as Effects, shake: () => {}, f: null as unknown as Fighter, tick: 0 };
+
+/**
+ * Sprint effects every tick (purely visual): speed lines streaming off the back (none with REDUCE MOTION), a dust kick on
+ * each footfall of the sprint row (its contact frames, a quarter and three quarters through the cycle) plus the fighter's
+ * `sprintStep` recipe, and grit off the planted feet through a skid.
+ */
+function updateSprintFx(f: Fighter, fx: Effects, tick: number): void {
+  if (!f.grounded || f.state !== 'run' || f.hitlag > 0) return;
+  const c = S_CTX;
+  c.fx = fx;
+  c.f = f;
+  c.tick = tick;
+  const dir = f.facing;
+  const hh = f.h * f.sizeMul;
+  if (sprintingNow(f)) {
+    const burst = f.dashTimer > 0;
+    if (!settings.reduceMotion && tick % 2 === 0 && Math.random() < (burst ? 0.5 : 0.3) + 0.5 * fx.density) {
+      const y = f.y - hh * (0.2 + Math.random() * 0.6);
+      const x = f.x - dir * (f.hw * f.sizeMul + 2);
+      fx.trail(x, y, x - dir * (18 + Math.random() * 16 + (burst ? 10 : 0)), y, (tick & 4) === 0 ? 0xffffff : fighterTrailColor(f, tick));
+    }
+    const anim = f.data.sprite.animations.sprint;
+    if (!burst && anim) {
+      const n = anim.frames;
+      const fps = sprintFps(n);
+      const a = Math.floor(((f.sprintFrames - 1) * fps) / 60) % n;
+      const b = Math.floor((f.sprintFrames * fps) / 60) % n;
+      if (a !== b && (b === Math.round(n / 4) || b === Math.round((3 * n) / 4))) {
+        // the foot that just landed: alternating sides of the body
+        const back = b === Math.round(n / 4) ? -1 : 1;
+        fx.kickDust(f.x + dir * back * 4, f.y, 3, -dir);
+        c.x = f.x + dir * back * 4;
+        c.y = f.y;
+        playRecipe('sprintStep', c);
+        c.x = c.y = undefined;
+      }
+    }
+  } else if ((f.sprintTurn > 0 || f.sprintSkid > 0) && Math.abs(f.vx) > 0.8 && tick % 3 === 0) {
+    const m = f.vx > 0 ? 1 : -1;
+    fx.kickDust(f.x + m * 6, f.y, 1, m);
+  }
+}
+
 /** One context reused for every fighter's per-tick rules (no allocation per fighter per tick). */
 const RULE_CTX: FxContext = { fx: null as unknown as Effects, shake: () => {}, f: null as unknown as Fighter, tick: 0 };
 
@@ -246,8 +302,11 @@ export function updateFighterFx(world: World, fx: Effects, tick: number, shake: 
       if (!whenOk(r.when, f)) continue;
       const every = Math.max(1, Math.round(num(r.every, c, 1)));
       if (tick % every !== 0) continue;
+      // sprint flavour is thinned by the particle setting (and halved with REDUCE MOTION)
+      if (r.when?.sprinting && Math.random() > fx.density * (settings.reduceMotion ? 0.5 : 1)) continue;
       runOps(r.ops, c);
     }
+    updateSprintFx(f, fx, tick);
     for (const r of ALWAYS_RULES) {
       if (!whenOk(r.when, f)) continue;
       if (tick % Math.max(1, Math.round(num(r.every, c, 1))) !== 0) continue;

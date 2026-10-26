@@ -115,6 +115,29 @@
     "life": 0.4,
     "size": 2
    }
+  ],
+  "sprintStart": [
+   {
+    "x": -6,
+    "count": 6,
+    "dir": -1,
+    "op": "dust"
+   }
+  ],
+  "sprintStep": [
+   {
+    "count": 3,
+    "dir": -1,
+    "op": "dust"
+   }
+  ],
+  "sprintSkid": [
+   {
+    "x": 10,
+    "count": 5,
+    "dir": 1,
+    "op": "dust"
+   }
   ]
  },
  "rules": [

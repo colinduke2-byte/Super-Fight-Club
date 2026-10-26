@@ -25,6 +25,8 @@ export type WorldEventType =
   | 'ledgeGrab'
   | 'dodge'
   | 'dash'
+  | 'sprint'
+  | 'skid'
   | 'fastFall'
   | 'grab'
   | 'pummel'

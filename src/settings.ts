@@ -3,12 +3,18 @@ export type ParticleQuality = 'low' | 'medium' | 'high';
 export type RenderQuality = 'auto' | 'sharp' | 'fast';
 /** Player colours: the classic blue / red / green / yellow, or an Okabe-Ito set that stays distinct with colour-blindness. */
 export type PlayerPalette = 'classic' | 'colorblind';
+/** How a sprint is started: a double-tap of a direction, a fast flick of the stick (every key press is one), or either. */
+export type SprintMode = 'doubletap' | 'flick' | 'both';
 
 export interface Settings {
   /** Radial stick deadzone, 0..0.9. */
   deadzone: number;
   /** Flicking the stick up jumps. */
   tapJump: boolean;
+  /** Keyboards: how a sprint starts (default DOUBLE-TAP: a single press is a plain run). */
+  sprintKeyboard: SprintMode;
+  /** Controllers and touch: how a sprint starts (default BOTH: a flick dashes, a double-tap sprints too). */
+  sprintPad: SprintMode;
   /** How smash attacks are triggered (wired up in the combat milestone). */
   smashMode: SmashMode;
   particleQuality: ParticleQuality;
@@ -68,6 +74,8 @@ export function osPrefersReducedMotion(): boolean {
 export const DEFAULT_SETTINGS: Settings = {
   deadzone: 0.2,
   tapJump: true,
+  sprintKeyboard: 'doubletap',
+  sprintPad: 'both',
   smashMode: 'flick',
   particleQuality: 'high',
   renderQuality: 'sharp',
@@ -113,6 +121,8 @@ const MIGRATIONS: Record<number, (v: Raw) => Raw> = {
 
 const ENUMS: { [K in keyof Settings]?: readonly Settings[K][] } = {
   smashMode: ['flick', 'button'],
+  sprintKeyboard: ['doubletap', 'flick', 'both'],
+  sprintPad: ['doubletap', 'flick', 'both'],
   particleQuality: ['low', 'medium', 'high'],
   renderQuality: ['auto', 'sharp', 'fast'],
   playerPalette: ['classic', 'colorblind'],
@@ -222,3 +232,14 @@ export interface Settings {
 }
 DEFAULT_SETTINGS.upJumpKeyboard = true;
 settings.upJumpKeyboard ??= true;
+
+// ---- Sprint (src/input owns this block): how a sprint starts, per device kind (PlayerInput). ----
+export const SPRINT_MODES: readonly SprintMode[] = ['doubletap', 'flick', 'both'];
+/** SPRINT setting values as shown (Settings > Gameplay and the Controls pages). */
+export const SPRINT_LABEL: Record<SprintMode, string> = { doubletap: 'DOUBLE-TAP', flick: 'FLICK', both: 'BOTH' };
+/** Step a SPRINT setting through DOUBLE-TAP / FLICK / BOTH (wrapping) and save. */
+export function stepSprint(key: 'sprintKeyboard' | 'sprintPad', d: number): void {
+  const i = SPRINT_MODES.indexOf(settings[key]);
+  settings[key] = SPRINT_MODES[(i + d + SPRINT_MODES.length * 2) % SPRINT_MODES.length];
+  saveSettings();
+}

@@ -7,7 +7,7 @@ import { inputManager } from '../input/inputManager';
 import { keyboardHub } from '../input/keyboard';
 import type { MenuEvent } from '../input/menuInput';
 import { footerHint, keyLabel, lastInput, padButtonLabel, padStyleForId, type PadStyle } from '../input/prompts';
-import { saveSettings, settings } from '../settings';
+import { saveSettings, settings, SPRINT_LABEL, stepSprint } from '../settings';
 import { COLORS, MenuList, MenuScene, text, textPx, type MenuBackdrop, type MenuItem } from '../ui/menuKit';
 
 type Profile = 'kb1' | 'kb2' | 'standard' | 'nintendo' | 'touch';
@@ -121,6 +121,7 @@ export class ControlsScene extends MenuScene {
         onRight: tap,
         onConfirm: tap,
       },
+      this.sprintRow(this.isKb ? 'sprintKeyboard' : 'sprintPad'),
     ];
     for (const a of actions) {
       rows.push({
@@ -139,6 +140,11 @@ export class ControlsScene extends MenuScene {
     });
     rows.push({ label: 'BACK', onConfirm: () => this.leave() });
     return rows;
+  }
+
+  /** SPRINT: how a sprint starts on this device (the same setting as Settings > Gameplay > SPRINT). */
+  private sprintRow(key: 'sprintKeyboard' | 'sprintPad'): MenuItem {
+    return { label: 'SPRINT', value: () => SPRINT_LABEL[settings[key]], onLeft: () => stepSprint(key, -1), onRight: () => stepSprint(key, 1), onConfirm: () => stepSprint(key, 1) };
   }
 
   /** TOUCH SCREEN page: tap-jump, size, opacity, handedness, and the layout editor. */
@@ -161,6 +167,7 @@ export class ControlsScene extends MenuScene {
     return [
       { label: 'DEVICE', value: () => PROFILE_NAME[this.profile], onLeft: cyc(-1), onRight: cyc(1), onConfirm: cyc(1) },
       { label: 'TAP-JUMP', value: () => (settings.tapJump ? 'ON' : 'OFF'), onLeft: tap, onRight: tap, onConfirm: tap },
+      this.sprintRow('sprintPad'),
       { label: 'BUTTON SIZE', value: () => `${Math.round(settings.touchSize * 100)}%`, onLeft: stepIn(TOUCH_SIZES, 'touchSize', -1), onRight: stepIn(TOUCH_SIZES, 'touchSize', 1) },
       { label: 'OPACITY', value: () => `${Math.round(settings.touchOpacity * 100)}%`, onLeft: stepIn(TOUCH_OPACITY, 'touchOpacity', -1), onRight: stepIn(TOUCH_OPACITY, 'touchOpacity', 1) },
       { label: 'HANDS', value: () => (settings.touchLeftHanded ? 'LEFT-HANDED' : 'RIGHT-HANDED'), onLeft: hand, onRight: hand, onConfirm: hand },

@@ -48,6 +48,8 @@ export function addMotionRows(data: CharacterData, opts: { compact?: boolean; ju
   a.walk = loop(c ? 6 : 8, c ? 7 : 9);
   a.fall = loop(c ? 3 : 4, 7);
   a.dash = loop(c ? 3 : 4, c ? 13 : 16);
+  // the sustained sprint: a fuller, quicker cycle than the run (see poses.ts 'sprint')
+  a.sprint = loop(c ? 6 : 8, c ? 17 : 21);
   a.hurt = once(2, 10);
   a.land = once(c ? 2 : 3, 20);
   a.ledgeClimb = once(c ? 3 : 4, c ? 8 : 10);

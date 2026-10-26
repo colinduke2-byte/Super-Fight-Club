@@ -54,6 +54,29 @@ const DUST: Record<string, DustSet> = {
   stadium: { solid: [0xa85444, 0xd89a88] }, // track rubber
 };
 
+/** Relative luminance (0..1) of 0xRRGGBB. */
+function luma(c: number): number {
+  return (0.2126 * ((c >> 16) & 255) + 0.7152 * ((c >> 8) & 255) + 0.0722 * (c & 255)) / 255;
+}
+/** The least luminance gap between sprint dust and the backdrop behind it. */
+const DUST_MIN_CONTRAST = 0.38;
+function kickColours([dark, light]: readonly [number, number], bg: number): [number, number, number] {
+  const b = luma(bg);
+  if (b < 0.5) {
+    // a dark backdrop: lift the dust toward white until it stands off it
+    // (always lifted a little: the lit floor and the city behind it sit well above the backdrop's own tone)
+    let t = 0.3;
+    let l = mix(light, 0xffffff, t);
+    while (luma(l) - b < DUST_MIN_CONTRAST && t < 0.9) l = mix(light, 0xffffff, (t += 0.1));
+    return [mix(dark, l, 0.45), l, mix(l, 0xffffff, 0.6)];
+  }
+  // a pale backdrop (snow, marble): deepen the shade instead and keep the highlight as the light tone
+  let t = 0;
+  let d = dark;
+  while (b - luma(d) < DUST_MIN_CONTRAST && t < 0.9) d = mix(dark, 0x000000, (t += 0.1));
+  return [d, mix(d, light, 0.4), light];
+}
+
 export class Effects {
   private readonly sprites: Phaser.GameObjects.Image[] = [];
   private readonly vx = new Float32Array(POOL);
@@ -216,6 +239,41 @@ export class Effects {
       const side = k % 2 === 0 ? -1 : 1;
       this.emit(x + side * 3, y - 1, side * (12 + Math.random() * 22) + dir * 14, -(6 + Math.random() * 14), 0.3 + Math.random() * 0.25, k % 3 === 0 ? dark : light, 2 + (k % 2), 30);
     }
+  }
+
+  /**
+   * Sprint and skid dust: the floor's own dust, lifted so it reads on every stage. On a dark backdrop the light tone is pushed
+   * toward white (at least 30%, more until it stands DUST_MIN_CONTRAST in luminance off the backdrop); on a pale one the shade
+   * is deepened instead. Every puff carries one bright highlight mote on top.
+   */
+  /** [shade, light, highlight] for kickDust per dust pair of this scene's stage (a couple of entries, built once). */
+  private readonly kick = new Map<readonly [number, number], [number, number, number]>();
+
+  kickDust(x: number, y: number, count: number, dir: number): void {
+    const n = Math.max(1, Math.round(count * this.quality));
+    const pair = this.dustColours(x, y);
+    let kick = this.kick.get(pair);
+    if (!kick) {
+      kick = kickColours(pair, this.backdrop());
+      this.kick.set(pair, kick);
+    }
+    const [shade, light, hi] = kick;
+    // chunky puffs that billow slowly off the feet, then grit flung out with the highlight on top
+    const puffs = Math.max(1, Math.round(n / 3));
+    for (let k = 0; k < puffs; k++) {
+      this.emit(x + (Math.random() - 0.5) * 6, y - 2, dir * (10 + Math.random() * 14), -(4 + Math.random() * 8), 0.45 + Math.random() * 0.2, k % 2 === 0 ? light : shade, 6 + (k % 2), -6);
+    }
+    for (let k = 0; k < n; k++) {
+      const side = k % 2 === 0 ? -1 : 1;
+      const top = k === 0;
+      this.emit(x + side * 3, y - 1, side * (12 + Math.random() * 22) + dir * 18, -(8 + Math.random() * 16), 0.32 + Math.random() * 0.25, top ? hi : k % 3 === 1 ? shade : light, top ? 3 : 3 + (k % 2), 30);
+    }
+  }
+
+  /** The stage backdrop's lower colour (what dust is seen against near the floor). */
+  private backdrop(): number {
+    const st = (this.scene as { world?: { stage?: { background?: { bottomColor?: number } } } }).world?.stage;
+    return st?.background?.bottomColor ?? 0x202030;
   }
 
   /**

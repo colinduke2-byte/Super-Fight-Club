@@ -493,6 +493,24 @@ export class WorldEventFx {
       case 'dodge':
         e.dust(x, y, 4, 0);
         break;
+      case 'sprint': {
+        // sprint start: a puff of the floor's own dust kicked back off the feet, a speed-line streak off the back, and the
+        // fighter's flavour (fx.json recipe sprintStart: Agni's flare, Rime's frost, Brick's exhaust...)
+        e.kickDust(x - extra * 6, y, 7, -extra);
+        const hh = f.h * f.sizeMul;
+        const col = fighterTrailColor(f, this.host.world.tick);
+        e.trail(x - extra * 10, y - hh * 0.55, x - extra * 46, y - hh * 0.55, col);
+        if (!settings.reduceMotion) e.trail(x - extra * 6, y - hh * 0.25, x - extra * 34, y - hh * 0.25, 0xffffff);
+        playRecipe('sprintStart', this.fxContext(f, x, y, extra));
+        this.surfaceStep(f, x, 0.7); // (the whoosh itself is the event's cue, see soundMap)
+        break;
+      }
+      case 'skid':
+        // braking out of a sprint / a skid turn: grit thrown forward off the planted front foot
+        e.kickDust(x + extra * 8, y, 4 + Math.min(4, Math.round(mag)), extra);
+        playRecipe('sprintSkid', this.fxContext(f, x, y, extra));
+        this.surfaceStep(f, x, 0.55);
+        break;
       case 'itemSpawn':
         e.ring(x, y, 14, 0xffffff, 0.4);
         e.burst(x, y, 8, 40, 0xffe14a, 0.4, 2);
@@ -583,6 +601,12 @@ export class WorldEventFx {
   }
 
   /** Visuals for move events tagged `fx`: the fighter's own recipe, else the shared library (see src/fx). */
+  /** A footfall on the stage's own surface (metal, stone, wood, snow...) under a sprint start or a skid. */
+  private surfaceStep(f: Fighter, x: number, k: number): void {
+    const c = footstepFor(this.host.world.stage.id, 8, f.data.stats.weight / 100);
+    sfx.play(c.name, c.intensity * k, this.host.pan(x));
+  }
+
   private fxContext(f: Fighter, x: number, y: number, mag: number, extra = 0): FxContext {
     return { fx: this.host.effects, shake: (n) => this.host.shake(n), punch: (n) => this.host.punch(n), f, tick: this.host.world.tick, x, y, mag, extra };
   }

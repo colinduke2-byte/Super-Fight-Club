@@ -200,6 +200,41 @@
     "color": 15137791,
     "life": 0.3
    }
+  ],
+  "sprintStart": [
+   {
+    "x": -4,
+    "y": -2,
+    "count": 10,
+    "speed": 80,
+    "color": 10478847,
+    "life": 0.4,
+    "size": 2,
+    "op": "burst"
+   }
+  ],
+  "sprintStep": [
+   {
+    "y": -1,
+    "count": 4,
+    "speed": 55,
+    "color": 12447999,
+    "life": 0.35,
+    "size": 2,
+    "op": "burst"
+   }
+  ],
+  "sprintSkid": [
+   {
+    "x": 10,
+    "y": -2,
+    "count": 8,
+    "speed": 70,
+    "color": 10478847,
+    "life": 0.4,
+    "size": 2,
+    "op": "burst"
+   }
   ]
  },
  "rules": [
@@ -300,6 +335,29 @@
      "size": 2,
      "additive": false,
      "gravity": 160
+    }
+   ]
+  },
+  {
+   "when": {
+    "sprinting": true
+   },
+   "every": 1,
+   "ops": [
+    {
+     "x": -4,
+     "y": -2,
+     "jx": 6,
+     "vx": -40,
+     "vy": -70,
+     "jvx": 30,
+     "jvy": 30,
+     "life": 0.45,
+     "color": 8378623,
+     "size": 2,
+     "gravity": 280,
+     "additive": false,
+     "op": "emit"
     }
    ]
   }

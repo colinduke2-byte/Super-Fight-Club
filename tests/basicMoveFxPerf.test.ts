@@ -36,7 +36,7 @@ describe('basic move fx allocation budget', () => {
     const nop = (): void => {
       calls++;
     };
-    const fx = { emit: nop, burst: nop, flash: nop, ring: nop, dust: nop, trail: nop, shaped: nop, density: 1 } as unknown as Effects;
+    const fx = { emit: nop, burst: nop, flash: nop, ring: nop, dust: nop, kickDust: nop, trail: nop, shaped: nop, density: 1 } as unknown as Effects;
     const g: Record<string, unknown> = {};
     for (const k of ['fillStyle', 'lineStyle', 'fillPoints', 'strokePoints', 'lineBetween', 'fillTriangle', 'fillRect']) g[k] = () => g;
     const swing = makeSwing();

@@ -212,6 +212,33 @@
     "op": "shake",
     "amount": 5
    }
+  ],
+  "sprintStart": [
+   {
+    "x": -10,
+    "yh": 0.88,
+    "count": 14,
+    "speed": 100,
+    "color": 16752688,
+    "life": 0.3,
+    "size": 3,
+    "op": "burst"
+   },
+   {
+    "x": -10,
+    "yh": 0.88,
+    "radius": 16,
+    "color": 16765562,
+    "life": 0.25,
+    "op": "ring"
+   }
+  ],
+  "sprintStep": [
+   {
+    "count": 2,
+    "dir": -1,
+    "op": "dust"
+   }
   ]
  },
  "cinematicHit": [
@@ -706,6 +733,42 @@
      "radius": 10,
      "color": 16769162,
      "life": 0.2
+    }
+   ]
+  },
+  {
+   "when": {
+    "sprinting": true
+   },
+   "every": 1,
+   "ops": [
+    {
+     "x": -10,
+     "yh": 0.88,
+     "jy": 4,
+     "vx": -90,
+     "vy": -25,
+     "jvy": 20,
+     "life": 0.2,
+     "color": 16756800,
+     "size": 3,
+     "additive": true,
+     "op": "emit"
+    },
+    {
+     "x": -10,
+     "yh": 0.88,
+     "jy": 4,
+     "vx": -45,
+     "vy": -18,
+     "jvx": 20,
+     "jvy": 10,
+     "life": 0.55,
+     "color": 7105656,
+     "size": 4,
+     "gravity": -25,
+     "additive": false,
+     "op": "emit"
     }
    ]
   }

@@ -3,7 +3,7 @@ import { PIXEL_FONT } from '../art/pixelFont';
 import { animFrameIndex, fighterAnimKey, fighterTextureKey } from '../art/proceduralFighter';
 import { flipsOnDoubleJump } from '../art/poses';
 import type { CharacterData } from '../engine/types';
-import { SHIELD_MAX, type Fighter } from '../engine/fighter';
+import { INITIAL_DASH_FRAMES, SHIELD_MAX, type Fighter } from '../engine/fighter';
 import type { Platform } from '../engine/platform';
 import { color, fighterTrailColor } from '../fx/runner';
 import { BASIC_KINDS, basicOf } from '../fx/basicFx';
@@ -315,7 +315,7 @@ export class FighterView {
       this.spin = 0;
       // grounded flinch: rocked back away from the hit, easing upright as hitstun runs out
       const recoil = f.state === 'hitstun' ? -f.facing * 0.2 * Math.min(1, f.hitstun / 12) : 0;
-      s.setOrigin(0.5, 1).setRotation(av.rot + recoil);
+      s.setOrigin(0.5, 1).setRotation(av.rot + recoil + this.sprintTilt(f));
     }
     this.shadow.setX(this.x);
 
@@ -335,6 +335,18 @@ export class FighterView {
         } else if (f.vy < -4) {
           sx = 0.94;
           sy = 1.08;
+        }
+        break;
+      case 'run':
+        if (f.sprinting && f.dashTimer > 0 && f.grounded) {
+          // sprint start: a quick stretch along the run that settles over the first frames of the burst
+          const k = Math.max(0, (f.dashTimer - (INITIAL_DASH_FRAMES - 6)) / 6) * (settings.reduceMotion ? 0.4 : 1);
+          sx = 1 + 0.14 * k;
+          sy = 1 - 0.1 * k;
+        } else if (f.sprintTurn > 0) {
+          // skid turn: squashed down over the planted feet
+          sx = 1.07;
+          sy = 0.94;
         }
         break;
       default:
@@ -740,6 +752,15 @@ export class FighterView {
     this.shadow.setVisible(true).setScale(w / 32, (w / 32) * 0.28).setY(plat.top + 0.5).setAlpha(this.shadowA);
   }
 
+  /** Body tilt for sprinting (radians, around the feet): pitched into the burst, rocked back through a skid. */
+  private sprintTilt(f: Fighter): number {
+    if (!f.grounded || f.state !== 'run') return 0;
+    const m = settings.reduceMotion ? 0.4 : 1;
+    if (f.sprinting && f.dashTimer > 0 && f.sprintTurn === 0) return f.facing * 0.13 * m * Math.min(1, f.dashTimer / 4);
+    if (f.sprintTurn > 0 || f.sprintSkid > 0) return -Math.sign(f.vx || f.facing) * 0.07 * m;
+    return 0;
+  }
+
   /** Spawn a fading copy of the current sprite (afterimage) at a world position. */
   /** Entrance (READY countdown only): shift, fade and stretch the body on top of its pose. */
   entrance(dx: number, dy: number, alpha: number, sy = 1): void {
@@ -801,6 +822,10 @@ export class FighterView {
     if (fast && tick - this.lastGhostTick >= 2 && f.hitlag === 0) {
       this.lastGhostTick = tick;
       this.afterimage(this.x, this.y, f.state === 'hitstun' ? 0xff8080 : this.accentHex);
+    } else if (f.sprinting && f.grounded && f.state === 'run' && f.sprintTurn === 0 && f.hitlag === 0 && !settings.reduceMotion && tick - this.lastGhostTick >= 5) {
+      // sprinting: a faint after-image left behind every few frames, in the fighter's trail colour
+      this.lastGhostTick = tick;
+      this.afterimage(this.x, this.y, this.trailTint ?? fighterTrailColor(f, tick), 4);
     }
   }
 

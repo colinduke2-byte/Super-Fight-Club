@@ -1,4 +1,4 @@
-import { Button, type FighterInput } from '../engine/buttons';
+import { Button, Sprint, type FighterInput } from '../engine/buttons';
 import { GRAB_DISTANCE, SHIELD_DROP_FRAMES, type Fighter } from '../engine/fighter';
 import { avalancheX, hazardPhase } from '../engine/hazards';
 import * as Items from '../engine/items';
@@ -105,6 +105,8 @@ export class CpuController implements Controller {
   private readonly shotReady = new Int32Array(USE_SLOTS);
   /** Consecutive frames the stick has been held fully one way (a dash attack needs the dash flick to have expired). */
   private runFrames = 0;
+  /** The sprint being held (0 none): see sprintBits. */
+  private sprintDir = 0;
   private lastSx = 0;
   /** Until this tick the CPU is following up a hit or throw on the target (decides every frame, chases it). */
   private comboUntil = -1;
@@ -228,10 +230,41 @@ export class CpuController implements Controller {
     if (Math.abs(this.sx) >= 0.8 && Math.sign(this.sx) === Math.sign(this.lastSx) && Math.abs(this.lastSx) >= 0.8) this.runFrames++;
     else this.runFrames = Math.abs(this.sx) >= 0.8 ? 1 : 0;
     this.lastSx = this.sx;
+    this.held |= this.sprintBits(self, world);
     out.stickX = this.sx;
     out.stickY = this.sy;
     applyHeld(out, this.held, this.prevHeld);
     this.prevHeld = this.held;
+  }
+
+  /**
+   * Sprinting (the Sprint bits, see buttons.ts): from level 3 up the CPU sprints to close a long gap, to chase a rival that
+   * is recovering, and to get away while retreating; never into its own spacing (it lets go well before it, so the run's
+   * last steps and the walk-in still place it), never toward an edge it could not skid to a stop before, and never on a
+   * moving platform. Deterministic:
+   * no random rolls, so nothing else about its play changes.
+   */
+  private sprintBits(self: Fighter, world: World): number {
+    const dir = this.sx > 0 ? 1 : -1;
+    const tgt = this.targetId >= 0 ? world.fighters[this.targetId] : null;
+    let want = false;
+    if (this.q >= 0.25 && Math.abs(this.sx) >= 0.8 && self.grounded && !self.groundPlat?.moving && (self.state === 'run' || self.state === 'idle') && tgt && tgt.state !== 'ko') {
+      const dx = tgt.x - self.x;
+      const dist = Math.abs(dx);
+      const keep = this.sprintDir === dir; // hysteresis: an ongoing sprint holds a little longer than a new one starts
+      // (a skill of its own: sharper players sprint closer in, chase recoveries, and sprint out of a retreat)
+      const lag = (1 - this.q) * 110;
+      if ((dx > 0 ? 1 : -1) === dir) {
+        if (offstage(tgt, world)) want = this.params.edgeguard && dist > (keep ? 70 : 130);
+        else if (this.q >= 0.95 && world.tick < this.punishUntil && this.roomAhead(self, dir) > dist + 90) want = dist > aiFor(self.data.id).spacing + 30; // the sharpest CPU sprints in on a whiff
+        else want = dist > aiFor(self.data.id).spacing + lag + (keep ? 110 : 170) && Math.abs(tgt.y - self.y) < 120;
+      } else want = this.q >= 0.85 && this.retreat > 0 && dist < 110;
+      // room to stop: a sprint skids about its speed squared over twice the friction
+      const v = self.stats.runSpeed * 1.45;
+      if (want && this.roomAhead(self, dir) < 24 + (v * v) / (2 * self.stats.groundFriction * 0.85) + Math.abs(self.vx) * 6) want = false;
+    }
+    this.sprintDir = want ? dir : 0;
+    return want ? (dir > 0 ? Sprint.Right : Sprint.Left) : 0;
   }
 
   // ---------------------------------------------------------------------------------------------

@@ -82,6 +82,7 @@ export const rime: CharacterData = {
   stats: {
     weight: 89,
     runSpeed: 3.2,
+    sprintMul: 1.12, // already the fastest runner: the sprint is a smaller step up
     airSpeed: 2.3,
     groundAccel: 0.46,
     groundFriction: 0.42,

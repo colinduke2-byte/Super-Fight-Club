@@ -1,4 +1,4 @@
-import { Button, type FighterInput } from './buttons';
+import { Button, Sprint, SPRINT_DIRS, type FighterInput } from './buttons';
 import { COYOTE_FRAMES } from './constants';
 import { moveBody, type Body } from './collision';
 import { InputBuffer } from './inputBuffer';
@@ -125,6 +125,24 @@ export const DODGE_DECAY = 90;
 export const INITIAL_DASH_FRAMES = 10;
 export const DASH_SPEED_MULT = 1.22;
 const DASH_ACCEL_MULT = 2.5;
+/**
+ * Sprint (the Sprint input bits, see buttons.ts: a keyboard double-tap, a pad flick): an initial dash burst to
+ * SPRINT_BURST_MULT x run speed for INITIAL_DASH_FRAMES, then a sustained sprint at SPRINT_SPEED_MULT x run speed (or the
+ * fighter's own `stats.sprintMul`) while it is held. Letting go skids to a stop; asking for a sprint the other way out of a
+ * full-speed sprint plants the feet for SPRINT_TURN_FRAMES (a skid turn) and bursts off the other way, inside the burst it
+ * turns on the spot (dash-dancing). Heavies keep their own (lower) acceleration, so they wind up into it slower.
+ */
+export const SPRINT_SPEED_MULT = 1.25;
+export const SPRINT_BURST_MULT = 1.45;
+export const SPRINT_TURN_FRAMES = 5;
+/** A sprint asked for this many frames before the fighter can act (landing, end of a move) still starts. */
+const SPRINT_BUFFER = 6;
+/** A sprint jump keeps its ground speed, up to this multiple of the air speed (never below the classic dash jump's). */
+const SPRINT_JUMP_CAP = 1.45;
+/** Braking out of a sprint: friction scale (a little under 1, so the feet slide a short way). */
+const SPRINT_SKID_FRICTION = 0.85;
+/** Frames the skid pose and dust hold at most after a sprint ends. */
+const SPRINT_SKID_FRAMES = 16;
 /**
  * Hitstun canceling: out of a long launch (HITSTUN_CANCEL_MIN+ frames of hitstun) an air dodge is allowed after HITSTUN_CANCEL_DODGE
  * frames and an aerial / special / jump after HITSTUN_CANCEL_ACT, so a big hit sends you flying without locking you out for seconds.
@@ -392,6 +410,19 @@ export class Fighter implements Body {
   private dashDir: 1 | -1 = 1;
   /** Turning against a run: the feet slide, still facing the old way until the momentum is gone. */
   skidding = false;
+  /** In a sprint (burst or sustained, see SPRINT_SPEED_MULT); it carries through a sprint jump and resumes on landing if still held. */
+  sprinting = false;
+  /** Direction of the sprint (or of the one a skid turn is heading into). */
+  sprintDir: 1 | -1 = 1;
+  /** Frames of the sustained sprint so far (0 in the burst): the view's stride and footfall clock. */
+  sprintFrames = 0;
+  /** Frames left of a skid turn (planted feet, then a burst the other way). */
+  sprintTurn = 0;
+  /** Frames left of the skid after a sprint was let go (the skid pose and its dust). */
+  sprintSkid = 0;
+  /** A sprint request waiting for the fighter to be able to start it (frames left) and its direction. */
+  private sprintBuf = 0;
+  private sprintBufDir: 1 | -1 = 1;
 
   /** Team index for team battles (-1 = free-for-all). Teammates cannot hurt each other. */
   team = -1;
@@ -545,6 +576,8 @@ export class Fighter implements Body {
     this.dashCd = 0;
     this.dashTimer = 0;
     this.skidding = false;
+    this.endSprint();
+    this.sprintBuf = 0;
     this.boostFrames = 0;
     this.aegisFrames = 0;
     this.airDodgeUsed = false;
@@ -568,8 +601,10 @@ export class Fighter implements Body {
         // braking after a run / dash: skid with the feet planted
         return Math.abs(this.vx) > 1.6 && this.grounded ? pick('skid', 'idle') : 'idle';
       case 'run':
+        if (this.sprintTurn > 0) return pick('skid', 'run');
         if (this.dashTimer > 0) return pick('dash', 'run');
-        if (this.skidding) return pick('skid', 'run');
+        if (this.sprinting) return pick('sprint', pick('dash', 'run'));
+        if (this.skidding || this.sprintSkid > 0) return pick('skid', 'run');
         return Math.abs(this.vx) < this.stats.runSpeed * 0.62 ? pick('walk', 'run') : 'run';
       case 'crouch':
       case 'jumpsquat':
@@ -1108,9 +1143,14 @@ export class Fighter implements Body {
     this.tickResources();
     this.toughness = this.data.toughness ?? 0;
     this.data.behavior?.onTick?.(this, world);
+    this.trackSprint(inp);
     if (this.state !== 'run' && this.state !== 'idle') {
       this.dashTimer = 0;
       this.skidding = false;
+      this.sprintTurn = 0;
+      this.sprintSkid = 0;
+      // a sprint jump keeps the sprint (it resumes on landing while still held); anything else ends it
+      if (this.sprinting && this.state !== 'jumpsquat' && this.state !== 'air' && this.state !== 'landing' && this.state !== 'dash') this.endSprint();
     }
     if (this.cancelChain.length > 0 && CHAIN_RESET.has(this.state)) this.cancelChain.length = 0;
 
@@ -1237,6 +1277,7 @@ export class Fighter implements Body {
     if (this.state === 'tech' && this.stateFrame >= TECH_GROUND_FRAMES) this.setState('idle');
 
     let accelMul = 1;
+    let brakeMul = 1;
     if (this.state === 'jumpsquat') {
       // jumpsquat keeps the ground momentum (a dash jump flies further); pushing the other way still brakes
       const run = s.runSpeed * this.speedMul;
@@ -1273,31 +1314,68 @@ export class Fighter implements Body {
         target = 0;
       } else {
         target = this.groundTarget(inp.stickX);
+        // a sprint asked for (Sprint bits: a double-tap / a flick on a human's device, the CPU's choice)
+        if (this.sprintBuf > 0) {
+          this.sprintBuf = 0;
+          this.requestSprint(this.sprintBufDir, world);
+        }
         // a flick starts an initial dash; flicking back inside one dash-dances (fighters with their own dash special use that instead)
-        // (the flick stays live for a few frames, so flick-then-Attack is still a smash attack out of the dash)
-        if (!this.data.dash && this.flickX === FLICK_FRAMES && Math.abs(inp.stickX) >= FLICK_HI && (this.dashTimer === 0 || this.flickXDir !== this.dashDir)) {
+        // (the flick stays live for a few frames, so flick-then-Attack is still a smash attack out of the dash). Devices that
+        // manage sprinting themselves (Sprint.Managed: every human's) never dash on a raw flick: a keyboard tap would.
+        else if ((inp.held & Sprint.Managed) === 0 && !this.data.dash && this.flickX === FLICK_FRAMES && Math.abs(inp.stickX) >= FLICK_HI && (this.dashTimer === 0 || this.flickXDir !== this.dashDir)) {
           this.startDash(this.flickXDir > 0 ? 1 : -1, world);
         }
-        if (this.dashTimer > 0) {
+        let sprintLive = false;
+        if (this.sprintTurn > 0) {
+          // skid turn: the feet planted and braking hard, still facing the old way; then a burst off the other way
+          sprintLive = true;
+          target = 0;
+          brakeMul = 1.8;
+          this.skidding = true;
+          if (--this.sprintTurn === 0) {
+            this.skidding = false;
+            if (this.sprintHeld(inp, this.sprintDir)) this.startDash(this.sprintDir, world, true);
+            else this.endSprint();
+          }
+        } else if (this.dashTimer > 0) {
           this.dashTimer--;
-          const holding = Math.abs(inp.stickX) > 0.3 && Math.sign(inp.stickX) === this.dashDir;
-          target = holding ? this.dashDir * s.runSpeed * DASH_SPEED_MULT * this.speedMul : 0;
+          const holding = this.sprinting ? this.sprintHeld(inp, this.dashDir) : Math.abs(inp.stickX) > 0.3 && Math.sign(inp.stickX) === this.dashDir;
+          target = holding ? this.dashDir * s.runSpeed * (this.sprinting ? SPRINT_BURST_MULT : DASH_SPEED_MULT) * this.speedMul : 0;
           accelMul = DASH_ACCEL_MULT;
           this.facing = this.dashDir;
           this.skidding = false;
-        } else {
+          // (let go inside the burst: it brakes, and a sprint asked for the other way meanwhile turns on the spot; the
+          // burst running out with nothing held ends the sprint in a skid)
+        } else if (this.sprinting) {
+          if (this.sprintHeld(inp, this.sprintDir)) {
+            sprintLive = true;
+            target = this.sprintDir * this.sprintSpeed();
+            this.facing = this.sprintDir;
+            this.skidding = false;
+            this.sprintFrames++;
+          } else this.stopSprint(world);
+        }
+        if (this.dashTimer === 0 && !sprintLive) {
           // turning against a run skids first: the facing flips once the slide has stopped
           this.skidding = Math.abs(this.vx) > 1 && target !== 0 && Math.sign(target) !== Math.sign(this.vx);
-          if (!this.skidding && Math.abs(inp.stickX) > TURN_THRESHOLD) this.facing = inp.stickX > 0 ? 1 : -1;
+          if (this.sprintSkid > 0) {
+            // the slide after a sprint: over once the feet stop or the stick drives on the same way
+            if (Math.abs(this.vx) < 0.8 || (target !== 0 && Math.sign(target) === Math.sign(this.vx))) this.sprintSkid = 0;
+            else {
+              this.sprintSkid--;
+              brakeMul = SPRINT_SKID_FRICTION;
+            }
+          }
+          if (!this.skidding && this.sprintSkid === 0 && Math.abs(inp.stickX) > TURN_THRESHOLD) this.facing = inp.stickX > 0 ? 1 : -1;
         }
-        const next = Math.abs(this.vx) > 0.3 || Math.abs(target) > 0.3 || this.dashTimer > 0 ? 'run' : 'idle';
+        const next = Math.abs(this.vx) > 0.3 || Math.abs(target) > 0.3 || this.dashTimer > 0 || this.sprintTurn > 0 ? 'run' : 'idle';
         if (this.state !== next) this.setState(next);
       }
     }
     void canAct;
 
     const braking = target === 0 || (this.vx !== 0 && Math.sign(target) !== Math.sign(this.vx)) || Math.abs(target) < Math.abs(this.vx);
-    const rate = braking ? s.groundFriction * this.surfaceFriction() * (this.state === 'crouch' ? 2 : 1) * (this.skidding ? 1.25 : 1) : s.groundAccel * this.surfaceTraction() * accelMul;
+    const rate = braking ? s.groundFriction * this.surfaceFriction() * (this.state === 'crouch' ? 2 : 1) * (this.skidding ? 1.25 : 1) * brakeMul : s.groundAccel * this.surfaceTraction() * accelMul;
     this.vx = approach(this.vx, target, rate);
     if (Math.abs(this.vx) < 0.01) this.vx = 0;
 
@@ -1331,8 +1409,17 @@ export class Fighter implements Body {
     if (this.buffer.consume(Button.Grab)) return this.startGrab(inp, world);
     if (this.tryStartSpecial(inp, world)) return true;
     const dash = this.data.dash;
-    if (dash && this.dashCd === 0 && this.flickX > 0 && !this.buffer.has(Button.Attack) && !this.buffer.has(Button.Smash)) {
-      this.facing = this.flickXDir > 0 ? 1 : -1;
+    // (a sprint asked for starts it too; devices that manage sprints (Sprint.Managed) only start it that way)
+    const wantDash = this.sprintBuf > 0 || ((inp.held & Sprint.Managed) === 0 && this.flickX > 0);
+    if (dash && this.dashCd === 0 && wantDash && !this.buffer.has(Button.Attack) && !this.buffer.has(Button.Smash)) {
+      if (this.sprintBuf > 0) {
+        // the dash special is the sprint's burst: holding on afterwards keeps sprinting
+        this.facing = this.sprintBufDir;
+        this.sprinting = true;
+        this.sprintDir = this.sprintBufDir;
+        this.sprintFrames = 0;
+        this.sprintBuf = 0;
+      } else this.facing = this.flickXDir > 0 ? 1 : -1;
       this.flickX = 0;
       this.setState('dash');
       world.emit('dodge', this, this.x, this.y, 0, 0);
@@ -1450,18 +1537,91 @@ export class Fighter implements Body {
   }
 
   /** Initial dash: an instant burst in `dir` (a reversal drops the old momentum: that is what makes dash-dancing snappy). */
-  private startDash(dir: 1 | -1, world: World): void {
-    const sp = this.stats.runSpeed * DASH_SPEED_MULT * this.speedMul;
+  private startDash(dir: 1 | -1, world: World, sprint = false): void {
+    const sp = this.stats.runSpeed * (sprint ? SPRINT_BURST_MULT : DASH_SPEED_MULT) * this.speedMul;
     this.dashDir = dir;
     this.facing = dir;
     this.dashTimer = INITIAL_DASH_FRAMES;
     this.skidding = false;
     this.vx = dir * Math.max(sp * 0.75, this.vx * dir);
     if (this.state !== 'run') this.setState('run');
-    world.emit('dash', this, this.x, this.y, 0, dir);
+    if (sprint) {
+      this.sprinting = true;
+      this.sprintDir = dir;
+      this.sprintFrames = 0;
+      this.sprintSkid = 0;
+      world.emit('sprint', this, this.x, this.y, 0, dir);
+    } else {
+      this.endSprint();
+      world.emit('dash', this, this.x, this.y, 0, dir);
+    }
+  }
+
+  /**
+   * A sprint asked for in `dir`: out of a full-speed run / sprint the other way a skid turn (feet planted for
+   * SPRINT_TURN_FRAMES, then the burst); otherwise the burst at once (inside a burst: a turn on the spot, dash-dancing).
+   */
+  private requestSprint(dir: 1 | -1, world: World): void {
+    if (this.sprintTurn > 0) {
+      this.sprintDir = dir;
+      return;
+    }
+    if (this.dashTimer === 0 && this.vx * dir < -this.stats.runSpeed * this.speedMul * 0.9) {
+      this.sprinting = true;
+      this.sprintDir = dir;
+      this.sprintFrames = 0;
+      this.sprintSkid = 0;
+      this.sprintTurn = SPRINT_TURN_FRAMES;
+      world.emit('skid', this, this.x, this.y, Math.abs(this.vx), this.vx > 0 ? 1 : -1);
+      return;
+    }
+    this.startDash(dir, world, true);
+  }
+
+  /** The sprint bit for `dir` is held and the stick still points that way. */
+  private sprintHeld(inp: FighterInput, dir: number): boolean {
+    return (inp.held & (dir > 0 ? Sprint.Right : Sprint.Left)) !== 0 && inp.stickX * dir > 0.3;
+  }
+
+  /** Sustained sprint speed. */
+  sprintSpeed(): number {
+    return this.stats.runSpeed * (this.stats.sprintMul ?? SPRINT_SPEED_MULT) * this.speedMul;
+  }
+
+  /** The sprint was let go on the ground: a skid to a stop (pose and dust) when there is speed to shed. */
+  private stopSprint(world: World): void {
+    this.endSprint();
+    if (Math.abs(this.vx) > 1 && this.grounded) {
+      this.sprintSkid = SPRINT_SKID_FRAMES;
+      world.emit('skid', this, this.x, this.y, Math.abs(this.vx), this.vx > 0 ? 1 : -1);
+    }
+  }
+
+  private endSprint(): void {
+    this.sprinting = false;
+    this.sprintFrames = 0;
+    this.sprintTurn = 0;
+  }
+
+  /** Sprint requests: a fresh Sprint bit waits up to SPRINT_BUFFER frames (while still held) for the fighter to be free. */
+  private trackSprint(inp: FighterInput): void {
+    const fresh = inp.pressed & SPRINT_DIRS;
+    if (fresh !== 0) {
+      this.sprintBuf = SPRINT_BUFFER;
+      this.sprintBufDir = fresh === Sprint.Left ? -1 : fresh === Sprint.Right ? 1 : inp.stickX < 0 ? -1 : 1;
+    } else if (this.sprintBuf > 0) {
+      this.sprintBuf--;
+      if ((inp.held & (this.sprintBufDir > 0 ? Sprint.Right : Sprint.Left)) === 0) this.sprintBuf = 0;
+    }
   }
 
   private takeoff(height: number, world: World): void {
+    if (this.sprinting) {
+      // a sprint jump carries the sprint, up to a cap: it flies further than a run jump without leaving the air drift behind
+      const s = this.stats;
+      const cap = Math.max(s.runSpeed * DASH_SPEED_MULT, s.airSpeed * SPRINT_JUMP_CAP) * this.speedMul;
+      if (Math.abs(this.vx) > cap) this.vx = Math.sign(this.vx) * cap;
+    }
     this.vy = -Math.sqrt(2 * this.stats.gravity * height);
     if (this.groundPlat && this.groundPlat.moving) this.vx += this.groundPlat.dx * 0.9; // inherit the platform's motion
     this.grounded = false;

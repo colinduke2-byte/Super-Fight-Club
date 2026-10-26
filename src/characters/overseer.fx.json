@@ -541,6 +541,25 @@
     "op": "shake",
     "amount": 3
    }
+  ],
+  "sprintStart": [
+   {
+    "y": -2,
+    "radius": 18,
+    "color": 9107199,
+    "life": 0.3,
+    "op": "ring"
+   },
+   {
+    "x": -6,
+    "y": -4,
+    "count": 8,
+    "speed": 60,
+    "color": 5959935,
+    "life": 0.3,
+    "size": 2,
+    "op": "burst"
+   }
   ]
  },
  "rules": [
@@ -765,6 +784,27 @@
      },
      "size": 2,
      "additive": true
+    }
+   ]
+  },
+  {
+   "when": {
+    "sprinting": true
+   },
+   "every": 1,
+   "ops": [
+    {
+     "x": -6,
+     "y": -2,
+     "jx": 12,
+     "vx": -24,
+     "vy": -4,
+     "jvy": 6,
+     "life": 0.3,
+     "color": 5959935,
+     "size": 3,
+     "additive": true,
+     "op": "emit"
     }
    ]
   }
