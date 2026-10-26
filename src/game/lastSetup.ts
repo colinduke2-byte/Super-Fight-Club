@@ -15,9 +15,10 @@ import { endTurns } from './turns';
  * The last versus setup (PLAY on the home screen starts it again): every fighter (character, outfit, profile, human or
  * CPU, CPU level, team, handicap), the stage (or RANDOM) and the full rules, stage form included. Saved to localStorage
  * when a versus match starts. Storage can be missing or throw, and a save can be old or broken, or name a fighter or
- * stage that is gone: every read is sanitised, and anything unusable reads as "no setup".
+ * stage that is gone: every read is sanitised, and anything unusable reads as "no setup". v2: setups saved before one
+ * keyboard counted as one player (two humans on one keyboard by mistake) are forgotten.
  */
-export const LAST_SETUP_KEY = 'sfc.lastSetup.v1';
+export const LAST_SETUP_KEY = 'sfc.lastSetup.v2';
 
 export interface SavedFighter {
   type: 'human' | 'cpu';

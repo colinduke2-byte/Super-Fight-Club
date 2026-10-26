@@ -13,6 +13,8 @@ export interface MenuEvent {
   target?: unknown;
   /** True for events injected by mouse / touch rather than read from a device. */
   pointer?: boolean;
+  /** True for the keys every keyboard player shares (Enter, Space, Escape, Backspace, Tab), not one scheme's own. */
+  shared?: boolean;
 }
 
 const STICK = 0.6;
@@ -144,7 +146,7 @@ export class MenuInput {
     const solo = this.usedKeyboards.has(kb2) ? kb2 : kb1;
     for (const [code, action, side] of SHARED_KEYS) {
       const down = this.hub.isActive(code); // held, or tapped since the last frame (a quick tap on a slow frame still counts)
-      if (down && !this.keyPrev.has(code)) ev.push({ action, device: both ? (side === 1 ? kb1 : kb2) : solo });
+      if (down && !this.keyPrev.has(code)) ev.push({ action, device: both ? (side === 1 ? kb1 : kb2) : solo, shared: true });
       if (down) this.keyPrev.add(code);
       else this.keyPrev.delete(code);
     }

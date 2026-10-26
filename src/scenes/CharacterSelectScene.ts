@@ -13,9 +13,12 @@ import { prepareVersus, saveLastSetup, versusTitle } from '../game/lastSetup';
 import { STAGE_LIST } from '../stages';
 import { FORM_NAMES, STAGE_FORMS } from '../stages/forms';
 import { randomStage } from './StageSelectScene';
-import { footerHint, promptFor, type MenuVerb } from '../input/prompts';
+import { footerHint, keyLabel, promptFor, type MenuVerb } from '../input/prompts';
+import { bindings } from '../input/bindings';
 import { deviceKind } from '../game/tutorial';
-import type { InputDevice } from '../input/device';
+import { Button } from '../engine/buttons';
+import { sfx } from '../audio/sfx';
+import { makeRaw, type InputDevice } from '../input/device';
 import { buildLadder } from '../game/ladder';
 import { beginTurns } from '../game/turns';
 import { challengeById, challengeSlots } from '../game/challenges';
@@ -79,6 +82,8 @@ const CHIP_IDS: readonly ChipId[] = ['players', 'rules', 'stage', 'form', 'all',
 let carry: { slots: LobbySlot[]; profiles: (string | null)[] } | null = null;
 
 /** Card height in card units: header band, the fighter's stage, name / status / outfit, tagline, stat bars. */
+/** How long a second keyboard player holds their select key to join beside the first (ms). */
+const KB_JOIN_HOLD_MS = 450;
 const CARD_H = 174;
 /** Room under each card for its own controls line (card units). */
 const KEYS_H = 11;
@@ -889,6 +894,7 @@ export class CharacterSelectScene extends MenuScene {
   protected override tick(time: number): void {
     this.now = time;
     const l = this.lobby;
+    this.settleKbHold();
     // a player joined a full lobby and opened another slot: rebuild the cards for the bigger match
     if (l.playerCount !== this.cards.length && session.mode === 'versus') {
       if (l.playerCount !== session.playerCount) this.setPlayerCount(l.playerCount);
@@ -947,7 +953,7 @@ export class CharacterSelectScene extends MenuScene {
       c.q.setVisible(filled && random).setAlpha(0.6 + 0.4 * Math.abs(Math.sin(time * 2.5)));
       c.name.setText(filled ? (random ? 'RANDOM' : up(data.name)) : '');
       c.name.setScale(Math.min(c.cu * 1.5, (c.cw * 0.9) / Math.max(1, textPx(c.name))));
-      const emptyMsg = session.mode === 'versus' && l.humans() > 0 ? 'EMPTY: CPU FILLS' : this.joinText();
+      const emptyMsg = session.mode === 'versus' && l.humans() > 0 ? `EMPTY: CPU FILLS${this.kbJoinHint()}` : this.joinText();
       c.status
         .setText(slot.kind === 'empty' ? emptyMsg : slot.kind === 'cpu' ? 'CPU' : slot.locked ? 'READY!' : 'SELECTING')
         .setTint(slot.locked ? COLORS.good : slot.kind === 'empty' ? (((time * 2) | 0) % 2 === 0 ? COLORS.warn : COLORS.dim) : COLORS.text);
@@ -1072,6 +1078,17 @@ export class CharacterSelectScene extends MenuScene {
     if (d && i >= 0 && card !== i) return footerHint([['updown', 'ROW'], ['leftright', 'CHANGE'], ['confirm', 'NEXT CARD'], ['back', 'DONE']], d);
     if (l.humans() === 0) return footerHint([...cpus, ['back', 'BACK']], d);
     return cpus.length ? footerHint(cpus, d) : '';
+  }
+
+  /** With one keyboard player in: how a second person on the same keyboard joins (hold their select key). */
+  private kbJoinHint(): string {
+    const l = this.lobby;
+    const kbs = inputManager.keyboards;
+    const inn = kbs.filter((k) => l.slotOf(k.id) >= 0);
+    if (inn.length !== 1) return '';
+    const other = kbs.find((k) => k !== inn[0]);
+    const code = other ? bindings.keys[other.scheme].attack[0] : undefined;
+    return code ? `\n2ND KEYBOARD: HOLD ${keyLabel(code)}` : '';
   }
 
   /** "PRESS TO JOIN" on an empty card, in the words of the device in use. */
@@ -1544,7 +1561,44 @@ export class CharacterSelectScene extends MenuScene {
       this.chipEvent(e, at);
       return;
     }
-    this.lobbyEvent(e);
+    const ev = this.oneKeyboard(e);
+    if (ev) this.lobbyEvent(ev);
+    this.refreshChips();
+  }
+
+  /**
+   * One keyboard is one player: once a keyboard player has joined a versus lobby, the other key scheme (WASD + J or the
+   * arrows, and the shared Enter / Space / Escape) steers that same player, so moving with the arrows and picking with J
+   * does not seat a second player. A second person on the same keyboard joins by holding their own select key (the hold
+   * is settled in tick: let go early and it was the first player's select). Returns the event to run, or null.
+   */
+  private oneKeyboard(e: MenuEvent): MenuEvent | null {
+    if (session.mode !== 'versus' || e.pointer || e.device.kind !== 'keyboard') return e;
+    const l = this.lobby;
+    if (l.slotOf(e.device.id) >= 0) return e;
+    const mate = inputManager.keyboards.find((k) => k !== e.device && l.slotOf(k.id) >= 0);
+    if (!mate) return e;
+    if (e.action === 'confirm' && !e.shared) {
+      this.kbHold = { dev: e.device, mate, at: performance.now() };
+      return null;
+    }
+    return { ...e, device: mate };
+  }
+
+  /** The other key scheme's select key, held down (see oneKeyboard): long enough joins it as a new player. */
+  private kbHold: { dev: InputDevice; mate: InputDevice; at: number } | null = null;
+  private readonly kbRaw = makeRaw();
+
+  private settleKbHold(): void {
+    const h = this.kbHold;
+    if (!h) return;
+    h.dev.sample(this.kbRaw);
+    const held = (this.kbRaw.held & (Button.Attack | Button.Jump)) !== 0;
+    if (held && performance.now() - h.at < KB_JOIN_HOLD_MS) return;
+    this.kbHold = null;
+    if (held) {
+      if (this.lobby.join(h.dev.id) >= 0) sfx.play('menuOk', 0.8, 0);
+    } else this.lobbyEvent({ action: 'confirm', device: h.mate });
     this.refreshChips();
   }
 
