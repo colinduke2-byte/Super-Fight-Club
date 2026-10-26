@@ -65,6 +65,8 @@ export interface KoRecord {
   /** Id of the move that last hit the victim ('' if unknown). */
   move: string;
   tick: number;
+  /** The last hit before the KO came from a stage hazard. */
+  hazard?: boolean;
 }
 
 export interface MatchResult {
@@ -82,6 +84,10 @@ export interface MatchResult {
   hitCounts: Record<string, number>[];
   /** Damage dealt per fighter (to rivals). */
   dealt: number[];
+  /** Ticks with two live fighters in fighting range (within 200 across and 150 up/down). */
+  near: number;
+  /** Fighter-ticks spent offstage (summed over fighters). */
+  offTicks: number;
 }
 
 /** Stages offered in Stage Select (competitive rotation). */
@@ -116,6 +122,8 @@ interface Track {
   sawOccupied: boolean;
   respawned: boolean;
   log: string[];
+  /** Tick of the last stage-hazard hit. */
+  lastHazard: number;
 }
 
 export function playMatch(chars: string[], stage: string, level: CpuLevel | CpuLevel[], seed: number, opts: MatchOpts = {}): MatchResult {
@@ -128,7 +136,7 @@ export function playMatch(chars: string[], stage: string, level: CpuLevel | CpuL
   const sp = st.spawns;
   const place = (f: Fighter, air = false): void => f.spawn(sp[f.id].x, sp[f.id].y - (air ? 130 : 1), sp[f.id].x <= 0 ? 1 : -1);
   fs.forEach((f) => place(f));
-  const tr: Track[] = fs.map(() => ({ lastHit: -1e9, lastSafe: 0, wasOff: false, cause: 'other', prevState: 'idle', prevGrounded: true, prevVy: 0, prevLedgeFrames: 0, leftFrom: 'other', trumpedAt: -1e9, helpless: false, upBUsed: false, sawOccupied: false, respawned: false, log: [] }));
+  const tr: Track[] = fs.map(() => ({ lastHit: -1e9, lastSafe: 0, wasOff: false, cause: 'other', prevState: 'idle', prevGrounded: true, prevVy: 0, prevLedgeFrames: 0, leftFrom: 'other', trumpedAt: -1e9, helpless: false, upBUsed: false, sawOccupied: false, respawned: false, log: [], lastHazard: -1e9 }));
   let tick = 0;
   match.onRespawn = (f) => {
     place(f, true);
@@ -187,6 +195,7 @@ export function playMatch(chars: string[], stage: string, level: CpuLevel | CpuL
           move: sd ? '' : lastHitMove[f.id],
           tick,
           trace: sd && opts.trace ? t.log.slice() : undefined,
+          hazard: !sd && t.lastHazard === t.lastHit,
         });
       }
       match.onKo(f, extra);
@@ -194,11 +203,30 @@ export function playMatch(chars: string[], stage: string, level: CpuLevel | CpuL
   };
   const ins = fs.map(() => makeInput());
   const lim = opts.maxTicks ?? 14400;
+  let near = 0;
+  let offTicks = 0;
+  const hz = world.hazardHit.map((row) => fs.map((f) => row[f.id]));
   for (; tick < lim && !match.over; tick++) {
     fs.forEach((f, i) => cpus[i].update(f, world, ins[i]));
     world.step(ins);
+    // a hazard hit shows as a new cycle in world.hazardHit (the hit itself also fires 'hit', so lastHit is this tick too)
+    world.hazardHit.forEach((row, i) =>
+      fs.forEach((f) => {
+        if (row[f.id] !== hz[i][f.id]) {
+          hz[i][f.id] = row[f.id];
+          tr[f.id].lastHazard = tick;
+        }
+      }),
+    );
     match.step();
-    for (const f of fs) observe(f, tr[f.id], cpus[f.id]);
+    let close = false;
+    for (const f of fs) {
+      observe(f, tr[f.id], cpus[f.id]);
+      if (f.state === 'ko') continue;
+      if (offstage(f, world)) offTicks++;
+      for (const g of fs) if (g !== f && g.state !== 'ko' && Math.abs(g.x - f.x) < 200 && Math.abs(g.y - f.y) < 150) close = true;
+    }
+    if (close) near++;
   }
   function observe(f: Fighter, t: Track, cpu: CpuController): void {
     if (f.state === 'ko') return;
@@ -237,5 +265,5 @@ export function playMatch(chars: string[], stage: string, level: CpuLevel | CpuL
     t.prevVy = f.vy;
     t.prevLedgeFrames = f.ledgeFrames;
   }
-  return { chars, stage, winner: match.over ? match.winner : -1, ticks: tick, kos, ults, moveCounts, hitCounts, dealt };
+  return { chars, stage, winner: match.over ? match.winner : -1, ticks: tick, kos, ults, moveCounts, hitCounts, dealt, near, offTicks };
 }

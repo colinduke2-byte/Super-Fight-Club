@@ -7,11 +7,12 @@ import { playMatch, type MatchResult } from './matchSim';
 /**
  * Per-stage CPU measurement (skipped unless STAGEAUDIT is set): match length, KO percents and directions, self-destructs,
  * spawn-side fairness and time-outs for 1v1s (and four-player games on stages with four spawns).
- *   STAGEAUDIT=1 STAGEAUDIT_N=24 STAGEAUDIT_SKILL=7 npx vitest run tests/tools/stageAudit.test.ts
+ *   STAGEAUDIT=1 STAGEAUDIT_N=48 STAGEAUDIT_SKILLS=3,7 [STAGEAUDIT_STAGES=skyhold,harbour] npx vitest run tests/tools/stageAudit.test.ts
  */
 const ON = !!process.env.STAGEAUDIT;
 const N = Number(process.env.STAGEAUDIT_N ?? 24);
-const SKILL = Number(process.env.STAGEAUDIT_SKILL ?? 7);
+const SKILLS = (process.env.STAGEAUDIT_SKILLS ?? '7').split(',').map(Number);
+const ONLY = process.env.STAGEAUDIT_STAGES?.split(',');
 const ids = Object.keys(CHARACTERS).filter((c) => c !== 'overseer');
 
 function summarise(rs: MatchResult[]) {
@@ -32,6 +33,9 @@ function summarise(rs: MatchResult[]) {
     secPerKo: +(secs.reduce((a, b) => a + b, 0) / Math.max(1, kos.length)).toFixed(1),
     dmgPerMin: Math.round(rs.reduce((a, r) => a + r.dealt.reduce((x, y) => x + y, 0), 0) / Math.max(1, secs.reduce((a, b) => a + b, 0) / 60)),
     dirs,
+    hazardKoShare: +(real.filter((k) => k.hazard).length / Math.max(1, real.length)).toFixed(2),
+    nearShare: +(rs.reduce((a, r) => a + r.near, 0) / Math.max(1, rs.reduce((a, r) => a + r.ticks, 0))).toFixed(2),
+    offShare: +(rs.reduce((a, r) => a + r.offTicks, 0) / Math.max(1, rs.reduce((a, r) => a + r.ticks * r.chars.length, 0))).toFixed(3),
     p1WinRate: +(rs.filter((r) => r.winner === 0).length / Math.max(1, rs.filter((r) => r.winner >= 0).length)).toFixed(2),
   };
 }
@@ -39,7 +43,8 @@ function summarise(rs: MatchResult[]) {
 describe.skipIf(!ON)('stage audit', () => {
   it('measures every stage', () => {
     const out: Record<string, unknown> = {};
-    for (const st of STAGE_LIST) {
+    for (const SKILL of SKILLS)
+    for (const st of STAGE_LIST.filter((x) => !ONLY || ONLY.includes(x.id))) {
       const one: MatchResult[] = [];
       for (let g = 0; g < N; g++) {
         const a = ids[g % ids.length];
@@ -53,8 +58,8 @@ describe.skipIf(!ON)('stage audit', () => {
           if (new Set(pick).size < 4) pick[3] = ids.find((c) => !pick.includes(c))!;
           four.push(playMatch(pick, st.id, 3, 900 + g, { skills: [SKILL, SKILL, SKILL, SKILL], maxTicks: 60 * 60 * 8 }));
         }
-      out[st.id] = { name: st.name, oneVone: summarise(one), ffa: four.length ? summarise(four) : null };
-      console.log(st.id, JSON.stringify(out[st.id]));
+      out[`${st.id}@${SKILL}`] = { name: st.name, oneVone: summarise(one), ffa: four.length ? summarise(four) : null };
+      console.log(st.id, SKILL, JSON.stringify(out[`${st.id}@${SKILL}`]));
     }
     if (process.env.STAGEAUDIT_OUT) writeFileSync(process.env.STAGEAUDIT_OUT, JSON.stringify(out, null, 1));
   }, 3_600_000);
