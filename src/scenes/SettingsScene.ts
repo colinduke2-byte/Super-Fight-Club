@@ -320,7 +320,8 @@ export class SettingsScene extends MenuScene {
     const listTop = ty - 5 * u + tabH + 12 * u;
     // the list stops above the footer (description + controls hint) with a clear gap
     const footTop = this.placeFooter(this.hint, this.desc);
-    this.list.layout(w / 2, listTop, u, 214, footTop - 8 * u);
+    // wide enough that the longest row (label and choice, '< DOUBLE-TAP >') shows in full at the menu's text size
+    this.list.layout(w / 2, listTop, u, 300, footTop - 8 * u);
   }
 
   private drawTabs(): void {

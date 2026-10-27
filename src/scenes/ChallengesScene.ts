@@ -38,6 +38,8 @@ const CHARACTER_IDS = CHALLENGES.flatMap((c) => c.foes.map((f) => f.character));
 
 /** Rows of the challenge list shown at once (the list scrolls). */
 const VISIBLE = 10;
+/** Width, in units, of the difficulty-mark strip on the list's left. */
+const PIPS_W = 19;
 
 /**
  * The challenge started from this screen and the result that was current then: a newer result on return is that
@@ -220,7 +222,8 @@ export class ChallengesScene extends MenuScene {
     // a side card (the stage, the foes, the difficulty) beside the list when the window is wide enough
     const cardW = Math.min(200 * u, w * 0.36);
     const room = w - (220 + 24) * u - 16 * u >= 130 * u;
-    this.listX = room ? Math.max((220 / 2 + 14) * u, (w - cardW - 12 * u) / 2) : w / 2;
+    // (the list carries a strip of difficulty marks on its left: PIPS_W more units, so the pair shifts right by half that)
+    this.listX = room ? Math.max((220 / 2 + 14 + PIPS_W) * u, (w - cardW - 12 * u + PIPS_W * u) / 2) : w / 2;
     this.list.layout(this.listX, this.listTop, u, 220, h * 0.66);
     const lx1 = this.listX + (220 / 2 + 6) * u;
     this.card = room ? { x: lx1 + 10 * u, y: this.listTop - 6 * u, w: Math.min(cardW, w - lx1 - 18 * u), h: this.list.bottom - this.listTop + 6 * u } : null;
@@ -274,7 +277,17 @@ export class ChallengesScene extends MenuScene {
     // the foes (an ally first, in green)
     const foes = [...(c.ally ? [{ f: c.ally, ally: true }] : []), ...c.foes.map((f) => ({ f, ally: false }))].slice(0, 4);
     const slot = tw / Math.max(1, foes.length);
-    const ph = Math.min(slot * 0.9, k.y + k.h - y - 14 * u, 48 * u);
+    // each foe's name and level under its portrait (whole-pixel scale when it fits); the portraits take what room is left
+    let nameH = 0;
+    foes.forEach(({ f, ally }, i) => {
+      const nm = this.foeNames[i];
+      const lvl = f.boss ? 'BOSS' : ['', 'EASY', 'NORMAL', 'HARD'][f.level];
+      nm.setText(up(`${ally ? 'ALLY ' : ''}${characterById(f.character)?.name ?? f.character}\n${lvl}`)).setCenterAlign().setTint(ally ? COLORS.good : COLORS.text);
+      const fit = Math.min(u, (slot - 2 * u) / Math.max(1, textPx(nm)));
+      nm.setScale(fit >= 1 ? Math.floor(fit) : Math.max(0.5, fit));
+      nameH = Math.max(nameH, nm.displayHeight);
+    });
+    const ph = Math.min(slot * 0.9, k.y + k.h - pad - nameH - 2 * u - y, 48 * u);
     foes.forEach(({ f, ally }, i) => {
       const data = characterById(f.character);
       const im = this.foeImgs[i];
@@ -295,9 +308,7 @@ export class ChallengesScene extends MenuScene {
         im.setScale(sc).setPosition(cx + ox, y + ph / 2 + (im.height / 2 - (cr[1] + cr[3] / 2)) * sc).setVisible(true);
         g.fillStyle(ally ? COLORS.good : COLORS.bad, 0.12).fillRect(cx - slot / 2 + u, y, slot - 2 * u, ph);
       }
-      const lvl = f.boss ? 'BOSS' : ['', 'EASY', 'NORMAL', 'HARD'][f.level];
-      nm.setText(up(`${ally ? 'ALLY ' : ''}${data?.name ?? f.character}\n${lvl}`)).setCenterAlign().setTint(ally ? COLORS.good : COLORS.text).setVisible(true);
-      nm.setScale(Math.max(0.5, Math.min(u * 0.8, (slot - 2 * u) / Math.max(1, textPx(nm))))).setPosition(cx, y + ph + 2 * u);
+      nm.setVisible(true).setPosition(cx, y + Math.max(0, ph) + 2 * u);
     });
   }
 
@@ -334,8 +345,9 @@ export class ChallengesScene extends MenuScene {
     const lt = this.listTop - 6 * u;
     const lb = this.list.bottom + 3 * u;
     a.fillStyle(COLORS.title, 0.9);
-    if (this.offset > 0) a.fillTriangle(w / 2 - 4 * u, lt, w / 2 + 4 * u, lt, w / 2, lt - 4 * u);
-    if (this.offset + this.rows < CHALLENGES.length) a.fillTriangle(w / 2 - 4 * u, lb, w / 2 + 4 * u, lb, w / 2, lb + 4 * u);
+    const ax = this.listX;
+    if (this.offset > 0) a.fillTriangle(ax - 4 * u, lt, ax + 4 * u, lt, ax, lt - 4 * u);
+    if (this.offset + this.rows < CHALLENGES.length) a.fillTriangle(ax - 4 * u, lb, ax + 4 * u, lb, ax, lb + 4 * u);
     // the next-uncleared button (hidden once everything is cleared)
     const left = this.nextUnfinished(-1) >= 0;
     this.nextT.setVisible(left);
@@ -343,17 +355,21 @@ export class ChallengesScene extends MenuScene {
     this.nextBox = { x: nb.x - nb.displayWidth / 2 - 4 * u, y: nb.y - nb.displayHeight / 2 - 2 * u, w: nb.displayWidth + 8 * u, h: nb.displayHeight + 4 * u };
     a.fillStyle(0x0a0820, 0.75).fillRect(this.nextBox.x, this.nextBox.y, this.nextBox.w, this.nextBox.h);
     if (!left) a.clear();
-    // difficulty marks beside each visible row (outside the list plate, on its left)
+    // difficulty marks beside each visible row, on a strip of plate joined to the list's left edge (left out when the
+    // window is too narrow for it)
     // (the list's rows are a finger tall on touch screens, and the list may scroll within its own window)
     const rowH = Math.max(18, tapMin(this) / u) * u;
     const fk = 1.5;
-    for (let i = 0; i < this.rows; i++) {
+    const stripX = this.listX - (220 / 2 + 6 + PIPS_W) * u;
+    const pips = stripX >= 2 * u;
+    if (pips) drawPanel(a, stripX, this.listTop - 6 * u, (PIPS_W + 1) * u, this.list.bottom - this.listTop + 6 * u, u, 0.9);
+    for (let i = 0; i < (pips ? this.rows : 0); i++) {
       const ch = CHALLENGES[this.offset + i];
       const slot = i - this.list.scrollTop;
       if (!ch || slot < 0 || slot >= this.list.visibleRows) continue;
       const d = challengeDifficulty(ch);
       const ry = this.listTop + slot * rowH + (7 * fk * u) / 2;
-      const x0 = this.listX - (220 / 2 + 6) * u - 3 * u;
+      const x0 = this.listX - (220 / 2 + 7) * u;
       for (let k = 0; k < 5; k++) {
         a.fillStyle(k < d ? (d >= 4 ? COLORS.bad : d >= 3 ? COLORS.warn : COLORS.good) : 0x2a2550, k < d ? 0.95 : 0.7).fillRect(x0 - (5 - k) * 3 * u, ry - u, 2 * u, 2 * u);
       }

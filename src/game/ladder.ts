@@ -350,9 +350,12 @@ export function buildBossBattle(player: string, difficulty: ArcadeDifficulty = l
   return newState(player, [f], difficulty, 'boss', coop ? { coop: true } : {});
 }
 
-/** Endless: a random rival on a random stage, one stock each; every fifth round, two rivals at once. */
+/**
+ * Endless: a random rival on a random stage, one stock each; every fifth round, two rivals at once. Rivals come from the
+ * core roster (as in the Gauntlet): never the Overseer, the arcade's boss.
+ */
 export function endlessFight(player: string, round: number, rand: () => number = Math.random): LadderFight {
-  const others = CHARACTER_LIST.map((c) => c.id).filter((id) => id !== player);
+  const others = CORE_CHARACTER_LIST.map((c) => c.id).filter((id) => id !== player);
   const duo = round % ENDLESS_DUO_EVERY === ENDLESS_DUO_EVERY - 1;
   const a = pickOf(others, rand);
   const b = pickOf(others.length > 1 ? others.filter((id) => id !== a) : others, rand);

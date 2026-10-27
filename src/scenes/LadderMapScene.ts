@@ -224,7 +224,9 @@ export class LadderMapScene extends MenuScene {
     const tx0 = this.wide ? w * 0.04 : w * 0.06;
     const tx1 = this.wide ? w * 0.5 : w * 0.94;
     const top = this.title.y + this.title.displayHeight / 2 + 16 * u;
-    const bottom = this.wide ? footTop - 22 * u : h * 0.58;
+    // (room under the lowest node for its label, at the labels' largest size)
+    const lkMax = Math.max(1, Math.round(u * 0.8));
+    const bottom = this.wide ? footTop - 22 * u - 9 * (lkMax - 1) : h * 0.58;
     const step = (bottom - top) / Math.max(1, n - 1);
     const nh = Math.max(14 * u, Math.min(26 * u, step * 1.6 - 9 * u));
     const nw = nh * 1.6;
@@ -241,8 +243,10 @@ export class LadderMapScene extends MenuScene {
       nd.thumb?.setDisplaySize(nd.w, nd.h).setPosition(nd.x, nd.y);
       nd.lvl.setPosition(nd.x, nd.y + nd.h / 2 + 2 * u);
     });
-    // one label size for every node: as large as the widest label allows
-    const lk = Math.max(1, Math.min(Math.round(u * 0.8), ...this.nodes.map((nd) => Math.floor((nd.w * 0.95) / Math.max(1, textPx(nd.lvl))))));
+    // one label size for every node: as large as the widest label allows (a label may run past its node's sides, short of
+    // the other column)
+    const room = Math.max(nw * 0.95, Math.min(nw * 1.6, (colR - colL) * 0.9));
+    const lk = Math.max(1, Math.min(lkMax, ...this.nodes.map((nd) => Math.floor(room / Math.max(1, textPx(nd.lvl))))));
     for (const nd of this.nodes) nd.lvl.setScale(lk);
     this.towerBox = { x0: tx0, x1: tx1, top, bottom };
     // the next fight's details and the menu: beside the tower, or under it on narrow screens

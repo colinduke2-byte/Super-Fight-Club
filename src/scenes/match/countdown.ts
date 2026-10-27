@@ -65,14 +65,34 @@ export class Countdown {
     const minY = 10 * u + half; // under the clock
     const maxY = h - (40 * (s.st.hudU || u) + 12 * u) - half; // above the fighter plates
     const usual = h * 0.3;
+    // what the banner must not cover: the fighters' band (full width), and any platform under the banner's plate
+    const blocked: [number, number][] = [];
+    if (top !== Infinity) blocked.push([top, bottom]);
+    const w = s.scale.width;
+    const bw = Math.max(b.displayWidth, 7 * u * COUNT_SCALE * 6) / 2 + 12 * u;
+    for (const p of s.world.platforms) {
+      const x0 = (p.x - v.x) * z;
+      const x1 = (p.right - v.x) * z;
+      if (x1 < w / 2 - bw || x0 > w / 2 + bw) continue;
+      blocked.push([(p.top - v.y) * z - 3 * u, (p.bottom - v.y) * z + 6 * u]);
+    }
+    const clear = (yy: number): boolean => yy >= minY && yy <= maxY && blocked.every(([a, c]) => yy + half <= a || yy - half >= c);
     let y = usual;
-    if (top !== Infinity && usual + half > top && usual - half < bottom) {
-      // the usual spot overlaps someone: the roomier of the bands above and below the fighters
-      const above = top - 4 * u - half;
-      const below = bottom + 4 * u + half;
-      if (above >= minY) y = Math.min(usual, above);
-      else if (below <= maxY) y = below;
-      else y = minY;
+    if (!clear(usual)) {
+      // the clear spot nearest the usual one: just above or below something in the way (above the fighters first)
+      const spots = blocked.flatMap(([a, c]) => [a - 2 * u - half, c + 2 * u + half]).filter(clear);
+      const above = spots.filter((yy) => top === Infinity || yy < top);
+      const pick = (list: number[]): number | undefined => list.sort((p, q) => Math.abs(p - usual) - Math.abs(q - usual))[0];
+      const best = pick(above) ?? pick(spots);
+      if (best !== undefined) y = best;
+      else if (top !== Infinity && usual + half > top && usual - half < bottom) {
+        // nowhere fully clear: at least keep off the fighters (the roomier of the bands above and below them)
+        const up = top - 4 * u - half;
+        const down = bottom + 4 * u + half;
+        if (up >= minY) y = Math.min(usual, up);
+        else if (down <= maxY) y = down;
+        else y = minY;
+      }
     }
     b.setY(Math.round(Math.max(minY, Math.min(maxY, y))));
     this.moved = true;

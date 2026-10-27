@@ -168,25 +168,32 @@ export class CreditsScene extends MenuScene {
     this.placeFooter(this.hint);
   }
 
-  protected override layoutUi(w: number, _h: number, u: number): void {
+  protected override layoutUi(_w: number, _h: number, u: number): void {
     this.lineH = 12 * u;
-    // pairs side by side when the widest fits in the window at a readable size, else stacked
+    // every line stays inside the dark plate (its width less a margin each side)
+    const inner = this.plateW() - 12 * u;
+    // pairs side by side when the widest fits in the plate at a readable size, else stacked
     const pairW = Math.max(...this.rows.filter((r) => r.row.kind === 'pair').map((r) => Math.max(textPx(r.texts[0]), textPx(r.texts[1])) * 2 + 12));
-    this.stacked = (w * 0.92) / Math.max(1, pairW) < u * 1.1;
+    this.stacked = inner / Math.max(1, pairW) < u * 1.1;
     for (const { row, texts } of this.rows) {
       const k = row.kind === 'big' ? 3 : row.kind === 'head' ? 1.5 : 1.2;
-      texts.forEach((t, j) => t.setScale(Math.min(u * k, (w * (row.kind === 'pair' && !this.stacked ? 0.45 : 0.92)) / Math.max(1, textPx(t)) * (row.kind === 'pair' && this.stacked && j === 0 ? 1 / 1.2 : 1))));
+      const room = row.kind === 'pair' && !this.stacked ? inner / 2 - 6 * u : inner;
+      texts.forEach((t, j) => t.setScale(crisp(Math.min(u * k * (row.kind === 'pair' && this.stacked && j === 0 ? 1 / 1.2 : 1), room / Math.max(1, textPx(t))))));
     }
     this.placeFooter(this.hint);
     this.drawPlate();
     this.layoutEnding();
   }
 
+  private plateW(): number {
+    return Math.min(this.scale.width - 8 * this.u, 300 * this.u);
+  }
+
   private drawPlate(): void {
     const w = this.scale.width;
     const h = this.scale.height;
     const u = this.u;
-    const pw = Math.min(w - 8 * u, 300 * u);
+    const pw = this.plateW();
     this.plate.clear();
     if (this.ending) return;
     drawPanel(this.plate, (w - pw) / 2, h * 0.06 - 8 * u, pw, h * 0.56 + 16 * u, u, 0.72);
@@ -341,4 +348,9 @@ export class CreditsScene extends MenuScene {
       this.refreshHint();
     } else if (e.action === 'back' || e.action === 'confirm' || e.action === 'start') this.leave();
   }
+}
+
+/** Whole pixels for a pixel-font scale of 2 or more (crisp); smaller fits keep their fractional scale. */
+function crisp(k: number): number {
+  return k >= 2 ? Math.floor(k) : k;
 }

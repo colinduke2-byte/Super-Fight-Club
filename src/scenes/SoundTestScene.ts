@@ -17,28 +17,28 @@ const TABS: { id: Tab; label: string }[] = [
   { id: 'announcer', label: 'ANNOUNCER' },
 ];
 
-/** What each track is for, shown under the list. */
-const TRACK_NOTES: Record<string, string> = {
-  menu: 'Main menu',
-  select: 'Character select',
-  results: 'Results screen',
-  credits: 'Credits roll',
-  story: 'Arcade story cards',
-  boss: 'The Overseer, phase 1',
-  boss2: 'The Overseer, phase 2',
-  launch: 'Launch Contest',
-  training: 'Training and the sandbox',
-  targets: 'Target Smash',
-  classic: 'Neon Ruins',
-  ring: 'The Ring',
-  storm: 'Stormspire',
-  dawn: 'Skyhold',
-  temple: 'Sunken Temple',
-  cove: 'Wreck Cove',
-  hollow: 'Amethyst Hollow',
-  frostfang: 'Frostfang Peak',
-  stormrunner: 'The Stormrunner',
-  reactor: 'The Reactor',
+/** Each track's name in the list, and what it is for (shown under the list). */
+const TRACK_INFO: Record<string, [name: string, note: string]> = {
+  menu: ['MAIN MENU', 'The title and the menus'],
+  select: ['CHARACTER SELECT', 'Picking fighters'],
+  results: ['RESULTS', 'The results screen'],
+  credits: ['CREDITS', 'The credits roll'],
+  story: ['STORY', 'Arcade story cards'],
+  boss: ['OVERSEER I', 'The Overseer, phase 1, and The Apex'],
+  boss2: ['OVERSEER II', 'The Overseer, phase 2'],
+  launch: ['LAUNCH CONTEST', 'Launch Contest'],
+  training: ['TRAINING', 'Training and the sandbox'],
+  targets: ['TARGET SMASH', 'Target Smash'],
+  classic: ['SKYLINE', 'Skyline Classic and Skyline Express'],
+  ring: ['THE RING', 'Stage theme'],
+  storm: ['STORMSPIRE', 'Stage theme'],
+  dawn: ['SKYHOLD', 'Skyhold Expanse'],
+  temple: ['SUNKEN TEMPLE', 'Stage theme'],
+  cove: ['WRECK COVE', 'Wreck Cove and Harbour Pier'],
+  hollow: ['AMETHYST HOLLOW', 'Stage theme'],
+  frostfang: ['FROSTFANG PEAK', 'Stage theme'],
+  stormrunner: ['THE STORMRUNNER', 'Stage theme'],
+  reactor: ['THE REACTOR', 'Stage theme'],
 };
 
 const SECTION_NAMES: Record<SectionKind, string> = {
@@ -143,10 +143,10 @@ export class SoundTestScene extends MenuScene {
     switch (this.tab) {
       case 'music':
         return Object.keys(TRACKS).map((id) => ({
-          label: id.toUpperCase(),
+          label: TRACK_INFO[id]?.[0] ?? id.toUpperCase(),
           value: () => (this.playing === id ? 'STOP' : fmt(loopSeconds(TRACKS[id]))),
           onConfirm: () => this.toggle(id),
-          hint: `${TRACK_NOTES[id] ?? ''}  ${TRACKS[id].bpm} BPM`,
+          hint: `${TRACK_INFO[id]?.[1] ?? ''}  ${TRACKS[id].bpm} BPM`,
         }));
       case 'jingles':
         return [
@@ -266,7 +266,7 @@ export class SoundTestScene extends MenuScene {
       const len = loopSeconds(t);
       const el = music.songTime % len;
       const sec = sectionAt(t, Math.floor(el / (barSeconds(t) / 16)));
-      st = `${this.playing.toUpperCase()}  ${fmt(el)} / ${fmt(len)}  ${SECTION_NAMES[sec.kind]}${sec.key ? `  KEY ${sec.key > 0 ? '+' : ''}${sec.key}` : ''}`;
+      st = `${TRACK_INFO[this.playing]?.[0] ?? this.playing.toUpperCase()}  ${fmt(el)} / ${fmt(len)}  ${SECTION_NAMES[sec.kind]}${sec.key ? `  KEY ${sec.key > 0 ? '+' : ''}${sec.key}` : ''}`;
     } else if (this.tab === 'announcer') st = announcer.voiceLabel;
     if (up(st) !== this.status.text) {
       this.status.setText(up(st));

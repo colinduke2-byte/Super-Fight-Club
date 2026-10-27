@@ -167,8 +167,12 @@ export class ResultsScene extends MenuScene {
     this.title = this.add.bitmapText(0, 0, PIXEL_FONT, label).setOrigin(0.5).setTint(r && r.winnerTeam >= 0 ? COLORS.p[r.winnerTeam] : winner >= 0 ? COLORS.p[winner % 4] : COLORS.title);
     this.titleGlow = this.add.bitmapText(0, 0, PIXEL_FONT, label).setOrigin(0.5).setTint(0xffffff).setAlpha(0).setBlendMode(Phaser.BlendModes.ADD);
     this.ui.add([this.title, this.titleGlow]);
-    const timed = (chal ? challengeRules(chal) : session.rules).mode === 'time' && !arcade;
-    this.head = text(this, this.ui, tr ? `TARGET SMASH  ${(characterById(tr.character)?.name ?? '').toUpperCase()}` : lr ? `LAUNCH CONTEST  ${(characterById(lr.character)?.name ?? '').toUpperCase()}` : `PLAYER    FIGHTER    KOS  FALLS  DAMAGE  COMBO  ${timed ? 'POINTS' : 'STOCKS'}`, COLORS.dim);
+    const ruleMode = (chal ? challengeRules(chal) : session.rules).mode;
+    const timed = ruleMode === 'time' && !arcade;
+    // the last column follows the rules: points in a timed match, stocks left in a stock match, none in stamina
+    const stamina = ruleMode === 'stamina' && !arcade;
+    const lastCol = timed ? '  POINTS' : stamina ? '' : '  STOCKS';
+    this.head = text(this, this.ui, tr ? `TARGET SMASH  ${(characterById(tr.character)?.name ?? '').toUpperCase()}` : lr ? `LAUNCH CONTEST  ${(characterById(lr.character)?.name ?? '').toUpperCase()}` : `PLAYER    FIGHTER    KOS  FALLS  DAMAGE  COMBO${lastCol}`, COLORS.dim);
     this.stageG = this.add.graphics();
     this.fx = this.add.graphics().setBlendMode(Phaser.BlendModes.ADD);
     this.ui.add([this.stageG, this.fx]);
@@ -252,7 +256,7 @@ export class ResultsScene extends MenuScene {
       for (const p of sorted) {
         const name = (characterById(p.character)?.name ?? p.character).replace('The ', '');
         const who = `${p.placement}. ${nameOf(p).slice(0, 6)}`;
-        const line = `${who.padEnd(9)} ${name.slice(0, 10).padEnd(10)} ${String(p.kos).padStart(3)}  ${String(p.falls).padStart(5)}  ${String(Math.round(p.damageDealt)).padStart(6)}  ${String(p.bestCombo ?? 0).padStart(5)}  ${String(timed ? p.kos - p.falls : p.stocks).padStart(6)}`;
+        const line = `${who.padEnd(9)} ${name.slice(0, 10).padEnd(10)} ${String(p.kos).padStart(3)}  ${String(p.falls).padStart(5)}  ${String(Math.round(p.damageDealt)).padStart(6)}  ${String(p.bestCombo ?? 0).padStart(5)}${lastCol ? `  ${String(timed ? p.kos - p.falls : p.stocks).padStart(6)}` : ''}`;
         this.rows.push(text(this, this.ui, line, p.index === winner ? COLORS.hot : COLORS.p[p.team >= 0 ? p.team : p.index % 4]));
       }
     }
@@ -567,15 +571,20 @@ export class ResultsScene extends MenuScene {
       const right = Math.max(34, this.champHalf, ...spots.map((p) => p.dx + p.hw));
       const span = left + right + (nr === 0 ? 0 : 6);
       const room = portrait ? w - 6 * u : side - 6 * u; // everything left of the table (portrait: the full width)
-      const s = Math.max(0.5, Math.min(u * 2.6, (h * (portrait ? 0.2 : 0.44)) / 64, (room * 0.96) / span, nr === 0 && !portrait ? (w * 0.2) / 56 : Infinity));
+      // (a clear margin from the screen's left edge: a giant runner-up's spikes and sway reach past its step)
+      const edge = 8 * u;
+      const s = Math.max(0.5, Math.min(u * 2.6, (h * (portrait ? 0.2 : 0.44)) / 64, ((room - edge) * 0.96) / span, nr === 0 && !portrait ? (w * 0.2) / 56 : Infinity));
       // centred in the room left of the table (never past either edge)
-      const fx = Math.max(3 * u + left * s, Math.min(room - right * s, room / 2 + ((left - right) / 2) * s));
+      const fx = Math.max(edge + left * s, Math.min(room - right * s, room / 2 + ((left - right) / 2) * s));
       // what hangs below the ground line: the steps, the name and (on taller windows) the quote, all above the footer
       const nameK = this.champName ? Math.min(u * 2, (w * (portrait ? 0.8 : 0.36)) / Math.max(1, textPx(this.champName))) : 0;
       const quote = !!this.champLine && (h >= 500 || !this.runners.length);
       const quoteK = this.champLine ? Math.min(u, (w * (portrait ? 0.9 : 0.38)) / Math.max(1, textPx(this.champLine))) : 0;
-      const below = s * (nr ? 16 : 10) + 9 * u + 3.5 * nameK + 4 * u + (quote ? 6 * u + 7 * quoteK : 0);
-      const fy = Math.min(h * 0.74, footTop - 3 * u - below);
+      // (heights from the font's real line height; the plate under them ends clear of the footer's dark band)
+      const nameH = this.champName ? this.champName.getTextBounds().local.height * nameK : 0;
+      const quoteH = this.champLine ? this.champLine.getTextBounds().local.height * quoteK : 0;
+      const below = s * (nr ? 16 : 10) + 9 * u + nameH / 2 + (quote ? nameH / 2 + 6 * u + quoteH / 2 : 0) + 4 * u;
+      const fy = Math.min(h * 0.74, footTop - 6 * u - below);
       this.floor = { x: nr === 0 && !portrait ? w * 0.22 : fx, y: fy, s };
       podiumTop = fy - 70 * s;
       this.champ.setScale(s * this.champK).setPosition(this.floor.x, this.floor.y);

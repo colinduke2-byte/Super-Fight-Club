@@ -1,6 +1,6 @@
 import type { CharacterData } from '../engine/types';
 import type { InputDevice } from '../input/device';
-import { promptFor } from '../input/prompts';
+import { promptFor, wrapText } from '../input/prompts';
 import { deviceKind } from './tutorial';
 
 /** How a move is input: an optional direction (relative to facing), a button, and whether it is done in the air. */
@@ -80,19 +80,30 @@ export function moveList(data: CharacterData, device?: InputDevice | null): Move
     const m = data.moves[id] ?? Object.entries(data.moves).find(([k]) => k.startsWith(`${id}_`))?.[1];
     if (!m || m.hidden) continue;
     const dmg = Math.max(0, ...m.hitboxes.map((h) => h.damage ?? 0));
-    out.push({ input: inputText(input, device), name: m.name ?? id, damage: Math.round(dmg * 10) / 10, frame: m.startup + 1 });
+    out.push({ input: inputText(input, device), name: displayName(id, m.name), damage: Math.round(dmg * 10) / 10, frame: m.startup + 1 });
   }
   return out;
+}
+
+/**
+ * A move's name as the list shows it. The first hit of a jab string is named like the whole string ('Rapid Slash', not
+ * 'Rapid Slash 1'), as the other fighters' multi-hit moves are; the move data keeps its numbered names.
+ */
+function displayName(id: string, name: string | undefined): string {
+  if (!name) return id;
+  return id === 'jab1' ? name.replace(/\s+1$/, '') : name;
 }
 
 /** Fixed-width text block for the pause screen, with a key to its columns (FWD / BACK are relative to where you face). */
 export function moveListText(data: CharacterData, device?: InputDevice | null): string {
   const rows = moveList(data, device);
   const iw = Math.max(16, ...rows.map((r) => r.input.length + 2));
-  const lines = [`${data.name.toUpperCase()}  -  MOVE LIST`, (data.tagline ?? '').toUpperCase(), '', `${'INPUT'.padEnd(iw)}${'MOVE'.padEnd(22)}${'DMG'.padStart(5)}${'FRAME'.padStart(7)}`];
+  // every line fits the table's width, so the panel (sized to the widest line) has no empty right half
+  const tw = iw + 22 + 5 + 7;
+  const lines = [`${data.name.toUpperCase()}  -  MOVE LIST`, wrapText((data.tagline ?? '').toUpperCase(), tw), '', `${'INPUT'.padEnd(iw)}${'MOVE'.padEnd(22)}${'DMG'.padStart(5)}${'FRAME'.padStart(7)}`];
   for (const r of rows) {
     lines.push(`${r.input.padEnd(iw)}${r.name.toUpperCase().slice(0, 21).padEnd(22)}${(r.damage > 0 ? String(r.damage) : '-').padStart(5)}${String(r.frame).padStart(7)}`);
   }
-  lines.push('', 'DMG: DAMAGE %.  FRAME: HOW SOON IT HITS (60 FRAMES = 1 SECOND, LOWER IS FASTER).', 'FWD / BACK: TOWARD / AWAY FROM WHERE YOU FACE.');
+  lines.push('', 'DMG: DAMAGE %.  FRAME: HOW SOON IT HITS', '(60 FRAMES = 1 SECOND, LOWER IS FASTER).', 'FWD / BACK: TOWARD / AWAY FROM WHERE YOU FACE.');
   return lines.join('\n');
 }

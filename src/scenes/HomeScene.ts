@@ -92,7 +92,7 @@ export class HomeScene extends MenuScene {
     const stage = last ? (last.stage === 'random' ? 'RANDOM STAGE' : STAGES[last.stage]?.name) : undefined;
     const subs: Record<TileId, string> = {
       play: last && names.length ? `${names.join(' VS ')}${stage ? `  -  ${stage}` : ''}` : 'PICK A FIGHTER AND GO',
-      battle: '1 VS 1: A FRIEND OR A CPU, UP TO 4',
+      battle: 'FRIENDS OR CPUS',
       more: 'ARCADE, SOLO, EXTRAS',
     };
     this.labels.clear();
@@ -255,6 +255,13 @@ export class HomeScene extends MenuScene {
       box.set('battle', { x: margin, y: ty + ph + gap, w: sw, h: sh });
       box.set('more', { x: margin + sw + gap, y: ty + ph + gap, w: sw, h: sh });
     }
+    // BATTLE and MORE share one sub-line scale (whole pixels when it fits, so the pixel font stays crisp)
+    let smallSub = u;
+    for (const tile of TILES) {
+      if (tile.id === 'play') continue;
+      const b = box.get(tile.id)!;
+      smallSub = Math.min(smallSub, (b.w - 12 * u) / Math.max(1, textPx(this.labels.get(tile.id)!.sub)));
+    }
     for (const tile of TILES) {
       const b = box.get(tile.id)!;
       this.spots.push({ id: tile.id, ...b });
@@ -265,7 +272,7 @@ export class HomeScene extends MenuScene {
       const lw = big && tall ? b.w * 0.42 : b.w - 2 * pad;
       const lk = Math.max(u, Math.min(u * (big ? 4 : 3), lw / Math.max(1, textPx(t)), b.h / 4.5 / 7));
       t.setScale(lk);
-      const sk = Math.max(u * 0.5, Math.min(u, (b.w - 2 * pad) / Math.max(1, textPx(sub))));
+      const sk = crisp(big ? Math.min(u, (b.w - 2 * pad) / Math.max(1, textPx(sub))) : smallSub, u);
       sub.setScale(sk);
       const subY = b.y + b.h - pad - 2 * u - sub.displayHeight / 2;
       sub.setPosition(b.x + pad, subY);
@@ -435,4 +442,11 @@ export class HomeScene extends MenuScene {
       default:
     }
   }
+}
+
+/** A text scale no larger than `k`: `max` when that fits, else whole pixels (half pixels below 2), so pixel text stays crisp. */
+function crisp(k: number, max: number): number {
+  if (k >= max) return max;
+  if (k >= 2) return Math.floor(k);
+  return k >= 1 ? Math.floor(k * 2) / 2 : k;
 }

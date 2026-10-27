@@ -105,6 +105,7 @@ const lastRows: number[] = GROUPS.map(() => 0);
  */
 export class ModeSelectScene extends MenuScene {
   private list!: MenuList;
+  private listW = 130;
   private title!: Phaser.GameObjects.BitmapText;
   private hint!: Phaser.GameObjects.BitmapText;
   private desc!: Phaser.GameObjects.BitmapText;
@@ -132,6 +133,10 @@ export class ModeSelectScene extends MenuScene {
     this.tabG = this.add.graphics();
     this.ui.add(this.tabG);
     this.tabTexts = GROUPS.map((g) => text(this, this.ui, g.label, COLORS.text).setOrigin(0.5));
+    // one menu width for every group, wide enough for the longest mode name at full size (else that group's text shrinks)
+    const probe = text(this, this.ui, '');
+    this.listW = Math.max(130, ...GROUPS.flatMap((g) => g.items.map((it) => textPx(probe.setText(it.label)) * 1.5 + 16 + 4)));
+    probe.destroy();
     this.list = new MenuList(this, this.ui, this.items());
     this.list.index = Math.min(lastRows[this.group] ?? 0, this.list.items.length - 1);
     this.events.once('shutdown', () => {
@@ -259,7 +264,7 @@ export class ModeSelectScene extends MenuScene {
     this.desc.setText(this.list.hint);
     const footTop = this.placeFooter(this.hint, this.desc, 1.5);
     const listTop = ty + th + 12 * u;
-    this.list.layout(w / 2, listTop, u, 130, footTop - 12 * u);
+    this.list.layout(w / 2, listTop, u, this.listW, footTop - 12 * u);
     // flanking fighters only when there is room beside the menu
     const room = w > h * 1.25;
     this.floorY = Math.min(h * 0.7, h * 0.78 - 20 * u);
