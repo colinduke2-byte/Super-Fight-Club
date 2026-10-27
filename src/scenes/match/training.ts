@@ -100,6 +100,11 @@ function urlTutorial(): boolean {
 /** Set while the tutorial runs (the help block shrinks to the lesson basics). */
 let tutorialOn = false;
 
+/** The training menu's name: the tutorial calls its own the TUTORIAL MENU (its help line and the pause menu say so too). */
+export function trainingMenuName(): string {
+  return tutorialOn ? 'TUTORIAL MENU' : 'TRAINING MENU';
+}
+
 /** The fight controls of a device in one line ('MOVE WASD  JUMP I ...', 'MOVE STICK  JUMP Y ...'; touch: its labelled buttons). */
 export function controlsLine(d: InputDevice | null = helpDevice): string {
   const kind = deviceKind(d);

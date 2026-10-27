@@ -6,7 +6,7 @@ import { ensurePalette, fighterAnimKey, fighterTextureKey, uiTexK } from '../art
 import { characterById } from '../characters';
 import type { CharacterData } from '../engine/types';
 import { lastInput } from '../input/prompts';
-import { session } from '../game/session';
+import { session, teamsFor } from '../game/session';
 import { rivalLine } from '../game/story';
 import { activeProfileName } from '../game/profiles';
 import type { MenuEvent } from '../input/menuInput';
@@ -74,9 +74,12 @@ export class VersusSplashScene extends MenuScene {
     this.sides = [];
     const players = session.players;
     const human = players.find((p) => p.type === 'human') ?? players[0];
-    // the player's side: everyone on slot 0's team (a co-op partner, a team fight's ally); the rest are the rivals
-    const side = players[0]?.team;
-    const friend = (p: (typeof players)[number]): boolean => p !== human && side !== undefined && p.team === side;
+    // the player's side: everyone on the player's team (a co-op partner, a team fight's ally); the rest are the rivals.
+    // The ladder sets slot.team; a versus team battle keeps its teams in the rules (teamOf, or the default split)
+    const ruled = session.mode === 'versus' && session.rules.teams ? teamsFor(session.rules, players.length) : null;
+    const teamOf = (p: (typeof players)[number]): number | undefined => p.team ?? ruled?.[players.indexOf(p)];
+    const side = human ? teamOf(human) : undefined;
+    const friend = (p: (typeof players)[number]): boolean => p !== human && side !== undefined && teamOf(p) === side;
     const mates = players.filter(friend);
     const rivals = players.filter((p) => p !== human && !friend(p));
     const add = (slot: (typeof players)[number] | undefined, dir: -1 | 1, rank: number): void => {
@@ -159,7 +162,7 @@ export class VersusSplashScene extends MenuScene {
     const g = this.g.clear();
     // the split: each side's colour washes its half under a bright diagonal seam
     const e = this.ease(time, 0, 0.3);
-    const left = this.sides.find((s) => s.dir === -1);
+    const left = this.sides.find((s) => s.dir === -1 && s.rank === 0);
     const right = this.sides.find((s) => s.dir === 1 && s.rank === 0);
     const tilt = h * 0.18;
     const mid = w / 2;

@@ -234,6 +234,23 @@ export class TouchDevice implements InputDevice {
     this.menuPad = pad;
   }
 
+  /**
+   * The on-screen OK / BACK / START column while it is showing ('buttons' menu pad): its left and top edges in CSS px, so a
+   * screen can keep its own tap targets out from under it (null: not showing).
+   */
+  menuColumn(): { left: number; top: number } | null {
+    if (this.mode !== 'menu' || this.menuPad !== 'buttons') return null;
+    let left = Infinity;
+    let top = Infinity;
+    for (const c of this.ctls) {
+      if (!c.shown || c.mode !== 'menu') continue;
+      const pill = c.id === 'm-start';
+      left = Math.min(left, c.x - c.r * (pill ? 1.3 : 1));
+      top = Math.min(top, c.y - c.r * (pill ? 0.8 : 1));
+    }
+    return left < Infinity ? { left, top } : null;
+  }
+
   /** A touch began within `ms` (a pointer event right now most likely came from a finger). */
   recentTouch(ms = 800): boolean {
     return performance.now() - this.lastTouchAt < ms;

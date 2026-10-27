@@ -14,18 +14,19 @@ import { deviceKind } from '../../game/tutorial';
 import { drawPanel, MenuList, tapMin, type MenuItem } from '../../ui/menuKit';
 import type { MatchScene } from '../MatchScene';
 import { hudUnit } from './hudLayout';
-import { menuKeyLabel, openTrainingMenu } from './training';
+import { menuKeyLabel, openTrainingMenu, trainingMenuName } from './training';
 
 /**
  * Controls reminder under the pause menu, for the device of the player who paused (none: the last device used): the menu
- * controls, plus Ctrl+F on a keyboard (no other dev combos: those are listed in Training's own help).
+ * controls, plus Ctrl+F on a keyboard (no developer combos: the training ones are listed in Training's own help).
  */
 export function pauseHelp(device: InputDevice | null | undefined, training: boolean): string {
-  if (deviceKind(device) === 'touch') return training ? 'TAP AN OPTION   MENU (TOP RIGHT): TRAINING MENU' : 'TAP AN OPTION';
+  const menu = trainingMenuName();
+  if (deviceKind(device) === 'touch') return training ? `TAP AN OPTION   MENU (TOP RIGHT): ${menu}` : 'TAP AN OPTION';
   const base = footerHint([['updown', 'MOVE'], ['confirm', 'SELECT'], ['start', 'RESUME']], device);
-  if (training) return `${base}   ${menuKeyLabel(device ?? null)}: TRAINING MENU`;
+  if (training) return `${base}   ${menuKeyLabel(device ?? null)}: ${menu}`;
   // Ctrl+F is the one match hotkey worth naming to a keyboard player (the keyboard hub keeps the browser's find bar shut)
-  return deviceKind(device) === 'keyboard' ? `${base}   CTRL+F: FULLSCREEN   CTRL+1: DEBUG` : base;
+  return deviceKind(device) === 'keyboard' ? `${base}   CTRL+F: FULLSCREEN` : base;
 }
 
 /**
@@ -63,7 +64,7 @@ export class PauseMenu {
     const items: MenuItem[] = [
       { label: 'RESUME', enabled: () => s.st.pauseReason !== 'disconnect', onConfirm: () => this.setPaused(false) },
       ...(canRestart ? [{ label: 'RESTART', onConfirm: () => this.ask('restart') }] : []),
-      ...(s.isTraining ? [{ label: 'TRAINING MENU', onConfirm: () => void openTrainingMenu(s) }] : []),
+      ...(s.isTraining ? [{ label: () => trainingMenuName(), onConfirm: () => void openTrainingMenu(s) }] : []),
       ...(!s.replay ? [{ label: 'MOVE LIST', onConfirm: () => this.showMoveList(true) }] : []),
       // Settings comes up over the paused match (CONTROLS is inside it); without that overlay, CONTROLS stands in for it
       ...(settingsOverlay(s) ? [{ label: 'SETTINGS', onConfirm: () => this.overlayScene('Settings') }] : [{ label: 'CONTROLS', onConfirm: () => this.overlayScene('Controls') }]),

@@ -7,7 +7,7 @@ import { lastInput, type PromptKind } from './lastDevice';
  * On-screen prompts generated from the live bindings and the device in use, so every hint names the key or button the
  * player actually has to press (rebinds included).
  *
- *   promptFor('attack')               -> 'J' (keyboard 1), ',' (keyboard 2), 'A' (Xbox / Nintendo), 'CROSS' (PlayStation), 'ATTACK' (touch)
+ *   promptFor('attack')               -> 'J' (keyboard 1), 'COMMA' (keyboard 2), 'A' (Xbox / Nintendo), 'CROSS' (PlayStation), 'ATTACK' (touch)
  *   menuPrompt('confirm')             -> 'J / ENTER', 'A', 'TAP'
  *   footerHint([['updown', 'MOVE'], ['confirm', 'SELECT'], ['back', 'BACK']])
  *                                     -> 'UP/DOWN: MOVE   J / ENTER: SELECT   K / ESC: BACK'
@@ -45,11 +45,12 @@ const KEY_WORDS: Record<string, string> = {
   ArrowLeft: 'LEFT',
   ArrowRight: 'RIGHT',
   ContextMenu: 'MENU',
-  // punctuation the font can draw shows as itself
-  Comma: ',',
-  Period: '.',
-  Slash: '/',
-  Quote: "'",
+  // small punctuation reads as a stray mark in a hint ("HOLD ,", ",: LOCK IN"): named instead
+  Comma: 'COMMA',
+  Period: 'PERIOD',
+  Slash: 'SLASH',
+  Quote: 'QUOTE',
+  // punctuation that reads clearly on its own shows as itself
   Minus: '-',
   Equal: '=',
   BracketLeft: '[',
@@ -66,7 +67,7 @@ const KEY_WORDS: Record<string, string> = {
   NumpadDecimal: 'NUM .',
 };
 
-/** Human-readable name of a `KeyboardEvent.code`: 'KeyJ' -> 'J', 'ShiftRight' -> 'RIGHT SHIFT', 'Quote' -> "'". */
+/** Human-readable name of a `KeyboardEvent.code`: 'KeyJ' -> 'J', 'ShiftRight' -> 'RIGHT SHIFT', 'Comma' -> 'COMMA'. */
 export function keyLabel(code: string): string {
   const w = KEY_WORDS[code];
   if (w) return w;
@@ -168,7 +169,9 @@ export function menuPrompt(verb: MenuVerb, device?: InputDevice | null): string 
   if (verb === 'confirm') return pair('attack', 'ENTER');
   if (verb === 'back') return pair('special', t.scheme === 'kb2' ? 'BACKSPACE' : 'ESC');
   if (verb === 'alt') return pair('grab', 'TAB');
-  return own('pause') || 'ESC';
+  // Escape pauses for every keyboard player (KeyboardDevice.sample), on top of the scheme's own pause key
+  const p = own('pause');
+  return !p || p === 'ESC' ? 'ESC' : `${p} / ESC`;
 }
 
 function padLabelFor(a: ButtonAction, t: Target): string {

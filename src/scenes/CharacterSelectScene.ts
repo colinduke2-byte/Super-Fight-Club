@@ -29,7 +29,7 @@ import { settings } from '../settings';
 import { inputManager } from '../input/inputManager';
 import type { MenuEvent } from '../input/menuInput';
 import { fastShapes } from '../ui/fastShapes';
-import { COLORS, MenuList, MenuScene, PANEL, drawButton, drawPanel, pointerDevice, pointerXY, tapMin, text, textPx, wrapText, type MenuBackdrop, type MenuItem } from '../ui/menuKit';
+import { COLORS, MenuList, MenuScene, PANEL, drawButton, drawPanel, pointerDevice, pointerXY, renderPerCss, tapMin, text, textPx, wrapText, type MenuBackdrop, type MenuItem } from '../ui/menuKit';
 
 /** Team colour names (team index = player colour index). */
 const TEAM_NAMES = ['BLUE', 'RED', 'GREEN', 'YELLOW'];
@@ -80,6 +80,28 @@ const CHIP_IDS: readonly ChipId[] = ['players', 'rules', 'stage', 'form', 'all',
  * count: it comes back exactly as it was (who joined, their picks and locks, the CPUs, the names).
  */
 let carry: { slots: LobbySlot[]; profiles: (string | null)[] } | null = null;
+
+/** The menu screen that closed last (see watchLobbyOrigin), and the one the lobby was opened from (BACK returns there). */
+let lastClosed = '';
+let origin = '';
+/** Screens that open the lobby and that BACK from an empty lobby returns to. */
+const ORIGINS = new Set(['Home', 'ModeSelect', 'Challenges']);
+let watching = false;
+
+/**
+ * Note which screen each visit to the lobby came from, so BACK returns there (All Modes > VERSUS goes back to All Modes,
+ * not Home). Screens it opens itself (rules, stages) and the fight's results keep the screen it was first opened from.
+ * Call once when the game's scenes exist.
+ */
+export function watchLobbyOrigin(game: Phaser.Game): void {
+  if (watching) return;
+  watching = true;
+  for (const sc of game.scene.getScenes(false)) {
+    const key = sc.sys.settings.key;
+    if (key === 'CharacterSelect') sc.sys.events.on(Phaser.Scenes.Events.CREATE, () => ORIGINS.has(lastClosed) && (origin = lastClosed));
+    else sc.sys.events.on(Phaser.Scenes.Events.SHUTDOWN, () => (lastClosed = key));
+  }
+}
 
 /** Card height in card units: header band, the fighter's stage, name / status / outfit, tagline, stat bars. */
 /** How long a second keyboard player holds their select key to join beside the first (ms). */
@@ -184,6 +206,8 @@ export class CharacterSelectScene extends MenuScene {
     this.lobby.teams = versus && session.rules.teams;
     this.lobby.stockRule = session.rules.mode !== 'time';
     this.lobby.handicaps = versus;
+    // taking turns: empty slots stay empty (nobody fills them)
+    this.lobby.cpuFill = !this.takesTurns();
     this.lobby.slots.forEach((s, i) => {
       s.character = i % CHARACTER_LIST.length;
       const t = session.rules.teamOf?.[i];
@@ -192,7 +216,7 @@ export class CharacterSelectScene extends MenuScene {
     if (fixed >= 0) this.lobby.slots.forEach((s) => (s.character = fixed));
     else this.restorePicks();
     this.restoreCarry();
-    const title = session.mode === 'versus' ? 'CHOOSE YOUR FIGHTERS' : session.mode === 'arcade' ? 'CHOOSE YOUR CHAMPION' : session.mode === 'targets' ? 'TARGET SMASH' : session.mode === 'launch' ? 'LAUNCH CONTEST' : session.mode === 'challenge' ? challengeHead(challengeById(session.challenge)?.title ?? '') : 'TRAINING: CHOOSE A FIGHTER';
+    const title = session.mode === 'versus' ? 'CHOOSE YOUR FIGHTERS' : session.mode === 'arcade' ? 'CHOOSE YOUR CHAMPION' : session.mode === 'targets' ? (this.takesTurns() ? 'TARGET TURNS' : 'TARGET SMASH') : session.mode === 'launch' ? (this.takesTurns() ? 'LAUNCH TURNS' : 'LAUNCH CONTEST') : session.mode === 'challenge' ? challengeHead(challengeById(session.challenge)?.title ?? '') : 'TRAINING: CHOOSE A FIGHTER';
     this.title = this.add.bitmapText(0, 0, PIXEL_FONT, title).setOrigin(0.5).setTint(COLORS.title);
     this.ui.add(this.title);
     this.cardG = fastShapes(this.add.graphics());
@@ -206,12 +230,12 @@ export class CharacterSelectScene extends MenuScene {
         q: text(this, this.ui, '?', COLORS.title).setOrigin(0.5).setVisible(false),
         handi: text(this, this.ui, '', COLORS.accent).setOrigin(0.5, 0),
         rows: text(this, this.ui, '', COLORS.text).setOrigin(0, 0).setLineSpacing(2).setVisible(false),
-        keys: text(this, this.ui, '', COLORS.hint).setOrigin(0.5, 0),
+        keys: text(this, this.ui, '', COLORS.hint).setOrigin(0.5, 0).setCenterAlign().setLineSpacing(2),
         header: text(this, this.ui, `P${i + 1}`, col),
         device: text(this, this.ui, '', COLORS.dim),
         sprite,
         name: text(this, this.ui, '', COLORS.text),
-        status: text(this, this.ui, '', COLORS.warn),
+        status: text(this, this.ui, '', COLORS.warn).setCenterAlign(),
         bars: [],
         barLabels: ['WGT', 'SPD', 'JMP', 'DIF'].map((t) => text(this, this.ui, t, COLORS.dim)),
         tagline: text(this, this.ui, '', COLORS.dim).setCenterAlign(),
@@ -252,19 +276,21 @@ export class CharacterSelectScene extends MenuScene {
       img.setData('bust', !!bust);
       img.setData('k', portraitK(c));
       img.setData('crop', portraitCrop(c));
-      const name = text(this, this.ui, c.name, COLORS.text).setOrigin(0.5, 0);
+      const name = text(this, this.ui, c.name, COLORS.text).setOrigin(0.5, 0).setCenterAlign();
       this.ui.add(img);
       this.roster.push({ img, q: null, name, pips: pipsFor(), box: { x: 0, y: 0, w: 0, h: 0 } });
     });
     if (this.lobby.random) {
       // the RANDOM tile: a question mark, last on the strip
       const q = text(this, this.ui, '?', COLORS.title).setOrigin(0.5);
-      this.roster.push({ img: null, q, name: text(this, this.ui, 'RANDOM', COLORS.text).setOrigin(0.5, 0), pips: pipsFor(), box: { x: 0, y: 0, w: 0, h: 0 } });
+      this.roster.push({ img: null, q, name: text(this, this.ui, 'RANDOM', COLORS.text).setOrigin(0.5, 0).setCenterAlign(), pips: pipsFor(), box: { x: 0, y: 0, w: 0, h: 0 } });
     }
     // the edit overlay sits above the card sprites; its row text above that
     this.editG = this.add.graphics();
     this.ui.add(this.editG);
     for (const c of this.cards) this.ui.bringToTop(c.rows);
+    // an empty card's "PRESS TO JOIN" sits on its own dark plate (drawn on the overlay) over the silhouette
+    for (const c of this.cards) this.ui.bringToTop(c.status);
     this.input.on(Phaser.Input.Events.POINTER_DOWN, (p: Phaser.Input.Pointer) => this.onPointer(p));
     this.goG = this.add.graphics();
     this.ui.add(this.goG);
@@ -660,6 +686,33 @@ export class CharacterSelectScene extends MenuScene {
     p.desc.setScale(Math.min(this.u, (p.box.w - 8 * this.u) / Math.max(1, textPx(p.desc))));
   }
 
+  /** Width kept clear on the right for the touch OK / BACK / START column (render px; 0 when it is not showing). */
+  private touchCol = 0;
+
+  private touchColumnReserve(w: number, h: number): number {
+    const col = inputManager.touch.menuColumn();
+    if (!col || w <= h) return 0;
+    return Math.max(0, w - col.left * renderPerCss(this) + 2 * this.u);
+  }
+
+  /**
+   * Every roster name at one whole-pixel scale (at most `maxK`) that fits `room` px; names too wide even at 1x break onto two
+   * lines at a space. Returns the scale.
+   */
+  private fitRosterNames(room: number, maxK: number): number {
+    const full = (r: (typeof this.roster)[number]): string => (r.name.getData('full') as string | undefined) ?? r.name.text;
+    for (const r of this.roster) r.name.setData('full', full(r)).setText(full(r));
+    const widest = (): number => Math.max(1, ...this.roster.map((r) => textPx(r.name)));
+    let k = Math.max(1, Math.floor(Math.min(maxK, room / widest())));
+    if (widest() * k > room) {
+      for (const r of this.roster) if (textPx(r.name) > room) r.name.setText(full(r).replace(' ', '\n'));
+      k = Math.max(1, Math.floor(Math.min(maxK, room / widest())));
+    }
+    const s = widest() * k > room ? room / widest() : k;
+    for (const r of this.roster) r.name.setScale(s);
+    return s;
+  }
+
   /** Short window: the cards leave out the tagline row. */
   private compact = false;
   private get cardH(): number {
@@ -676,27 +729,33 @@ export class CharacterSelectScene extends MenuScene {
     this.warn.setData('k', warnK).setScale(Math.min(warnK, (w * 0.95) / Math.max(1, textPx(this.warn)))).setPosition(w / 2, hintTop - 5 * ru - (7 * warnK) / 2);
     const warnTop = this.warn.y - (7 * warnK) / 2;
     const rn = this.roster.length;
+    // a phone's OK / BACK / START column on the right edge: the strip keeps clear of it (landscape; upright, the column
+    // sits above the strip)
+    this.touchCol = this.touchColumnReserve(w, h);
+    const rx = (w - this.touchCol) / 2;
+    const wr = w - this.touchCol;
     // the roster runs in one strip, or wraps onto more rows (a phone held upright) so every tile stays finger-sized
     const minTile = Math.max(tapMin(this) * 1.15, 30 * ru);
     let rows = 1;
-    while (rows < 4 && (w - 8 * ru) / (Math.ceil(rn / rows) + 0.3) < minTile) rows++;
+    while (rows < 4 && (wr - 8 * ru) / (Math.ceil(rn / rows) + 0.3) < minTile) rows++;
     const cols = Math.ceil(rn / rows);
-    const rw = Math.min((w - 8 * ru) / (cols + 0.3), 74 * ru);
-    // one size for every name (measured unscaled, so it does not depend on the last layout), with a gap between neighbours
-    const widest = Math.max(1, ...this.roster.map((r) => textPx(r.name)));
-    const nameS = Math.min(ru * 1.2, (rw - 7 * ru) / widest);
+    const rw = Math.min((wr - 8 * ru) / (cols + 0.3), 74 * ru);
+    // one whole-pixel size for every name (crisp 5x7 glyphs), with a gap between neighbours: a name too long for its tile
+    // at 1x breaks onto two lines at its space ("THE / OVERSEER")
+    const nameS = this.fitRosterNames(rw - 4 * ru, ru * 1.2);
+    const nameH = Math.max(7 * nameS, ...this.roster.map((r) => r.name.displayHeight));
     const pipY0 = warnTop - 6 * ru;
     const portH = Math.min(40 * ru * 1.35, rw * 1.1);
     // one row's height: portrait well, name, pips
-    const rowSpan = 4 * ru + 7 * nameS + 2 * ru + portH + 3 * ru + 4 * ru;
+    const rowSpan = 4 * ru + nameH + 2 * ru + portH + 3 * ru + 4 * ru;
     const stripTop = pipY0 + 4 * ru - rows * rowSpan;
-    this.rosterPlate = { x: w / 2 - (cols * rw) / 2 - 2 * ru, y: stripTop, w: cols * rw + 4 * ru, h: pipY0 + 4 * ru - stripTop, u: ru };
+    this.rosterPlate = { x: rx - (cols * rw) / 2 - 2 * ru, y: stripTop, w: cols * rw + 4 * ru, h: pipY0 + 4 * ru - stripTop, u: ru };
     this.roster.forEach((r, i) => {
       const row = Math.floor(i / cols);
       const inRow = Math.min(cols, rn - row * cols);
-      const cx = w / 2 + ((i % cols) - (inRow - 1) / 2) * rw;
+      const cx = rx + ((i % cols) - (inRow - 1) / 2) * rw;
       const pipY = pipY0 - (rows - 1 - row) * rowSpan;
-      const nameY = pipY - 4 * ru - 7 * nameS;
+      const nameY = pipY - 4 * ru - nameH;
       const portBottom = nameY - 2 * ru;
       const top = portBottom - portH - 3 * ru;
       if (r.img?.getData('bust')) {
@@ -711,7 +770,7 @@ export class CharacterSelectScene extends MenuScene {
         r.img.setScale(sc).setPosition(cx + (r.img.width / 2 - (cr[0] + cr[2] / 2)) * sc, portBottom + (r.img.height / 2 - (cr[1] + cr[3])) * sc);
       }
       r.q?.setScale(Math.max(1, Math.floor(Math.min(portH * 0.8, rw * 0.8) / 7))).setPosition(cx, portBottom - portH / 2);
-      r.name.setScale(nameS).setPosition(cx, nameY);
+      r.name.setPosition(cx, nameY);
       r.pips.forEach((p, k) => p.setScale((3 * ru) / 4).setPosition(cx - ((r.pips.length - 1) * 4 * ru) / 2 + k * 4 * ru, pipY));
       r.box = { x: cx - rw / 2 + ru, y: top + ru, w: rw - 2 * ru, h: pipY + 3 * ru - top - ru };
     });
@@ -739,7 +798,8 @@ export class CharacterSelectScene extends MenuScene {
       c.device.setOrigin(1, 0.5).setPosition(x0 + cw * 0.94 - 6 * u, top + 10.5 * u);
       this.fitFighter(c, CHARACTER_LIST[this.lobby.slots[i].character] ?? CHARACTER_LIST[0]);
       c.q.setScale(Math.max(1, Math.floor((50 * u) / 7))).setPosition(cx, top + 58 * u);
-      c.keys.setData('u', u).setPosition(cx, top + this.cardH * u + 3 * u);
+      // the controls line gets the room down to the roster strip (two lines of whole-pixel text where one does not fit)
+      c.keys.setData('u', u).setData('room', stripTop - 3 * ru - (top + this.cardH * u + 3 * u)).setData('key', '').setPosition(cx, top + this.cardH * u + 3 * u);
       c.handi.setScale(legible(u)).setPosition(cx, top + 23 * u);
       c.rows.setData('u', u);
       c.name.setScale(u * 1.5).setOrigin(0.5, 0).setPosition(cx, top + 95 * u);
@@ -827,6 +887,20 @@ export class CharacterSelectScene extends MenuScene {
 
   private hoverT = 0;
 
+  /** Dark plates behind the empty cards' join text, so it reads over the cycling silhouette (on the overlay layer). */
+  private drawStatusPlates(): void {
+    const g = this.editG;
+    this.cards.forEach((c, i) => {
+      const t = c.status;
+      if (this.lobby.slots[i].kind !== 'empty' || !t.text) return;
+      const u = c.cu;
+      const w = t.displayWidth + 8 * u;
+      const h = t.displayHeight + 5 * u;
+      g.fillStyle(0x05040e, 0.82).fillRect(t.x - w / 2, t.y - 2.5 * u, w, h);
+      g.fillStyle(this.cardColor(i), 0.7).fillRect(t.x - w / 2, t.y - 2.5 * u + h - Math.max(1, u / 2), w, Math.max(1, u / 2));
+    });
+  }
+
   /** The roster on its own strip, with a frame in each player's colour around the fighter they are on. */
   private drawRoster(): void {
     const g = this.rosterG.clear();
@@ -901,6 +975,8 @@ export class CharacterSelectScene extends MenuScene {
       return;
     }
     this.syncProfiles();
+    // the touch OK / BACK / START column came or went: the roster makes room for it
+    if (this.touchColumnReserve(this.scale.width, this.scale.height) !== this.touchCol) this.layoutUi(this.scale.width, this.scale.height, this.u);
     const editors = this.editors(time);
     this.cards.forEach((c, i) => {
       const slot = l.slots[i];
@@ -956,8 +1032,8 @@ export class CharacterSelectScene extends MenuScene {
       const emptyMsg = session.mode === 'versus' && l.humans() > 0 ? `EMPTY: CPU FILLS${this.kbJoinHint()}` : this.joinText();
       c.status
         .setText(slot.kind === 'empty' ? emptyMsg : slot.kind === 'cpu' ? 'CPU' : slot.locked ? 'READY!' : 'SELECTING')
-        .setTint(slot.locked ? COLORS.good : slot.kind === 'empty' ? (((time * 2) | 0) % 2 === 0 ? COLORS.warn : COLORS.dim) : COLORS.text);
-      c.status.setScale(Math.min(c.cu * 1.2, (c.cw * 0.9) / Math.max(1, textPx(c.status))));
+        .setTint(slot.locked ? COLORS.good : slot.kind === 'empty' ? (((time * 2) | 0) % 2 === 0 ? COLORS.warn : COLORS.text) : COLORS.text);
+      c.status.setScale(whole(Math.min(c.cu * 1.2, (c.cw * 0.86) / Math.max(1, textPx(c.status)))));
       c.status.setY(c.top + (slot.kind === 'empty' ? 80 : 107) * c.cu);
       // handicap summary under the header band
       const hparts: string[] = [];
@@ -1019,6 +1095,7 @@ export class CharacterSelectScene extends MenuScene {
     this.hoverT = time;
     this.drawCards(time);
     this.drawRoster();
+    this.drawStatusPlates();
     const pads = inputManager.padList.length;
     // everyone ready: the message becomes a CONTINUE button (click / tap it, or confirm again / start)
     // (the lobby's "press a button" in the words of the device in use: a tap on touch)
@@ -1103,7 +1180,8 @@ export class CharacterSelectScene extends MenuScene {
     const slot = l.slots[i];
     const u = (c.keys.getData('u') as number) ?? this.u;
     let msg = '';
-    if (slot.kind === 'empty' && l.humans() === 0 && deviceKind(this.lastDevice) !== 'touch') msg = 'OR CLICK A FIGHTER TO LOCK IN';
+    // (said once, under the first empty card)
+    if (slot.kind === 'empty' && l.humans() === 0 && deviceKind(this.lastDevice) !== 'touch' && l.active.findIndex((sl) => sl.kind === 'empty') === i) msg = 'OR CLICK A FIGHTER TO LOCK IN';
     if (slot.kind === 'human' && slot.deviceId) {
       const d = this.deviceById(slot.deviceId);
       const kind = deviceKind(d);
@@ -1115,11 +1193,34 @@ export class CharacterSelectScene extends MenuScene {
       if (kind === 'touch') msg = slot.locked ? `TAP AGAIN: OUTFIT   TAP P${i + 1} BAR: NAME` : 'TAP A FIGHTER TO LOCK IN';
       else if (open) msg = `${ud}: ROW   ${lr}: CHANGE   ${P('special')}: CLOSE`;
       else if (slot.locked) msg = `${P('attack')}: ${go}   ${P('special')}: CHANGE   ${ud}: NAME${l.rows(i).length ? `, ${l.teams ? 'TEAM, ' : ''}HANDICAP` : ''}`;
-      else msg = `${lr}: FIGHTER   ${ud}: OUTFIT   ${P('attack')}: LOCK IN`;
+      // (a challenge's set fighter cannot be changed: no FIGHTER hint)
+      else msg = `${this.fixedFighter() < 0 ? `${lr}: FIGHTER   ` : ''}${ud}: OUTFIT   ${P('attack')}: LOCK IN`;
     }
-    if (c.keys.text !== up(msg)) c.keys.setText(up(msg));
+    const key = `${up(msg)}|${c.cw}|${u}`;
+    if (c.keys.getData('key') !== key) {
+      c.keys.setData('key', key);
+      this.fitKeys(c.keys, up(msg), c.cw * 0.98, (c.keys.getData('room') as number | undefined) ?? 8 * u, u);
+    }
     c.keys.setTint(slot.kind === 'human' ? (this.cardColor(i) ?? COLORS.hint) : COLORS.hint);
-    c.keys.setScale(legible(Math.min(u * 0.9, (c.cw * 0.98) / Math.max(1, textPx(c.keys)))));
+  }
+
+  /**
+   * A card's controls line at a whole-pixel scale (the 5x7 glyphs stay even): as large as the card unit allows on one
+   * line, else broken onto two lines at its entries, else a smaller whole scale; a fractional scale only when even
+   * scale 1 cannot fit (a very narrow card).
+   */
+  private fitKeys(t: Phaser.GameObjects.BitmapText, msg: string, maxW: number, room: number, u: number): void {
+    const two = splitEntries(msg);
+    for (let k = Math.max(1, Math.round(u * 0.9)); k >= 1; k--) {
+      t.setText(msg).setScale(k);
+      if (textPx(t) * k <= maxW) return;
+      if (two && 16 * k <= room) {
+        t.setText(two).setScale(k);
+        if (textPx(t) * k <= maxW) return;
+      }
+    }
+    if (two && 16 <= room) t.setText(two);
+    t.setScale(Math.min(1, maxW / Math.max(1, textPx(t))));
   }
 
   /** The CONTINUE button: a lit plate behind the lobby message once everyone is ready. */
@@ -1281,10 +1382,24 @@ export class CharacterSelectScene extends MenuScene {
     if (!players?.length) return;
     const r = session.rules;
     const live = new Set(inputManager.allDevices.map((d) => d.id));
+    const taken = new Set(players.flatMap((p) => (p.type === 'human' && p.device && live.has(p.device.id) ? [p.device.id] : [])));
+    // a player whose device was the combined keyboard + pad one (a quick match, PLAY on Home) stays in, on the device in use
+    // now (one such player at most: nobody can tell two of them apart)
+    let stand: string | null = pointerDevice().id;
+    if (taken.has(stand)) stand = null;
+    const deviceFor = (p: PlayerSlot): string | null => {
+      if (p.device && live.has(p.device.id)) return p.device.id;
+      if (p.device?.kind !== 'merged' || !stand) return null;
+      const id = stand;
+      stand = null;
+      return id;
+    };
     l.restore(
-      players.map((p) => (p.type === 'human' ? { kind: 'human' as const, deviceId: p.device && live.has(p.device.id) ? p.device.id : null } : { kind: 'cpu' as const })),
+      players.map((p) => (p.type === 'human' ? { kind: 'human' as const, deviceId: deviceFor(p) } : { kind: 'cpu' as const })),
       players.map((p, i) => ({ character: idx(p.character), palette: p.palette ?? 0, random: p.random, randomOutfit: p.randomOutfit, skill: p.cpuSkill ?? skillOfLevel(p.cpuLevel), team: r.teamOf?.[i], damage: r.handicap?.[i]?.damage, stock: r.handicap?.[i]?.stock })),
     );
+    // back from a fight (CHANGE FIGHTER) or for a new one: the players are in, on their fighters, free to pick again
+    for (const sl of l.active) if (sl.kind === 'human') sl.locked = false;
   }
 
   /** Roster tiles, cards and the CONTINUE button take taps directly (the touch OK / BACK column lets them through). */
@@ -1510,10 +1625,15 @@ export class CharacterSelectScene extends MenuScene {
       });
   }
 
-  /** Where BACK goes from an empty versus lobby: the home screen when the game has one, else the main menu. */
-  private versusBack(): string {
+  /**
+   * Where BACK goes from an empty lobby: the screen it was opened from; failing that, for versus the home screen when the
+   * game has one (else the main menu), a challenge's list, or the main menu.
+   */
+  private backTarget(): string {
     const keys = (this.game.scene as unknown as { keys?: Record<string, unknown> }).keys ?? {};
-    return keys.Home ? 'Home' : 'ModeSelect';
+    if (origin && keys[origin]) return origin;
+    if (session.mode === 'versus') return keys.Home ? 'Home' : 'ModeSelect';
+    return session.mode === 'challenge' ? 'Challenges' : 'ModeSelect';
   }
 
   /** Up / down through a locked player's own rows: NAME, then the lobby's (team, handicap), wrapping round. */
@@ -1562,7 +1682,11 @@ export class CharacterSelectScene extends MenuScene {
       return;
     }
     const ev = this.oneKeyboard(e);
-    if (ev) this.lobbyEvent(ev);
+    // (a solo player's other key scheme acts as their own: the footer names their keys)
+    if (ev) {
+      this.lastDevice = ev.device;
+      this.lobbyEvent(ev);
+    }
     this.refreshChips();
   }
 
@@ -1667,7 +1791,7 @@ export class CharacterSelectScene extends MenuScene {
           break;
         }
         const r = l.back(id);
-        if (r === 'none' && l.humans() === 0) this.go(session.mode === 'versus' ? this.versusBack() : session.mode === 'challenge' ? 'Challenges' : 'ModeSelect');
+        if (r === 'none' && l.humans() === 0) this.go(this.backTarget());
         break;
       }
       case 'alt':
@@ -1686,9 +1810,22 @@ export class CharacterSelectScene extends MenuScene {
   }
 }
 
+/** 'A: X   B: Y   C: Z' broken onto two lines at an entry boundary, the first line the longer ('' with one entry). */
+function splitEntries(str: string): string {
+  const parts = str.split(/ {3,}/);
+  if (parts.length < 2) return '';
+  const cut = Math.ceil(parts.length / 2);
+  return `${parts.slice(0, cut).join('   ')}\n${parts.slice(cut).join('   ')}`;
+}
+
 /** A whole-pixel text scale (nearest, at least 1); below 1 the fractional scale is kept so the text still fits. */
 function crisp(k: number): number {
   return k >= 1 ? Math.max(1, Math.round(k)) : k;
+}
+
+/** The largest whole-pixel scale not above `k` (at least 1); below 1 the fractional scale is kept so the text still fits. */
+function whole(k: number): number {
+  return k >= 1 ? Math.floor(k) : k;
 }
 
 /** Text scale for small labels: whole pixels from 2x up (crisp), the fractional fit below that (still legible, unlike 1x). */

@@ -119,7 +119,8 @@ describe('the short way into a fight', () => {
   it('pause: RESUME, RESTART, MOVE LIST, SETTINGS, QUIT (training keeps its menu)', () => {
     const pause = src('scenes/match/pauseMenu.ts');
     const block = pause.slice(pause.indexOf('const items: MenuItem[] = ['), pause.indexOf('this.menu = new MenuList'));
-    const order = ['RESUME', 'RESTART', 'TRAINING MENU', 'MOVE LIST', 'SETTINGS', 'QUIT'].map((l) => block.indexOf(`label: '${l}'`));
+    // (the training row is named by trainingMenuName(): TRAINING MENU, or TUTORIAL MENU in the tutorial)
+    const order = ['RESUME', 'RESTART', 'TRAINING MENU', 'MOVE LIST', 'SETTINGS', 'QUIT'].map((l) => block.indexOf(l === 'TRAINING MENU' ? 'label: () => trainingMenuName()' : `label: '${l}'`));
     for (const o of order) expect(o).toBeGreaterThan(0);
     expect([...order].sort((a, b) => a - b)).toEqual(order);
   });

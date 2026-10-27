@@ -6,7 +6,8 @@ import { CHARACTER_LIST } from '../characters';
 import { inputManager } from '../input/inputManager';
 import { keyboardHub } from '../input/keyboard';
 import { menuInput, type MenuEvent } from '../input/menuInput';
-import { lastInput, menuPrompt, moveLabel } from '../input/prompts';
+import { lastInput, moveLabel, promptFor } from '../input/prompts';
+import { watchLobbyOrigin } from './CharacterSelectScene';
 import { sfx } from '../audio/sfx';
 import { COLORS, MenuScene, blink, text, textPx, type MenuBackdrop } from '../ui/menuKit';
 import { settings } from '../settings';
@@ -61,6 +62,8 @@ export class TitleScene extends MenuScene {
   }
 
   protected build(): void {
+    // (once: character select's BACK returns to the screen that opened it)
+    watchLobbyOrigin(this.game);
     // back at the title (after a demo, a quit, a finished ladder): outfit sheets nobody wears any more are freed
     releaseUnusedOutfits(this);
     this.demoStarted = false;
@@ -460,10 +463,12 @@ export class TitleScene extends MenuScene {
     if (this.prompt.text !== promptMsg) this.prompt.setText(promptMsg);
     const pads = inputManager.padList.length;
     // generated from the live bindings, so a rebind shows here too
-    const keys = `KEYBOARD: ${moveLabel('kb1')} + ${menuPrompt('confirm', inputManager.keyboards[0]).split(' / ')[0]}  OR  ${moveLabel('kb2')} + ENTER`;
+    // (each side of the keyboard as it plays a fight: its movement keys and its attack key)
+    const [kb1, kb2] = inputManager.keyboards;
+    const keys = `KEYBOARD: ${moveLabel('kb1')} + ${promptFor('attack', kb1)}   2ND PLAYER: ${moveLabel('kb2')} + ${promptFor('attack', kb2)}`;
     // no "0 CONTROLLERS CONNECTED": the count only shows once there is one
     const padMsg = pads ? `${pads} CONTROLLER${pads === 1 ? '' : 'S'} READY` : '';
-    const msg = lastInput.kind === 'touch' ? ['TOUCH CONTROLS ON', padMsg].filter(Boolean).join('  |  ') : [padMsg || 'KEYBOARD READY', keys].join('  |  ');
+    const msg = lastInput.kind === 'touch' ? ['TOUCH CONTROLS ON', padMsg].filter(Boolean).join('  |  ') : [padMsg, keys].filter(Boolean).join('  |  ');
     if (msg !== this.footerMsg) {
       this.footerMsg = msg;
       this.footer.setText(msg);

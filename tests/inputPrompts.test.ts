@@ -19,8 +19,8 @@ describe('key labels', () => {
     expect(keyLabel('KeyJ')).toBe('J');
     expect(keyLabel('Digit7')).toBe('7');
     expect(keyLabel('ShiftRight')).toBe('RIGHT SHIFT');
-    expect(keyLabel('Quote')).toBe("'");
-    expect(keyLabel('Comma')).toBe(',');
+    expect(keyLabel('Quote')).toBe('QUOTE');
+    expect(keyLabel('Comma')).toBe('COMMA');
     expect(keyLabel('Numpad5')).toBe('NUM 5');
     expect(keyLabel('ArrowLeft')).toBe('LEFT');
     expect(keyLabel('Semicolon')).toBe('SEMICOLON'); // the pixel font has no ';'

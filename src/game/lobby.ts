@@ -76,6 +76,8 @@ export class Lobby {
   stockRule = true;
   /** Cards offer handicap rows (versus). */
   handicaps = true;
+  /** CPUs take the empty slots when the match starts (false: players taking turns, where empty slots stay empty). */
+  cpuFill = true;
   readonly random: boolean;
   private readonly grow: boolean;
   private readonly paletteCount: (character: number) => number;
@@ -493,7 +495,10 @@ export class Lobby {
     const needPads = Math.max(0, this.playerCount - 2); // players 3-4 are controller-only
     const parts: string[] = [];
     if (this.humans() === 0 && this.playerCount > 0) parts.push('PRESS A BUTTON TO JOIN');
-    if (needPads > padCount && this.playerCount > 2) parts.push(`PLAYERS 3-4 NEED CONTROLLERS (${padCount} FOUND): CPU WILL FILL`);
+    if (!this.cpuFill) {
+      // taking turns: whoever joined plays; more may join (players 3-4 on controllers)
+      if (empty > 0 && this.humans() > 0) parts.push(`UP TO ${empty} MORE MAY JOIN${needPads > padCount ? ' (PLAYERS 3-4 ON CONTROLLERS)' : ''}`);
+    } else if (needPads > padCount && this.playerCount > 2) parts.push(`PLAYERS 3-4 NEED CONTROLLERS (${padCount} FOUND): CPU WILL FILL`);
     else if (empty > 0 && this.humans() > 0) parts.push(`${empty} EMPTY SLOT${empty > 1 ? 'S' : ''}: CPU WILL FILL`);
     if (this.teams && this.humans() > 0 && this.teamCount() < 2 && empty === 0) parts.push('EVERYONE IS ON ONE TEAM: CHANGE A TEAM');
     return parts.length ? parts.join('  |  ') : null;

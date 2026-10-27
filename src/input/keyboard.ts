@@ -1,3 +1,4 @@
+import { Button } from '../engine/buttons';
 import { ALWAYS_PREVENT, ALL_ACTIONS, DIR_ACTIONS, BUTTON_ACTIONS, ACTION_BUTTON, RESERVED_KEYS, type KeyboardSchemeId } from './actions';
 import { bindings } from './bindings';
 import type { InputDevice, RawInput } from './device';
@@ -91,6 +92,19 @@ export function schemeOf(code: string): KeyboardSchemeId | null {
   return null;
 }
 
+/** The pause key every keyboard player shares (see KeyboardDevice.sample). */
+export const SHARED_PAUSE = 'Escape';
+
+/** True while no scheme has Escape bound to an action other than pause (allocation-free: called every tick). */
+const SCHEMES = ['kb1', 'kb2'] as const;
+function sharedPauseFree(): boolean {
+  for (let k = 0; k < SCHEMES.length; k++) {
+    const map = bindings.keys[SCHEMES[k]];
+    for (let i = 0; i < ALL_ACTIONS.length; i++) if (ALL_ACTIONS[i] !== 'pause' && map[ALL_ACTIONS[i]].includes(SHARED_PAUSE)) return false;
+  }
+  return true;
+}
+
 export class KeyboardDevice implements InputDevice {
   readonly kind = 'keyboard' as const;
   readonly connected = true;
@@ -123,6 +137,10 @@ export class KeyboardDevice implements InputDevice {
       const a = BUTTON_ACTIONS[i];
       if (this.any(map[a])) held |= ACTION_BUTTON[a];
     }
+    // Escape pauses for every keyboard player (it is the key the title and help name), not only for keyboard 1: a solo player
+    // on the arrows would otherwise have to find Backspace. With two keyboard players either may pause with it (the match
+    // credits the first human slot); each still has their own pause key. Skipped if Escape was rebound to another action.
+    if (!(held & Button.Pause) && this.hub.isActive(SHARED_PAUSE) && sharedPauseFree()) held |= Button.Pause;
     out.held = held;
     // Latches are shared by every device reading this hub, so they are cleared by the owner of the
     // sim tick (InputManager.endTick), not here.
