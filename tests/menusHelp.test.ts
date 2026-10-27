@@ -23,8 +23,12 @@ describe('tutorial lessons', () => {
       }
     }
     expect(LESSONS[0].goal(KB1)).toContain('A / D');
-    expect(LESSONS[1].goal(TOUCH)).toContain('PRESS JUMP');
-    expect(LESSONS[1].goal(PAD)).toMatch(/PRESS [ABXY] TO JUMP/);
+    const goal = (id: string, d: InputDevice) => LESSONS.find((l) => l.id === id)!.goal(d);
+    expect(goal('jump', TOUCH)).toContain('PRESS JUMP');
+    expect(goal('jump', PAD)).toMatch(/PRESS [ABXY] TO JUMP/);
+    expect(goal('jump', KB1)).toContain('PRESS W TO JUMP'); // W jumps on a keyboard by default
+    expect(goal('sprint', KB1)).toContain('DOUBLE-TAP A / D');
+    expect(goal('recover', KB1)).toContain('W + K');
   });
 
   it('a merged keyboard + pad player follows the device used last', () => {

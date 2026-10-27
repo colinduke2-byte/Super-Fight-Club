@@ -418,29 +418,33 @@ export class TrainingTools {
     const stageName = (id: string) => (STAGES[id]?.name ?? id).toUpperCase();
     const items: MenuItem[] = [
       this.row('RESUME', undefined, undefined, 'BACK TO PRACTICE', () => this.closeMenu()),
+      this.row('RESET POSITIONS', undefined, undefined, 'BOTH FIGHTERS BACK TO THEIR STARTING SPOTS', () => {
+        s.st.pendingReset = true;
+        this.closeMenu();
+      }),
       this.row('DUMMY', () => this.behaviourLabel(), (d) => this.stepBehaviour(d), 'WHAT THE DUMMY DOES. RECORD: YOU CONTROL THE DUMMY FOR UP TO 10 S, THEN IT PLAYS BACK ON A LOOP.', () => this.confirmBehaviour()),
       this.row('CPU LEVEL', () => String(o.cpuLevel), (d) => {
         o.cpuLevel = Math.max(1, Math.min(9, o.cpuLevel + d));
         if (o.behaviour === 'cpu') this.applyBehaviour(false);
-      }, 'SKILL OF THE CPU DUMMY (1-9)'),
-      this.row('DI', () => o.di.toUpperCase(), (d) => (o.di = cycle(DI_OPTIONS, o.di, d)), 'DIRECTIONAL INFLUENCE THE DUMMY HOLDS WHEN LAUNCHED: IN = TOWARD YOU, OUT = AWAY'),
-      this.row('TECH', () => o.tech.toUpperCase(), (d) => (o.tech = cycle(TECH_OPTIONS, o.tech, d)), 'HOW THE DUMMY TECHS WHEN IT HITS THE FLOOR'),
-      this.row('SET %', () => `${Math.round(s.fighters[1].damage)}%`, (d) => this.setPercent(Math.max(0, Math.min(300, Math.round(s.fighters[1].damage / 10) * 10 + d * 10))), 'LEFT / RIGHT: DUMMY DAMAGE IN STEPS OF 10', () => this.setPercent(0)),
-      this.row('LOCK %', () => (o.lockPercent ? `ON (${o.percent}%)` : 'OFF'), () => {
+      }, 'HOW WELL THE CPU DUMMY FIGHTS (1-9). SET DUMMY TO CPU TO USE IT'),
+      this.row('DUMMY %', () => `${Math.round(s.fighters[1].damage)}%`, (d) => this.setPercent(Math.max(0, Math.min(300, Math.round(s.fighters[1].damage / 10) * 10 + d * 10))), 'LEFT / RIGHT: THE DUMMY\'S DAMAGE IN STEPS OF 10. CONFIRM: BACK TO 0%', () => this.setPercent(0)),
+      this.row('LOCK DUMMY %', () => (o.lockPercent ? `ON (${o.percent}%)` : 'OFF'), () => {
         o.lockPercent = !o.lockPercent;
         o.percent = Math.round(s.fighters[1].damage);
-      }, 'KEEP THE DUMMY AT THIS DAMAGE WHENEVER IT RECOVERS'),
+      }, 'KEEP THE DUMMY AT ITS CURRENT %: IT GOES BACK TO IT EACH TIME IT RECOVERS'),
+      this.row('DI', () => o.di.toUpperCase(), (d) => (o.di = cycle(DI_OPTIONS, o.di, d)), 'HOW THE DUMMY STEERS WHEN LAUNCHED (DI): IN = TOWARD YOU, OUT = AWAY. NOT FOR THE CPU DUMMY'),
+      this.row('TECH', () => o.tech.toUpperCase(), (d) => (o.tech = cycle(TECH_OPTIONS, o.tech, d)), 'HOW THE DUMMY TECHS WHEN IT HITS THE FLOOR. NOT FOR THE CPU DUMMY'),
+      this.row('HITBOXES / FRAMES', () => (o.hitboxes ? 'ON' : 'OFF'), () => {
+        o.hitboxes = !o.hitboxes;
+        this.applyHitboxes();
+      }, 'SHOW HITBOXES, HURTBOXES AND EACH MOVE\'S FRAME DATA'),
       this.row('SPEED', () => o.speed.toUpperCase(), (d) => {
         o.speed = cycle(SPEEDS, o.speed, d);
         this.applySpeed(true);
-      }, `GAME SPEED. FRAME STEP: PRESS B TO ADVANCE ONE FRAME`),
-      this.row('HITBOXES', () => (o.hitboxes ? 'ON' : 'OFF'), () => {
-        o.hitboxes = !o.hitboxes;
-        this.applyHitboxes();
-      }, 'SHOW HITBOXES, HURTBOXES AND FRAME DATA'),
-      this.row('HELP TEXT', () => helpMode.toUpperCase(), (d) => this.setHelpMode(cycle(['short', 'full', 'off'] as const, helpMode, d)), 'THE CONTROLS HELP IN THE TOP LEFT: ONE LINE, EVERY KEY, OR NONE'),
-      this.row('INPUT DISPLAY', () => (o.inputDisplay ? 'ON' : 'OFF'), () => (o.inputDisplay = !o.inputDisplay), 'SHOW YOUR STICK AND BUTTONS'),
+      }, deviceKind(helpDevice) === 'keyboard' ? 'GAME SPEED. FRAME STEP: PRESS B TO ADVANCE ONE FRAME' : 'GAME SPEED. FRAME STEP ADVANCES WITH B ON A KEYBOARD'),
       this.row('COMBO COUNTER', () => (o.comboCounter ? 'ON' : 'OFF'), () => (o.comboCounter = !o.comboCounter), 'HITS, DAMAGE AND FRAME ADVANTAGE OF YOUR LAST HIT OR BLOCKED HIT'),
+      this.row('INPUT DISPLAY', () => (o.inputDisplay ? 'ON' : 'OFF'), () => (o.inputDisplay = !o.inputDisplay), 'SHOW YOUR STICK AND BUTTONS'),
+      this.row('HELP TEXT', () => helpMode.toUpperCase(), (d) => this.setHelpMode(cycle(['short', 'full', 'off'] as const, helpMode, d)), 'THE CONTROLS HELP IN THE TOP LEFT: ONE LINE, EVERY KEY, OR NONE'),
       this.row('SAVE POSITIONS', () => (this.saved ? 'SAVED' : ''), undefined, 'REMEMBER WHERE BOTH FIGHTERS ARE (AND THEIR %)', () => {
         this.saved = [saveFighter(s.fighters[0]), saveFighter(s.fighters[1])];
         s.hud.showToast('Positions saved');
@@ -453,10 +457,6 @@ export class TrainingTools {
       this.row('YOUR FIGHTER', () => name(this.pickChar), (d) => (this.pickChar = cycle(ids, this.pickChar, d)), 'CHOOSE, THEN PRESS CONFIRM TO LOAD', () => this.reload()),
       this.row('DUMMY FIGHTER', () => name(this.pickDummy), (d) => (this.pickDummy = cycle(ids, this.pickDummy, d)), 'ANY FIGHTER CAN BE THE DUMMY: CHOOSE, THEN CONFIRM TO LOAD', () => this.reload()),
       this.row('STAGE', () => stageName(this.pickStage), (d) => (this.pickStage = cycle(stages, this.pickStage, d)), 'CHOOSE, THEN CONFIRM TO LOAD THE STAGE', () => this.reload()),
-      this.row('RESET POSITIONS', undefined, undefined, 'BOTH FIGHTERS BACK TO THEIR SPAWN POINTS', () => {
-        s.st.pendingReset = true;
-        this.closeMenu();
-      }),
     ];
     return {
       title: 'TRAINING',

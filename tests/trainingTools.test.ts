@@ -148,9 +148,9 @@ describe('combo trials', () => {
 });
 
 describe('tutorial', () => {
-  it('has 6-8 lessons with goals', () => {
+  it('has 6-10 lessons with goals', () => {
     expect(LESSONS.length).toBeGreaterThanOrEqual(6);
-    expect(LESSONS.length).toBeLessThanOrEqual(8);
+    expect(LESSONS.length).toBeLessThanOrEqual(10);
     for (const l of LESSONS) expect(l.goal().length).toBeGreaterThan(10);
   });
 
@@ -169,6 +169,14 @@ describe('tutorial', () => {
     expect(t.cleared).toBe(true);
     for (let i = 0; i < 80; i++) t.tick();
     expect(t.index).toBe(1);
+    // sprint: a sustained sprint
+    p.sprinting = true;
+    p.sprintFrames = 20;
+    t.tick();
+    p.sprinting = false;
+    expect(t.cleared).toBe(true);
+    for (let i = 0; i < 80; i++) t.tick();
+    expect(t.lesson.id).toBe('jump');
     // jump: real jumps in the sim
     for (let i = 0; i < 60 && !t.cleared; i++) {
       t.tick();
@@ -195,7 +203,19 @@ describe('tutorial', () => {
         t.onEvent('shieldHit', p);
         t.onEvent('shieldHit', p);
       } else if (l === 'grab') t.onEvent('throw', d);
-      else if (l === 'recover') t.onEvent('ledgeGrab', p);
+      else if (l === 'ledge') {
+        expect(p.state).toBe('ledge'); // the lesson starts hanging on the ledge
+        p.standOn(g, g.x + 20);
+        t.onEvent('land', p);
+      } else if (l === 'recover') {
+        // reaching the ledge without the up special does not count
+        t.onEvent('ledgeGrab', p);
+        expect(t.progress).toBe(0);
+        t.tick();
+        p.move = brick.moves.upB;
+        t.onEvent('moveStart', p);
+        t.onEvent('ledgeGrab', p);
+      }
       else if (l === 'ko') t.onEvent('ko', d);
       expect(t.cleared, l).toBe(true);
     }

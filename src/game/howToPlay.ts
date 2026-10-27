@@ -2,7 +2,7 @@ import { CELL_METER, CORE_METER } from '../engine/items';
 import { settings } from '../settings';
 import type { InputDevice } from '../input/device';
 import { lastInput } from '../input/lastDevice';
-import { menuPrompt, moveLabel, promptFor } from '../input/prompts';
+import { moveLabel, promptFor } from '../input/prompts';
 import type { KeyboardSchemeId } from '../input/actions';
 
 /** The How to Play pages (shown by HowToPlayScene). */
@@ -53,7 +53,8 @@ function keyRows(side: string, scheme: KeyboardSchemeId): [string, string][] {
   return [
     [`${side}: ${moveLabel(scheme)}`, `Move. ${settings.upJumpKeyboard ? `${P('up')} or ${P('jump')}` : P('jump')} jump, ${P('attack')} attack.`],
     [`${side} BUTTONS`, `${P('special')} special, ${P('shield')} shield, ${P('grab')} grab.`],
-    [`${side} MORE`, `${P('smash')} smash, ${P('ultimate')} ultimate, ${P('pause')} pause.`],
+    // Escape pauses for every keyboard player, on top of the side's own pause key (KeyboardDevice.sample)
+    [`${side} MORE`, `${P('smash')} smash, ${P('ultimate')} ultimate, ${P('pause') === 'ESC' ? 'ESC' : `${P('pause')} or ESC`} pause.`],
   ];
 }
 
@@ -63,8 +64,8 @@ function keyboardPage(): HowToPage {
     rows: [
       ...keyRows('P1', 'kb1'),
       ...keyRows('P2', 'kb2'),
-      ['SPRINT', `Hold a direction to run. ${cap(sprintHow('keyboard'))} it to sprint.`],
-      ['MENUS / REBIND', `${menuPrompt('confirm', kb('kb1'))} picks, ${menuPrompt('back', kb('kb1'))} back. Rebind: Options > Controls.`],
+      ['SPRINT', settings.sprintKeyboard === 'doubletap' ? 'Hold a direction to run. Double-tap it to sprint.' : 'Pressing a direction sprints (Settings > Gameplay).'],
+      ['ONE KEYBOARD, ONE PLAYER', `P2 joins by holding ${boxKey(promptFor('attack', kb('kb2')))}. Rebind: Options > Controls.`],
     ],
     demo: ['brick', ['idle', 'mv_jab1', 'mv_fsmash', 'mv_usmash']],
   };
