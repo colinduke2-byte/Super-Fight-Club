@@ -101,9 +101,9 @@ export class PlayerTags {
       const sx = ((v.x + this.entX[f.id] - view.x) / Math.max(1, view.width)) * sw;
       let sy = ((v.y + this.entY[f.id] - f.h * f.sizeMul - this.lift[f.id] - view.y) / Math.max(1, view.height)) * sh;
       const shape = settings.portShapes;
-      // crowded matches: a slightly smaller tag (the full CPU1..CPU4 names stay, matching the HUD plates)
-      const k1 = this.fighters.length >= 3 ? 0.9 : 1.1;
-      t.setScale(u * k1);
+      // a whole-number text scale keeps the glyphs crisp (crowded matches round down, duels round up a touch)
+      const ts = this.fighters.length >= 3 ? Math.max(1, Math.floor(u * 0.9)) : Math.max(1, Math.round(u * 1.1));
+      t.setScale(ts);
       // the shape sits left of the label inside the tag
       const shapeW = shape ? 6 * u : 0;
       const hw = (t.width || 20 * u) / 2 + shapeW / 2 + 3 * u;
@@ -118,10 +118,15 @@ export class PlayerTags {
       t.setVisible(on);
       if (!on) continue;
       const a = (f.invuln > 0 ? 0.6 : 0.95) * Math.min(1, this.entA[f.id]);
-      t.setPosition(tx + shapeW / 2, sy - 4 * u).setAlpha(a);
-      const bw = t.width + shapeW + 4 * u;
-      const bx = tx - bw / 2;
-      g.fillStyle(0x0c0a1c, 0.55 * a).fillRect(bx, sy - 4 * u - t.height - 1.5 * u, bw, t.height + 2.5 * u);
+      t.setPosition(Math.round(tx + shapeW / 2), Math.round(sy - 4 * u)).setAlpha(a);
+      const bw = Math.round(t.width + shapeW + 4 * u);
+      const bx = Math.round(tx - bw / 2);
+      const by = Math.round(sy - 4 * u - t.height - 1.5 * u);
+      const bh = Math.round(t.height + 2.5 * u);
+      const line = Math.max(1, Math.round(u / 2));
+      // a dark plate with a port-coloured base line, so the tag reads as the fighter's over any backdrop
+      g.fillStyle(0x0c0a1c, 0.62 * a).fillRect(bx, by, bw, bh);
+      g.fillStyle(this.colors[f.id], 0.85 * a).fillRect(bx, by + bh - line, bw, line);
       if (shape) drawPortShape(g, this.ports[f.id], bx + 2 * u + 2.5 * u, sy - 4 * u - t.height / 2, 2 * u, this.colors[f.id], a, Math.max(1, u * 0.6));
       const col = this.colors[f.id];
       if (Math.abs(sy - headY) > u || Math.abs(tx - headX) > u) {

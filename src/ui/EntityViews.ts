@@ -16,6 +16,17 @@ function color(hex: string): number {
   return parseInt(hex.slice(1), 16);
 }
 
+/** `color` cached by hex string (per-frame tints without a string slice each time). */
+const TINT = new Map<string, number>();
+function tintOf(hex: string): number {
+  let c = TINT.get(hex);
+  if (c === undefined) {
+    c = color(hex);
+    TINT.set(hex, c);
+  }
+  return c;
+}
+
 /** A palette's crystal colour, lifted toward white for a bright shard. */
 function lighten(hex: string): string {
   const n = parseInt(hex.slice(1), 16);
@@ -199,7 +210,7 @@ export class EntityViews {
       const own = look.shape === 'shard' ? this.crystal[p.owner] : null;
       const art = look.shape === 'beam' || look.shape === 'shard' ? null : this.projArt(p.def, p.owner, p.defId);
       s.setPosition(p.prevX + (p.x - p.prevX) * alpha, p.prevY + (p.y - p.prevY) * alpha);
-      s.setFlipX(p.vx < 0);
+      s.setFlipX(p.vx < 0).setFlipY(false);
       const fade0 = p.def.life - p.age < 8 ? (p.def.life - p.age) / 8 : 1;
       if (art) {
         // hand-drawn art: full colour, its own size, turned along its flight (or spinning)
@@ -209,11 +220,11 @@ export class EntityViews {
         if (art.orient === 'vel') s.setRotation(Math.atan2(p.vy, Math.abs(p.vx) || 0.001) * (p.vx < 0 ? -1 : 1));
         else if (art.orient === 'spin') s.setRotation(p.age * 0.32 * (p.vx < 0 ? -1 : 1));
         else s.setRotation(0);
-        this.dressProjectile(p, s, gl, core, fade0, tick, color(look.color));
+        this.dressProjectile(p, s, gl, core, fade0, tick, tintOf(look.color));
         if (look.shape === 'orb') core.setAlpha(0.35 * fade0); // the art carries its own hot core
         continue;
       }
-      s.setTexture(SHAPE_TEX[look.shape] ?? 'proj-orb').setVisible(true).setTint(own ? lightTint(own) : color(look.color));
+      s.setTexture(SHAPE_TEX[look.shape] ?? 'proj-orb').setVisible(true).setTint(own ? lightTint(own) : tintOf(look.color));
       const base = 0.5 * (look.size ?? 1);
       if (look.shape === 'bolt' || look.shape === 'bullet' || look.shape === 'shard') s.setRotation(Math.atan2(p.vy, Math.abs(p.vx)) * (p.vx < 0 ? -1 : 1));
       else s.setRotation(0);
@@ -221,14 +232,14 @@ export class EntityViews {
         // the hitbox is the head; draw it with a long glowing tail behind (additive, gently pulsing)
         const len = Math.max(p.def.w * 3, 200);
         s.x += (p.vx < 0 ? -1 : 1) * p.def.w * 0.5;
-        s.setOrigin(p.vx < 0 ? 0 : 1, 0.5).setScale(len / 64, (p.def.h / 32) * (1 + 0.06 * Math.sin(tick * 0.5))).setBlendMode(Phaser.BlendModes.ADD);
+        s.setOrigin(p.vx < 0 ? 0 : 1, 0.5).setScale(len / 128, (p.def.h / 48) * (1 + 0.06 * Math.sin(tick * 0.5))).setBlendMode(Phaser.BlendModes.ADD).setFlipY(((tick + p.index) >> 2) % 2 === 1);
       } else {
         s.setOrigin(0.5, look.shape === 'wave' ? 0.78 : 0.5).setBlendMode(look.shape === 'wave' ? Phaser.BlendModes.ADD : Phaser.BlendModes.NORMAL).setScale(base);
       }
       // fade out in the last frames of life
       const fade = p.def.life - p.age < 8 ? (p.def.life - p.age) / 8 : 1;
       s.setAlpha(look.shape === 'beam' ? fade * 0.55 : fade); // additive beams stack (Nova fires three): keep them from blowing out to white
-      this.dressProjectile(p, s, gl, core, fade, tick, own ? lightTint(own) : color(look.color));
+      this.dressProjectile(p, s, gl, core, fade, tick, own ? lightTint(own) : tintOf(look.color));
     }
     for (let i = 0; i < this.dep.length; i++) {
       const d = w.deployables[i];
@@ -259,24 +270,48 @@ export class EntityViews {
         l.setTint(armed ? 0xff3030 : 0xffd040).setAlpha(armed ? 0.9 : 0.6);
         continue;
       }
-      l.setTexture('dep-light').setScale(0.5);
-      s.setTexture(DEP_TEX[look.shape] ?? 'dep-mine').setVisible(true).setTint(color(look.color));
+      const col = tintOf(look.color);
+      const shape = look.shape;
+      let tex = DEP_TEX[shape] ?? 'dep-mine';
+      // a rune's glyph ring turns (two frames, staggered per rune)
+      if (shape === 'rune' && ((tick + d.index * 5) >> 3) & 1) tex = 'dep-rune-1';
+      s.setTexture(tex).setVisible(true).setTint(col);
       let y = d.y;
-      if (look.shape === 'marker') y = d.y - 6 + Math.sin(tick * 0.12) * 2;
+      if (shape === 'marker') y = d.y - 6 + Math.sin(tick * 0.12) * 2;
       s.setPosition(d.x, y);
       s.setFlipX(d.facing < 0);
       const expiring = d.def.life ? d.def.life - d.age < 36 && (tick >> 2) % 2 === 0 : false;
-      s.setAlpha(expiring ? 0.35 : look.shape === 'marker' ? 0.85 : 1);
-      s.setScale(look.shape === 'rune' ? (d.def.w / 16) * 0.5 : 0.5);
-      if (look.shape === 'whirlpool') {
+      s.setAlpha(expiring ? 0.35 : shape === 'marker' ? 0.9 : 1);
+      s.setScale(shape === 'rune' ? d.def.w / 64 : 0.5);
+      if (shape === 'whirlpool') {
         // spin: flip the spiral every few ticks and breathe its width
         const k = (d.def.w / 40) * (0.92 + 0.08 * Math.sin(tick * 0.3));
         s.setScale(k, k).setFlipX(((tick >> 2) & 1) === 0).setPosition(d.x, d.y - 2);
       }
-      // blinking status light (red-ish when armed)
-      const lightOn = look.shape === 'mine' || look.shape === 'turret';
-      l.setVisible(lightOn).setPosition(d.x + (look.shape === 'turret' ? d.facing * 1 : 0), d.y - (look.shape === 'turret' ? 7 : 5));
-      l.setTint(armed ? 0xff3030 : 0xffd040).setAlpha(armed ? ((tick >> 3) % 2 === 0 ? 1 : 0.25) : 0.9);
+      if (shape === 'mine' || shape === 'turret') {
+        // blinking status light (red when armed)
+        l.setTexture('dep-light').setScale(0.5).setVisible(true).setPosition(d.x + (shape === 'turret' ? d.facing * 1 : 0), d.y - (shape === 'turret' ? 7 : 5));
+        l.setTint(armed ? 0xff3030 : 0xffd040).setAlpha(armed ? ((tick >> 3) % 2 === 0 ? 1 : 0.25) : 0.9);
+      } else if (shape === 'rune') {
+        // light welling up from the circle: dim while it arms, breathing once live
+        l.setTexture(this.glowTex).setVisible(true).setPosition(d.x, d.y - 3).setTint(col);
+        l.setScale((d.def.w * 1.4) / l.width, (d.def.w * 0.5) / l.width).setAlpha((expiring ? 0.12 : armed ? 0.32 + 0.12 * Math.sin(tick * 0.15 + d.index) : 0.18));
+      } else if (shape === 'marker') {
+        // a soft halo round the hovering sigil
+        l.setTexture(this.glowTex).setVisible(!expiring).setPosition(d.x, y - 5).setTint(col);
+        l.setScale(22 / l.width).setAlpha(0.3 + 0.1 * Math.sin(tick * 0.2));
+      } else if (shape === 'whirlpool') {
+        // churning water lit from within
+        l.setTexture(this.glowTex).setVisible(!expiring).setPosition(d.x, d.y - 3).setTint(col);
+        l.setScale((d.def.w * 1.3) / l.width, (d.def.w * 0.42) / l.width).setAlpha(0.3 + 0.08 * Math.sin(tick * 0.3));
+      } else if (shape === 'icepatch') {
+        // a glint skating along the ice now and then
+        const ph = ((tick + d.index * 41) % 110) / 70;
+        if (ph < 1) {
+          l.setTexture(this.glowTex).setVisible(!expiring).setTint(0xffffff).setPosition(d.x - d.def.w * 0.45 + d.def.w * 0.9 * ph, d.y - 3);
+          l.setScale(7 / l.width, 3 / l.width).setAlpha(0.85 * Math.sin(ph * Math.PI));
+        } else l.setVisible(false);
+      } else l.setVisible(false);
     }
     // barriers
     let bi = 0;

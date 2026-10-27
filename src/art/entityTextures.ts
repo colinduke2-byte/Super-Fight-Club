@@ -52,19 +52,26 @@ export function buildEntityTextures(scene: Phaser.Scene): void {
     }
     add('proj-bolt', c);
   }
-  // crystal shard 20x10: a faceted spike pointing forward (light top facet, darker underside, a white edge)
+  // crystal shard 24x12: a long rhombus of crystal pointing forward, outlined (the tint keeps the outline dark). A short
+  // back facet, a long front facet to a needle tip; light from above: a bright upper face, a deep underside split by the
+  // ridge, a glint and a white-hot tip
   {
-    const [c, g] = mk(20, 10);
-    for (let x = 0; x < 20; x++) {
-      const half = x < 14 ? 4 - Math.abs(x - 7) * 0.12 : (19 - x) * 0.8; // a long prism ending in a point
-      for (let y = 0; y < 10; y++) {
-        const dy = y - 4.5;
-        if (Math.abs(dy) > half + 0.3) continue;
-        const shade = dy < -0.5 ? '#ffffff' : dy < 1 ? '#d8d8e8' : '#9a9ab8';
-        px(g, x > 16 ? '#ffffff' : shade, x, y);
+    const [c, g] = mk(24, 12);
+    const cy = 5.5;
+    const half = (x: number): number => (x < 8 ? (x - 0.5) * 0.62 : (22.5 - x) * 0.32);
+    const inside = (x: number, y: number): boolean => x >= 1 && x <= 22 && Math.abs(y - cy) <= half(x);
+    for (let y = 0; y < 12; y++)
+      for (let x = 0; x < 24; x++) {
+        if (inside(x, y)) {
+          const dy = y - cy;
+          const back = x < 8;
+          let col = dy < -0.6 ? (back ? '#d8d8ea' : '#ffffff') : dy <= 0.6 ? '#f0f0fa' : back ? '#6e6e8c' : '#9c9cb8';
+          if (x >= 19) col = dy <= 0.6 ? '#ffffff' : '#d0d0e4';
+          px(g, col, x, y);
+        } else if (inside(x - 1, y) || inside(x + 1, y) || inside(x, y - 1) || inside(x, y + 1)) px(g, '#2c2840', x, y);
       }
-    }
-    px(g, '#ffffff', 2, 3, 12, 1);
+    px(g, '#ffffff', 9, 4, 6, 1); // glint along the upper face
+    px(g, '#4e4e6a', 8, 3, 1, 6); // the edge where the back facet meets the front
     add('proj-shard', c);
   }
   // ground shockwave 36x22: a crest of force rolling forward (tall, bright front; a low trailing tail) with rubble kicked up
@@ -100,18 +107,34 @@ export function buildEntityTextures(scene: Phaser.Scene): void {
     for (let k = 0; k < 3; k++) px(g, '#5a5a78', 4 + k * 4, 4, 1, 6);
     add('proj-fist', c);
   }
-  // beam 64x32: soft glowing bolt, bright head on the right fading into a tail on the left (tinted + additive in the view)
+  // beam 128x48: a column of energy (tinted + additive in the view). A white-hot core line, a bright inner channel and a body
+  // that falls off smoothly to the edge (fine alpha steps, so stretching it over a long beam shows no bands), with energy
+  // streaks running along it; the tail on the left thins and fades in, the head on the right is full strength. The view
+  // flips it vertically every few ticks so the (asymmetric) streaks shimmer.
   {
-    const [c, g] = mk(64, 32);
-    for (let x = 0; x < 64; x++) {
-      const along = Math.pow(x / 63, 0.7); // 0 at the tail .. 1 at the head
-      for (let y = 0; y < 32; y++) {
-        const d = Math.abs(y - 15.5) / 15.5; // 0 centre .. 1 edge
-        const band = d < 0.22 ? 1 : d < 0.55 ? 0.62 : d < 0.85 ? 0.28 : 0.08;
-        const a = Math.min(1, band * along * 1.15);
-        if (a < 0.03) continue;
-        const v = d < 0.22 ? 255 : d < 0.55 ? 230 : 200;
-        g.fillStyle = `rgba(${v},${v},${v},${a.toFixed(2)})`;
+    const [c, g] = mk(128, 48);
+    let seed = 7;
+    const rnd = (): number => ((seed = (seed * 16807) % 2147483647) / 2147483647);
+    const streak = new Float32Array(128 * 48);
+    for (let k = 0; k < 26; k++) {
+      const y = Math.round(23.5 + (rnd() - 0.5) * 30);
+      const x0 = Math.floor(rnd() * 128);
+      const l = 10 + Math.floor(rnd() * 30);
+      for (let x = x0; x < Math.min(128, x0 + l); x++) streak[y * 128 + x] = Math.max(streak[y * 128 + x], Math.sin(((x - x0) / l) * Math.PI));
+    }
+    for (let x = 0; x < 128; x++) {
+      const t = x / 127;
+      const along = t < 0.45 ? Math.pow(t / 0.45, 1.4) : 1; // tail fades in
+      const thin = 0.55 + 0.45 * Math.min(1, t / 0.6); // and is narrower than the head
+      for (let y = 0; y < 48; y++) {
+        const d = Math.abs(y - 23.5) / (23.5 * thin);
+        if (d >= 1) continue;
+        const body = Math.pow(1 - d, 1.7);
+        const core = d < 0.1 ? 1 : d < 0.28 ? 0.86 : 0;
+        const a = Math.min(1, (Math.max(core, body * 0.78) + streak[y * 128 + x] * 0.32 * (1 - d)) * along);
+        if (a < 0.02) continue;
+        const v = d < 0.28 ? 255 : Math.round(255 - 40 * d);
+        g.fillStyle = `rgba(${v},${v},${v},${a.toFixed(3)})`;
         g.fillRect(x, y, 1, 1);
       }
     }
@@ -163,25 +186,82 @@ export function buildEntityTextures(scene: Phaser.Scene): void {
     px(g, '#3a3a52', 4, 24, 18, 2);
     add('dep-turret', c);
   }
-  // rune 32x12 sigil
-  {
-    const [c, g] = mk(32, 12);
-    for (let a = 0; a < Math.PI * 2; a += 0.02) {
-      px(g, '#ffffff', 16 + Math.cos(a) * 14.5, 6 + Math.sin(a) * 4.5);
-      px(g, '#b8b8d0', 16 + Math.cos(a) * 11.5, 6 + Math.sin(a) * 3.2);
+  // rune 64x24 (two frames, its glyph ring turning between them): a magic circle seen flat on the ground. An outlined outer
+  // ring, a ring of glyph marks, an inner ring and a hexagram, over a faint disc of light (the deployable colour tints it all)
+  for (const f of [0, 1]) {
+    const [c, g] = mk(64, 24);
+    const cx = 31.5;
+    const cy = 11.5;
+    const ell = (rx: number, ry: number, col: string, step = 0.01): void => {
+      for (let a = 0; a < Math.PI * 2; a += step) px(g, col, cx + Math.cos(a) * rx, cy + Math.sin(a) * ry);
+    };
+    // the disc of light (translucent, crisp: whole-pixel alpha steps)
+    for (let y = 0; y < 24; y++)
+      for (let x = 0; x < 64; x++) {
+        const d = Math.hypot((x - cx) / 28, (y - cy) / 9.6);
+        if (d < 1) {
+          g.fillStyle = `rgba(255,255,255,${d < 0.55 ? 0.16 : 0.26})`;
+          g.fillRect(x, y, 1, 1);
+        }
+      }
+    ell(31, 11.3, '#585870');
+    ell(30, 10.6, '#ffffff');
+    ell(29, 10.1, '#e8e8f4');
+    ell(28, 9.4, '#585870');
+    ell(20.5, 6.8, '#c8c8dc');
+    // glyph marks between the rings, turning half a step on frame 1
+    for (let k = 0; k < 10; k++) {
+      const a = ((k + f * 0.5) / 10) * Math.PI * 2;
+      const gx = cx + Math.cos(a) * 24.5;
+      const gy = cy + Math.sin(a) * 8.1;
+      const kind = k % 3;
+      if (kind === 0) {
+        px(g, '#ffffff', gx - 1, gy - 1, 1, 3);
+        px(g, '#ffffff', gx, gy - 1, 2, 1);
+      } else if (kind === 1) {
+        px(g, '#ffffff', gx - 1, gy, 3, 1);
+        px(g, '#e0e0f0', gx, gy - 1, 1, 1);
+      } else {
+        px(g, '#ffffff', gx, gy - 1, 1, 3);
+        px(g, '#d0d0e4', gx - 1, gy + 1, 1, 1);
+        px(g, '#d0d0e4', gx + 1, gy - 1, 1, 1);
+      }
     }
-    px(g, '#ffffff', 15, 2, 2, 8);
-    px(g, '#ffffff', 11, 5, 10, 2);
-    add('dep-rune', c);
+    // hexagram: two flattened triangles inside the inner ring
+    const tri = (rot: number, col: string): void => {
+      const pts: [number, number][] = [0, 1, 2].map((i) => {
+        const a = rot + (i / 3) * Math.PI * 2;
+        return [cx + Math.cos(a) * 18.5, cy + Math.sin(a) * 6.1];
+      });
+      for (let i = 0; i < 3; i++) {
+        const [x0, y0] = pts[i];
+        const [x1, y1] = pts[(i + 1) % 3];
+        const n = Math.ceil(Math.hypot(x1 - x0, y1 - y0) * 1.5);
+        for (let t = 0; t <= n; t++) px(g, col, x0 + ((x1 - x0) * t) / n, y0 + ((y1 - y0) * t) / n);
+      }
+    };
+    tri(-Math.PI / 2, f ? '#ffffff' : '#d8d8ec');
+    tri(Math.PI / 2, f ? '#d8d8ec' : '#ffffff');
+    px(g, '#ffffff', cx - 1.5, cy - 1, 4, 2); // the bright heart of the sigil
+    add(f ? 'dep-rune-1' : 'dep-rune', c);
   }
-  // marker 16x16: diamond with inner glow
+  // marker 20x20: a hovering crystal sigil: an outlined diamond, a hollow heart with a bright core, four corner ticks
   {
-    const [c, g] = mk(16, 16);
-    for (let y = 0; y < 16; y++) {
-      const w = y < 8 ? y : 15 - y;
-      px(g, w > 4 ? '#ffffff' : w > 2 ? '#d8d8f0' : '#8a8aa8', 7.5 - w, y, w * 2 + 1, 1);
+    const [c, g] = mk(20, 20);
+    const cx = 9.5;
+    const cy = 9.5;
+    for (let y = 0; y < 20; y++)
+      for (let x = 0; x < 20; x++) {
+        const d = Math.abs(x - cx) + Math.abs(y - cy) * 1.15; // a diamond, a little taller than wide
+        if (d > 8.6) continue;
+        const col = d > 7.6 ? '#3a3450' : d > 6.4 ? (x + y < 19 ? '#ffffff' : '#b8b8d0') : d > 4.6 ? (x + y < 19 ? '#d8d8ec' : '#8a8aa8') : d > 3.4 ? '#3a3450' : d > 1.6 ? '#9a9ab8' : '#ffffff';
+        px(g, col, x, y);
+      }
+    px(g, '#ffffff', 7, 4, 2, 1); // glint on the upper left facet
+    for (const [x, y] of [[1, 1], [17, 1], [1, 17], [17, 17]] as const) {
+      px(g, '#d8d8ec', x, y, 2, 1);
+      px(g, '#d8d8ec', x + (x < 9 ? 0 : 1), y + (y < 9 ? 1 : -1), 1, 1);
     }
-    px(g, '#ffffff', 7, 7, 2, 2);
     add('dep-marker', c);
   }
   // whirlpool 40x14: a flattened spiral of foam rings (tinted by the deployable colour)
@@ -1470,6 +1550,7 @@ export const PROJ_ART: Record<string, ProjArt> = {
   'havoc:grenade': { key: 'pa-grenade', frames: 1, size: 0.6, orient: 'spin' },
   'havoc:mortar': { key: 'pa-mortar', frames: 1, size: 0.8, orient: 'vel' },
   'havoc:strike': { key: 'pa-strike', frames: 1, size: 1.2, orient: 'vel' },
+  'havoc:strike_heavy': { key: 'pa-strike', frames: 1, size: 1.2, orient: 'vel' },
   'agni:fireball_0': { key: 'pa-fireball', frames: 2, size: 1.2, orient: 'vel' },
   'agni:fireball_1': { key: 'pa-fireball', frames: 2, size: 1.2, orient: 'vel' },
   'agni:fireball_2': { key: 'pa-fireball', frames: 2, size: 1.2, orient: 'vel' },

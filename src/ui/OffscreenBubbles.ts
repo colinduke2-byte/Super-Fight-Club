@@ -6,12 +6,35 @@ import { drawPortShape, portOfColor } from './menuKit';
 import { settings } from '../settings';
 import { fastShapes } from './fastShapes';
 
-/** The damage readout's colour, as on the HUD plate: white -> yellow -> orange -> red as damage climbs. */
+/**
+ * The damage colour ramp shared by the HUD plates, the off-screen bubbles and the name tags: white at 0, cream, gold,
+ * orange, red as KO range opens (~120%), then crimson and a deep blood red past 200% (still bright enough to read on the
+ * dark plates). One entry per whole percent, built once.
+ */
+const RAMP_STOPS: [number, number][] = [
+  [0, 0xffffff],
+  [25, 0xfff4c0],
+  [55, 0xffd448],
+  [85, 0xff9a2a],
+  [115, 0xff5228],
+  [150, 0xf0202c],
+  [200, 0xc8102e],
+  [300, 0xa80c2c],
+];
+const RAMP = new Uint32Array(301);
+for (let d = 0; d <= 300; d++) {
+  let i = 0;
+  while (i < RAMP_STOPS.length - 2 && d > RAMP_STOPS[i + 1][0]) i++;
+  const [d0, c0] = RAMP_STOPS[i];
+  const [d1, c1] = RAMP_STOPS[i + 1];
+  const t = Math.min(1, Math.max(0, (d - d0) / (d1 - d0)));
+  const ch = (s: number): number => Math.round(((c0 >> s) & 255) + (((c1 >> s) & 255) - ((c0 >> s) & 255)) * t);
+  RAMP[d] = (ch(16) << 16) | (ch(8) << 8) | ch(0);
+}
+
+/** The damage readout's colour (see RAMP_STOPS). */
 export function damageTint(damage: number): number {
-  const d = Math.min(damage / 160, 1);
-  const g = Math.round(255 - 150 * Math.min(1, d * 1.6) - 60 * Math.max(0, d - 0.6));
-  const b = Math.round(255 - 255 * Math.min(1, d * 3));
-  return (255 << 16) | (Math.max(30, g) << 8) | Math.max(30, b);
+  return RAMP[Math.min(300, Math.max(0, Math.floor(damage)))];
 }
 
 /**
@@ -29,6 +52,8 @@ export class OffscreenBubbles {
   private readonly pcts: Phaser.GameObjects.BitmapText[];
   private readonly front: Phaser.GameObjects.Graphics;
   private readonly ports: number[];
+  /** The damage each tag shows (its text is only rebuilt when it changes). */
+  private readonly shownDmg: Int32Array;
 
   constructor(
     scene: Phaser.Scene,
@@ -54,6 +79,7 @@ export class OffscreenBubbles {
       layer.add(t);
       return t;
     });
+    this.shownDmg = new Int32Array(fighters.length).fill(-1);
     this.ports = colors.map((c, i) => {
       const p = portOfColor(c);
       return p >= 0 ? p : i % 4;
@@ -80,18 +106,37 @@ export class OffscreenBubbles {
         continue;
       }
       const far = Math.hypot(Math.max(0, -sx, sx - sw), Math.max(0, -sy, sy - sh)) / Math.max(sw, sh);
-      const R = 22 * u * Math.max(0.6, 1 - far * 0.8);
-      // keep the whole bubble, pointer tip included (7u past the rim), on screen and clear of the HUD plates
+      const R = Math.round(22 * u * Math.max(0.6, 1 - far * 0.8));
+      // the damage tag: a small plate hung under the bubble (over it when the fighter is below the screen), so the miniature stays
+      // clear; whole-pixel text at the HUD's text scale
+      const shown = Math.floor(f.damage);
+      if (this.shownDmg[f.id] !== shown) {
+        this.shownDmg[f.id] = shown;
+        pct.setText(`${shown}%`);
+      }
+      const ts = Math.max(1, Math.floor(u));
+      pct.setScale(ts);
+      // with PORT SHAPES on, the port's shape leads the tag (inside the plate, clear of the bubble's pointer)
+      const shapeW = settings.portShapes ? 7 * ts : 0;
+      const tw = pct.width + 4 * ts + shapeW;
+      const th = pct.height + 2 * ts;
+      const below = sy < sh; // the fighter is off the top or a side: the tag hangs under the bubble
+      // keep the whole bubble, pointer tip (7u past the rim) and tag on screen and clear of the HUD plates
       const edge = 8 * u;
-      const bottom = Math.min(sh, hudTop) - R - edge;
-      const bx = Phaser.Math.Clamp(sx, R + edge, sw - R - edge);
-      const by = Phaser.Math.Clamp(sy, R + edge, Math.max(R + edge, bottom));
+      const halfW = Math.max(R, tw / 2);
+      const bottom = Math.min(sh, hudTop) - R - edge - (below ? th : 0);
+      const bx = Math.round(Phaser.Math.Clamp(sx, halfW + edge, sw - halfW - edge));
+      const by = Math.round(Phaser.Math.Clamp(sy, R + edge + (below ? 0 : th), Math.max(R + edge, bottom)));
       const col = this.colors[f.id];
-      // pointer towards the fighter
+      // pointer towards the fighter (outlined so it reads over bright skies)
       const a = Math.atan2(sy - by, sx - bx);
       const tip = R + 7 * u;
-      g.fillStyle(col, 1).fillTriangle(bx + Math.cos(a) * tip, by + Math.sin(a) * tip, bx + Math.cos(a + 0.5) * R, by + Math.sin(a + 0.5) * R, bx + Math.cos(a - 0.5) * R, by + Math.sin(a - 0.5) * R);
+      const tx = bx + Math.cos(a) * tip;
+      const ty = by + Math.sin(a) * tip;
+      g.fillStyle(0x0c0a1c, 0.9).fillTriangle(bx + Math.cos(a) * (tip + u), by + Math.sin(a) * (tip + u), bx + Math.cos(a + 0.55) * R, by + Math.sin(a + 0.55) * R, bx + Math.cos(a - 0.55) * R, by + Math.sin(a - 0.55) * R);
+      g.fillStyle(col, 1).fillTriangle(tx, ty, bx + Math.cos(a + 0.5) * R, by + Math.sin(a + 0.5) * R, bx + Math.cos(a - 0.5) * R, by + Math.sin(a - 0.5) * R);
       g.fillStyle(0x0c0a1c, 0.85).fillCircle(bx, by, R);
+      g.lineStyle(u, 0x0c0a1c, 0.9).strokeCircle(bx, by, R + Math.max(2, u));
       g.lineStyle(Math.max(2, u), col, 1).strokeCircle(bx, by, R);
       const at = this.maskAt;
       const mi = f.id * 3;
@@ -110,11 +155,14 @@ export class OffscreenBubbles {
         .setPosition(bx, by + R * 0.6)
         .setTint(0xffffff)
         .setVisible(true);
-      // the fighter's damage on a band across the bubble's lower edge (how worried to be about them)
-      const ts = Math.max(1, Math.round(R / (11 * u))) * u;
-      pct.setText(`${Math.floor(f.damage)}%`).setScale(ts).setTint(damageTint(f.damage)).setPosition(bx, by + R * 0.62).setVisible(true);
-      fg.fillStyle(0x0c0a1c, 0.8).fillRect(bx - pct.displayWidth / 2 - 2 * u, by + R * 0.62 - pct.displayHeight / 2 - u, pct.displayWidth + 4 * u, pct.displayHeight + 2 * u);
-      if (settings.portShapes) drawPortShape(fg, this.ports[f.id], bx - R * 0.72, by - R * 0.72, 2.5 * u, col, 1, u);
+      // the tag overlaps the rim by a pixel or two, a plate edged in the port colour (how worried to be about them)
+      const tagY = below ? by + R + th / 2 - ts : by - R - th / 2 + ts;
+      const x0 = Math.round(bx - tw / 2);
+      const y0 = Math.round(tagY - th / 2);
+      fg.fillStyle(col, 1).fillRect(x0 - ts, y0 - ts, tw + 2 * ts, th + 2 * ts);
+      fg.fillStyle(0x0c0a1c, 1).fillRect(x0, y0, tw, th);
+      pct.setTint(damageTint(f.damage)).setPosition(Math.round(bx + shapeW / 2), Math.round(tagY)).setVisible(true);
+      if (shapeW) drawPortShape(fg, this.ports[f.id], x0 + 2 * ts + 2.5 * ts, Math.round(tagY), 2.5 * ts, col, 1, ts);
     }
   }
 }
