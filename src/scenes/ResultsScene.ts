@@ -602,9 +602,10 @@ export class ResultsScene extends MenuScene {
         rn.y = this.floor.y + dy * s;
         rn.sprite.setScale(s * (i === 2 ? 0.62 : 0.72) * rn.k).setPosition(rn.x, rn.y);
         // the place number sits on the front of its own step, sized to fit inside it (never down into the winner's name)
-        const front = (16 - dy) * s;
-        const tk = Math.max(1, Math.min(Math.round(s * 1.1), Math.floor((front * 0.7) / 7)));
-        rn.tag.setScale(tk).setPosition(rn.x + 2 * s, rn.y + front * 0.55);
+        // (below the step's lit top face and colour stripe, centred in what is left of its front)
+        const front = (16 - dy - 2.4) * s;
+        const tk = Math.max(1, Math.min(Math.round(s * 1.1), Math.floor((front * 0.75) / 7)));
+        rn.tag.setScale(tk).setPosition(rn.x + 2 * s, Math.round(rn.y + 2.4 * s + front / 2));
       });
       this.champName?.setScale(nameK).setPosition(this.floor.x, this.floor.y + s * (this.runners.length ? 16 : 10) + 9 * u);
       // short windows (phones held sideways) drop the victory quote: there is no room under the podium
@@ -733,9 +734,11 @@ export class ResultsScene extends MenuScene {
     for (const rn of this.runners) {
       const hw = (rn.hw ?? (rn.place === 2 ? 15 : 18)) * s;
       const ph = y + 16 * s - rn.y;
-      g.fillStyle(0x141028, 1).fillRect(rn.x - hw, rn.y, hw * 2, ph);
-      g.fillStyle(0x2e2650, 1).fillRect(rn.x - hw, rn.y, hw * 2, 1.5 * s);
-      g.fillStyle(rn.color, 0.8).fillRect(rn.x - hw, rn.y + 3 * s, hw * 2, 0.8 * s);
+      // built like the winner's pedestal: a lit top face, a stripe in their colour under it, a dark front with lit edges
+      g.fillStyle(0x1a1430, 1).fillRect(rn.x - hw, rn.y, hw * 2, ph);
+      g.fillStyle(0x2e2650, 1).fillRect(rn.x - hw, rn.y, s * 0.6, ph).fillRect(rn.x + hw - s * 0.6, rn.y, s * 0.6, ph);
+      g.fillStyle(0x3a3060, 1).fillRect(rn.x - hw, rn.y, hw * 2, 1.5 * s);
+      g.fillStyle(rn.color, 1).fillRect(rn.x - hw, rn.y + 1.5 * s, hw * 2, 0.8 * s);
       if (settings.portShapes) drawPortShape(g, rn.port, rn.x - hw + 4 * s, rn.y + ph * 0.6, 1.6 * s, rn.color, 1, Math.max(1, s * 0.4));
     }
     // spotlight cone and a glowing pedestal in the champion's colour

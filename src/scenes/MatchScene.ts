@@ -2,7 +2,7 @@ import Phaser from 'phaser';
 import { profileLabel } from '../game/profiles';
 import { ALT_LOOKS, assignPalettes } from '../art/palettes';
 import { ensureStageArt, stageArtReady } from '../art/stageArt';
-import { PIXEL_FONT, up } from '../art/pixelFont';
+import { up } from '../art/pixelFont';
 import { ambience } from '../audio/ambience';
 import { announcer } from '../audio/announcer';
 import { music } from '../audio/music';
@@ -55,7 +55,7 @@ import { MatchCamera } from './match/camera';
 import { MatchControllers } from './match/controllers';
 import { Countdown } from './match/countdown';
 import { MatchFlow } from './match/flow';
-import { canvasDpr, hudUnit, MatchHud } from './match/hudLayout';
+import { canvasDpr, hudUnit, loadingCard, MatchHud } from './match/hudLayout';
 import { LaunchMode } from './match/launchMode';
 import type { MatchModeHooks } from './match/mode';
 import { PauseMenu } from './match/pauseMenu';
@@ -332,7 +332,7 @@ export class MatchScene extends Phaser.Scene {
     // sheets not built yet (a fresh palette, the boss) come off the main thread behind a LOADING card instead of a stall
     const wants = this.fighters.map((f, i) => ({ data: f.data, palette: palettes[i] }));
     this.events.once('shutdown', () => this.runId++);
-    let loading: Phaser.GameObjects.BitmapText | null = null;
+    let loading: Phaser.GameObjects.Container | null = null;
     // the stage's art is built lazily (art workers): the match waits for it here, behind the same LOADING card
     const artReady = stageArtReady(this, stage);
     const art = artReady ? null : ensureStageArt(this, stage);
@@ -352,8 +352,7 @@ export class MatchScene extends Phaser.Scene {
     );
     if (art) ready = false;
     if (!ready) {
-      loading = this.add.bitmapText(w / 2, h / 2, PIXEL_FONT, 'LOADING').setOrigin(0.5).setScale(hudUnit(h) * 2).setTint(0xb8b0e8);
-      this.uiLayer.add(loading);
+      loading = loadingCard(this, this.uiLayer, stage.name ?? '');
     }
   }
 
@@ -644,7 +643,7 @@ export class MatchScene extends Phaser.Scene {
       const ult = f.state === 'attack' && f.move?.kind === 'ultimate';
       if (ult && !st.ultOn[i] && f.move) {
         this.cutIn.play(f.data, f.move.name ?? 'ULTIMATE', f.facing, this.skins[f.id]);
-        sfx.play('charge', 0.9, 0);
+        sfx.play('cutIn', 0.9, 0);
       }
       st.ultOn[i] = ult;
     });

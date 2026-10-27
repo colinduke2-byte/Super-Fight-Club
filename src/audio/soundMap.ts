@@ -21,6 +21,11 @@ export const SOUND_NAMES = [
   'swordSwing', 'swordHit', 'rayShot', 'crateBreak', 'crateBoom', 'coreGet',
   // fighter voices (formant-synth grunts, flavoured per fighter by the sound style)
   'voxAttack', 'voxHurt', 'voxKo', 'voxTaunt',
+  // signature moments: Havoc's airstrike (the radio call, a bomb's whistle, the bunker buster's blast), Gizmo's Mega Mech
+  // (servos spinning up, then the power-up shockwave), ground slams, a burn's crackle, crystal and piercing hit layers
+  'radio', 'whistle', 'bunker', 'mechUp', 'shockwave', 'quake', 'sizzle', 'shard', 'stab',
+  // an ultimate's cut-in banner
+  'cutIn',
   // the announcer's own voice where the browser has no speech voice: formant-synth words
   'callReady', 'callGo', 'callGame', 'callTime', 'callKo',
 ] as const;
@@ -34,6 +39,42 @@ export interface SoundCue {
 }
 
 const clamp = (v: number, lo: number, hi: number): number => Math.max(lo, Math.min(hi, v));
+
+/** Blasts this big (radius) are Havoc's bunker busters: the bunker boom instead of the ordinary one. */
+const BUNKER_RADIUS = 40;
+
+/**
+ * Sounds for move effect tags (`fx` events) that mark a signature moment: a fighter's own sound for it (played in the
+ * fighter's sound style). Tags not listed stay silent: the move's swing, projectile or hit already speaks for them.
+ */
+export const FX_SOUND: Readonly<Record<string, SoundCue>> = {
+  // Havoc calls in the airstrike
+  radio: { name: 'radio', intensity: 0.85 },
+  // Gizmo's Mega Mech: servos spin up (frame 4), then the power-up shockwave (frame 23: the second call within 0.6 s)
+  mechStart: { name: 'mechUp', intensity: 1 },
+  // ground slams and stomps (Brick, Obelisk, Gizmo's mech, the Overseer)
+  slam: { name: 'quake', intensity: 0.85 },
+  stomp: { name: 'quake', intensity: 0.75 },
+  quake: { name: 'quake', intensity: 0.9 },
+  upheaval: { name: 'quake', intensity: 0.8 },
+  rumble: { name: 'quake', intensity: 1 },
+  rubble: { name: 'break', intensity: 0.35 },
+  // Obelisk's crystals
+  spikes: { name: 'shard', intensity: 0.8 },
+  shardburst: { name: 'shard', intensity: 0.85 },
+  // Rime's ice shatter
+  shatter: { name: 'freeze', intensity: 0.75 },
+  // Riptide's water
+  geyser: { name: 'waterSpout', intensity: 0.55 },
+  spout: { name: 'splash', intensity: 0.8 },
+  splash: { name: 'splash', intensity: 0.7 },
+  // Brick's jet and steam vent
+  jet: { name: 'gust', intensity: 0.85 },
+  vent: { name: 'gust', intensity: 0.6 },
+  // Nova's barrier and element cycle
+  barrier: { name: 'shield', intensity: 0.6 },
+  cycle: { name: 'glint', intensity: 0.6 },
+};
 
 /** Item indices as the sim's item events carry them (engine/items.ts ITEM_KINDS order, append-only by contract). */
 export const ITEM = { heal: 0, cell: 1, boost: 2, bomb: 3, aegis: 4, sword: 5, raygun: 6, crate: 7, core: 8 } as const;
@@ -51,7 +92,7 @@ export function soundFor(type: WorldEventType, mag: number, extra: number, tag?:
       // Overseer's Overload Roar calls 'roar'
       if (tag === 'taunt') return { name: 'taunt', intensity: 0.85 };
       if (tag === 'roar') return { name: 'roar', intensity: 1 };
-      return null;
+      return (tag && FX_SOUND[tag]) || null;
     case 'itemThrow':
       // a sword swing (mag 1, extra = the sword's item index) gets a steel 'shing' over the presenter's whoosh
       return extra === ITEM.sword && mag === 1 ? { name: 'swordSwing', intensity: 0.75 } : null;
@@ -104,6 +145,9 @@ export function soundFor(type: WorldEventType, mag: number, extra: number, tag?:
     case 'ko':
       return { name: 'ko', intensity: 1 };
     case 'projectile':
+      // (tag: the projectile's id) Havoc's airstrike: the bunker busters whistle in, the lighter strikes whistle shorter
+      if (tag === 'strike_heavy') return { name: 'whistle', intensity: 1 };
+      if (tag === 'strike') return { name: 'whistle', intensity: 0.45 };
       return { name: 'shoot', intensity: 0.5 };
     case 'projectileHit':
       return mag > 0 ? { name: 'zap', intensity: clamp(extra / 12, 0.3, 0.9) } : { name: 'break', intensity: 0.4 };
@@ -116,7 +160,8 @@ export function soundFor(type: WorldEventType, mag: number, extra: number, tag?:
     case 'deployableDestroyed':
       return { name: 'break', intensity: 0.7 };
     case 'blast':
-      return { name: 'boom', intensity: clamp(0.5 + mag / 60, 0.5, 1) };
+      // mag: the blast radius; the biggest (Havoc's bunker busters, 40) get the huge, long boom
+      return mag >= BUNKER_RADIUS ? { name: 'bunker', intensity: 1 } : { name: 'boom', intensity: clamp(0.5 + mag / 60, 0.5, 1) };
     case 'counter':
       return { name: 'parry', intensity: 1 };
     case 'splat':
@@ -130,10 +175,14 @@ export function soundFor(type: WorldEventType, mag: number, extra: number, tag?:
     case 'pillarCrumble':
       return { name: 'land', intensity: 0.6 };
     case 'status': {
-      // 0-3 burn / slow / freeze / stun, 4 soaked, 5 steam (fire on a soaked fighter), 6 silent drips while soaked
+      // 0-3 burn / slow / freeze / stun, 4 soaked, 5 steam (fire on a soaked fighter), 6 silent drips while soaked,
+      // 7 a Frostbite stack (mag: the stack count). A burn re-emits every 12 frames while it lasts: a soft crackle, not the
+      // 'fwoom' of catching fire (the fire hit's own layer plays that)
+      if (extra === 0) return { name: 'sizzle', intensity: 0.55 };
       if (extra === 4) return { name: 'splash', intensity: 0.5 };
       if (extra === 5) return { name: 'burn', intensity: 0.5 };
       if (extra === 6) return null;
+      if (extra === 7) return { name: 'freeze', intensity: clamp(0.25 + mag * 0.08, 0.25, 0.6) };
       const names: SoundName[] = ['burn', 'slow', 'freeze', 'stun'];
       return { name: names[clamp(extra, 0, 3) | 0], intensity: 0.4 };
     }
@@ -183,19 +232,22 @@ export function hitLayer(fx: string, mag: number, damage: number): SoundCue | nu
     case 'burst':
     case 'heavy':
       return damage >= 9 ? { name: 'boom', intensity: intensity * 0.7 } : null;
-    case 'slash':
     case 'pierce':
+      // a stab: a short, tight 'tsk' (a slash rings longer)
+      return { name: 'stab', intensity };
+    case 'slash':
     case 'whip':
       // a bright steel 'shing' on cutting and stabbing moves
       return { name: 'slice', intensity: intensity * 0.8 };
     case 'gust':
       return { name: 'gust', intensity: intensity * 0.8 };
     case 'shock':
-      return { name: 'bounce', intensity };
+      // (drawn as an electric arc, like zap)
+      return { name: 'zap', intensity: intensity * 0.85 };
     case 'water':
       return { name: 'splash', intensity };
     case 'crystal':
-      return { name: 'ding', intensity: intensity * 0.6 };
+      return { name: 'shard', intensity };
     default:
       return null;
   }
@@ -222,6 +274,26 @@ export function soundsFor(type: WorldEventType, mag: number, extra: number, tag?
       break;
   }
   return out;
+}
+
+/**
+ * The warning before a stage hazard goes off (`hazardWarn`): each hazard announces itself in its own voice, under its
+ * strike: static building for a storm bolt, a deep rumble before the avalanche and the geysers, a crack in the hollow's
+ * ceiling before a stalactite falls.
+ */
+export function hazardWarnSounds(kind: string | undefined, style?: string): SoundCue[] {
+  switch (kind) {
+    case 'bolt':
+      return [{ name: 'charge', intensity: 0.45 }, { name: 'zap', intensity: 0.35 }];
+    case 'avalanche':
+      return [{ name: 'quake', intensity: 0.5 }];
+    case 'stalactite':
+      return [{ name: 'break', intensity: 0.3 }];
+    case 'geyser':
+      return style === 'water' ? [{ name: 'quake', intensity: 0.3 }, { name: 'splash', intensity: 0.35 }] : [{ name: 'quake', intensity: 0.35 }, { name: 'sizzle', intensity: 0.7 }];
+    default:
+      return [{ name: 'charge', intensity: 0.6 }];
+  }
 }
 
 /**

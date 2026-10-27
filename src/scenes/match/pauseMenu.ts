@@ -11,7 +11,8 @@ import type { InputDevice } from '../../input/device';
 import { menuInput, type MenuEvent } from '../../input/menuInput';
 import { footerHint } from '../../input/prompts';
 import { deviceKind } from '../../game/tutorial';
-import { drawPanel, MenuList, tapMin, type MenuItem } from '../../ui/menuKit';
+import { COLORS, drawPanel, MenuList, PANEL, tapMin, type MenuItem } from '../../ui/menuKit';
+import { settings } from '../../settings';
 import type { MatchScene } from '../MatchScene';
 import { hudUnit } from './hudLayout';
 import { menuKeyLabel, openTrainingMenu, trainingMenuName } from './training';
@@ -51,15 +52,23 @@ export class PauseMenu {
   moveListHead!: Phaser.GameObjects.BitmapText;
   /** Backing panel under the move list (and its head), so it reads over a busy stage. */
   moveListPlate!: Phaser.GameObjects.Graphics;
+  /** The menus' panel style around the pause title (a header tab on the list's plate) and the plate under the key reminder. */
+  private frame!: Phaser.GameObjects.Graphics;
+  /** The title's header tab (screen px) and the open animation: when the pause opened, and the dim it fades up to. */
+  private head = { x: 0, y: 0, w: 0, h: 0 };
+  private openAt = -1e9;
+  private dim = 0.6;
+  private drop = 0;
 
   constructor(private readonly s: MatchScene) {}
 
   create(): void {
     const s = this.s;
-    this.overlay = s.add.rectangle(0, 0, 10, 10, 0x000000, 0.6).setOrigin(0, 0).setVisible(false);
-    this.text = s.add.bitmapText(0, 0, PIXEL_FONT, '').setOrigin(0.5).setVisible(false).setCenterAlign();
+    this.overlay = s.add.rectangle(0, 0, 10, 10, 0x05040e, 0.6).setOrigin(0, 0).setVisible(false);
+    this.frame = s.add.graphics().setVisible(false);
+    this.text = s.add.bitmapText(0, 0, PIXEL_FONT, '').setOrigin(0.5).setVisible(false).setCenterAlign().setTint(COLORS.title);
     this.help = s.add.bitmapText(0, 0, PIXEL_FONT, up(pauseHelp(null, s.isTraining))).setOrigin(0.5, 0).setTint(0xb8b0e8).setCenterAlign().setVisible(false);
-    s.uiLayer.add([this.overlay, this.text, this.help]);
+    s.uiLayer.add([this.overlay, this.frame, this.text, this.help]);
     const canRestart = session.mode !== 'arcade' && !s.replay && !session.demo;
     const items: MenuItem[] = [
       { label: 'RESUME', enabled: () => s.st.pauseReason !== 'disconnect', onConfirm: () => this.setPaused(false) },
@@ -105,20 +114,60 @@ export class PauseMenu {
     this.overlay.setSize(w, h);
     // a short (phone landscape) screen: the title and menu sit higher, so every row shows without scrolling
     const rowH = Math.max(18 * u, tapMin(this.s));
+    // the title sits in a header tab on top of the active list's plate: 2x, or 1x when that is too wide for the screen
+    const tw = this.text.getTextBounds().local.width;
+    const tk = tw * 2 * u <= w * 0.9 ? 2 * u : u;
+    this.text.setScale(tk);
+    const headH = this.text.displayHeight + 10 * u;
     const short = h * 0.38 + this.menu.items.length * rowH + 24 * u > h;
-    this.text.setScale(u * 2).setPosition(w / 2, short ? Math.max(10 * u, h * 0.12) : h * 0.26);
-    this.menu.layout(w / 2, short ? this.text.y + 24 * u : h * 0.38, u, 110, h - 18 * u);
-    this.confirmMenu.layout(w / 2, h * 0.42, u, 70);
-    this.dcMenu.layout(w / 2, h * 0.44, u, 150);
+    const lead = (rowH - 7 * 1.5 * u) / 2 + 2 * u; // a list's plate starts this far above its first row
+    const top = (y: number): number => (short ? Math.max(6 * u, h * 0.04) + headH + lead : y) + this.drop;
+    this.menu.layout(w / 2, top(h * 0.38), u, 110, h - 18 * u);
+    this.confirmMenu.layout(w / 2, top(h * 0.42), u, 70);
+    this.dcMenu.layout(w / 2, top(h * 0.44), u, 150);
+    const list = this.active;
+    const listTop = list === this.menu ? top(h * 0.38) : list === this.confirmMenu ? top(h * 0.42) : top(h * 0.44);
+    const plateW = (list === this.menu ? 110 : list === this.confirmMenu ? 70 : 150) * u + 12 * u;
+    const hw = Math.min(w - 8 * u, Math.max(plateW, this.text.displayWidth + 20 * u));
+    // the tab overlaps the plate's top edge by a unit, so the two read as one panel
+    this.head = { x: Math.round(w / 2 - hw / 2), y: Math.round(listTop - lead - headH + u), w: Math.round(hw), h: Math.round(headH) };
+    this.text.setPosition(w / 2, Math.round(this.head.y + headH / 2 + u / 2));
     this.placeHelp(w, h, u);
     if (this.moveListBox.visible) this.fillMoveList();
+    this.drawFrame(u);
+  }
+
+  /** The header tab behind the title (menu panel style: a stripe, gold corner ticks, a gold rule) and the key reminder's plate. */
+  private drawFrame(u: number): void {
+    const g = this.frame.clear();
+    const st = this.s.st;
+    const on = st.paused && this.text.visible;
+    g.setVisible(on);
+    if (!on) return;
+    const { x, y, w, h } = this.head;
+    drawPanel(g, x, y, w, h, u, 0.95);
+    g.fillStyle(PANEL.stripe, 1).fillRect(x + u, y + u, w - 2 * u, h - 2 * u);
+    g.fillStyle(COLORS.title, 0.8).fillRect(x + 4 * u, y + h - 2 * u, w - 8 * u, Math.max(1, Math.round(u / 2)));
+    if (this.help.visible) {
+      const hb = this.help;
+      const hx = hb.x - hb.displayWidth / 2 - 6 * u;
+      const hw = hb.displayWidth + 12 * u;
+      g.fillStyle(PANEL.fill, 0.85).fillRect(hx, hb.y - 3 * u, hw, hb.displayHeight + 6 * u);
+      g.fillStyle(PANEL.border, 1).fillRect(hx, hb.y - 3 * u, hw, u).fillRect(hx, hb.y + hb.displayHeight + 2 * u, hw, u);
+    }
+  }
+
+  /** Lays the pause out again for the current window (after its title or active list changed). */
+  private relayout(): void {
+    const s = this.s;
+    this.layout(s.scale.width, s.scale.height, hudUnit(s.scale.height));
   }
 
   /** The key reminder sits under the menu, shrunk to the window. */
   private placeHelp(w: number, h: number, u: number): void {
     // under the menu's plate (its rows are a finger tall on touch screens)
     const hs = Math.min(u, (w * 0.9) / Math.max(1, this.help.getTextBounds().local.width));
-    this.help.setScale(hs).setPosition(w / 2, Math.min(h - 12 * u, this.menu.bottom + 6 * u));
+    this.help.setScale(hs).setPosition(w / 2, Math.min(h - 12 * u, this.active.bottom + 8 * u));
   }
 
   /** The device of the player who paused (null: a focus / disconnect pause, or nobody in particular). */
@@ -170,6 +219,14 @@ export class PauseMenu {
     }
     this.active.update(now / 1000);
     inputManager.endTick();
+    // opening: the dim fades up and the panel drops the last few units into place (at once under REDUCE MOTION)
+    const k = settings.reduceMotion ? 1 : Math.min(1, (now - this.openAt) / 150);
+    const drop = Math.round((1 - k) * (1 - k) * -10 * hudUnit(this.s.scale.height));
+    this.overlay.setAlpha(this.dim * (0.35 + 0.65 * k));
+    if (drop !== this.drop) {
+      this.drop = drop;
+      this.relayout();
+    }
   }
 
   /** A human's gamepad is missing (`missing` = its label, '' = all present): hold the match until it is back. */
@@ -211,14 +268,18 @@ export class PauseMenu {
       this.moveListBox?.setVisible(false);
       this.moveListHead?.setVisible(false);
       this.moveListPlate?.setVisible(false);
+      this.dim = 0.6;
       this.overlay.setAlpha(0.6);
+    }
+    if (p && !was) {
+      this.openAt = performance.now();
+      this.drop = 0;
     }
     music.setDuck(p ? 0.3 : 1);
     if (p) inputManager.touch.setMenuPad('none'); // a touch player taps the pause rows themselves
     if (p) {
       this.text.setText(up(this.title()));
       this.help.setText(up(pauseHelp(this.pauserDevice(), s.isTraining)));
-      this.placeHelp(s.scale.width, s.scale.height, hudUnit(s.scale.height));
       if (!was || reason === 'disconnect') {
         this.menu.index = 0;
         this.dcMenu.index = s.ctl.freeKeyboard() ? 0 : 1;
@@ -228,6 +289,7 @@ export class PauseMenu {
       s.resumeClock();
       s.ctl.resetHumans();
     }
+    this.relayout();
   }
 
   private title(): string {
@@ -256,6 +318,7 @@ export class PauseMenu {
     this.text.setText(up(what ? `${what === 'restart' ? 'RESTART' : 'QUIT'}: ARE YOU SURE?` : this.title()));
     this.help.setVisible(!what && st.pauseReason !== 'disconnect');
     this.refreshMenus();
+    this.relayout();
     sfx.play('menuMove', 0.45, 0);
   }
 
@@ -305,10 +368,12 @@ export class PauseMenu {
     this.moveListPlate.setVisible(on);
     // touch: the move list closes with the BACK button; the pause rows are tapped directly
     if (s.st.paused) inputManager.touch.setMenuPad(on ? 'buttons' : 'none');
-    this.overlay.setAlpha(on ? 0.88 : 0.6);
+    this.dim = on ? 0.88 : 0.6;
+    this.overlay.setAlpha(this.dim);
     this.text.setVisible(!on && s.st.paused);
     this.help.setVisible(!on && s.st.paused && s.st.pauseReason !== 'disconnect');
     this.refreshMenus();
+    this.drawFrame(hudUnit(s.scale.height));
   }
 
   /** Left / right in the move list: the next fighter in the match. */

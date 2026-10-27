@@ -87,6 +87,10 @@ export class MatchFlow {
   /** KO visual: a blast from the screen edge (or a burst where they stand, for a stamina KO on screen). The KO itself is already scored. */
   koFx(f: Fighter): void {
     const s = this.s;
+    // down to their last stock (and still in it): a LAST STOCK! call over their plate, as the announcer says it
+    const m = s.match;
+    const sc = m.scores[f.id];
+    if (!m.training && !m.over && m.cfg.mode === 'stock' && m.cfg.stocks > 1 && sc && !sc.eliminated && sc.stocks === 1) s.hud.call(f.id, 'LAST STOCK!', f.team >= 0 ? COLORS.p[f.team] : COLORS.p[f.id % 4]);
     const v = s.worldCam.worldView;
     const sw = s.scale.width;
     const sh = s.scale.height;
@@ -106,7 +110,7 @@ export class MatchFlow {
   /** Time ran out on a tie: the tied fighters are back at 300%. */
   suddenDeath(): void {
     const s = this.s;
-    s.hud.banner.setText('SUDDEN DEATH!').setVisible(true).setTint(0xff4a5a);
+    s.hud.showBanner('SUDDEN DEATH!', 0xff4a5a, 'ONE STOCK AT 300%', COLORS.text);
     announcer.say('Sudden death!');
     s.st.introTicks = 110;
     sfx.play('boom', 0.8, 0);
@@ -196,7 +200,9 @@ export class MatchFlow {
     // the arcade (team fights and co-op too) is won or lost by player 1's side
     const arcadeWon = m.winnerTeam >= 0 ? s.fighters[0]?.team === m.winnerTeam : w === 0;
     const tail = w < 0 && m.winnerTeam < 0 ? 'DRAW' : session.mode === 'arcade' ? (arcadeWon ? 'VICTORY' : 'DEFEATED') : m.winnerTeam >= 0 ? `TEAM ${teamName(m.winnerTeam)} WINS` : `${s.labels[w] ?? `P${w + 1}`} WINS`;
-    banner.setText(up(`${head}\n${tail}`)).setVisible(true).setTint(0xffe14a);
+    // GAME! big in gold, who won under it in their colour (VICTORY / DEFEATED in the arcade)
+    const subTint = w < 0 && m.winnerTeam < 0 ? COLORS.text : session.mode === 'arcade' ? (arcadeWon ? COLORS.good : COLORS.bad) : COLORS.p[m.winnerTeam >= 0 ? m.winnerTeam : (s.fighters[w]?.team ?? -1) >= 0 ? s.fighters[w].team : w % 4];
+    s.hud.showBanner(head, 0xffe14a, up(tail), subTint);
     announcer.say(head === 'TIME!' ? 'Time!' : 'Game!', { pitch: 0.55, rate: 0.95 });
   }
 }

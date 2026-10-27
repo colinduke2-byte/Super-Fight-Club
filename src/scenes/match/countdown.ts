@@ -24,7 +24,10 @@ export class Countdown {
   begin(head: string): void {
     head = runHead(head);
     const st = this.s.st;
-    this.s.hud.banner.setText(head).setVisible(true);
+    // a two-line head (an arcade fight's FIGHT 1 over its name) keeps the first line big and the rest under it, smaller
+    const cut = head.indexOf('\n');
+    if (cut > 0) this.s.hud.showBanner(head.slice(0, cut), this.s.hud.banner.tintTopLeft, head.slice(cut + 1), 0xe8e4ff);
+    else this.s.hud.banner.setText(head).setVisible(true);
     st.countdown = COUNTDOWN;
     announcer.ready();
     st.entranceFx = [];
@@ -50,7 +53,9 @@ export class Countdown {
     const b = s.hud.banner;
     const h = s.scale.height;
     const u = hudUnit(h);
-    s.st.bannerBase = u * COUNT_SCALE;
+    // GO! lands at the full banner size, on the full plate: the countdown's payoff
+    const sc = b.text === 'GO!' ? 4 : COUNT_SCALE;
+    s.st.bannerBase = u * sc;
     const cam = s.worldCam;
     const v = cam.worldView;
     const z = cam.zoom || 1;
@@ -61,7 +66,7 @@ export class Countdown {
       top = Math.min(top, (f.y - f.h - 14 - v.y) * z); // the name tag rides a little above the head
       bottom = Math.max(bottom, (f.y - v.y) * z);
     }
-    const half = (7 * u * COUNT_SCALE) / 2 + 7 * u; // the text plus its dark band
+    const half = (7 * u * sc) / 2 + 7 * u; // the text plus its dark band
     const minY = 10 * u + half; // under the clock
     const maxY = h - (40 * (s.st.hudU || u) + 12 * u) - half; // above the fighter plates
     const usual = h * 0.3;
@@ -69,7 +74,7 @@ export class Countdown {
     const blocked: [number, number][] = [];
     if (top !== Infinity) blocked.push([top, bottom]);
     const w = s.scale.width;
-    const bw = Math.max(b.displayWidth, 7 * u * COUNT_SCALE * 6) / 2 + 12 * u;
+    const bw = Math.max(b.displayWidth, 7 * u * sc * 6) / 2 + 12 * u;
     for (const p of s.world.platforms) {
       const x0 = (p.x - v.x) * z;
       const x1 = (p.right - v.x) * z;

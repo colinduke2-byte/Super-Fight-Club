@@ -98,6 +98,9 @@ interface Bus {
   target: number;
 }
 
+/** Time constant (s) of the outgoing song's fade when the track changes or stops. */
+const RETIRE_TAU = 0.08;
+
 export class Music {
   private timer: number | null = null;
   private track: Track | null = null;
@@ -232,11 +235,13 @@ export class Music {
     if (!bus) return;
     const t = bus.ctx.currentTime;
     bus.gain.gain.cancelScheduledValues(t);
-    bus.gain.gain.setTargetAtTime(0, t, 0.025);
+    // a short crossfade (about 40 dB down in 0.4 s): a scene change (menu -> match -> results) eases from one song into
+    // the next instead of cutting
+    bus.gain.gain.setTargetAtTime(0, t, RETIRE_TAU);
     const drop = (): void => {
       for (const n of [bus.gain, bus.filter, bus.send, ...bus.extra]) n?.disconnect();
     };
-    if (typeof window !== 'undefined') window.setTimeout(drop, 400);
+    if (typeof window !== 'undefined') window.setTimeout(drop, RETIRE_TAU * 9000);
     else drop();
   }
 

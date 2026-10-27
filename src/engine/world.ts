@@ -250,7 +250,7 @@ export class World {
       if (p.active || (p.def?.blast && !p.exploded && p.age > 0)) continue;
       p.spawn(ownerId, defId, def, x, y, vx, vy, dmgMult);
       p.moveId = this.fighters[ownerId]?.move?.id ?? '';
-      this.emit('projectile', this.fighters[ownerId], x, y, 0, 0);
+      this.emit('projectile', this.fighters[ownerId], x, y, 0, 0, defId);
       return p;
     }
     return null;

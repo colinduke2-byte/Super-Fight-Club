@@ -1,7 +1,7 @@
 import Phaser from 'phaser';
 import { announcer } from '../audio/announcer';
 import { footsteps, type StepSource } from '../audio/footsteps';
-import { footstepFor, hazardSounds, hitLayer, soundsFor } from '../audio/soundMap';
+import { footstepFor, hazardSounds, hazardWarnSounds, hitLayer, soundsFor } from '../audio/soundMap';
 import { heldState } from '../engine/items';
 import { sfx } from '../audio/sfx';
 import type { Fighter } from '../engine/fighter';
@@ -184,7 +184,7 @@ export class WorldEventFx {
     }
     if (type === 'hit') {
       if (extra >= HURT_DAMAGE && f.state !== 'ko') this.grunt('voxHurt', f, x, Math.min(1, 0.6 + extra / 40));
-      const layer = hitLayer(f.lastHitFx, mag, extra);
+      const layer = hitLayer(this.hitFxOf(f, this.host.world.fighters[f.lastHitBy]), mag, extra); // (this hit's fx: lastHitFx still names the last one)
       if (layer) sfx.play(layer.name, layer.intensity, pan);
       // (lastHitBy is -1 for a hit nobody owns: a stage hazard, a stray item)
       if (f.lastHitBy >= 0 && heldState(this.host.world, f.lastHitBy).kind === 'sword') sfx.play('swordHit', 0.8, pan);
@@ -314,7 +314,7 @@ export class WorldEventFx {
       case 'hazardWarn': {
         const hz = this.host.world.stage.hazards?.[mag | 0];
         e.burst(x, y, 8, 40, hz?.kind === 'bolt' ? 0x9fd8ff : hz?.kind === 'stalactite' ? 0xc898f6 : hz?.kind === 'avalanche' ? 0xf4f8ff : hz?.style === 'water' ? 0xbff0ff : 0xff8a30, 0.6, 2);
-        sfx.play('charge', 0.6, 0);
+        for (const c of hazardWarnSounds(hz?.kind, hz?.style)) sfx.play(c.name, c.intensity, this.host.pan(x));
         break;
       }
       case 'hazardFire': {

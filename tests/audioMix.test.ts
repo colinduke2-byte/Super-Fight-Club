@@ -161,6 +161,34 @@ describe('audio mix safety', () => {
     expect(live).toBe(nodesAtRest); // every voice chain disconnected again
   });
 
+  it('footsteps and other background sounds give way in a crowded mix (a four-player brawl stays readable)', () => {
+    const { sfx, ctx } = rig();
+    const names = ['hit', 'zap', 'boom', 'clang', 'shield', 'burn', 'splash'] as const;
+    for (let f = 0; f < 3; f++) {
+      ctx.currentTime += 0.03;
+      for (const n of names) sfx.play(n, 0.8);
+    }
+    const busy = sfx.activeSounds;
+    expect(busy).toBeGreaterThanOrEqual(14);
+    sfx.play('stepStone', 0.8);
+    sfx.play('jump', 0.8);
+    expect(sfx.activeSounds).toBe(busy);
+    sfx.play('hitHeavy', 1);
+    expect(sfx.activeSounds).toBe(busy + 1);
+  });
+
+  it("the Mega Mech's second power-up call is the shockwave", () => {
+    const { sfx, ctx } = rig();
+    const names = (): string[] => (sfx as unknown as { voices: { name: string }[] }).voices.map((v) => v.name);
+    sfx.play('mechUp', 1);
+    ctx.currentTime += 0.3;
+    sfx.play('mechUp', 1);
+    expect(names()).toEqual(['mechUp', 'shockwave']);
+    ctx.currentTime += 2;
+    sfx.play('mechUp', 1);
+    expect(names().at(-1)).toBe('mechUp');
+  });
+
   it('a KO always gets a voice even when the mix is full', () => {
     const { sfx, ctx } = rig();
     const names = ['hit', 'swing', 'land', 'zap', 'boom', 'clang', 'shield', 'jump', 'burn', 'splash', 'grab', 'throw'] as const;

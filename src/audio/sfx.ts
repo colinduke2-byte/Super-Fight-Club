@@ -119,10 +119,18 @@ const MIN_GAP = 0.028;
 /** Repeats inside this window are attenuated so rapid multi-hits do not build up. */
 const STACK_WINDOW = 0.1;
 /** Sounds that always get a voice, stealing the oldest ordinary one if the mix is full. */
-const PRIORITY: ReadonlySet<SoundName> = new Set<SoundName>(['ko', 'shieldBreak', 'parry', 'charge', 'ultimate', 'ready', 'go', 'roar', 'thunder', 'avalanche', 'callReady', 'callGo', 'callGame', 'callTime', 'callKo']);
+const PRIORITY: ReadonlySet<SoundName> = new Set<SoundName>(['ko', 'shieldBreak', 'parry', 'charge', 'ultimate', 'ready', 'go', 'roar', 'thunder', 'avalanche', 'callReady', 'callGo', 'callGame', 'callTime', 'callKo', 'cutIn', 'bunker', 'shockwave']);
 /** Random pitch spread (fraction) per sound so repeats are not machine-gun identical; musical cues stay in tune. */
-const NO_VARY: ReadonlySet<SoundName> = new Set<SoundName>(['ding', 'menuMove', 'menuOk', 'menuBack', 'freeze', 'ready', 'pickup', 'go', 'ultimate', 'taunt', 'coreGet', 'callReady', 'callGo', 'callGame', 'callTime', 'callKo']);
+const NO_VARY: ReadonlySet<SoundName> = new Set<SoundName>(['ding', 'menuMove', 'menuOk', 'menuBack', 'freeze', 'ready', 'pickup', 'go', 'ultimate', 'taunt', 'coreGet', 'callReady', 'callGo', 'callGame', 'callTime', 'callKo', 'cutIn', 'radio']);
 const VARY = 0.06;
+/**
+ * Background sounds (footsteps, jumps, landings, dodges) that give way in a crowded mix: with this many sounds already
+ * playing they are skipped, so a four-player brawl with items and projectiles keeps its hits readable.
+ */
+const BUSY = 14;
+const BACKGROUND: ReadonlySet<SoundName> = new Set<SoundName>(['stepMetal', 'stepStone', 'stepWood', 'stepSnow', 'stepGrass', 'stepCrystal', 'jump', 'doubleJump', 'land', 'dodge', 'sprint', 'skid', 'ledge', 'sizzle']);
+/** Gizmo's Mega Mech fires its `mechStart` effect twice: the second call inside this window is the power-up shockwave. */
+const MECH_SHOCK_WINDOW = 0.6;
 
 /**
  * Loudness each sound is mixed to at full intensity, as momentary loudness (LUFS, 400 ms) of the dry sound on its own at
@@ -216,6 +224,17 @@ export const LOUDNESS_TARGET: Record<SoundName, number> = {
   avalanche: -18,
   thunder: -17,
   roar: -16,
+  // signature moments
+  radio: -27,
+  whistle: -27,
+  bunker: -15,
+  mechUp: -23,
+  shockwave: -17,
+  quake: -21,
+  sizzle: -34,
+  shard: -27,
+  stab: -27,
+  cutIn: -18,
 };
 
 /** Longest a sound may ring (seconds, audible span 40 dB under its peak); everything else stays under a second. */
@@ -230,6 +249,7 @@ export const SOUND_SPAN: Partial<Record<SoundName, number>> = {
   waterSpout: 1.4,
   stalactite: 1.3,
   voxKo: 1.3,
+  bunker: 2,
 };
 
 /**
@@ -239,13 +259,14 @@ export const SOUND_SPAN: Partial<Record<SoundName, number>> = {
 export const LEVEL_DB: Record<SoundName, number> = {
   swing: 9.9, hit: 2.4, hitHeavy: -2.1, clang: 1.9, shield: 3.4, shieldBreak: 2.6, jump: 2.7, doubleJump: 2.7,
   land: 1.5, landBounce: -1.2, bounce: 3.4, tech: 5.4, ledge: 4.4, dodge: 5.0, grab: 5.3, throw: 2.7, pummel: 3.9,
-  ko: -1.0, shoot: 4.9, zap: 5.6, reflect: 3.1, place: 2.3, parry: 3.6, boom: 0.4, break: 1.9, burn: 13.1,
-  freeze: 0.3, slow: -0.1, stun: 3.4, splash: 7.2, blink: 0.1, hook: 7.6, charge: -0.4, ding: -3.3, menuMove: 4.9,
-  menuOk: 2.9, menuBack: 3.4, slice: 10.1, gust: 11.5, spawn: 5.6, pickup: 4.9, ready: 2.3, ultimate: 1.4, go: 1.3,
+  ko: -1.0, shoot: 4.9, zap: 4.1, reflect: 3.1, place: 2.3, parry: 3.6, boom: 0.4, break: 1.9, burn: 6.4,
+  freeze: 1.4, slow: -0.1, stun: 3.4, splash: 7.2, blink: 0.1, hook: 7.6, charge: -0.4, ding: -3.3, menuMove: 4.9,
+  menuOk: 2.9, menuBack: 3.4, slice: 10.1, gust: 3.9, spawn: 5.6, pickup: 4.9, ready: 2.3, ultimate: 1.4, go: 1.3,
   taunt: 8, roar: 1.4, thunder: 0, avalanche: -0.7, geyser: -2.0, waterSpout: 2.7, stalactite: -0.8,
   stepMetal: 1.5, stepStone: 1.7, stepWood: -2.8, stepSnow: 5.5, stepGrass: -5.1, stepCrystal: 1.8, crowd: 7.9,
   glint: 4.1, sprint: 6.0, skid: -0.5, swordSwing: 6.1, swordHit: 3.6, rayShot: 3.4, crateBreak: 4.9, crateBoom: 4.6, coreGet: 2.3,
   voxAttack: -6.4, voxHurt: -5.1, voxKo: -8.8, voxTaunt: -7.1, callReady: -4.5, callGo: -2.9, callGame: -2.4, callTime: -1.5, callKo: -2.9,
+  radio: 1.8, whistle: -2.4, bunker: -3.1, mechUp: 2.7, shockwave: 0.6, quake: -1.4, sizzle: 2.4, shard: 0.9, stab: 0.4, cutIn: 0.9,
 };
 
 /** Extra trim (dB) for a style's swing / hits so every fighter lands at the same loudness (on top of LEVEL_DB). */
@@ -279,6 +300,11 @@ const DUCK: Partial<Record<SoundName, [number, number]>> = {
   thunder: [0.65, 0.8],
   avalanche: [0.65, 1.0],
   geyser: [0.75, 0.5],
+  bunker: [0.45, 0.8],
+  // an ultimate's cut-in banner: the music steps back for the whole banner
+  cutIn: [0.5, 1.1],
+  shockwave: [0.6, 0.4],
+  quake: [0.8, 0.2],
   // the announcer's fallback voice dips the music like the speech voice does
   callReady: [0.6, 0.6],
   callGo: [0.6, 0.5],
@@ -410,6 +436,7 @@ export class Sfx {
   private readonly lastPlayed = new Map<SoundName, number>();
   private readonly recent: { name: SoundName; t: number }[] = [];
   private armed = false;
+  private mechAt = -1e9;
 
   /** Call once: waits for a user gesture, then creates and resumes the context. */
   arm(target: Window = window): void {
@@ -641,7 +668,14 @@ export class Sfx {
     const vol = this.syncVolume();
     if (vol <= 0) return;
     const now = ctx.currentTime;
+    if (name === 'mechUp') {
+      // the Mega Mech's second effect call is the suit coming online: the shockwave, not another spin-up
+      const second = now - this.mechAt < MECH_SHOCK_WINDOW;
+      this.mechAt = second ? -1e9 : now;
+      if (second) name = 'shockwave';
+    }
     if (now - (this.lastPlayed.get(name) ?? -1e9) < MIN_GAP) return;
+    if (BACKGROUND.has(name) && this.voices.length >= BUSY) return;
     const prio = PRIORITY.has(name);
     const same = this.voices.filter((v) => v.name === name);
     if (same.length >= MAX_SAME) this.steal(same[0], now);
@@ -1346,7 +1380,7 @@ export class Sfx {
         // electricity: a crackle and an FM buzz
         this.noiseBurst(d, 'highpass', 4000, 1500, 0.08, 0.24 * k);
         this.tone(d, 'sawtooth', 1500, 650, 0.1, 0.1 * k);
-        this.tone(d, 'square', 220, 180, 0.12, 0.06 * k, 0, { fm: [2.71, 6] });
+        this.tone(d, 'square', 220, 180, 0.14, 0.12 * k, 0, { fm: [2.71, 6] });
         this.crackle(d, 3, 0.08, 0.14 * k, 0, 5000);
         break;
       case 'reflect':
@@ -1376,16 +1410,18 @@ export class Sfx {
         for (let i = 0; i < 3; i++) this.ring(d, 2200 + Math.random() * 1600, 0.12, 0.04 * k, 0.03 + i * 0.05, GLASS);
         break;
       case 'burn':
-        // catching fire: a 'fwoom' and crackling
-        this.noiseBurst(d, 'lowpass', 500, 2200, 0.2, 0.24 * k, 0, { attack: 0.03 });
-        this.noiseBurst(d, 'bandpass', 2400, 900, 0.18, 0.14 * k);
-        this.crackle(d, 5, 0.22, 0.16 * k, 0.02, 4000);
+        // catching fire: a warm, low 'fwoom' of flame taking hold and crackling (darker than a zap's buzz or a gust's air)
+        this.noiseBurst(d, 'lowpass', 300, 1400, 0.24, 0.3 * k, 0, { attack: 0.03 });
+        this.tone(d, 'sine', 120, 70, 0.2, 0.15 * k, 0, { attack: 0.02 });
+        this.crackle(d, 6, 0.25, 0.16 * k, 0.03, 3000);
         break;
       case 'freeze':
-        // ice forming: a glassy chime and crystals crackling
-        this.ring(d, 2093, 0.4, 0.14 * k, 0, GLASS);
-        this.tone(d, 'sine', 3100, 2400, 0.2, 0.06 * k, 0.03);
-        this.crackle(d, 4, 0.15, 0.1 * k, 0.02, 6500);
+        // ice forming: a crunch of ice, one low glassy chime and the frosty hiss of it spreading (a crystal hit is a bright
+        // cluster of chimes instead, a blade a steel 'shing')
+        this.noiseBurst(d, 'bandpass', 2500, 1800, 0.07, 0.2 * k, 0, { q: 2, drive: true });
+        this.ring(d, 1319, 0.4, 0.12 * k, 0, GLASS);
+        this.noiseBurst(d, 'highpass', 7000, 9000, 0.35, 0.06 * k, 0.02, { attack: 0.05 });
+        this.crackle(d, 4, 0.18, 0.1 * k, 0.03, 6500);
         break;
       case 'slow':
         // time thickening: two detuned tones sagging, with a slow wobble
@@ -1450,9 +1486,9 @@ export class Sfx {
         this.ring(d, 3150, 0.18, 0.05 * k, 0.005);
         break;
       case 'gust':
-        // a blast of wind behind the blow
-        this.noiseBurst(d, 'bandpass', 800, 2600, 0.22, 0.26 * k, 0, { attack: 0.03, q: 0.9 });
-        this.noiseBurst(d, 'lowpass', 400, 150, 0.2, 0.12 * k, 0, { attack: 0.03 });
+        // a blast of wind behind the blow: airy and rising (no low body: that is fire's)
+        this.noiseBurst(d, 'bandpass', 1500, 4500, 0.24, 0.26 * k, 0, { attack: 0.05, q: 0.7 });
+        this.noiseBurst(d, 'highpass', 5000, 7000, 0.18, 0.06 * k, 0.02, { attack: 0.06 });
         break;
       case 'spawn':
         // an item pops in: a bubbly pop and a little sparkle
@@ -1545,6 +1581,86 @@ export class Sfx {
         this.noiseBurst(d, 'lowpass', 1200, 300, 0.9, 0.34, 0.05, { attack: 0.05 });
         this.noiseBurst(d, 'highpass', 3000, 1800, 0.7, 0.12, 0.35, { attack: 0.15 });
         this.bubbles(d, 8, 0.7, 0.07, 0.15);
+        break;
+      case 'cutIn':
+        // an ultimate's cut-in banner: a blade-bright 'shing' across the screen over a heavy power chord and a sub hit
+        this.click(d, 0.3 * k, 0, 4000);
+        this.noiseBurst(d, 'bandpass', 8000, 2500, 0.2, 0.35 * k, 0, { q: 1.5, attack: 0.004 });
+        this.ring(d, 1568, 0.6, 0.1 * k, 0.01);
+        this.tone(d, 'sine', 98, 45, 0.55, 0.6 * k, 0, { glide: 0.4, attack: 0.006 });
+        this.noiseBurst(d, 'lowpass', 2000, 150, 0.35, 0.3 * k, 0, { drive: true });
+        for (const f of [98, 147, 196]) this.tone(d, 'sawtooth', f, f, 0.6, 0.05 * k, 0.01, { attack: 0.01, vib: [5, 0.004] });
+        this.tone(d, 'sine', 2637, 2637, 0.35, 0.03 * k, 0.12);
+        break;
+      case 'radio':
+        // Havoc on the radio: a squelch, three clipped call-sign beeps over band-limited hiss, and the squelch closing
+        this.noiseBurst(d, 'bandpass', 2200, 1700, 0.08, 0.6 * k, 0, { q: 3, attack: 0.002 });
+        this.noiseBurst(d, 'bandpass', 1600, 1500, 0.34, 0.15 * k, 0.06, { q: 2, attack: 0.03 });
+        [1175, 1568, 1175].forEach((f, i) => this.tone(d, 'square', f, f, 0.055, 0.15 * k, 0.1 + i * 0.075, { attack: 0.003 }));
+        this.noiseBurst(d, 'bandpass', 2600, 1500, 0.06, 0.45 * k, 0.36, { q: 3, attack: 0.002 });
+        break;
+      case 'whistle':
+        // a bomb falling: a thin whistle dropping in pitch and growing as it comes in, a breath of air around it; it peaks
+        // just before the impact (the bunker buster lands about 0.6 s after it is dropped)
+        this.tone(d, 'sine', 2600, 1500, 0.5, 0.07 * k, 0, { attack: 0.25, vib: [6, 0.006] });
+        this.tone(d, 'sine', 1870, 800, 0.45, 0.14 * k, 0.3, { attack: 0.22, vib: [7, 0.008] });
+        this.noiseBurst(d, 'bandpass', 3000, 1200, 0.7, 0.05 * k, 0.05, { attack: 0.35, q: 5 });
+        break;
+      case 'bunker':
+        // a bunker buster: a hard crack, a saturated blast with a deep sub drop, and the ground rumbling on with debris
+        this.click(d, 0.3 * k, 0, 2200);
+        this.noiseBurst(d, 'highpass', 5000, 1800, 0.25, 0.22 * k, 0, { attack: 0.001, drive: true });
+        this.noiseBurst(d, 'lowpass', 3600, 60, 1.1, 0.75 * k, 0, { drive: true, attack: 0.004 });
+        this.tone(d, 'sine', 72, 24, 1.2, 0.8 * k, 0, { glide: 0.6, attack: 0.01 });
+        this.tone(d, 'sine', 150, 45, 0.4, 0.3 * k, 0, { glide: 0.4 });
+        this.noiseBurst(d, 'lowpass', 280, 60, 1.4, 0.7 * k, 0.12, { attack: 0.25 });
+        this.tone(d, 'sine', 48, 30, 1.4, 0.35 * k, 0.15, { attack: 0.3 });
+        this.crackle(d, 10, 0.9, 0.12 * k, 0.2, 2600);
+        break;
+      case 'mechUp':
+        // the Mega Mech suit spins up: two latches clunk shut, servos whine upward over a rising hum
+        this.click(d, 0.16 * k, 0, 1500);
+        this.click(d, 0.13 * k, 0.12, 1500);
+        this.tone(d, 'sawtooth', 90, 360, 0.32, 0.1 * k, 0, { attack: 0.05, vib: [14, 0.02] });
+        this.tone(d, 'square', 180, 720, 0.32, 0.035 * k, 0, { attack: 0.05 });
+        this.tone(d, 'sine', 60, 120, 0.32, 0.35 * k, 0, { attack: 0.04 });
+        this.noiseBurst(d, 'bandpass', 400, 2400, 0.3, 0.12 * k, 0, { attack: 0.15, q: 2 });
+        break;
+      case 'shockwave':
+        // the suit comes online: a heavy metal slam, a sub thump and a ring of air blasting outward
+        this.click(d, 0.3 * k, 0, 2500);
+        this.tone(d, 'sine', 110, 32, 0.5, 0.7 * k, 0, { glide: 0.5, attack: 0.006 });
+        this.noiseBurst(d, 'lowpass', 3000, 100, 0.45, 0.5 * k, 0, { drive: true, attack: 0.004 });
+        this.noiseBurst(d, 'bandpass', 600, 4000, 0.3, 0.14 * k, 0.01, { attack: 0.02 });
+        this.ring(d, 330, 0.55, 0.1 * k, 0);
+        this.tone(d, 'sawtooth', 360, 360, 0.35, 0.03 * k, 0.05, { vib: [30, 0.01] });
+        break;
+      case 'quake':
+        // a slam into the ground: a deep thump, the floor cracking and gravel settling
+        this.click(d, 0.18 * k, 0, 1500);
+        this.tone(d, 'sine', 85, 30, 0.45, 0.7 * k, 0, { glide: 0.5, attack: 0.006 });
+        this.noiseBurst(d, 'lowpass', 1200, 80, 0.4, 0.5 * k, 0, { drive: true, attack: 0.004 });
+        this.noiseBurst(d, 'lowpass', 300, 70, 0.55, 0.2 * k, 0.08, { attack: 0.1 });
+        this.crackle(d, 6, 0.35, 0.05 * k, 0.05, 1800);
+        break;
+      case 'sizzle':
+        // still burning: a soft crackle of embers and a breath of flame
+        this.crackle(d, 4, 0.15, 0.55 * k, 0, 4200);
+        this.noiseBurst(d, 'bandpass', 1400, 900, 0.18, 0.25 * k, 0, { attack: 0.04 });
+        break;
+      case 'shard':
+        // crystal: a crack, then a glassy cluster of high chimes scattering
+        this.click(d, 0.15 * k, 0, 5000);
+        this.ring(d, 1760, 0.32, 0.1 * k, 0, GLASS);
+        this.ring(d, 2637, 0.26, 0.07 * k, 0.02, GLASS);
+        this.ring(d, 3520, 0.2, 0.05 * k, 0.05, GLASS);
+        this.noiseBurst(d, 'highpass', 6000, 3000, 0.08, 0.18 * k);
+        break;
+      case 'stab':
+        // a piercing hit: a short, tight 'tsk' of a point going in (a slash rings longer)
+        this.click(d, 0.45 * k, 0, 6000);
+        this.noiseBurst(d, 'bandpass', 5200, 2600, 0.1, 0.9 * k, 0, { q: 3 });
+        this.tone(d, 'triangle', 1800, 900, 0.12, 0.25 * k);
         break;
       case 'stalactite':
         // a stalactite gives way: a sharp crack high up, then the crash of crystal and stone on the floor
