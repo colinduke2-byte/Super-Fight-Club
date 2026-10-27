@@ -52,6 +52,36 @@ function glowTexture(scene: Phaser.Scene, key: string): string | null {
   return gk;
 }
 
+/** World units a crane sling runs up from its load (well past the top of the view). */
+const CABLE_LEN = 700;
+
+/** A crane's wire rope, 2 art pixels wide: twisted steel strands the sling's whole length (kept: about 11 KB). */
+function cableCanvas(): HTMLCanvasElement | null {
+  const c = document.createElement('canvas');
+  c.width = 2;
+  c.height = CABLE_LEN * 2;
+  const g = context2d(c);
+  if (!g) return null;
+  const rows = [['#5c626a', '#22262c'], ['#80868c', '#30363e'], ['#5c626a', '#30363e'], ['#30363e', '#5c626a'], ['#22262c', '#80868c'], ['#30363e', '#5c626a'], ['#30363e', '#5c626a'], ['#5c626a', '#30363e']];
+  for (let y = 0; y < c.height; y++) {
+    const [a, b] = rows[y % rows.length];
+    g.fillStyle = a;
+    g.fillRect(0, y, 1, 1);
+    g.fillStyle = b;
+    g.fillRect(1, y, 1, 1);
+  }
+  return c;
+}
+
+function craneCable(scene: Phaser.Scene): string {
+  const key = 'stage:crane-cable';
+  if (!scene.textures.exists(key)) {
+    const c = cableCanvas();
+    if (c) addCanvasTexture(scene, key, c);
+  }
+  return key;
+}
+
 /** Draws the stage platforms from the sim's Platform objects (moving ones interpolated) with generated art. Art pixel = 0.5 world units. */
 export class StageView {
   private readonly views: PlatView[] = [];
@@ -70,6 +100,15 @@ export class StageView {
       // one designed structure per solid platform (cap, facade, underside), generated once per stage
       const dx = p.kind === 'solid' ? -MASS_OVER / 2 : 0;
       const dy = p.kind === 'solid' ? -MASS_HEAD / 2 : -PLAT_HEAD / 2;
+      // Harbour Pier's cargo pallet hangs from the crane: two wire slings run up from its shackles out of sight
+      if (world.stage.platforms[index]?.move && world.stage.background.theme === 'harbour' && p.kind === 'pass') {
+        const ck = craneCable(scene);
+        for (const sx of [1.5, p.w - 2]) {
+          const cable = scene.add.image(p.x + sx, p.y + dy + 1, ck).setOrigin(0.5, 1).setScale(0.5);
+          layer.add(cable);
+          parts.push({ obj: cable, dx: sx, dy: dy + 1 });
+        }
+      }
       const img = scene.add.image(p.x + dx, p.y + dy, key).setOrigin(0, 0).setScale(0.5);
       layer.add(img);
       parts.push({ obj: img, dx, dy });

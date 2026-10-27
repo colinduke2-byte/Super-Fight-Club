@@ -244,6 +244,25 @@ function paintThumb(scene: Phaser.Scene, g: CanvasRenderingContext2D, stage: Sta
       g.fill();
       continue;
     }
+    if (h.kind === 'avalanche') {
+      // a drift of snow banked up where it breaks loose, streaks showing the way it will roll
+      const dir = (h.travel ?? 1) >= 0 ? 1 : -1;
+      const fy = oy + h.y * sc;
+      const r = Math.max(4, (h.h / 2) * sc);
+      g.fillStyle = 'rgba(200,216,236,0.95)';
+      g.beginPath();
+      g.arc(cx - dir * r * 0.6, fy - r * 0.5, r * 0.7, 0, Math.PI * 2);
+      g.fill();
+      g.fillStyle = 'rgba(244,248,255,0.95)';
+      g.beginPath();
+      g.arc(cx, fy - r * 0.7, r, Math.PI, 0);
+      g.lineTo(cx + r, fy);
+      g.lineTo(cx - r, fy);
+      g.fill();
+      g.fillStyle = 'rgba(244,248,255,0.6)';
+      for (let i = 0; i < 3; i++) g.fillRect(cx + dir * (r + 3 + i * 6) - (dir < 0 ? 4 : 0), fy - r * 0.4 - i * 3, 4, 2);
+      continue;
+    }
     if (h.kind === 'bolt') {
       g.strokeStyle = 'rgba(220,244,255,0.95)';
       g.lineWidth = 2;

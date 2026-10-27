@@ -475,6 +475,8 @@ export function stageMassPixels(themeId: string | undefined, w: number, h: numbe
   cap(b, T, S, A, A2, Y0, CAP, W, rnd);
   // Harbour Pier: the pier's end is the walk-off's blast line, so the last stretch of deck is painted as a dock edge
   if (themeId === 'harbour' && !seated) dockEnd(b, A, X0 + BW, Y0);
+  // Stormrunner: the raised quarterdeck carries the stern's turned-baluster taffrail and a lantern at each corner
+  if (themeId === 'airship' && seated) taffrail(b, S, A, X0, BW, Y0);
 
   // ---- 5. underside keel -------------------------------------------------------------------------------------------
   if (!seated) underside(b, T, S, A, A2, X0, bodyBot, BW, UNDER, rnd, n1);
@@ -1865,6 +1867,28 @@ function dockEnd(b: Buf, A: Ramp, x1: number, y0: number): void {
   b.set(bx, y0 - 8, A[3], true);
 }
 
+/** A low turned-baluster rail along a raised deck's back edge (in the headroom above the walking surface), corner lanterns. */
+function taffrail(b: Buf, S: Ramp, A: Ramp, X0: number, BW: number, y0: number): void {
+  const x0 = X0 + 3;
+  const x1 = X0 + BW - 4;
+  for (let x = x0; x <= x1; x++) {
+    b.set(x, y0 - 5, S[5]); // the handrail, catching the low sun
+    b.set(x, y0 - 4, S[2]);
+    if ((x - x0) % 4 === 2) {
+      b.set(x, y0 - 3, S[4]);
+      b.set(x, y0 - 2, S[3]);
+      b.set(x, y0 - 1, S[4]);
+    }
+  }
+  for (const x of [x0, x1]) {
+    for (let k = 1; k <= 6; k++) b.set(x, y0 - k, k === 6 ? A[2] : S[1]);
+    b.set(x - 1, y0 - 6, S[1]);
+    b.set(x + 1, y0 - 6, S[1]);
+    b.set(x, y0 - 7, A[3], true);
+    b.set(x, y0 - 8, A[4], true);
+  }
+}
+
 function underside(b: Buf, T: MassTheme, S: Ramp, A: Ramp, A2: Ramp, x0: number, y0: number, bw: number, uh: number, rnd: () => number, n: (x: number, y: number) => number): void {
   const prof: number[] = [];
   const R = T.under === 'ice' ? ICE : T.under === 'spire' ? A2 : S; // the shrine stands on a glacier; the dais on obsidian
@@ -2246,7 +2270,7 @@ export const PLAT_TAIL = 16;
  * A pass-through (or moving) platform as one piece: a slab with a lit top edge in the stage's style and an underside that says
  * how it floats: hover emitters, thrusters, cloud puffs, or ropes and lanterns. `w`, `h` in world units.
  */
-export function platformArtPixels(themeId: string | undefined, w: number, h: number, moving: boolean, seed: number): ArtPixels {
+export function platformArtPixels(themeId: string | undefined, w: number, h: number, moving: boolean, seed: number, joins = 0): ArtPixels {
   const T = THEMES[themeId ?? 'skyline'] ?? THEMES.skyline;
   const S: Ramp = T.stone.map(hex);
   const A: Ramp = T.accent.map(hex);
@@ -2254,9 +2278,12 @@ export function platformArtPixels(themeId: string | undefined, w: number, h: num
   const PW = Math.round(w * 2);
   const PH = Math.max(8, Math.round(h * 2));
   const W = PW;
-  const H = PLAT_HEAD + PH + PLAT_TAIL;
+  // pieces with a body of their own below the walking surface (a carriage, a skiff's hull) get a deeper canvas
+  const role = platRole(themeId, w, moving);
+  const H = PLAT_HEAD + PH + (role ? ROLE_TAIL[role] : PLAT_TAIL);
   const b = new Buf(W, H);
   const y0 = PLAT_HEAD;
+  if (role) return rolePlatform(b, role, T, S, A, W, PH, y0, seed);
   const amber: Ramp = ['#4a2a18', '#8a4f2c', '#d9822b', '#ffb02e', '#ffe08a'].map(hex);
   const G = moving && T.cap !== 'grass' && T.cap !== 'slate' ? amber : A;
   // grass themes: wooden bridges; moving ones are clouds at dawn and carved stone altars in the temple
@@ -2267,7 +2294,7 @@ export function platformArtPixels(themeId: string | undefined, w: number, h: num
   const woody = (T.cap === 'grass' && !stoneAltar) || deck || snowy;
   // static ledges dressed per stage: mossy stone in the temple, marble at dawn, driftwood on the wreck
   const dress = moving || snowy ? null : T.panel === 'glyph' ? 'moss' : T.panel === 'alcove' && T.cap === 'grass' ? 'marble' : T.under === 'reef' ? 'drift' : null;
-  if (dress === 'moss' || dress === 'marble') return ledge(b, T, S, A, W, PH, y0, dress, seed);
+  if (dress === 'moss' || dress === 'marble') return ledge(b, T, S, A, W, PH, y0, dress, seed, joins);
 
   if (T.cap === 'slate' || (woody && moving && !deck)) {
     // cloud slab: a flat top you can stand on, billowing underneath
@@ -2387,7 +2414,7 @@ export function platformArtPixels(themeId: string | undefined, w: number, h: num
  * A stone ledge: 'moss' (temple) is a carved slab furred with moss along its top, vines and roots hanging below;
  * 'marble' (dawn) is pale dressed stone with a gold inlay band and a gilded finial under each end.
  */
-function ledge(b: Buf, T: MassTheme, S: Ramp, A: Ramp, W: number, PH: number, y0: number, dress: 'moss' | 'marble', seed: number): ArtPixels {
+function ledge(b: Buf, T: MassTheme, S: Ramp, A: Ramp, W: number, PH: number, y0: number, dress: 'moss' | 'marble', seed: number, joins = 0): ArtPixels {
   const n = noise(seed + 17);
   const rnd = mulberry32(seed * 53 + 11);
   const G2: Ramp = (T.alt ?? T.accent).map(hex);
@@ -2425,8 +2452,23 @@ function ledge(b: Buf, T: MassTheme, S: Ramp, A: Ramp, W: number, PH: number, y0
       }
     }
   } else {
-    // gilded finials hanging under both ends, a soft glow at their tips
-    for (const x of [6, W - 7]) {
+    // a bridge (`joins`: 1 its left end is built into a structure, 2 its right end) is a cantilevered span: a stone beam under
+    // the deck, deepest where it leaves the wall and thinning towards the free end, a gold bead along its soffit
+    if (joins) {
+      for (let x = 0; x < W; x++) {
+        const fromL = joins & 1 ? x : Infinity;
+        const fromR = joins & 2 ? W - 1 - x : Infinity;
+        const u = Math.min(fromL, fromR) / (W - 1);
+        const d = Math.round(2 + 7 * (1 - u) * (1 - u));
+        for (let k = 0; k < d && bot + k < H; k++) b.set(x, bot + k, k === d - 1 ? A[2] : k === 0 ? S[1] : (x + k) % 23 === 0 ? S[2] : S[3]);
+      }
+    }
+    // where it is built into the wall, a carved corbel braces it; a free end carries a gilded finial, a soft glow at its tip
+    for (const [x, side] of [[6, 1], [W - 7, 2]] as const) {
+      if (joins & side) {
+        corbel(b, S, A, side === 1 ? 0 : W - 1, side === 1 ? 1 : -1, bot, Math.min(16, H - bot - 1));
+        continue;
+      }
       for (let k = 0; k < 9 && bot + k < H; k++) {
         const ww = k < 2 ? 2 : k < 6 ? 1 : 0;
         for (let j = -ww; j <= ww; j++) b.set(x + j, bot + k, k < 3 ? A[3] : A[2]);
@@ -2446,12 +2488,20 @@ function rockShelf(b: Buf, S: Ramp, A: Ramp, W: number, PH: number, y0: number, 
     const depth = PH + Math.round(Math.max(0, 0.5 - Math.abs(x / W - 0.5)) * 18 + n(x / 5, 2) * 5);
     for (let ly = 0; ly < depth; ly++) {
       const t = ly / depth;
-      let c = ly === 0 ? S[5] : ly < 2 ? S[4] : t < 0.6 ? S[3] : S[2];
-      if (n(x / 2.5, ly / 2.5) > 0.74) c = S[1];
+      // a frosted amethyst lip on top (the shelf has to read against the dark cave), lit rock under it, strata below
+      let c = ly === 0 ? mix(S[5], A[3], 0.45) : ly === 1 ? mix(S[5], A[2], 0.2) : ly < 4 ? S[4] : t < 0.6 ? (((ly + Math.round(n(x / 9, 4) * 3)) >> 1) % 3 === 0 ? S[4] : S[3]) : S[2];
+      if (n(x / 2.5, ly / 2.5) > 0.74 && ly > 1) c = S[1];
       if (edge < 0.04 && ly > 1) c = S[1];
       b.set(x, y0 + ly, c);
     }
     b.set(x, y0 + depth - 1, S[0]);
+  }
+  // a seam of amethyst glinting along the face, and crystal sprigs growing up from the top edge
+  for (let x = 3; x < W - 3; x++) if (n(x / 6, 9) > 0.62) b.set(x, y0 + 5, A[2], n(x / 3, 2) > 0.7);
+  for (let x = 5 + Math.floor(rnd() * 6); x < W - 5; x += 9 + Math.floor(rnd() * 10)) {
+    const ht = 2 + Math.floor(rnd() * 3);
+    for (let k = 1; k <= ht; k++) b.set(x, y0 - k, k === ht ? A[4] : A[2], k === ht);
+    if (ht > 2) b.set(x + 1, y0 - 1, A[1]);
   }
   // crystals hanging off the underside, glowing at their tips
   for (let i = 0; i < Math.max(2, Math.floor(W / 22)); i++) {
@@ -2464,6 +2514,260 @@ function rockShelf(b: Buf, S: Ramp, A: Ramp, W: number, PH: number, y0: number, 
     }
   }
   return finish(b, W, b.h);
+}
+
+/** A carved stone corbel under a bridge end, its wall side at `x` and reaching inward along `dir`: a quarter-round brace. */
+function corbel(b: Buf, S: Ramp, A: Ramp, x: number, dir: 1 | -1, top: number, depth: number): void {
+  for (let k = 0; k < depth; k++) {
+    // the brace's reach shrinks down the wall along a concave curve
+    const u = 1 - k / depth;
+    const reach = Math.round(depth * (1 - Math.sqrt(1 - u * u)) + 2);
+    for (let j = 0; j < reach; j++) {
+      const lit = j === reach - 1 ? S[1] : k === 0 ? S[4] : j < 2 ? S[2] : S[3];
+      b.set(x + dir * j, top + k, lit);
+    }
+    if (k > 1 && k % 5 === 0) b.set(x + dir * 1, top + k, S[1]); // coursing on the wall face
+  }
+  // a gold inlay line along the brace's top and a gilded boss where it meets the wall
+  for (let j = 0; j < depth; j++) b.set(x + dir * j, top, A[2]);
+  b.set(x + dir * 2, top + 2, A[3]);
+  b.set(x + dir * 3, top + 2, A[2]);
+}
+
+/** Pieces drawn as a thing of their own rather than a slab: what they are is the stage's story. */
+type PlatRole = 'pod' | 'carriage' | 'canopy' | 'gantry' | 'pallet' | 'skiff';
+const ROLE_TAIL: Record<PlatRole, number> = { pod: 18, carriage: 40, canopy: 26, gantry: 22, pallet: 8, skiff: 30 };
+
+function platRole(themeId: string | undefined, w: number, moving: boolean): PlatRole | null {
+  // Skyline Express: roof pods, the parallel carriage and the station canopy (all ride the route)
+  if (themeId === 'rail') return w >= 200 ? 'canopy' : w >= 140 ? 'carriage' : 'pod';
+  // Harbour Pier: lamp gantries over the pier, and the cargo pallet on the crane
+  if (themeId === 'harbour') return moving ? 'pallet' : 'gantry';
+  // Stormrunner: the docking skiff alongside
+  if (themeId === 'airship' && moving) return 'skiff';
+  return null;
+}
+
+const WOOD: Ramp = ['#1e1610', '#33261a', '#4a3826', '#62492f', '#7c5e3e', '#a07c54'].map(hex);
+
+function rolePlatform(b: Buf, role: PlatRole, T: MassTheme, S: Ramp, A: Ramp, W: number, PH: number, y0: number, seed: number): ArtPixels {
+  const A2: Ramp = (T.alt ?? T.accent).map(hex);
+  const H = b.h;
+  const bot = y0 + PH;
+  const rnd = mulberry32(seed * 977 + 13);
+  if (role === 'pod' || role === 'carriage' || role === 'canopy') {
+    // a lacquered steel roof: a pale lit lip, a cyan running light, panel seams, a dark underside; the ends chamfered
+    for (let x = 0; x < W; x++) {
+      const end = Math.min(x, W - 1 - x);
+      for (let ly = 0; ly < PH; ly++) {
+        if (end < 2 && (ly === 0 || ly === PH - 1) && end + (ly === 0 ? 0 : 1) < 2) continue;
+        let c = ly === 0 ? S[5] : ly === 1 ? S[4] : ly === PH - 1 ? S[0] : ly === PH - 2 ? S[1] : S[2];
+        let em = false;
+        if (ly === 2) {
+          c = end < 3 ? A2[3] : A[2]; // the running light, magenta at the ends
+          em = true;
+        }
+        if (ly > 3 && ly < PH - 2 && (x + 6) % 24 === 0) c = S[1]; // panel seams
+        if (ly > 3 && ly < PH - 2 && (x + 6) % 24 === 1) c = S[3];
+        if (role === 'canopy' && ly > 3 && ly < PH - 2) {
+          // a girder: diagonal bracing between the chords
+          const m = (x + ly * 2) % 16;
+          const m2 = (x - ly * 2 + 64) % 16;
+          if (m < 2 || m2 < 2) c = S[3];
+        }
+        b.set(x, y0 + ly, end < 1 && ly > 0 ? mix(c, S[0], 0.4) : c, em);
+      }
+    }
+    if (role === 'pod') {
+      // two clamp arms holding the pod over the roof, cyan hover light falling away beneath them
+      for (const cx of [Math.round(W * 0.2), Math.round(W * 0.8)]) {
+        b.rect(cx - 5, bot, 10, 2, S[3]);
+        b.rect(cx - 4, bot + 2, 8, 2, S[1]);
+        b.rect(cx - 2, bot + 4, 4, 1, A[3], true);
+        for (let k = 0; k < 8; k++) {
+          const ww = Math.max(1, 6 - k);
+          for (let j = 0; j < ww; j++) b.set(cx - Math.floor(ww / 2) + j, bot + 5 + k, k < 2 ? A[4] : k < 4 ? A[3] : A[2], true);
+        }
+      }
+      for (let x = Math.round(W * 0.2); x < Math.round(W * 0.8); x++) if (x % 6 < 3) b.set(x, bot, S[1]);
+      return finish(b, W, H);
+    }
+    if (role === 'carriage') {
+      // the carriage body under its roof: a row of lit windows, a magenta livery stripe, a skirt and two bogies
+      const body = 26;
+      for (let x = 0; x < W; x++) {
+        const end = Math.min(x, W - 1 - x);
+        const nose = end < 6 ? 6 - end : 0; // rounded ends, tucked in towards the bottom
+        for (let k = 0; k < body; k++) {
+          if (k > body - 1 - nose || (k < 2 && end < 1)) continue;
+          let c = k === 0 ? S[1] : k < 3 ? S[3] : k > body - 4 ? S[1] : S[2];
+          let em = false;
+          const wx = (x - 10) % 14;
+          if (k >= 4 && k < 13 && x > 9 && x < W - 10 && wx >= 0 && wx < 10) {
+            // windows: lit glass, the odd passenger silhouette, a pale reflection in the top corner
+            const lit = (Math.floor((x - 10) / 14) * 7 + seed) % 5 !== 0;
+            c = lit ? (k === 4 ? A[4] : k < 7 ? A[3] : A[2]) : S[0];
+            em = lit;
+            if (lit && wx === 1 && k === 5) c = hex('#ffffff');
+            const who = (Math.floor((x - 10) / 14) * 3 + seed) % 4 === 1;
+            if (lit && who && wx >= 4 && wx <= 6 && k >= 8) c = S[0];
+            if (lit && who && wx === 5 && k === 7) c = S[0];
+          } else if (k >= 4 && k < 13 && x > 9 && x < W - 10) c = k === 4 ? S[1] : S[3]; // window pillars
+          if (k === 15 || k === 16) {
+            c = A2[k === 15 ? 3 : 2];
+            em = true;
+          }
+          if (end < 1) c = mix(c, S[0], 0.4);
+          b.set(x, bot + k, c, em);
+        }
+      }
+      // bogies: a dark frame with two wheels, a glint of cyan from the maglev shoe
+      for (const cx of [Math.round(W * 0.2), Math.round(W * 0.8)]) {
+        const by = bot + body;
+        b.rect(cx - 12, by - 2, 24, 4, S[0]);
+        b.rect(cx - 11, by - 2, 22, 1, S[2]);
+        for (const wx of [cx - 7, cx + 7]) {
+          for (let dy = -4; dy <= 4; dy++) for (let dx = -4; dx <= 4; dx++) {
+            const r2 = dx * dx + dy * dy;
+            if (r2 > 18) continue;
+            b.set(wx + dx, by + 3 + dy, r2 < 3 ? S[4] : r2 < 9 ? S[1] : dx + dy < 0 ? S[3] : S[0]);
+          }
+        }
+        b.rect(cx - 10, by + 8, 20, 1, A[3], true);
+      }
+      return finish(b, W, H);
+    }
+    // station canopy: hanging lamps and a lit platform sign under the girder
+    for (let x = 16; x < W - 10; x += 32) {
+      if (Math.abs(x - W / 2) < 30) continue;
+      for (let k = 0; k < 5; k++) b.set(x, bot + k, S[1]);
+      b.rect(x - 3, bot + 5, 7, 2, S[3]);
+      b.rect(x - 2, bot + 7, 5, 2, A[3], true);
+      b.set(x, bot + 9, A[4], true);
+    }
+    const sx = Math.round(W / 2) - 24;
+    for (const rx of [sx + 6, sx + 41]) for (let k = 0; k < 6; k++) b.set(rx, bot + k, S[1]);
+    b.rect(sx, bot + 6, 48, 14, S[0]);
+    b.rect(sx + 1, bot + 7, 46, 12, S[1]);
+    b.rect(sx + 2, bot + 8, 44, 1, A2[2], true);
+    // the sign's lettering: blocky lit glyphs
+    for (let i = 0; i < 9; i++) {
+      const gx = sx + 4 + i * 5;
+      const pat = (i * 11 + seed * 5) % 7;
+      for (let yy = 0; yy < 5; yy++) for (let xx = 0; xx < 3; xx++) {
+        if (((pat >> ((xx + yy) % 3)) & 1) === 0 && yy % 2 === 1 && xx === 1) continue;
+        if (xx === 1 && yy === 2 && pat % 2 === 0) continue;
+        b.set(gx + xx, bot + 11 + yy, A[3], true);
+      }
+    }
+    b.rect(sx + 2, bot + 17, 44, 1, A2[2], true);
+    return finish(b, W, H);
+  }
+  if (role === 'gantry' || role === 'pallet') {
+    const pallet = role === 'pallet';
+    for (let x = 0; x < W; x++) {
+      const end = Math.min(x, W - 1 - x);
+      for (let ly = 0; ly < PH; ly++) {
+        let c: RGB;
+        if (pallet) {
+          // a cargo pallet from the side: a deck board, stringer blocks with dark gaps between, a bottom board
+          const block = x < 8 || x >= W - 8 || Math.abs(x - W / 2) < 4;
+          c = ly === 0 ? WOOD[5] : ly < 3 ? WOOD[4] : ly === 3 ? WOOD[1] : ly < PH - 3 ? (block ? WOOD[3] : S[0]) : ly < PH - 1 ? WOOD[3] : WOOD[1];
+          if (ly > 0 && ly < 3 && x % 18 === 0) c = WOOD[2];
+          if (block && ly > 3 && ly < PH - 3 && (x === 0 || x === W - 1 || x === Math.round(W / 2) - 4)) c = WOOD[2];
+        } else {
+          // a lamp gantry's walkway: tarred planks on a riveted steel stringer
+          c = ly === 0 ? WOOD[5] : ly === 1 ? WOOD[4] : ly < PH - 4 ? mix(WOOD[2], WOOD[3], ((Math.floor(x / 12) * 37) % 5) / 5) : ly === PH - 1 ? S[0] : S[2];
+          if (ly > 0 && ly < PH - 4 && x % 12 === 0) c = WOOD[1];
+          if (ly === PH - 4) c = S[4];
+          if (ly === PH - 3 && x % 8 === 4) c = S[5]; // rivets
+        }
+        if (end < 1 && ly > 0) c = mix(c, S[0], 0.45);
+        b.set(x, y0 + ly, c);
+      }
+    }
+    if (pallet) {
+      // shackles at both ends where the crane's slings hook on, and a yellow-and-black load tag on the front
+      for (const x of [3, W - 4]) {
+        b.rect(x - 1, y0 - 4, 3, 1, S[4]);
+        b.set(x - 1, y0 - 3, S[4]);
+        b.set(x + 1, y0 - 3, S[4]);
+        b.rect(x - 1, y0 - 2, 3, 2, S[3]);
+      }
+      const tx = Math.round(W / 2) - 8;
+      for (let xx = 0; xx < 16; xx++) for (let yy = 0; yy < 3; yy++) b.set(tx + xx, y0 + PH - 3 + yy, ((xx + yy) >> 1) % 2 ? hex('#16130e') : hex('#ffd84a'));
+      return finish(b, W, H);
+    }
+    // the gantry's lattice truss under the walkway, and sodium lamps hanging from it
+    const td = 9;
+    for (let x = 0; x < W; x++) {
+      b.set(x, bot, S[1]);
+      b.set(x, bot + td, S[1]);
+      b.set(x, bot + td - 1, S[3]);
+      const m = x % 18;
+      const dy = m < 9 ? m : 17 - m;
+      b.set(x, bot + 1 + dy, S[3]);
+      if (m === 0) for (let k = 1; k < td; k++) b.set(x, bot + k, S[2]);
+    }
+    const lamps = Math.max(2, Math.round(W / 70));
+    for (let i = 0; i < lamps; i++) {
+      const lx = Math.round(((i + 0.5) * W) / lamps);
+      for (let k = 0; k < 3; k++) b.set(lx, bot + td + 1 + k, S[1]);
+      b.rect(lx - 3, bot + td + 4, 7, 2, S[3]);
+      b.rect(lx - 2, bot + td + 6, 5, 2, A[3], true);
+      b.set(lx, bot + td + 8, A[4], true);
+    }
+    // rust weeping from the rivets
+    for (let i = 0; i < W / 16; i++) {
+      const x = 2 + Math.floor(rnd() * (W - 4));
+      for (let k = 0; k < 2 + Math.floor(rnd() * 3); k++) b.set(x, y0 + PH - 2 + k, hex('#6a3a1c'));
+    }
+    return finish(b, W, H);
+  }
+  // the docking skiff: plank deck with a rope rail, a varnished hull with a brass rail and lamplit ports, a stern propeller
+  for (let x = 0; x < W; x++) {
+    for (let ly = 0; ly < PH; ly++) {
+      const plank = Math.floor(x / 14);
+      let c = ly === 0 ? S[5] : ly === 1 ? A[2] : ly === PH - 1 ? S[0] : mix(S[3], S[4], ((plank * 37) % 5) / 5);
+      if (x % 14 === 0 && ly > 1) c = S[1];
+      b.set(x, y0 + ly, c);
+    }
+  }
+  for (const x of [3, W - 4]) for (let k = 1; k <= 5; k++) b.set(x, y0 - k, S[1]);
+  for (let x = 3; x < W - 3; x++) b.set(x, y0 - 5 + Math.round(Math.sin(((x - 3) / (W - 6)) * Math.PI) * 2), hex('#c8a070'));
+  const hullD = 20;
+  const bow = W - 1; // bow to the right, the way the galleon flies
+  for (let x = 0; x < W; x++) {
+    const toBow = bow - x;
+    const toStern = x;
+    // the bow sweeps up in a curve; the stern is a short transom
+    const d = Math.round(Math.min(hullD, toBow < 22 ? hullD * Math.sqrt(toBow / 22) : hullD, toStern < 6 ? hullD - (6 - toStern) * 2 : hullD));
+    for (let k = 0; k < d; k++) {
+      // varnished strakes over a hull painted in the galleon's plum below the waterline
+      let c = k < 2 ? S[1] : k === d - 1 ? S[0] : k > 11 ? mix((k >> 1) % 2 ? S[2] : S[1], A2[1], 0.45) : (k >> 2) % 2 ? S[3] : S[2];
+      if (k === 2 || k === 3) c = k === 2 ? A[3] : A[1]; // the brass rubbing strake
+      if (k === 12) c = A2[2]; // the painted boot-top line
+      if (k > d - 4) c = mix(c, S[0], 0.4);
+      b.set(x, bot + k, c);
+    }
+  }
+  // lamplit portholes
+  for (let px = 16; px < W - 26; px += 20) {
+    const cy = bot + 9;
+    for (let dy = -2; dy <= 2; dy++) for (let dx = -2; dx <= 2; dx++) {
+      const r2 = dx * dx + dy * dy;
+      if (r2 > 5) continue;
+      b.set(px + dx, cy + dy, r2 > 3 ? A[1] : A[3], r2 <= 3);
+    }
+    b.set(px - 1, cy - 1, A[4], true);
+  }
+  // a little propeller turning at the stern and a lantern at the bow
+  for (let k = 0; k < 9; k++) b.set(1 - (k % 2), bot + 6 + k, k === 4 ? A[3] : S[1]);
+  b.rect(2, bot + 9, 3, 3, S[1]);
+  b.rect(W - 6, y0 - 9, 3, 3, A[3], true);
+  b.set(W - 5, y0 - 8, A[4], true);
+  for (let k = 0; k < 3; k++) b.set(W - 5, y0 - 6 + k, S[1]);
+  return finish(b, W, H);
 }
 
 function finish(b: Buf, W: number, H: number): ArtPixels {

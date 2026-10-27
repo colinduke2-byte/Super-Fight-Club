@@ -27,8 +27,29 @@ function jobs(stage: StageData): Job[] {
   return stage.platforms.map((p, index) =>
     p.kind === 'solid'
       ? { key: `mass:${id}:${index}:${p.w}x${p.h}`, task: { kind: 'mass', args: [theme, p.w, p.h, index + 1, isSeated(p, stage.platforms)] } }
-      : { key: `plat:${id}:${index}:${p.w}x${p.h}:${p.move || p.path ? 'm' : 'p'}`, task: { kind: 'plat', args: [theme, p.w, p.h, !!(p.move || p.path), index + 1] } },
+      : platJob(stage, id, index),
   );
+}
+
+/**
+ * A pass-through platform's job. A still platform whose end butts against a solid structure's side (a bridge out from an
+ * island) is drawn joined to it there (`joins`: 1 left end, 2 right end).
+ */
+function platJob(stage: StageData, id: string, index: number): Job {
+  const p = stage.platforms[index];
+  const moving = !!(p.move || p.path);
+  let joins = 0;
+  if (!moving) {
+    for (const q of stage.platforms) {
+      if (q.kind !== 'solid' || q.move || q.path || q.y > p.y + 2 || q.y + q.h <= p.y) continue;
+      if (Math.abs(q.x + q.w - p.x) <= 2) joins |= 1;
+      if (Math.abs(q.x - (p.x + p.w)) <= 2) joins |= 2;
+    }
+  }
+  return {
+    key: `plat:${id}:${index}:${p.w}x${p.h}:${moving ? 'm' : 'p'}${joins ? `:j${joins}` : ''}`,
+    task: { kind: 'plat', args: [stage.background.theme, p.w, p.h, moving, index + 1, joins] },
+  };
 }
 
 /** Texture key of a stage platform's art (index into stage.platforms). */
