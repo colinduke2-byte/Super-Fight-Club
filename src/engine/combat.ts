@@ -327,8 +327,8 @@ function applyHit(world: World, c: Candidate): void {
     def.releaseGrab();
     def.grabbedBy = -1;
     def.lastHitMove = move.hidden && atk.grabMove ? atk.grabMove : move.id; // a command grab's own slam counts as the grab
+    def.lastHitFx = hb.fx ?? ''; // before the hit: its 'hit' event (sound, effects) reads this hit's element
     def.receiveHit({ damage: c.damage, base: hb.base, scaling: hb.scaling, angle: hb.angle, direction, moveWeight: hb.weight, hitlag: 0, attackerId: atk.id, kbMult }, world);
-    def.lastHitFx = hb.fx ?? '';
     atk.grabTarget = -1;
     atk.gainMeter(c.damage, world);
     atk.gainResourcesDealt(c.damage);
@@ -464,11 +464,11 @@ export function deliverHit(world: World, d: HitDelivery): void {
   if (atk && d.freezeOwner !== false && atk.vx * direction > MOMENTUM_MIN) {
     carryVx = Math.min(MOMENTUM_MAX, (atk.vx * direction - MOMENTUM_MIN) * MOMENTUM_CARRY) * direction;
   }
+  def.lastHitFx = hb.fx ?? ''; // before the hit: its 'hit' event (sound, effects) reads this hit's element
   def.receiveHit(
     { damage: d.damage, base: hb.base, scaling: hb.scaling, angle: hb.angle, direction, moveWeight: hb.weight, hitlag: hl, minHitstun: hb.minHitstun, setKb: hb.setKb, kbMult: d.kbMult, attackerId: d.ownerId, carryVx: hb.setKb !== undefined ? 0 : carryVx },
     world,
   );
-  def.lastHitFx = hb.fx ?? '';
   if (hb.status) def.applyStatus(hb.status, world);
   if (owner) owner.hitlag = hl;
   if (atk) {
