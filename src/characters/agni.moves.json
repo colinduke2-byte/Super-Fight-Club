@@ -132,8 +132,8 @@
     "h": 1,
     "damage": 12,
     "angle": 40,
-    "base": 48.3,
-    "scaling": 0.655,
+    "base": 58,
+    "scaling": 0.78,
     "hitlag": 1.4,
     "fx": "fire",
     "status": {

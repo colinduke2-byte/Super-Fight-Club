@@ -1503,9 +1503,28 @@
      "frame": 20,
      "action": "custom",
      "name": "mechStart"
+    },
+    {
+     "frame": 23,
+     "action": "fx",
+     "name": "mechStart"
     }
    ],
-   "hitboxes": [],
+   "hitboxes": [
+    {
+     "x": 0,
+     "y": -30,
+     "w": 130,
+     "h": 70,
+     "damage": 10,
+     "angle": 60,
+     "base": 40,
+     "scaling": 0.75,
+     "dir": "away",
+     "hitlag": 1.4,
+     "fx": "heavy"
+    }
+   ],
    "pose": {
     "keys": [
      [

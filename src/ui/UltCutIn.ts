@@ -7,6 +7,16 @@ import { fastShapes } from './fastShapes';
 
 const LIFE = 0.95;
 
+/** Signature emblems for the ultimates that play out in the open (no cinematic of their own to sell them). */
+const EMBLEMS: Record<string, 'reticle' | 'sun' | 'elements' | 'gear' | 'eye'> = {
+  havoc: 'reticle',
+  agni: 'sun',
+  nova: 'elements',
+  gizmo: 'gear',
+  overseer: 'eye',
+  'overseer-versus': 'eye',
+};
+
 function lift(c: number, k: number): number {
   const r = (c >> 16) & 255;
   const g = (c >> 8) & 255;
@@ -38,6 +48,8 @@ export class UltCutIn {
   private color = 0xffffff;
   private k = 1;
   private dir = 1;
+  /** Which signature emblem stamps the band (by fighter id; '' = none). */
+  private emblem = '';
   /** The band's four corners, reused for every band drawn. */
   private readonly quad = [new Phaser.Math.Vector2(), new Phaser.Math.Vector2(), new Phaser.Math.Vector2(), new Phaser.Math.Vector2()];
 
@@ -60,6 +72,7 @@ export class UltCutIn {
     this.t = 0;
     this.dir = side >= 0 ? 1 : -1;
     this.color = parseInt(data.sprite.placeholder.accent.slice(1), 16);
+    this.emblem = data.id in EMBLEMS ? data.id : '';
     this.k = uiTexK(data);
     const frame = animFrameIndex(data, 'idle', 0);
     this.sprite.setTexture(fighterTextureKey(skin), frame).setFlipX(this.dir < 0).setTint(0xffffff);
@@ -170,6 +183,12 @@ export class UltCutIn {
       q[3].set(gx, y1);
       tp.fillPoints(q, true);
     }
+    // the ultimate's signature emblem stamps down at the far end of the band (pops in big, then turns slowly)
+    if (this.emblem) {
+      const ex = dir > 0 ? w * 0.9 : w * 0.1;
+      const pop = 1 + Math.max(0, 1 - p / 0.14) * 0.9;
+      this.drawEmblem(l, ex, yAt(ex), bh * 0.36 * pop * (0.3 + 0.7 * close), this.t, fade * soft * Math.min(1, p / 0.05), hot);
+    }
     // the name slams in (with a drop shadow), the ULTIMATE tag above it
     const slam = 1 + Math.max(0, 1 - p / 0.12) * 0.8;
     this.name.setScale(1);
@@ -197,6 +216,90 @@ export class UltCutIn {
       this.name.setScale(fit * slam, fit * slam * close);
       this.shadow.setScale(fit * slam, fit * slam * close);
       this.tag.setAlpha(tagIn * fade * close);
+    }
+  }
+
+  /**
+   * A fighter's ultimate emblem at (x, y), radius r, additive (`t`: seconds since the cut-in opened): Havoc's target
+   * reticle with a radar sweep, Agni's sun, Nova's three elements, Gizmo's gear, the Overseer's eye.
+   */
+  private drawEmblem(gr: Phaser.GameObjects.Graphics, x: number, y: number, r: number, t: number, a: number, hot: number): void {
+    if (a <= 0.01 || r <= 1) return;
+    const lw = Math.max(1, r * 0.07);
+    switch (EMBLEMS[this.emblem]) {
+      case 'reticle': {
+        gr.lineStyle(lw, 0xffffff, 0.85 * a).strokeCircle(x, y, r);
+        gr.lineStyle(lw * 0.6, 0xff4a3a, 0.8 * a).strokeCircle(x, y, r * 0.62);
+        for (let i = 0; i < 4; i++) {
+          const ang = (i * Math.PI) / 2;
+          gr.lineStyle(lw, 0xffffff, 0.9 * a).lineBetween(x + Math.cos(ang) * r * 0.35, y + Math.sin(ang) * r * 0.35, x + Math.cos(ang) * r * 1.2, y + Math.sin(ang) * r * 1.2);
+        }
+        // the radar sweep: a wedge turning, trailing two fainter ones
+        for (let k = 0; k < 3; k++) {
+          const ang = t * 5 - k * 0.22;
+          gr.fillStyle(0xff6a4a, (0.4 - k * 0.12) * a).fillTriangle(x, y, x + Math.cos(ang) * r, y + Math.sin(ang) * r, x + Math.cos(ang - 0.22) * r, y + Math.sin(ang - 0.22) * r);
+        }
+        gr.fillStyle(0xff3a2a, (Math.floor(t * 8) % 2 ? 1 : 0.3) * a).fillCircle(x + r * 0.3, y - r * 0.2, lw * 1.4);
+        break;
+      }
+      case 'sun': {
+        for (let i = 0; i < 12; i++) {
+          const ang = t * 0.9 + (i / 12) * Math.PI * 2;
+          const len = r * (i % 2 ? 1.05 : 1.3);
+          gr.fillStyle(i % 2 ? 0xffd04a : 0xff8a2a, 0.75 * a).fillTriangle(x + Math.cos(ang - 0.13) * r * 0.55, y + Math.sin(ang - 0.13) * r * 0.55, x + Math.cos(ang + 0.13) * r * 0.55, y + Math.sin(ang + 0.13) * r * 0.55, x + Math.cos(ang) * len, y + Math.sin(ang) * len);
+        }
+        gr.fillStyle(0xff9a2a, 0.6 * a).fillCircle(x, y, r * 0.58);
+        gr.fillStyle(0xfff4c8, 0.85 * a).fillCircle(x, y, r * 0.38);
+        break;
+      }
+      case 'elements': {
+        const cols = [0xff7a2a, 0x8fe6ff, 0xffee55];
+        gr.lineStyle(lw * 0.7, 0xffffff, 0.6 * a).strokeCircle(x, y, r);
+        for (let i = 0; i < 3; i++) {
+          const ang = t * 2.2 + (i * Math.PI * 2) / 3 - Math.PI / 2;
+          const j = (i + 1) % 3;
+          const ang2 = t * 2.2 + (j * Math.PI * 2) / 3 - Math.PI / 2;
+          gr.lineStyle(lw * 0.7, cols[i], 0.7 * a).lineBetween(x + Math.cos(ang) * r * 0.8, y + Math.sin(ang) * r * 0.8, x + Math.cos(ang2) * r * 0.8, y + Math.sin(ang2) * r * 0.8);
+          gr.fillStyle(cols[i], 0.75 * a).fillCircle(x + Math.cos(ang) * r * 0.8, y + Math.sin(ang) * r * 0.8, r * 0.24);
+          gr.fillStyle(0xffffff, 0.9 * a).fillCircle(x + Math.cos(ang) * r * 0.8, y + Math.sin(ang) * r * 0.8, r * 0.1);
+        }
+        gr.fillStyle(0xffffff, 0.7 * a).fillCircle(x, y, r * 0.16);
+        break;
+      }
+      case 'gear': {
+        const q = this.quad;
+        for (let i = 0; i < 8; i++) {
+          const ang = -t * 1.6 + (i / 8) * Math.PI * 2;
+          const c = Math.cos(ang);
+          const sn = Math.sin(ang);
+          const hw = r * 0.16;
+          q[0].set(x + c * r * 0.7 - sn * hw, y + sn * r * 0.7 + c * hw);
+          q[1].set(x + c * r * 1.1 - sn * hw, y + sn * r * 1.1 + c * hw);
+          q[2].set(x + c * r * 1.1 + sn * hw, y + sn * r * 1.1 - c * hw);
+          q[3].set(x + c * r * 0.7 + sn * hw, y + sn * r * 0.7 - c * hw);
+          gr.fillStyle(0xbfeaff, 0.7 * a).fillPoints(q, true);
+        }
+        gr.lineStyle(r * 0.22, 0x7fe8ff, 0.7 * a).strokeCircle(x, y, r * 0.72);
+        gr.lineStyle(lw, 0xffffff, 0.85 * a).strokeCircle(x, y, r * 0.32);
+        break;
+      }
+      case 'eye': {
+        const open = 0.35 + 0.25 * Math.min(1, t * 3);
+        gr.lineStyle(lw, 0xffffff, 0.85 * a);
+        gr.beginPath();
+        gr.arc(x, y + r * (1 - open) * 1.6, r * 1.15, Math.PI * 1.22, Math.PI * 1.78);
+        gr.strokePath();
+        gr.beginPath();
+        gr.arc(x, y - r * (1 - open) * 1.6, r * 1.15, Math.PI * 0.22, Math.PI * 0.78);
+        gr.strokePath();
+        gr.fillStyle(hot, 0.6 * a).fillCircle(x, y, r * 0.42);
+        gr.fillStyle(0xffffff, 0.9 * a).fillCircle(x + Math.sin(t * 3) * r * 0.08, y, r * 0.18);
+        for (let i = 0; i < 8; i++) {
+          const ang = (i / 8) * Math.PI * 2 + t * 0.6;
+          gr.lineStyle(lw * 0.6, hot, 0.6 * a).lineBetween(x + Math.cos(ang) * r * 1.2, y + Math.sin(ang) * r * 0.9, x + Math.cos(ang) * r * 1.45, y + Math.sin(ang) * r * 1.1);
+        }
+        break;
+      }
     }
   }
 }

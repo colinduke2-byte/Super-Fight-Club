@@ -170,9 +170,11 @@
     "w": 1,
     "h": 1,
     "damage": 7,
-    "angle": 70,
+    "angle": 86,
     "base": 43.5,
     "scaling": 0.522,
+    "setKb": 30,
+    "minHitstun": 20,
     "hitlag": 1,
     "fx": "blast"
    },
@@ -184,9 +186,11 @@
      "w": 1,
      "h": 1,
      "damage": 7,
-     "angle": 70,
+     "angle": 86,
      "base": 50,
      "scaling": 0.6,
+     "setKb": 30,
+     "minHitstun": 20,
      "hitlag": 1.2,
      "fx": "blast"
     }
@@ -195,6 +199,45 @@
     "shape": "bolt",
     "color": "#ff9a4a",
     "size": 1.2
+   }
+  },
+  "strike_heavy": {
+   "w": 16,
+   "h": 26,
+   "gravity": 0.16,
+   "life": 80,
+   "reflectable": false,
+   "hit": {
+    "x": 0,
+    "y": 0,
+    "w": 1,
+    "h": 1,
+    "damage": 14,
+    "angle": 68,
+    "base": 34,
+    "scaling": 0.82,
+    "hitlag": 1.5,
+    "fx": "blast"
+   },
+   "blast": {
+    "radius": 40,
+    "hit": {
+     "x": 0,
+     "y": 0,
+     "w": 1,
+     "h": 1,
+     "damage": 14,
+     "angle": 68,
+     "base": 34,
+     "scaling": 0.82,
+     "hitlag": 1.5,
+     "fx": "blast"
+    }
+   },
+   "look": {
+    "shape": "bolt",
+    "color": "#ffd04a",
+    "size": 1.8
    }
   }
  },
@@ -1754,6 +1797,56 @@
      "y": -230,
      "vx": 0,
      "vy": 7.5
+    },
+    {
+     "frame": 64,
+     "action": "fx",
+     "name": "radio"
+    },
+    {
+     "frame": 66,
+     "action": "projectile",
+     "id": "strike_heavy",
+     "x": -110,
+     "y": -250,
+     "vx": 0,
+     "vy": 4
+    },
+    {
+     "frame": 70,
+     "action": "projectile",
+     "id": "strike_heavy",
+     "x": -40,
+     "y": -250,
+     "vx": 0,
+     "vy": 4
+    },
+    {
+     "frame": 74,
+     "action": "projectile",
+     "id": "strike_heavy",
+     "x": 30,
+     "y": -250,
+     "vx": 0,
+     "vy": 4
+    },
+    {
+     "frame": 77,
+     "action": "projectile",
+     "id": "strike_heavy",
+     "x": 100,
+     "y": -250,
+     "vx": 0,
+     "vy": 4
+    },
+    {
+     "frame": 80,
+     "action": "projectile",
+     "id": "strike_heavy",
+     "x": 170,
+     "y": -250,
+     "vx": 0,
+     "vy": 4
     }
    ],
    "pose": {

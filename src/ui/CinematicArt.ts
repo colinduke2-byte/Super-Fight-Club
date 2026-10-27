@@ -35,9 +35,9 @@ export class CinematicArt {
   /** Ultimates being staged, by fighter id: the sim tick they started on and where they were aimed. */
   private readonly casts = new Map<number, UltCast>();
   /** Airstrike bombs in flight (last seen position), to catch the frame each one goes off. */
-  private readonly bombs = new Map<Projectile, { x: number; y: number }>();
-  /** Airstrike blasts playing out. */
-  private blasts: { x: number; y: number; t0: number }[] = [];
+  private readonly bombs = new Map<Projectile, { x: number; y: number; heavy: boolean }>();
+  /** Airstrike blasts playing out (heavy: one of the closing bunker busters). */
+  private blasts: { x: number; y: number; t0: number; heavy: boolean }[] = [];
 
   constructor(scene: Phaser.Scene, layer: Phaser.GameObjects.Layer) {
     this.g = fastShapes(scene.add.graphics().setDepth(6));
@@ -377,7 +377,7 @@ export class CinematicArt {
       let keep = true;
       switch (art) {
         case 'mech':
-          keep = live && mf <= cast.move.startup + 8;
+          keep = live && mf <= cast.move.startup + 16;
           if (keep) this.mechAssembly(f, mf);
           break;
         case 'airstrike':
@@ -403,6 +403,9 @@ export class CinematicArt {
     const g = this.g;
     const a = this.glow;
     const ON = 20;
+    // power-up shockwave as the suit comes online (the move's hitbox at frame 23: 130 x 70 round Gizmo)
+    if (mf >= 22) this.mechShock(f.x, f.y, (mf - 22) / 14);
+    if (mf > ON + 8) return;
     const cx = f.x;
     const by = f.y;
     const open = Math.min(1, mf / 8);
@@ -468,6 +471,43 @@ export class CinematicArt {
     }
   }
 
+  /** Mega Mech Mode's power-up shockwave (`t` 0..1): a hex-plated dome bursting out, a ground ring, and spark spokes. */
+  private mechShock(x: number, y: number, t: number): void {
+    if (t >= 1) return;
+    const g = this.g;
+    const a = this.glow;
+    const e = 1 - (1 - t) * (1 - t) * (1 - t);
+    const C = 0x7fe8ff;
+    const cy = y - 30;
+    const rw = 30 + 50 * e;
+    const rh = 18 + 24 * e;
+    // the dome: a cyan shell, a white rim and a lattice of hex cells across it
+    a.fillStyle(C, 0.22 * (1 - t)).fillEllipse(x, cy, rw * 2, rh * 2);
+    a.lineStyle(3, 0xffffff, 0.9 * (1 - t)).strokeEllipse(x, cy, rw * 2, rh * 2);
+    a.lineStyle(1, C, 0.7 * (1 - t));
+    for (let i = 0; i < 12; i++) {
+      const ang = (i / 12) * Math.PI * 2;
+      const hx = x + Math.cos(ang) * rw * 0.62;
+      const hy = cy + Math.sin(ang) * rh * 0.62;
+      const r = 5 + 4 * e;
+      for (let j = 0; j < 6; j++) set(FACET[j], hx + Math.cos((j * Math.PI) / 3) * r, hy + Math.sin((j * Math.PI) / 3) * r * 0.8);
+      a.strokePoints(FACET as Phaser.Math.Vector2[], true);
+    }
+    // the floor ring and dust thrown out along the ground
+    a.lineStyle(2.5, 0xffd08a, 0.85 * (1 - t)).strokeEllipse(x, y, 40 + 150 * e, 8 + 14 * e);
+    for (let i = 0; i < 8; i++) {
+      const sd = i % 2 ? 1 : -1;
+      g.fillStyle(0x5a5048, 0.5 * (1 - t)).fillCircle(x + sd * (20 + 70 * e) * (0.6 + (i >> 1) * 0.15), y - 4 - (i >> 1) * 2, 4 + 6 * e);
+    }
+    // spark spokes flung off the rim
+    for (let i = 0; i < 14; i++) {
+      const ang = (i / 14) * Math.PI * 2 + 0.2;
+      const r0 = 1 + 0.25 * e;
+      a.lineStyle(1.5, i % 2 ? 0xffffff : C, 0.9 * (1 - t));
+      a.lineBetween(x + Math.cos(ang) * rw * r0, cy + Math.sin(ang) * rh * r0, x + Math.cos(ang) * (rw * r0 + 16), cy + Math.sin(ang) * (rh * r0 + 10));
+    }
+  }
+
   /**
    * Havoc's Airstrike: laser designators paint the ground where each bomb will land (in the order they are called in), two
    * flights of jets scream across the sky, the bombs whistle down their laser lines and every one goes off in a blast.
@@ -482,6 +522,8 @@ export class CinematicArt {
     const passes = [
       { from: 8, dur: 36, dir: cast.facing, y: skyY, n: 3, s: 1 },
       { from: 40, dur: 40, dir: -cast.facing, y: skyY + 22, n: 2, s: 0.8 },
+      // the closing run: one heavy bomber, low and slow, opening its bay over the line it is about to level
+      { from: 52, dur: 44, dir: cast.facing, y: skyY + 8, n: 1, s: 1.9 },
     ];
     for (const p of passes) {
       const t = (mf - p.from) / p.dur;
@@ -500,22 +542,27 @@ export class CinematicArt {
     let pending = 0;
     for (const m of cast.marks) {
       if (m.done) continue;
-      const appear = m.frame - 18;
+      // (the closing bunker busters are painted earlier and held longer: they are the ones to get away from)
+      const appear = m.frame - (m.heavy ? 26 : 18);
       if (mf < appear) {
         pending++;
         continue;
       }
       // the bomb has gone off near this mark: done
-      if (this.blasts.some((b) => b.t0 >= cast.start + m.frame && Math.abs(b.x - m.x) < 20)) {
+      if (this.blasts.some((b) => b.t0 >= cast.start + m.frame && b.heavy === m.heavy && Math.abs(b.x - m.x) < 20)) {
         m.done = true;
         continue;
       }
-      if (mf > m.frame + 70) {
+      if (mf > m.frame + (m.heavy ? 90 : 70)) {
         m.done = true;
         continue;
       }
       pending++;
       if (m.gy === null) continue;
+      if (m.heavy) {
+        this.heavyMark(m.x, m.gy, mf - appear, mf - m.frame, T);
+        continue;
+      }
       const k = Math.min(1, (mf - appear) / 6);
       // tighten as the bomb comes down: the ring closes in, the dot pulses faster
       const lock = Math.min(1, Math.max(0, (mf - m.frame) / 24));
@@ -535,9 +582,15 @@ export class CinematicArt {
     }
     // the bombs: finned shells nosing down their laser line, a red tip blinking and a whistle of pressure arcs above them
     for (const p of world.projectiles) {
-      if (!p.active || p.owner !== f.id || p.defId !== 'strike') continue;
-      this.bombs.set(p, { x: p.x, y: p.y });
-      this.bomb(p, T);
+      if (!p.active || p.owner !== f.id || (p.defId !== 'strike' && p.defId !== HEAVY)) continue;
+      const heavy = p.defId === HEAVY;
+      const seen = this.bombs.get(p);
+      if (seen) {
+        seen.x = p.x;
+        seen.y = p.y;
+      } else this.bombs.set(p, { x: p.x, y: p.y, heavy });
+      if (heavy) this.heavyBomb(p, T);
+      else this.bomb(p, T);
     }
     // the move's staging ends when the jets are gone and every mark has had its bomb
     return live || pending > 0 || mf < 90;
@@ -600,17 +653,21 @@ export class CinematicArt {
   private airstrikeBlasts(world: World): void {
     const T = world.tick;
     for (const [p, at] of this.bombs) {
-      if (p.active && p.defId === 'strike') continue;
+      if (p.active && p.defId === (at.heavy ? HEAVY : 'strike')) continue;
       this.bombs.delete(p);
       // it stops on contact a few pixels short of the floor it hit: seat the blast on that floor
       const gy = groundBelow(world, at.x, at.y);
-      this.blasts.push({ x: at.x, y: gy !== null && gy - at.y < 24 ? gy : at.y + 6, t0: T });
+      this.blasts.push({ x: at.x, y: gy !== null && gy - at.y < (at.heavy ? 34 : 24) ? gy : at.y + 6, t0: T, heavy: at.heavy });
     }
     const g = this.g;
     const a = this.glow;
     const LIFE = 26;
-    this.blasts = this.blasts.filter((b) => T - b.t0 < LIFE);
+    this.blasts = this.blasts.filter((b) => T - b.t0 < (b.heavy ? HEAVY_LIFE : LIFE));
     for (const b of this.blasts) {
+      if (b.heavy) {
+        this.heavyBlast(b.x, b.y, (T - b.t0) / HEAVY_LIFE, T - b.t0);
+        continue;
+      }
       const t = (T - b.t0) / LIFE;
       const e = 1 - (1 - t) * (1 - t);
       const x = b.x;
@@ -639,6 +696,113 @@ export class CinematicArt {
         g.fillStyle(0x1a1410, 0.9 * (1 - t)).fillRect(x + dx - 1, y + dy - 1, 2.5, 2.5);
         a.fillStyle(0xffb04a, 0.8 * (1 - t)).fillRect(x + dx * 0.8, y + dy * 0.8, 1.5, 1.5);
       }
+    }
+  }
+
+  /**
+   * A bunker-buster target: a wide hazard-striped ring and a thick laser column painted on the ground well before the bomb
+   * drops, the stripes crawling inward and the ring pinching shut as it falls (`age`: frames since it was painted, `fall`:
+   * frames since its bomb was released, negative before).
+   */
+  private heavyMark(x: number, gy: number, age: number, fall: number, T: number): void {
+    const a = this.glow;
+    const g = this.g;
+    const k = Math.min(1, age / 8);
+    const lock = Math.min(1, Math.max(0, fall / 34));
+    const pulse = 0.6 + 0.4 * Math.sin(T * (0.3 + lock * 0.9));
+    // the column: a wide faint shaft and a hot core, from far up in the sky down to the target
+    a.fillStyle(0xff7a1a, 0.08 * k * pulse).fillRect(x - 9, gy - 260, 18, 260);
+    for (let i = 0; i < 6; i++) a.lineStyle(2, 0xffb02a, 0.6 * k * (1 - i / 6)).lineBetween(x, gy - i * 44, x, gy - (i + 1) * 44);
+    // the danger zone on the ground: a dark pool under hazard chevrons crawling inward, framed by a closing double ring
+    const R = (58 - 16 * lock) * (1.5 - 0.5 * k);
+    g.fillStyle(0x200806, 0.35 * k).fillEllipse(x, gy, R * 2, R * 0.36);
+    a.fillStyle(0xff4a1a, 0.22 * k * pulse).fillEllipse(x, gy, R * 2, R * 0.36);
+    for (let i = 0; i < 6; i++) {
+      const u = (((i / 6 + T * 0.03) % 1) + 1) % 1;
+      const rr = R * (1 - u);
+      for (const sd of [-1, 1]) {
+        const cx = x + sd * rr;
+        a.fillStyle(i % 2 ? 0xffd04a : 0xff5a1a, 0.85 * k * (1 - u * 0.6));
+        a.fillTriangle(cx + sd * 5, gy - 3, cx + sd * 5, gy + 3, cx - sd * 2, gy);
+      }
+    }
+    a.lineStyle(2, 0xffd04a, 0.9 * k * pulse).strokeEllipse(x, gy, R * 2, R * 0.36);
+    a.lineStyle(1, 0xff5a1a, 0.8 * k).strokeEllipse(x, gy, R * 2.3, R * 0.44);
+    // a big warning glyph floating over the target: a triangle with a bar and a dot, blinking faster as the bomb nears
+    if ((T >> (lock > 0.6 ? 1 : 2)) % 2 === 0) {
+      const wy = gy - 34 - 4 * Math.sin(T * 0.2);
+      a.lineStyle(2, 0xffd04a, 0.95 * k).strokeTriangle(x, wy - 9, x - 9, wy + 7, x + 9, wy + 7);
+      a.fillStyle(0xffd04a, 0.95 * k).fillRect(x - 1, wy - 4, 2, 6).fillRect(x - 1, wy + 3, 2, 2);
+    }
+  }
+
+  /** A falling bunker buster: a fat banded shell twice the size of the carpet bombs, a long streak and a shrieking whistle. */
+  private heavyBomb(p: Projectile, T: number): void {
+    const g = this.g;
+    const a = this.glow;
+    const x = p.x;
+    const y = p.y;
+    const fall = Math.min(1, p.age / 34);
+    for (let i = 0; i < 4; i++) a.lineStyle(2, 0xfff0d0, 0.4 - i * 0.08).lineBetween(x + (i - 1.5) * 4, y - 16 - i * 4, x + (i - 1.5) * 4, y - 46 - i * 14);
+    for (let i = 0; i < 4; i++) {
+      const ph = (T * (0.6 + fall) + i * 1.6) % 6.3;
+      const r = 8 + ph * 3.2;
+      a.lineStyle(1.5, i % 2 ? 0xffd04a : 0xffffff, 0.5 * (1 - ph / 6.3) * (0.4 + 0.6 * fall));
+      a.beginPath();
+      a.arc(x, y - 10, r, Math.PI * 1.12, Math.PI * 1.88);
+      a.strokePath();
+    }
+    g.fillStyle(0x23261c, 1).fillTriangle(x - 10, y - 18, x, y - 8, x, y - 20).fillTriangle(x + 10, y - 18, x, y - 8, x, y - 20);
+    g.fillStyle(0x3a4030, 1).fillEllipse(x, y - 2, 12, 28);
+    g.fillStyle(0x58643f, 1).fillEllipse(x - 2, y - 4, 4, 18);
+    // hazard bands round the nose
+    g.fillStyle(0xe0b030, 1).fillRect(x - 5, y + 4, 10, 2).fillRect(x - 5, y - 9, 10, 2);
+    g.fillStyle(0x1a1a14, 1).fillRect(x - 2, y + 4, 2, 2).fillRect(x + 2, y - 9, 2, 2);
+    a.fillStyle(0xff3a2a, (T >> 1) % 2 ? 1 : 0.3).fillCircle(x, y + 12, 2);
+    a.fillStyle(0xff7a2a, 0.25 * fall).fillCircle(x, y + 12, 6);
+  }
+
+  /**
+   * A bunker buster going off (`t` 0..1 over its life, `n` frames in): a white dome, a towering mushroom of fire with a
+   * stem and a rolling cap, a ground shock ring racing out across the floor, and heavy debris thrown high.
+   */
+  private heavyBlast(x: number, y: number, t: number, n: number): void {
+    const g = this.g;
+    const a = this.glow;
+    const e = 1 - (1 - t) * (1 - t);
+    const capY = y - 20 - 70 * e;
+    // smoke: the cap rolling up, and a skirt of dust along the floor
+    for (let i = 0; i < 8; i++) {
+      const ang = (i / 8) * Math.PI * 2 + t * 1.5;
+      const r = 14 + 26 * e;
+      g.fillStyle(i % 2 ? 0x2a2420 : 0x3e3530, 0.6 * (1 - t)).fillCircle(x + Math.cos(ang) * r, capY + Math.sin(ang) * r * 0.45, 10 + 12 * e);
+    }
+    for (let i = 0; i < 6; i++) {
+      const sd = i % 2 ? 1 : -1;
+      g.fillStyle(0x4a4038, 0.45 * (1 - t)).fillCircle(x + sd * (16 + 60 * e) * (0.5 + (i >> 1) * 0.3), y - 5, 8 + 8 * e);
+    }
+    // the stem and the fire cap: graded shells, a red rim to a white heart
+    const fr = 46 * Math.sin(Math.min(1, t * 1.4) * Math.PI) + 6;
+    a.fillStyle(0xff7a2a, 0.35 * (1 - t)).fillRect(x - 8 - 4 * e, capY, 16 + 8 * e, y - capY);
+    for (let i = 0; i < 6; i++) {
+      const k = 1 - i / 6;
+      const col = k > 0.7 ? 0xff3a10 : k > 0.45 ? 0xff7a2a : k > 0.25 ? 0xffc04a : 0xfff0c0;
+      a.fillStyle(col, 0.22 + 0.05 * (1 - k)).fillCircle(x, capY + 6, fr * k);
+      a.fillStyle(col, 0.18).fillCircle(x, y - fr * 0.3, fr * 0.7 * k);
+    }
+    // the detonation: a white dome over the impact for the first frames (halved under Reduce Flashes)
+    if (n < 5) a.fillStyle(0xffffff, 0.6 * (1 - n / 5) * this.flashK).fillCircle(x, y - 12, 30 * (1 - n / 10));
+    // shock: two flattened rings racing out along the floor
+    a.lineStyle(3, 0xffe0a0, 0.9 * (1 - t)).strokeEllipse(x, y, 40 + 220 * e, 10 + 26 * e);
+    a.lineStyle(1.5, 0xff8a3a, 0.7 * (1 - t)).strokeEllipse(x, y, 20 + 150 * e, 6 + 18 * e);
+    // heavy debris flung high and falling back
+    for (let i = 0; i < 12; i++) {
+      const ang = -Math.PI * (0.1 + 0.8 * (i / 11));
+      const sp = 90 + (i % 4) * 30;
+      const dx = Math.cos(ang) * sp * t;
+      const dy = Math.sin(ang) * sp * t + 140 * t * t;
+      g.fillStyle(0x1a1410, 0.9 * (1 - t)).fillRect(x + dx - 1.5, y + dy - 1.5, 3.5, 3.5);
+      a.fillStyle(0xffb04a, 0.85 * (1 - t)).fillRect(x + dx * 0.85, y + dy * 0.85, 2, 2);
     }
   }
 
@@ -932,6 +1096,10 @@ export class CinematicArt {
   }
 }
 
+/** Havoc's closing Airstrike bombs (havoc.moves.json, ultimate) and how long each of their detonations plays. */
+const HEAVY = 'strike_heavy';
+const HEAVY_LIFE = 46;
+
 /** Which bespoke staging each fighter's (non-cinematic) ultimate gets. */
 const ULT_ART: Record<string, 'mech' | 'airstrike' | 'convergence' | 'solar'> = { gizmo: 'mech', havoc: 'airstrike', nova: 'convergence', agni: 'solar' };
 
@@ -953,7 +1121,7 @@ interface UltCast {
   /** Move frame last seen while the caster was in the move. */
   lastMf: number;
   /** Airstrike marks: where each called bomb lands (null: no solid ground under it). */
-  marks: { frame: number; x: number; gy: number | null; done: boolean }[];
+  marks: { frame: number; x: number; gy: number | null; done: boolean; heavy: boolean }[];
 }
 
 function newCast(world: World, f: Fighter, m: MoveDef, start: number): UltCast {
@@ -965,7 +1133,7 @@ function newCast(world: World, f: Fighter, m: MoveDef, start: number): UltCast {
     .filter((e) => e.vx === 0)
     .map((e) => {
       const x = f.x + f.facing * e.x;
-      return { frame: e.frame, x, gy: groundBelow(world, x, f.y + e.y), done: false };
+      return { frame: e.frame, x, gy: groundBelow(world, x, f.y + e.y), done: false, heavy: e.id === HEAVY };
     });
   return { move: m, start, facing: f.facing, mx, my, ox: f.x + f.facing * mx, oy: f.y + my, fireAt: first?.frame ?? m.startup, endT: -1, lastMf: 0, marks };
 }

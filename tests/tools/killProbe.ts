@@ -42,6 +42,8 @@ export interface ProbeOptions {
   trace?: string[];
   /** Also search the best possible recovery (scripted jump / special timings) for the `best` figure (default true). */
   best?: boolean;
+  /** A transforming ultimate with hits of its own: measure only those hits (killPercent compares both). */
+  directOnly?: boolean;
 }
 
 export interface LaunchOutcome {
@@ -394,10 +396,13 @@ export function recoveryTable(only?: string[]): { id: string; out: number; low: 
     .map((id) => ({ id, out: recoveryReach(id, 0), low: recoveryReach(id, 60), upOut: recoveryReach(id, 0, 'classic', true), upLow: recoveryReach(id, 60, 'classic', true) }));
 }
 
-/** A transforming ultimate: no hits, projectiles or cutscene of its own; it changes the moves (remapMove) for a while. */
+/**
+ * A transforming ultimate: no projectiles or cutscene of its own; it changes the moves (remapMove) for a while. It may
+ * open with a hit of its own (Gizmo's power-up shockwave): killPercent then takes the better of that hit and the launcher.
+ */
 function isTransform(atkId: string, moveId: string): boolean {
   const mv = CHARACTERS[atkId].moves[moveId];
-  if (mv?.kind !== 'ultimate' || mv.cinematic || mv.hitboxes.length) return false;
+  if (mv?.kind !== 'ultimate' || mv.cinematic) return false;
   if ((mv.events ?? []).some((e) => e.action === 'projectile' || e.action === 'deploy')) return false;
   return !!CHARACTERS[atkId].behavior?.remapMove;
 }
@@ -417,11 +422,13 @@ export function killPercent(atkId: string, moveId: string, victimId: string, opt
   const mv = CHARACTERS[atkId].moves[moveId];
   const none = (via: string): ProbeResult => ({ recover: NEVER, strict: NEVER, best: NEVER, dir: null, strictDir: null, bestDir: null, via });
   if (!mv) return none('missing');
-  if (isTransform(atkId, moveId)) {
+  if (!opts.directOnly && isTransform(atkId, moveId)) {
     const id = transformMove(atkId);
     const plan = id ? planHit(atkId, id) : null;
-    if (!plan) return none('transform: no launcher');
-    return search(atkId, moveId, victimId, opts, 30, `transform, then ${id}: ${plan.via}`);
+    const viaLauncher = plan ? search(atkId, moveId, victimId, opts, 30, `transform, then ${id}: ${plan.via}`) : none('transform: no launcher');
+    if (!mv.hitboxes.length) return viaLauncher;
+    const direct = killPercent(atkId, moveId, victimId, { ...opts, directOnly: true });
+    return direct.best < viaLauncher.best ? direct : viaLauncher;
   }
   if (mv.kind === 'ultimate') {
     // find a spacing at which the ultimate connects (cinematic grabs need to be close; beams and barrages reach further)
