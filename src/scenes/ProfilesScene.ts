@@ -265,7 +265,11 @@ export class ProfilesScene extends MenuScene {
     this.sprite.setScale(s * uiTexK(c)).setPosition(L.x + L.w * 0.66, L.y + L.h - 8 * u);
     if (this.bust.visible) {
       const side = Math.min(L.h * 0.5, L.w * 0.5);
-      if (this.bust.getData('bust')) this.bust.setScale(side / Math.max(1, this.bust.height)).setPosition(L.x + side / 2 + 6 * u, L.y + side + 6 * u);
+      // a whole-pixel scale wherever the panel allows two or more (every bust pixel the same size), inside its frame
+      const raw = side / Math.max(1, this.bust.height);
+      const k = raw >= 2 ? Math.floor(raw) : raw;
+      const sz = this.bust.height * k;
+      if (this.bust.getData('bust')) this.bust.setScale(k).setPosition(Math.round(L.x + sz / 2 + 8 * u), Math.round(L.y + sz + 8 * u));
       else this.bust.setScale((side / 40) * portraitK(c)).setPosition(L.x + side / 2 + 6 * u, L.y + side + 6 * u);
     }
     // the text column: name, tagline, then the body and the record, sized to fit the panel
@@ -307,6 +311,18 @@ export class ProfilesScene extends MenuScene {
       const L = this.panelL;
       // the floor light under the fighter, in their colour
       g.fillStyle(accent, 0.25).fillEllipse(this.sprite.x, this.sprite.y, L.w * 0.5, 8 * u);
+      // the bust in a frame: a dark mat, an edge in the fighter's colour and the panels' gold corner ticks
+      if (this.bust.visible && this.bust.getData('bust')) {
+        const bw = this.bust.displayWidth;
+        const bh = this.bust.displayHeight;
+        const bx = this.bust.x - bw / 2;
+        const by = this.bust.y - bh;
+        g.fillStyle(0x05040e, 1).fillRect(bx - 2 * u, by - 2 * u, bw + 4 * u, bh + 4 * u);
+        g.lineStyle(u, accent, 0.9).strokeRect(bx - 2.5 * u, by - 2.5 * u, bw + 5 * u, bh + 5 * u);
+        g.fillStyle(accent, 0.9).fillRect(bx - 2 * u, by + bh + u, bw + 4 * u, u);
+        g.fillStyle(PANEL.tick, 0.95);
+        for (const [cx, cy] of [[bx - 4 * u, by - 4 * u], [bx + bw + u, by - 4 * u], [bx - 4 * u, by + bh + u], [bx + bw + u, by + bh + u]]) g.fillRect(cx, cy, 3 * u, 3 * u);
+      }
       g.fillStyle(accent, 0.8).fillRect(this.panelR.x + 8 * u, this.tagT.y - 2.5 * u, this.panelR.w - 16 * u, Math.max(1, u / 2));
       // the sprite: idle, striking its victory pose now and then (once its sheet exists: the Overseer's builds on demand)
       if (this.shownId !== c.id && this.textures.exists(fighterTextureKey(c.id))) {

@@ -216,12 +216,13 @@ export class SoundTestScene extends MenuScene {
   protected override layoutUi(w: number, h: number, u: number): void {
     this.title.setScale(Math.min(u * 3, (w * 0.9) / Math.max(1, textPx(this.title)))).setPosition(w / 2, h * 0.08);
     const ty = this.title.y + this.title.displayHeight / 2 + 10 * u;
-    const pad = 5 * u;
-    const gap = 4 * u;
+    const pad = 6 * u;
+    const gap = 6 * u;
     const raw = this.tabTexts.reduce((a, t) => a + textPx(t), 0);
     const k = Math.min(u * 1.2, (w * 0.94 - (pad * 2 + gap) * TABS.length) / Math.max(1, raw));
     let x = w / 2 - (raw * k + (pad * 2 + gap) * TABS.length - gap) / 2;
-    const tabH = Math.max(7 * k + 4 * u, tapMin(this) * 0.85);
+    // (the same breathing room around the label as the All Modes tabs: one tab style across the menus)
+    const tabH = Math.max(7 * k + 8 * u, tapMin(this) * 0.85);
     this.tabBoxes = this.tabTexts.map((t) => {
       t.setScale(k);
       const bw = textPx(t) * k + pad * 2;

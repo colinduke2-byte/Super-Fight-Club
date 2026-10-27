@@ -19,7 +19,7 @@ import { STAGES } from '../stages';
 import type { MenuEvent } from '../input/menuInput';
 import { ensurePalette, fighterAnimKey, fighterTextureKey, uiTexK } from '../art/proceduralFighter';
 import { playResultPose } from '../ui/FighterView';
-import { COLORS, MenuList, MenuScene, PANEL, drawPanel, drawPortShape, text, textPx, type MenuBackdrop, type MenuItem } from '../ui/menuKit';
+import { COLORS, MenuList, MenuScene, PANEL, drawPanel, drawPortShape, text, textPx, wrapText, type MenuBackdrop, type MenuItem } from '../ui/menuKit';
 import { settings } from '../settings';
 import type { MatchResult, PlayerResult } from '../game/session';
 
@@ -579,6 +579,12 @@ export class ResultsScene extends MenuScene {
       // what hangs below the ground line: the steps, the name and (on taller windows) the quote, all above the footer
       const nameK = this.champName ? Math.min(u * 2, (w * (portrait ? 0.8 : 0.36)) / Math.max(1, textPx(this.champName))) : 0;
       const quote = !!this.champLine && (h >= 500 || !this.runners.length);
+      // a long quote breaks onto two centred lines rather than shrinking to a size nobody can read
+      if (this.champLine) {
+        const flat = (this.champLine.getData('flat') as string | undefined) ?? this.champLine.text;
+        this.champLine.setData('flat', flat).setText(flat);
+        if ((w * (portrait ? 0.9 : 0.38)) / Math.max(1, textPx(this.champLine)) < u * 0.8 && flat.length > 24) this.champLine.setText(wrapText(flat, Math.ceil(flat.length / 2) + 4)).setCenterAlign();
+      }
       const quoteK = this.champLine ? Math.min(u, (w * (portrait ? 0.9 : 0.38)) / Math.max(1, textPx(this.champLine))) : 0;
       // (heights from the font's real line height; the plate under them ends clear of the footer's dark band)
       const nameH = this.champName ? this.champName.getTextBounds().local.height * nameK : 0;

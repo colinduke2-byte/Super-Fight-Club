@@ -307,7 +307,8 @@ export class SettingsScene extends MenuScene {
     const k = Math.min(u * 1.2, (w * 0.94 - (pad * 2 + gap) * TABS.length) / Math.max(1, raw));
     let x = w / 2 - (raw * k + (pad * 2 + gap) * TABS.length - gap) / 2;
     // finger-tall tabs on a touch screen
-    const tabH = Math.max(7 * k + 4 * u, tapMin(this) * 0.85);
+    // (the same breathing room around the label as the All Modes tabs: one tab style across the menus)
+    const tabH = Math.max(7 * k + 8 * u, tapMin(this) * 0.85);
     this.tabBoxes = this.tabTexts.map((t) => {
       t.setScale(k);
       const bw = textPx(t) * k + pad * 2;

@@ -37,8 +37,8 @@ const GROUPS: Group[] = [
       { label: 'VERSUS', icon: 'battle', desc: 'SET UP A MATCH FOR 2-4 FIGHTERS: FRIENDS, CPUS, RULES AND STAGE.', go: (s) => { prepareVersus(); s.goTo('CharacterSelect'); } },
       { label: 'QUICK MATCH', icon: 'quick', desc: 'STRAIGHT INTO A FIGHT: YOUR LAST FIGHTER VS ONE CPU ON A RANDOM STAGE.', go: (s, e) => s.quick(e) },
       { label: 'TEAM BATTLE', icon: 'teams', desc: 'FOUR FIGHTERS, TWO TEAMS: FRIENDS AND CPUS SIDE BY SIDE. TEAM LAYOUTS ARE IN VERSUS SETUP.', go: (s) => s.teams() },
-      { label: 'TARGET TURNS', icon: 'turns', desc: '2-4 PLAYERS TAKE TURNS ON ONE TARGET COURSE, THEN COMPARE TIMES.', go: (s) => s.startTurns('targets') },
-      { label: 'LAUNCH TURNS', icon: 'turns', desc: '2-4 PLAYERS TAKE TURNS IN THE LAUNCH CONTEST, THEN COMPARE DISTANCES.', go: (s) => s.startTurns('launch') },
+      { label: 'TARGET TURNS', icon: 'target', desc: '2-4 PLAYERS TAKE TURNS ON ONE TARGET COURSE, THEN COMPARE TIMES.', go: (s) => s.startTurns('targets') },
+      { label: 'LAUNCH TURNS', icon: 'launch', desc: '2-4 PLAYERS TAKE TURNS IN THE LAUNCH CONTEST, THEN COMPARE DISTANCES.', go: (s) => s.startTurns('launch') },
     ],
   },
   {

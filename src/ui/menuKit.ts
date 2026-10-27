@@ -1151,8 +1151,10 @@ export abstract class MenuScene extends Phaser.Scene {
     const g = this.footPlate?.clear();
     if (g && hint.visible && hint.text) {
       const y0 = top - 3 * u;
-      g.fillStyle(0x05040e, 0.5).fillRect(0, y0, w, h - y0);
-      g.fillStyle(0x05040e, 0.25).fillRect(0, y0 - 2 * u, w, 2 * u);
+      // near-solid: the backdrops' neon signs and lit windows used to show through as stray bars between the hint's words
+      g.fillStyle(0x05040e, 0.84).fillRect(0, y0, w, h - y0);
+      g.fillStyle(0x05040e, 0.4).fillRect(0, y0 - 2 * u, w, 2 * u);
+      g.fillStyle(0x05040e, 0.18).fillRect(0, y0 - 4 * u, w, 2 * u);
       // one footer style everywhere: a thin rule along the band's top edge
       g.fillStyle(PANEL.border, 0.8).fillRect(0, y0, w, Math.max(1, u * 0.5));
     }

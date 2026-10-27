@@ -7,7 +7,7 @@ import { isPlayable, onVaultChange, VAULT_NAME_MAX, VAULT_RECENT, VAULT_STARS, v
 import { session } from '../game/session';
 import type { MenuEvent } from '../input/menuInput';
 import { STAGES } from '../stages';
-import { COLORS, MenuList, MenuScene, drawPanel, tapMin, text, textPx, type MenuBackdrop, type MenuItem } from '../ui/menuKit';
+import { COLORS, MenuList, MenuScene, drawIcon, drawPanel, tapMin, text, textPx, type MenuBackdrop, type MenuItem } from '../ui/menuKit';
 
 const FILTERS = ['ALL', 'FAVOURITES', 'RECENT', 'VERSUS', 'ARCADE', 'CHALLENGE'] as const;
 type Filter = (typeof FILTERS)[number];
@@ -444,6 +444,21 @@ export class ReplayVaultScene extends MenuScene {
     this.detail.setText(lines.join('\n')).setTint(e && !isPlayable(e.meta) ? COLORS.warn : COLORS.text);
     const fit = Math.min((this.panel.w - 12 * u) / Math.max(1, textPx(this.detail)), (this.panel.h - 12 * u) / Math.max(1, this.detail.getTextBounds().local.height));
     this.detail.setScale(Math.max(0.5, Math.min(u, fit)));
+    if (e) {
+      this.detail.setOrigin(0, 0).setLeftAlign().setPosition(this.panel.x + 6 * u, this.panel.y + 6 * u);
+      return;
+    }
+    // nothing picked (or nothing yet): the note sits centred in the panel under a large film-reel icon, not in its corner
+    const P = this.panel;
+    const th = this.detail.displayHeight;
+    const px = Math.max(1, Math.min(Math.round(u * 4), Math.floor((P.h - th - 22 * u) / 8)));
+    const iconH = px >= u ? 8 * px + 10 * u : 0;
+    const cy = P.y + P.h / 2 + iconH / 2;
+    this.detail.setOrigin(0.5, 0.5).setCenterAlign().setPosition(Math.round(P.x + P.w / 2), Math.round(cy));
+    if (iconH) {
+      const iy = cy - th / 2 - 6 * u - 4 * px;
+      drawIcon(this.plate, 'film', P.x + P.w / 2, iy, px, COLORS.accent, 0.85);
+    }
   }
 
   protected override tick(time: number): void {

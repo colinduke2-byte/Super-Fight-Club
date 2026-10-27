@@ -181,7 +181,10 @@ export class HomeScene extends MenuScene {
   }
 
   protected override backdrop(w: number, h: number): MenuBackdrop {
-    return w / h > 1.3 ? { planet: { x: 0.9, y: 0.2, k: 0.6 } } : { planet: { x: 0.82, y: 0.14, k: 0.5 } };
+    // up in the band beside the title, clear of the cards (it used to sit half behind the MORE card); a short window has no
+    // such band, so it goes
+    if (h < 560) return { planet: null };
+    return w / h > 1.3 ? { planet: { x: 0.86, y: 0.095, k: 0.5 } } : { planet: { x: 0.84, y: 0.1, k: 0.42 } };
   }
 
   protected override layoutUi(w: number, h: number, u: number): void {

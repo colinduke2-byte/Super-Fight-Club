@@ -129,7 +129,7 @@ export class CharacterSelectScene extends MenuScene {
   private lobby!: Lobby;
   private title!: Phaser.GameObjects.BitmapText;
   private cards: Card[] = [];
-  private roster: { img: Phaser.GameObjects.Image | null; q: Phaser.GameObjects.BitmapText | null; name: Phaser.GameObjects.BitmapText; pips: Phaser.GameObjects.Image[]; box: { x: number; y: number; w: number; h: number } }[] = [];
+  private roster: { img: Phaser.GameObjects.Image | null; q: Phaser.GameObjects.BitmapText | null; name: Phaser.GameObjects.BitmapText; pips: Phaser.GameObjects.Image[]; box: { x: number; y: number; w: number; h: number }; well?: { x: number; y: number; s: number } }[] = [];
   /** Card plates (drawn per frame: they light up as players join and lock) and the roster strip with its cursors. */
   private cardG!: Phaser.GameObjects.Graphics;
   private rosterG!: Phaser.GameObjects.Graphics;
@@ -769,7 +769,12 @@ export class CharacterSelectScene extends MenuScene {
         const cr = r.img.getData('crop') as [number, number, number, number];
         r.img.setScale(sc).setPosition(cx + (r.img.width / 2 - (cr[0] + cr[2] / 2)) * sc, portBottom + (r.img.height / 2 - (cr[1] + cr[3])) * sc);
       }
-      r.q?.setScale(Math.max(1, Math.floor(Math.min(portH * 0.8, rw * 0.8) / 7))).setPosition(cx, portBottom - portH / 2);
+      // RANDOM: its question mark on a plate the size of a bust, so the tile reads as one of the set
+      if (r.q) {
+        const side = Math.round(Math.min(portH, rw - 6 * ru));
+        r.well = { x: Math.round(cx - side / 2), y: Math.round(portBottom - portH / 2 - side / 2), s: side };
+        r.q.setScale(Math.max(1, Math.floor((side * 0.62) / 7))).setPosition(Math.round(cx), Math.round(portBottom - portH / 2));
+      }
       r.name.setPosition(cx, nameY);
       r.pips.forEach((p, k) => p.setScale((3 * ru) / 4).setPosition(cx - ((r.pips.length - 1) * 4 * ru) / 2 + k * 4 * ru, pipY));
       r.box = { x: cx - rw / 2 + ru, y: top + ru, w: rw - 2 * ru, h: pipY + 3 * ru - top - ru };
@@ -901,6 +906,9 @@ export class CharacterSelectScene extends MenuScene {
     });
   }
 
+  /** The hovered tile's glint quad (reused every frame). */
+  private readonly glintPts = [new Phaser.Math.Vector2(), new Phaser.Math.Vector2(), new Phaser.Math.Vector2(), new Phaser.Math.Vector2()];
+
   /** The roster on its own strip, with a frame in each player's colour around the fighter they are on. */
   private drawRoster(): void {
     const g = this.rosterG.clear();
@@ -912,6 +920,18 @@ export class CharacterSelectScene extends MenuScene {
       if (!b.w) continue;
       g.fillStyle(0x05040e, 0.55).fillRect(b.x + p.u, b.y + p.u, b.w - 2 * p.u, b.h - 2 * p.u);
       g.fillStyle(0xffffff, 0.06).fillRect(b.x + p.u, b.y + p.u, b.w - 2 * p.u, Math.max(1, p.u / 2));
+      const wl = r.well;
+      if (wl) {
+        // the busts' plate in miniature: a dark violet field lit toward the top in ordered steps, a light streak, a bevel
+        const st = Math.max(1, Math.round(wl.s / 8));
+        g.fillStyle(0x0c0920, 1).fillRect(wl.x, wl.y, wl.s, wl.s);
+        g.fillStyle(0x130e30, 1).fillRect(wl.x, wl.y, wl.s, st * 5);
+        g.fillStyle(0x1a1440, 1).fillRect(wl.x, wl.y, wl.s, st * 3);
+        g.fillStyle(0x221a52, 1).fillRect(wl.x, wl.y, wl.s, st);
+        g.fillStyle(0xffffff, 0.05).fillRect(wl.x + wl.s * 0.62, wl.y, st, wl.s);
+        g.fillStyle(0xffffff, 0.16).fillRect(wl.x, wl.y, wl.s, 1).fillRect(wl.x, wl.y, 1, wl.s);
+        g.fillStyle(0x000000, 0.35).fillRect(wl.x, wl.y + wl.s - 1, wl.s, 1).fillRect(wl.x + wl.s - 1, wl.y, 1, wl.s);
+      }
     }
     const active = this.lobby.active;
     const byFighter = new Map<number, number[]>();
@@ -933,7 +953,11 @@ export class CharacterSelectScene extends MenuScene {
           const ph = (this.hoverT * 0.6 + ci * 0.13) % 1;
           if (ph < 0.4) {
             const gx = b.x + (ph / 0.4) * (b.w + b.h * 0.4) - b.h * 0.4;
-            const pts = [new Phaser.Math.Vector2(Math.max(b.x, gx), b.y + b.h), new Phaser.Math.Vector2(Math.min(b.x + b.w, Math.max(b.x, gx + b.h * 0.4)), b.y), new Phaser.Math.Vector2(Math.min(b.x + b.w, Math.max(b.x, gx + b.h * 0.4 + 5 * p.u)), b.y), new Phaser.Math.Vector2(Math.min(b.x + b.w, Math.max(b.x, gx + 5 * p.u)), b.y + b.h)];
+            const pts = this.glintPts;
+            pts[0].set(Math.max(b.x, gx), b.y + b.h);
+            pts[1].set(Math.min(b.x + b.w, Math.max(b.x, gx + b.h * 0.4)), b.y);
+            pts[2].set(Math.min(b.x + b.w, Math.max(b.x, gx + b.h * 0.4 + 5 * p.u)), b.y);
+            pts[3].set(Math.min(b.x + b.w, Math.max(b.x, gx + 5 * p.u)), b.y + b.h);
             // (on the overlay above the busts: drawEdit cleared it earlier this frame)
             this.editG.fillStyle(0xffffff, 0.14).fillPoints(pts, true);
           }

@@ -25,7 +25,7 @@ const PICK_FOOTER: readonly (readonly [MenuVerb, string])[] = [
 import type { MenuEvent } from '../input/menuInput';
 import { STAGE_LIST } from '../stages';
 import { FORM_NAMES, STAGE_FORMS, stageInForm } from '../stages/forms';
-import { COLORS, MenuList, MenuScene, drawPanel, text, textPx, type MenuBackdrop } from '../ui/menuKit';
+import { COLORS, MenuList, MenuScene, PANEL, drawIcon, drawPanel, text, textPx, type MenuBackdrop } from '../ui/menuKit';
 import { stageThumb } from '../ui/stageThumb';
 import { ensureStageArt, stageArtReady } from '../art/stageArt';
 
@@ -225,6 +225,8 @@ export class StageSelectScene extends MenuScene {
 
   protected override layoutUi(w: number, h: number, u: number): void {
     this.title.setScale(Math.min(u * 4, (w * 0.9) / Math.max(1, textPx(this.title)))).setPosition(w / 2, h * 0.1);
+    // a title wide enough to reach the corner BACK chip (large text) drops below it rather than run under it
+    if (this.title.displayWidth / 2 > w / 2 - this.chipBottom * 1.6) this.title.setY(Math.max(this.title.y, this.chipBottom + 2 * u + this.title.displayHeight / 2));
     // list on the left, preview on the right: shrink the list's unit so the longest name fits its column
     // the longest name is ~180 units wide at full size; the plate adds 6 units a side and must stay clear of the preview at 0.5w
     const lu = Math.max(0.8, Math.min(u, (w * 0.43) / 202));
@@ -234,11 +236,11 @@ export class StageSelectScene extends MenuScene {
     const listTop = Math.max(h * 0.22, this.formLine.y + 3.5 * u + 10 * u);
     this.list.layout(w * 0.035 + 101 * lu, listTop, lu, 190, footTop - 10 * u);
     const aw = w * 0.46;
-    const ah = Math.min(aw * (9 / 16), h * 0.42);
-    this.area = { x: w * 0.5, y: h * 0.22, w: ah * (16 / 9), h: ah };
+    const ah = Math.min(aw * (9 / 16), h * 0.42, (footTop - listTop) * 0.6);
+    this.area = { x: w * 0.5, y: listTop, w: ah * (16 / 9), h: ah };
     const bu = Math.max(0.75, Math.min(u * 1.1, (h * 0.2) / 40));
     // clear of the preview's frame (which is drawn 2px outside the card)
-    this.blurb.setScale(bu).setPosition(this.area.x, this.area.y + this.area.h + 10 * u);
+    this.blurb.setScale(bu).setPosition(this.area.x, this.area.y + this.area.h + 12 * u);
     this.blurbK = bu;
     this.tagChars = Math.max(12, Math.floor(this.area.w / (7 * Math.min(u, bu))));
     this.tags.setScale(Math.min(u, bu)).setPosition(this.area.x, h - 22 * u).setLineSpacing(3);
@@ -277,7 +279,6 @@ export class StageSelectScene extends MenuScene {
       this.thumb.setVisible(false);
       g.fillStyle(0x0b0a24, 0.85).fillRect(a.x, a.y, a.w, a.h);
     }
-    g.lineStyle(3, COLORS.title, 1).strokeRect(a.x - 2, a.y - 2, a.w + 4, a.h + 4);
     this.drawChips(g, stage);
     const pool = session.rules.stagePool?.length ? STAGE_LIST.filter((st) => session.rules.stagePool!.includes(st.id)).length : 0;
     const blurb = stage ? blurbFromData(stage) : pool ? `A RANDOM STAGE FROM YOUR POOL OF ${pool}.` : 'A RANDOM STAGE FROM THE LIST.';
@@ -308,22 +309,47 @@ export class StageSelectScene extends MenuScene {
     // the description wraps to the preview's width; a long one on a short window shrinks until it and the tags fit
     const room = this.hint.y - this.hint.displayHeight / 2 - 6 * this.u - this.blurb.y;
     let bs = this.blurbK;
+    const tk = Math.min(this.u, this.blurbK);
+    this.tags.setScale(tk);
     for (let tries = 0; tries < 6; tries++) {
       this.wrapChars = Math.max(10, Math.floor(a.w / (7 * bs)));
       this.blurb.setScale(bs).setText(this.wrap(blurb));
       if (this.blurb.displayHeight + 7 * this.u + this.tags.displayHeight <= room) break;
       bs *= 0.88;
     }
+    // still too tall (large text on a short window): the tags shrink too, so they never run up over the description
+    const tagRoom = room - this.blurb.displayHeight - 7 * this.u;
+    if (this.tags.text && this.tags.displayHeight > tagRoom) this.tags.setScale(Math.max(tk * 0.5, (tk * tagRoom) / Math.max(1, this.tags.displayHeight)));
     this.tags.setY(Math.min(this.blurb.y + this.blurb.displayHeight + 7 * this.u, this.hint.y - this.hint.displayHeight / 2 - 6 * this.u - this.tags.displayHeight));
     // a plate under the description and tags so they read over the stage's own ground
     const u = this.u;
     const bottom = this.tags.text ? this.tags.y + this.tags.displayHeight : this.blurb.y + this.blurb.displayHeight;
-    drawPanel(g, a.x - 6 * u, this.blurb.y - 5 * u, a.w + 12 * u, bottom - this.blurb.y + 10 * u, u, 0.82);
-    g.lineStyle(3, COLORS.title, 1).strokeRect(a.x - 2, a.y - 2, a.w + 4, a.h + 4);
+    drawPanel(g, a.x - 5 * u, this.blurb.y - 5 * u, a.w + 10 * u, bottom - this.blurb.y + 10 * u, u, 0.82);
+    this.drawFrame(g, a, u);
     if (!stage) {
-      // RANDOM: question mark card
-      g.fillStyle(0x4a4578, 1).fillRect(a.x + a.w / 2 - 6, a.y + a.h / 2 - 20, 12, 40);
+      // RANDOM: a large question mark on the empty card
+      const px = Math.max(1, Math.floor(a.h / 14));
+      drawIcon(g, 'help', a.x + a.w / 2, a.y + a.h / 2, px, 0x6a63a8, 1);
     }
+  }
+
+  /**
+   * The preview's picture frame: a mat of the panels' plate colour as wide as the info panel's margin (so the card and the
+   * panel under it line up edge to edge), the panels' border outside it, a gold line hugging the picture and gold corner ticks.
+   */
+  private drawFrame(g: Phaser.GameObjects.Graphics, a: { x: number; y: number; w: number; h: number }, u: number): void {
+    const m = 5 * u;
+    const x0 = a.x - m;
+    const y0 = a.y - m;
+    const fw = a.w + 2 * m;
+    const fh = a.h + 2 * m;
+    g.fillStyle(PANEL.fill, 0.95);
+    g.fillRect(x0, y0, fw, m).fillRect(x0, a.y + a.h, fw, m).fillRect(x0, a.y, m, a.h).fillRect(a.x + a.w, a.y, m, a.h);
+    g.fillStyle(0xffffff, 0.04).fillRect(x0, y0, fw, u);
+    g.lineStyle(u, PANEL.border, 1).strokeRect(x0 - u / 2, y0 - u / 2, fw + u, fh + u);
+    g.lineStyle(u, COLORS.title, 1).strokeRect(a.x - u / 2, a.y - u / 2, a.w + u, a.h + u);
+    g.fillStyle(PANEL.tick, 0.9);
+    g.fillRect(x0 - u, y0 - u, 3 * u, 3 * u).fillRect(x0 + fw - 2 * u, y0 - u, 3 * u, 3 * u).fillRect(x0 - u, y0 + fh - 2 * u, 3 * u, 3 * u).fillRect(x0 + fw - 2 * u, y0 + fh - 2 * u, 3 * u, 3 * u);
   }
 
   /**
