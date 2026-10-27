@@ -9,7 +9,8 @@ import type { Match } from '../engine/match';
 import { flawlessWin, koEndsMatch, styleOf } from '../audio/matchCalls';
 import type { World, WorldEventType } from '../engine/world';
 import { basicHitFx, color, fighterTrailColor, playRecipe, runOps, type FxContext } from '../fx/runner';
-import { basicOf } from '../fx/basicFx';
+import { BASIC_KINDS, basicOf } from '../fx/basicFx';
+import { hitboxActive } from '../engine/combat';
 import { predictLaunch } from '../engine/physics';
 import { settings } from '../settings';
 import type { Effects } from '../ui/Effects';
@@ -58,6 +59,35 @@ const GRUNT_GAP = { voxAttack: 2200, voxHurt: 1600, voxKo: 0, voxTaunt: 600 } as
 const HURT_DAMAGE = 14;
 /** Scratch for the KO guess on a hit (predictLaunch writes the path into it). */
 const LAUNCH_PATH: number[] = [];
+
+/**
+ * What a hit is made of (the hitbox's `fx`), drawn over the shared impact so a flame hit, a frost hit and a splash read apart:
+ * the tint of its sparks, the shaped bits it throws (embers rise, crystals and drops fall) and, for the elements with no bits,
+ * a drawn mark (a cut line, crackling arcs, wind curls, a puff of smoke).
+ */
+interface Element {
+  spark: number;
+  p?: string;
+  cols?: readonly number[];
+  n?: number;
+  grav?: number;
+  mark?: 'cut' | 'arc' | 'wind' | 'smoke';
+}
+const ELEMENTS: Record<string, Element> = {
+  fire: { spark: 0xffa040, p: 'ember', cols: [0xff6a20, 0xffb040, 0xfff0a0], n: 5, grav: -110 },
+  ice: { spark: 0xa8e6ff, p: 'crystal', cols: [0xbfeaff, 0xffffff], n: 5, grav: 220 },
+  water: { spark: 0x7ad4ff, p: 'drop', cols: [0x3ab8ff, 0xe6fbff], n: 6, grav: 340 },
+  crystal: { spark: 0xd8b4ff, p: 'shard', cols: [0xc898f6, 0xf0e2ff, 0x7a4ab8], n: 5, grav: 260 },
+  zap: { spark: 0xa8f4ff, mark: 'arc' },
+  shock: { spark: 0xa8f4ff, mark: 'arc' },
+  gust: { spark: 0xf0f6ff, mark: 'wind' },
+  slash: { spark: 0xfff6d8, mark: 'cut' },
+  pierce: { spark: 0xfff6d8, mark: 'cut' },
+  whip: { spark: 0xffd0f0, mark: 'cut' },
+  meteor: { spark: 0xffc060 },
+  blast: { spark: 0xffb04a, mark: 'smoke' },
+  burst: { spark: 0xffd46a, mark: 'smoke' },
+};
 
 export class WorldEventFx {
   /** Where each fighter was last struck (world space; NaN = never): the game-winning KO punches in there. */
@@ -164,7 +194,8 @@ export class WorldEventFx {
         this.moveFx(tag ?? '', f, x, y, mag);
         break;
       case 'projectile':
-        e.flash(x, y, 0.5, 0xfff3b0);
+        // a muzzle pop in the shooter's own colour
+        e.flash(x, y, 0.6, fighterTrailColor(f, this.host.world.tick));
         break;
       case 'projectileHit':
         if (mag > 0) {
@@ -259,6 +290,7 @@ export class WorldEventFx {
         }
         if (extra === 6) {
           // soaked: a couple of drops falling off
+          e.shaped(x + (Math.random() - 0.5) * f.hw * 1.2, y + 2, (Math.random() - 0.5) * 10, 10, 0.5, 0x6ac8ff, 'fx-p-drop', 3, 320, 0, false);
           e.burst(x, y + 4, 2, 22, 0x6ac8ff, 0.4, 2);
           break;
         }
@@ -273,8 +305,7 @@ export class WorldEventFx {
           e.burst(x, y - 6, 12, 50, 0xe8eef6, 0.6, 3);
           break;
         }
-        const colors = [0xff8a30, 0x8aa0ff, 0x9fe9ff, 0xffff60];
-        e.burst(x, y, 6, 40, colors[Math.max(0, Math.min(3, extra | 0))], 0.3, 2);
+        this.statusFx(extra | 0, f, x, y);
         break;
       }
       case 'tether':
@@ -355,14 +386,24 @@ export class WorldEventFx {
         e.burst(x, y + f.h * 0.5, 10, 60, 0xffd040, 0.4, 2);
         break;
       case 'jump':
-        e.dust(x, y, 4, 0);
+        // push-off: a soft puff of the floor's own dust out from both feet (wall, ledge and coyote jumps start in the air)
+        if (extra === 1) e.dust(x, y, 4, 0);
+        else if (this.onFloor(x, y)) {
+          e.kickDust(x - 3, y, 2, -1);
+          e.kickDust(x + 3, y, 2, 1);
+        }
         break;
       case 'doubleJump':
         if (playRecipe('doubleJump', this.fxContext(f, x, y, mag))) break; // a fighter's own flap / jump burst
         e.burst(x, y - f.h / 2, 8, 40, 0x9af3ff, 0.3, 2);
         break;
       case 'land':
-        if (mag > 3) e.dust(x, y, 6, 0);
+        // a real drop (not a step off a ledge) splashes dust out both ways, more the harder it lands
+        if (mag > 3) {
+          const n = 2 + Math.min(4, Math.round((mag - 3) * 0.6));
+          e.kickDust(x - 4, y, n, -1);
+          e.kickDust(x + 4, y, n, 1);
+        }
         break;
       case 'landBounce':
         e.dust(x, y, 10, 0);
@@ -378,18 +419,23 @@ export class WorldEventFx {
         this.host.rumble(f, 0.15 + dmg * 0.04 + tier * 0.1, 0.3 + dmg * 0.03, 60 + dmg * 8 + tier * 40);
         this.host.views()[f.id]?.hitFlash?.(tier);
         const hot = dmg > 12 || tier >= 2 ? 0xffffff : 0xfff3b0;
+        const el = ELEMENTS[this.hitFxOf(f, atk)];
         if (tier === 0) {
-          e.flash(x, y, 0.55 + Math.min(0.4, dmg * 0.06), 0xfff3b0);
-          e.burst(x, y, 5 + Math.min(4, dmg), 60 + mag * 0.3, 0xffe14a, 0.22, 2);
+          e.flash(x, y, 0.55 + Math.min(0.4, dmg * 0.06), el?.spark ?? 0xfff3b0);
+          e.burst(x, y, 5 + Math.min(4, dmg), 60 + mag * 0.3, el?.spark ?? 0xffe14a, 0.22, 2);
         } else {
-          e.flash(x, y, (tier === 3 ? 2.6 : tier === 2 ? 1.6 : 1.05) + Math.min(1.4, dmg * 0.06), hot);
-          e.burst(x, y, 10 + Math.min(16, dmg) + tier * 4, 80 + mag * 0.4, dmg > 12 ? 0xffffff : 0xffe14a, 0.3 + Math.min(0.3, dmg * 0.012), dmg > 12 ? 4 : 3);
+          // (the star always pops white-hot; an element's flash cools to its own colour instead of white)
+          e.flash(x, y, (tier === 3 ? 2.6 : tier === 2 ? 1.6 : 1.05) + Math.min(1.4, dmg * 0.06), el && tier < 3 ? el.spark : hot);
+          e.burst(x, y, 10 + Math.min(16, dmg) + tier * 4, 80 + mag * 0.4, dmg > 12 ? 0xffffff : (el?.spark ?? 0xffe14a), 0.3 + Math.min(0.3, dmg * 0.012), dmg > 12 ? 4 : 3);
+          // a heavy hit keeps its white core; its element shows in a second, tinted ring of sparks
+          if (dmg > 12 && el) e.burst(x, y, 6 + tier * 2, 60 + mag * 0.3, el.spark, 0.3, 2);
         }
         if (atk) basicHitFx(atk, e, this.host.world.tick, x, y);
+        this.elementHit(el, atk, x, y, dmg, tier, Math.atan2(f.vy, f.vx));
         this.host.shake(Math.min(tier === 3 ? 11 : 9, 1 + dmg * 0.3 + mag * 0.01 + tier));
         if (tier === 3) this.host.punch(settings.reduceMotion ? 0.02 : 0.085);
         else if (dmg >= 10) this.host.punch(Math.min(0.06, dmg * 0.0035));
-        this.impactLines(f, x, y, dmg, mag, tier, atk);
+        this.impactLines(f, x, y, dmg, mag, tier, atk, el?.spark ?? 0xffffff);
         if (dmg >= 14 || tier === 3) this.host.slow(0.55, tier === 3 ? 10 : 7);
         break;
       }
@@ -433,29 +479,56 @@ export class WorldEventFx {
         e.burst(x, y, 8, 60, 0x66d9ff, 0.25, 2);
         this.host.views()[f.id]?.shieldRipple(Math.min(1.5, 0.6 + extra * 0.05));
         break;
-      case 'shieldBreak':
+      case 'shieldBreak': {
+        // the bubble shatters: a cold flash, a ring where it stood and glassy shards flung out and falling
+        e.flash(x, y, 2.4, 0xbff4ff);
+        e.ring(x, y, 34, 0x8fe6ff, 0.4);
         e.burst(x, y, 30, 160, 0x66d9ff, 0.6, 4);
+        const n = Math.max(2, Math.round(10 * e.density));
+        for (let i = 0; i < n; i++) {
+          const a = (i / n) * Math.PI * 2 + Math.random() * 0.4;
+          const v = 90 + Math.random() * 70;
+          e.shaped(x + Math.cos(a) * 12, y + Math.sin(a) * 14, Math.cos(a) * v, Math.sin(a) * v - 40, 0.7 + Math.random() * 0.3, i % 3 ? 0x9ff0ff : 0xffffff, 'fx-p-shard', 5, 300, 10 * (i % 2 ? 1 : -1), true, a);
+        }
         this.host.shake(6);
         break;
+      }
       case 'bounce':
         e.burst(x, y, 10, 70, 0xff9a4a, 0.3, 3);
         this.host.shake(2.5);
         break;
       case 'tech':
+        // a clean recovery off the floor or wall: a crisp ring and glint over the burst
+        e.flash(x, y, 0.9, 0xbff4ff);
+        e.ring(x, y, 18, 0xffffff, 0.25);
         e.burst(x, y, 12, 80, 0x66d9ff, 0.35, 3);
         break;
       case 'ledgeGrab':
         e.burst(x, y - f.h, 6, 40, 0xffffff, 0.25, 2);
         break;
-      case 'grab':
-        e.burst(x, y, 8, 50, 0xffee55, 0.25, 2);
+      case 'grab': {
+        // the catch: a tight ring snapping shut on the victim in the grabber's colour
+        const by = f.grabbedBy >= 0 ? this.host.world.fighters[f.grabbedBy] : undefined;
+        const gc = by ? fighterTrailColor(by, this.host.world.tick) : 0xffee55;
+        e.flash(x, y, 0.8, 0xffffff);
+        e.ring(x, y, 14, gc, 0.2);
+        e.burst(x, y, 8, 50, gc, 0.25, 2);
         break;
-      case 'throw':
+      }
+      case 'throw': {
+        // the release: a white pop with a ring and sparks in the thrower's colour, and the throw's element on top
+        const by = f.lastHitBy >= 0 ? this.host.world.fighters[f.lastHitBy] : undefined;
+        const tc = by ? fighterTrailColor(by, this.host.world.tick) : 0xffe14a;
         e.flash(x, y, 2, 0xffffff);
-        e.burst(x, y, 16, 100, 0xffffff, 0.35, 3);
+        e.ring(x, y, 24, tc, 0.3);
+        e.burst(x, y, 10, 100, 0xffffff, 0.35, 3);
+        e.burst(x, y, 8, 80, tc, 0.35, 2);
+        this.elementHit(ELEMENTS[f.lastHitFx], by, x, y, extra, 1, Math.atan2(f.vy, f.vx));
         this.host.shake(4);
         break;
+      }
       case 'pummel':
+        e.flash(x, y, 0.5, 0xfff3b0);
         e.burst(x, y, 4, 40, 0xffee55, 0.2, 2);
         break;
       case 'trade':
@@ -571,7 +644,7 @@ export class WorldEventFx {
    * Directional impact lines: sparks thrown along the victim's launch direction (longer for stronger launches), a shockwave ring
    * and angled debris for strong hits (more, and lingering, for a KO), and ground debris when the victim is standing.
    */
-  private impactLines(f: Fighter, x: number, y: number, dmg: number, kb: number, tier: number, atk: Fighter | undefined): void {
+  private impactLines(f: Fighter, x: number, y: number, dmg: number, kb: number, tier: number, atk: Fighter | undefined, ringCol: number): void {
     const e = this.host.effects;
     const sp = Math.hypot(f.vx, f.vy);
     const ang = Math.atan2(f.vy, f.vx);
@@ -583,7 +656,7 @@ export class WorldEventFx {
       e.trail(x, y, x + Math.cos(a) * len, y + Math.sin(a) * len, colour);
     }
     if (tier >= 2) {
-      e.ring(x, y, tier === 3 ? 34 + dmg * 1.4 : 18 + dmg * 1.2, 0xffffff, tier === 3 ? 0.32 : 0.22);
+      e.ring(x, y, tier === 3 ? 34 + dmg * 1.4 : 18 + dmg * 1.2, tier === 3 ? 0xffffff : ringCol, tier === 3 ? 0.32 : 0.22);
       if (tier === 3) e.ring(x, y, 20 + dmg, atk ? fighterTrailColor(atk, this.host.world.tick) : 0xffe14a, 0.4);
       // debris flung along the launch: chunks for a strong hit, a longer-lived spray for a KO
       const tint = atk ? basicOf(atk)?.impact : undefined;
@@ -596,11 +669,122 @@ export class WorldEventFx {
         const c = cols && atk ? color(cols[i % cols.length], { fx: e, shake: () => {}, f: atk, tick: this.host.world.tick }) : i % 3 ? 0xd8d0c8 : 0xffffff;
         e.shaped(x, y, Math.cos(a) * v, Math.sin(a) * v, tier === 3 ? 0.9 + Math.random() * 0.6 : 0.45, c, `fx-p-${look}`, 4, 220, 9 * (Math.random() < 0.5 ? -1 : 1), false, Math.random() * 6.3);
       }
-    } else if (dmg >= 10) e.ring(x, y, 18 + dmg * 1.2, 0xffffff, 0.22);
+    } else if (dmg >= 10) e.ring(x, y, 18 + dmg * 1.2, ringCol, 0.22);
     if (f.grounded && dmg >= 6) e.dust(f.x, f.y, 3 + Math.round(dmg / 4), Math.sign(f.vx));
   }
 
-  /** Visuals for move events tagged `fx`: the fighter's own recipe, else the shared library (see src/fx). */
+  /**
+   * The `fx` of the hitbox that just landed on `f`. (The victim's lastHitFx is only written after the hit event, so it still
+   * names the previous hit here: the move the hit is credited to is looked up instead: its live hitbox, else its first one with
+   * an fx, else the hit of the projectile it fires.)
+   */
+  private hitFxOf(f: Fighter, atk: Fighter | undefined): string {
+    const mv = atk?.data.moves[f.lastHitMove];
+    if (!atk || !mv) return '';
+    const hbs = mv.hitboxes;
+    if (hbs) {
+      if (atk.move === mv) for (let i = 0; i < hbs.length; i++) if (hbs[i].fx && hitboxActive(atk, mv, hbs[i])) return hbs[i].fx!;
+      for (let i = 0; i < hbs.length; i++) if (hbs[i].fx) return hbs[i].fx!;
+    }
+    const evs = mv.events;
+    if (evs) for (let i = 0; i < evs.length; i++) {
+      const ev = evs[i];
+      if (ev.action === 'projectile') return atk.data.projectiles?.[ev.id]?.hit?.fx ?? '';
+    }
+    return '';
+  }
+
+  /**
+   * The element layer of a hit (see ELEMENTS): its shaped bits, or its drawn mark. A special, throw or projectile with no element
+   * bits throws a few of the attacker's own impact bits instead (the basic moves already do, through their `hit` emitters).
+   */
+  private elementHit(el: Element | undefined, atk: Fighter | undefined, x: number, y: number, dmg: number, tier: number, ang: number): void {
+    const e = this.host.effects;
+    const k = 1 + tier * 0.35 + Math.min(0.6, dmg * 0.03);
+    let look = el?.p;
+    let cols = el?.cols;
+    let grav = el?.grav ?? 200;
+    const basicMove = !!atk && atk.state === 'attack' && !!atk.move && BASIC_KINDS.has(atk.move.kind);
+    if (!look && !el?.mark && atk && !basicMove) {
+      const imp = basicOf(atk)?.impact;
+      if (imp?.p && imp.p !== 'debris') {
+        look = imp.p;
+        grav = imp.p === 'ember' || imp.p === 'wisp' ? -90 : 220;
+      }
+    }
+    if (look) {
+      const n = Math.max(1, Math.round((el?.n ?? 3) * k * e.density));
+      const tick = this.host.world.tick;
+      for (let i = 0; i < n; i++) {
+        const a = ang + (Math.random() - 0.5) * 2.4;
+        const v = 50 + Math.random() * 70 + tier * 20;
+        let c = 0xffffff;
+        if (cols) c = cols[i % cols.length];
+        else if (atk) {
+          const ic = basicOf(atk)?.impact?.colors;
+          c = ic && ic.length ? color(ic[i % ic.length], { fx: e, shake: () => {}, f: atk, tick }) : fighterTrailColor(atk, tick);
+        }
+        e.shaped(x + (Math.random() - 0.5) * 6, y + (Math.random() - 0.5) * 6, Math.cos(a) * v, Math.sin(a) * v - 20, 0.4 + Math.random() * 0.25, c, `fx-p-${look}`, 4, grav, 8 * (Math.random() < 0.5 ? -1 : 1), true, Math.random() * 6.3);
+      }
+    }
+    switch (el?.mark) {
+      case 'cut': {
+        // a clean cut across the hit: a long white slash with a thinner echo, crossing the launch line
+        const a = ang + 1.15;
+        const L = 14 + Math.min(14, dmg * 1.1) + tier * 3;
+        const cx = Math.cos(a) * L;
+        const cy = Math.sin(a) * L;
+        e.trail(x - cx, y - cy, x + cx, y + cy, 0xffffff);
+        if (tier >= 1) e.trail(x - cx * 0.7 + 3, y - cy * 0.7 - 3, x + cx * 0.7 + 3, y + cy * 0.7 - 3, el.spark);
+        break;
+      }
+      case 'arc': {
+        // crackling arcs: short jagged forks jumping off the body
+        const forks = tier >= 2 ? 3 : 2;
+        for (let i = 0; i < forks; i++) {
+          let px = x;
+          let py = y;
+          let a = Math.random() * Math.PI * 2;
+          for (let j = 0; j < 3; j++) {
+            a += (Math.random() - 0.5) * 1.6;
+            const l = 6 + Math.random() * 6;
+            const nx = px + Math.cos(a) * l;
+            const ny = py + Math.sin(a) * l;
+            e.trail(px, py, nx, ny, j === 0 ? 0xffffff : el.spark);
+            px = nx;
+            py = ny;
+          }
+        }
+        break;
+      }
+      case 'wind': {
+        // wind curls: two short arcs swept along the launch, as chained segments
+        for (let side = -1; side <= 1; side += 2) {
+          let a = ang + side * 1.2;
+          let px = x + Math.cos(ang + side * 1.57) * 6;
+          let py = y + Math.sin(ang + side * 1.57) * 6;
+          for (let j = 0; j < 3; j++) {
+            a -= side * 0.55;
+            const nx = px + Math.cos(a) * 8;
+            const ny = py + Math.sin(a) * 8;
+            e.trail(px, py, nx, ny, j === 2 ? 0xffffff : el.spark);
+            px = nx;
+            py = ny;
+          }
+        }
+        break;
+      }
+      case 'smoke': {
+        // a blast leaves a puff of smoke rolling up off the hit
+        const n = Math.max(1, Math.round((2 + tier) * e.density));
+        for (let i = 0; i < n; i++) e.emit(x + (Math.random() - 0.5) * 10, y + (Math.random() - 0.5) * 8, (Math.random() - 0.5) * 24, -10 - Math.random() * 14, 0.55 + Math.random() * 0.25, i % 2 ? 0x5a5662 : 0x7a7480, 7, -12, false);
+        break;
+      }
+      default:
+        break;
+    }
+  }
+
   /** A footfall on the stage's own surface (metal, stone, wood, snow...) under a sprint start or a skid. */
   private surfaceStep(f: Fighter, x: number, k: number): void {
     const c = footstepFor(this.host.world.stage.id, 8, f.data.stats.weight / 100);
@@ -611,6 +795,67 @@ export class WorldEventFx {
     return { fx: this.host.effects, shake: (n) => this.host.shake(n), punch: (n) => this.host.punch(n), f, tick: this.host.world.tick, x, y, mag, extra };
   }
 
+  /** A platform top right under (x, y): dust belongs on a floor, not in mid-air. */
+  private onFloor(x: number, y: number): boolean {
+    const ps = this.host.world.stage.platforms;
+    for (let i = 0; i < ps.length; i++) {
+      const p = ps[i];
+      if (Math.abs(p.y - y) < 3 && x >= p.x - 2 && x <= p.x + p.w + 2) return true;
+    }
+    return false;
+  }
+
+  /** Status pops (extra = 0 burn, 1 slow, 2 freeze, 3 stun): burn ticks repeat every 12 frames, so they stay small. */
+  private statusFx(kind: number, f: Fighter, x: number, y: number): void {
+    const e = this.host.effects;
+    const hh = f.h * f.sizeMul;
+    const q = e.density;
+    switch (kind) {
+      case 0: {
+        // burning: flames licking up off the body, embers rising
+        const n = Math.max(1, Math.round(3 * q));
+        for (let i = 0; i < n; i++) {
+          const px = x + (Math.random() - 0.5) * f.hw * 1.6;
+          const py = y + (Math.random() - 0.2) * hh * 0.5;
+          e.shaped(px, py, (Math.random() - 0.5) * 16, -30 - Math.random() * 20, 0.4 + Math.random() * 0.2, i % 2 ? 0xffb040 : 0xff6a20, 'fx-p-ember', 4, -60, 3, true);
+        }
+        e.burst(x, y, 4, 30, 0xff8a30, 0.3, 2);
+        break;
+      }
+      case 1: {
+        // slowed: heavy violet motes sinking off the body
+        e.ring(x, y, 14, 0x8aa0ff, 0.3);
+        const n = Math.max(1, Math.round(5 * q));
+        for (let i = 0; i < n; i++) e.emit(x + (Math.random() - 0.5) * f.hw * 2, y + (Math.random() - 0.5) * hh * 0.6, 0, 14 + Math.random() * 10, 0.5, i % 2 ? 0x8aa0ff : 0xc8d0ff, 2, 20, true);
+        break;
+      }
+      case 2: {
+        // frozen solid: a cold flash, a ring and frost crystals bursting off
+        e.flash(x, y, 1.1, 0xbfeaff);
+        e.ring(x, y, 20, 0x9fe9ff, 0.3);
+        const n = Math.max(1, Math.round(6 * q));
+        for (let i = 0; i < n; i++) {
+          const a = (i / n) * Math.PI * 2;
+          e.shaped(x, y, Math.cos(a) * 60, Math.sin(a) * 60 - 20, 0.45, i % 2 ? 0xbfeaff : 0xffffff, 'fx-p-crystal', 4, 180, 6, true, a);
+        }
+        break;
+      }
+      case 3: {
+        // stunned: stars circling over the head
+        const hy = y - hh * 0.55;
+        for (let i = 0; i < 4; i++) {
+          const a = (i / 4) * Math.PI * 2;
+          e.emit(x + Math.cos(a) * 10, hy + Math.sin(a) * 3, -Math.sin(a) * 36, Math.cos(a) * 8, 0.5, i % 2 ? 0xffff60 : 0xffffff, 3, 0, true);
+        }
+        e.flash(x, hy, 0.6, 0xffff80);
+        break;
+      }
+      default:
+        e.burst(x, y, 6, 40, 0xffffff, 0.3, 2);
+    }
+  }
+
+  /** Visuals for move events tagged `fx`: the fighter's own recipe, else the shared library (see src/fx). */
   private moveFx(tag: string, f: Fighter, x: number, y: number, dir: number): void {
     playRecipe(tag, this.fxContext(f, x, y, dir));
   }

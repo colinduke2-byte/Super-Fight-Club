@@ -82,6 +82,15 @@ export class KoBlast {
     this.blasts.push({ x: ex, y: ey, dx: -dx, dy: -dy, color, hot: lift(color, 0.55), t: 0, rays, sparks });
   }
 
+  /** One layer of the column: a cone from just behind the edge point out along the blast (a method, not a per-frame closure). */
+  private cone(b: Blast, back: number, len: number, wid: number, col: number, a: number, soft: number): void {
+    if (a <= 0.004) return;
+    const px = -b.dy;
+    const py = b.dx;
+    this.g.fillStyle(col, a * soft);
+    this.g.fillTriangle(b.x + px * wid - b.dx * back, b.y + py * wid - b.dy * back, b.x - px * wid - b.dx * back, b.y - py * wid - b.dy * back, b.x + b.dx * len, b.y + b.dy * len);
+  }
+
   update(dt: number, w: number, h: number): void {
     const g = this.g;
     const fl = this.flash;
@@ -94,8 +103,6 @@ export class KoBlast {
       const t = b.t / LIFE;
       if (t >= 1) continue;
       const ang = Math.atan2(b.dy, b.dx);
-      const px = -b.dy;
-      const py = b.dx;
       // a frame of light over the whole screen as it goes off (heavily damped under REDUCE FLASHES)
       if (b.t < 0.16) {
         const k = 1 - b.t / 0.16;
@@ -108,16 +115,11 @@ export class KoBlast {
       const L = size * 1.05 * grow;
       const W = size * 0.26 * (1 - Math.min(1, t) * 0.55) * flick;
       const back = size * 0.04;
-      const cone = (len: number, wid: number, col: number, a: number): void => {
-        if (a <= 0.004) return;
-        g.fillStyle(col, a * soft);
-        g.fillTriangle(b.x + px * wid - b.dx * back, b.y + py * wid - b.dy * back, b.x - px * wid - b.dx * back, b.y - py * wid - b.dy * back, b.x + b.dx * len, b.y + b.dy * len);
-      };
       // the column: a wide soft shell, the coloured body, a hot inner body and a white-hot core, each a bit longer-lived inward
-      cone(L * 1.05, W * 1.5, b.color, 0.2 * burst);
-      cone(L * 0.95, W, b.color, 0.45 * fade);
-      cone(L * 0.75, W * 0.6, b.hot, 0.55 * fade);
-      cone(L * 0.55, W * 0.26, 0xffffff, (0.45 + 0.4 * burst) * fade);
+      this.cone(b, back, L * 1.05, W * 1.5, b.color, 0.2 * burst, soft);
+      this.cone(b, back, L * 0.95, W, b.color, 0.45 * fade, soft);
+      this.cone(b, back, L * 0.75, W * 0.6, b.hot, 0.55 * fade, soft);
+      this.cone(b, back, L * 0.55, W * 0.26, 0xffffff, (0.45 + 0.4 * burst) * fade, soft);
       // the fan of jagged rays: thin spikes of uneven length, alternating white and colour
       for (let i = 0; i < RAYS; i++) {
         const u = i / (RAYS - 1) - 0.5;
