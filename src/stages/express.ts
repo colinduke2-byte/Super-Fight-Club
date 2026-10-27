@@ -5,6 +5,8 @@ export const EXPRESS_ROUTE = 3600;
 const LEG = EXPRESS_ROUTE / 3;
 /** Frames a layout change takes (the platforms ease from one leg's layout into the next). */
 const SHIFT = 150;
+/** Where the viaduct carriage brakes to before it drops away: level with the roof and up against its edge (a rider walks off it). */
+const DOCK = { dx: -27, dy: 20 };
 
 /** A route key list: hold each leg's offset, ease into the next over the last SHIFT frames of the leg. */
 function legs(...o: [number, number][]): { t: number; dx: number; dy: number }[] {
@@ -22,7 +24,8 @@ function legs(...o: [number, number][]): { t: number; dx: number; dy: number }[]
  * backdrop):
  *  - OPEN LINE: two roof pods low on either side.
  *  - VIADUCT: the pods rise high and a parallel carriage runs alongside on the right (a wide pass-through roof). When the
- *    viaduct ends it drops away below: ride it down and you go with it.
+ *    viaduct ends it brakes, sinks level with the roof and closes up against it, holds there for two seconds (walk across),
+ *    then drops away below: stay on it past the hold and you go down with it.
  *  - STATION: the pods sink low and wide and the station canopy slides overhead from the right, then on past to the left.
  * Fair by design: every moving piece is pass-through (drop off it at any time) and every change is slow.
  */
@@ -33,7 +36,27 @@ export const expressStage: StageData = {
     { x: -195, y: 0, w: 390, h: 56, kind: 'solid', ledges: true },
     { x: -150, y: -70, w: 70, h: 6, kind: 'pass', path: { period: EXPRESS_ROUTE, keys: legs([0, 0], [24, -54], [-22, 22]) } },
     { x: 80, y: -70, w: 70, h: 6, kind: 'pass', path: { period: EXPRESS_ROUTE, keys: legs([0, 0], [-24, -54], [22, 22]) } },
-    { x: 222, y: -20, w: 150, h: 8, kind: 'pass', path: { period: EXPRESS_ROUTE, keys: legs([0, 400], [0, 0], [0, 400]) } },
+    // the parallel carriage: rises alongside for the viaduct; at its end it brakes, sinks level with the roof and closes up
+    // against its edge (a rider just walks across), holds there for two seconds, then drops away below
+    {
+      x: 222,
+      y: -20,
+      w: 150,
+      h: 8,
+      kind: 'pass',
+      path: {
+        period: EXPRESS_ROUTE,
+        keys: [
+          { t: 0, dx: 0, dy: 400 },
+          { t: LEG - SHIFT, dx: 0, dy: 400 },
+          { t: LEG, dx: 0, dy: 0 },
+          { t: 2 * LEG - SHIFT - 60, dx: 0, dy: 0 },
+          { t: 2 * LEG - SHIFT, ...DOCK },
+          { t: 2 * LEG - 30, ...DOCK },
+          { t: 2 * LEG + 60, dx: DOCK.dx, dy: 400 },
+        ],
+      },
+    },
     {
       x: -110,
       y: -150,

@@ -15,7 +15,7 @@ const avalanche = (fromLeft: boolean, offset: number): HazardDef => ({
   damage: 9,
   base: 48,
   scaling: 0.45,
-  angle: 32,
+  angle: 44,
 });
 
 /**

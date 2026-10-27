@@ -17,8 +17,8 @@ export const wreckStage: StageData = {
     { x: -318, y: 14, w: 64, h: 6, kind: 'pass', move: { axis: 'y', amplitude: 10, period: 300 } },
   ],
   hazards: [
-    { kind: 'geyser', style: 'water', x: -112, y: 0, w: 34, h: 120, period: 720, offset: 0, warn: 90, active: 30, damage: 9, base: 50, scaling: 0.9, angle: 84, soak: 150 },
-    { kind: 'geyser', style: 'water', x: 36, y: 0, w: 34, h: 120, period: 720, offset: 360, warn: 90, active: 30, damage: 9, base: 50, scaling: 0.9, angle: 96, soak: 150 },
+    { kind: 'geyser', style: 'water', x: -112, y: 0, w: 34, h: 120, period: 720, offset: 0, warn: 90, active: 30, damage: 9, base: 50, scaling: 0.75, angle: 84, soak: 150 },
+    { kind: 'geyser', style: 'water', x: 36, y: 0, w: 34, h: 120, period: 720, offset: 360, warn: 90, active: 30, damage: 9, base: 50, scaling: 0.75, angle: 96, soak: 150 },
   ],
   blast: { left: -600, right: 580, top: -470, bottom: 360 },
   spawns: [

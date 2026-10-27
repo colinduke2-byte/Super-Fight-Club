@@ -10,12 +10,12 @@ export const harbourStage: StageData = {
   id: 'harbour',
   name: 'Harbour Pier',
   platforms: [
-    { x: -210, y: 0, w: 900, h: 56, kind: 'solid', ledges: true },
+    { x: -210, y: 0, w: 890, h: 56, kind: 'solid', ledges: true },
     { x: -168, y: -78, w: 72, h: 6, kind: 'pass' },
     { x: 34, y: -98, w: 84, h: 6, kind: 'pass' },
     { x: 236, y: -96, w: 72, h: 6, kind: 'pass', move: { axis: 'y', amplitude: 34, period: 540 } },
   ],
-  blast: { left: -580, right: 560, top: -460, bottom: 340 },
+  blast: { left: -580, right: 680, top: -460, bottom: 340 },
   walkOff: { right: true },
   spawns: [
     { x: -130, y: -4 },

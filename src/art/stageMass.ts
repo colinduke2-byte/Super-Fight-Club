@@ -473,6 +473,8 @@ export function stageMassPixels(themeId: string | undefined, w: number, h: numbe
 
   // ---- 4. the walking surface -------------------------------------------------------------------------------------
   cap(b, T, S, A, A2, Y0, CAP, W, rnd);
+  // Harbour Pier: the pier's end is the walk-off's blast line, so the last stretch of deck is painted as a dock edge
+  if (themeId === 'harbour' && !seated) dockEnd(b, A, X0 + BW, Y0);
 
   // ---- 5. underside keel -------------------------------------------------------------------------------------------
   if (!seated) underside(b, T, S, A, A2, X0, bodyBot, BW, UNDER, rnd, n1);
@@ -1829,6 +1831,38 @@ function cap(b: Buf, T: MassTheme, S: Ramp, A: Ramp, A2: Ramp, y0: number, ch: n
       for (let k = 0; k < 5; k++) b.set(x + k, y0 + 1, A[4]);
     }
   }
+}
+
+/**
+ * Harbour Pier's dock edge, at the pier's right end (`x1`): the deck's last stretch painted in yellow and black hazard
+ * chevrons with a white edge line, and a squat mooring bollard carrying an amber marker lamp. It runs up to the walk-off's
+ * blast line (the pier ends exactly there), so the deadly end of the pier reads at a glance.
+ */
+function dockEnd(b: Buf, A: Ramp, x1: number, y0: number): void {
+  const STRIPE = 96;
+  const yel: Ramp = ['#5a4008', '#a07810', '#e0b020', '#ffd84a', '#fff0a0'].map(hex);
+  const blk = hex('#16130e');
+  for (let x = x1 - STRIPE; x < x1; x++) {
+    const fade = x - (x1 - STRIPE); // the chevrons start with a white edge line, then run to the end
+    for (let ly = 0; ly < 8; ly++) {
+      let col: RGB;
+      if (fade < 2) col = ly === 0 ? hex('#ffffff') : hex('#d8d4c8');
+      else if (fade < 5) col = blk;
+      else col = ((x + ly) >> 3) % 2 === 0 ? (ly === 0 ? yel[4] : ly < 3 ? yel[3] : yel[2]) : ly === 0 ? hex('#3a3428') : blk;
+      if (ly >= 6 && col !== blk) col = mix(col, blk, 0.35); // the planks' lower edge in shadow
+      b.set(x, y0 + ly, col);
+    }
+  }
+  // a mooring bollard just inside the end, its cap an amber marker lamp
+  const bx = x1 - 22;
+  for (let k = 1; k <= 6; k++) {
+    const half = k === 6 ? 2 : k > 4 ? 3 : 4;
+    for (let d = -half; d < half; d++) b.set(bx + d, y0 - k, d === -half ? hex('#5a626a') : d >= half - 1 ? hex('#121418') : k === 1 ? hex('#22262c') : hex('#30363e'));
+  }
+  b.set(bx - 1, y0 - 7, A[3], true);
+  b.set(bx, y0 - 7, A[4], true);
+  b.set(bx - 1, y0 - 8, A[4], true);
+  b.set(bx, y0 - 8, A[3], true);
 }
 
 function underside(b: Buf, T: MassTheme, S: Ramp, A: Ramp, A2: Ramp, x0: number, y0: number, bw: number, uh: number, rnd: () => number, n: (x: number, y: number) => number): void {

@@ -30,6 +30,26 @@ export const DEFAULT_CAMERA: Omit<CameraConfig, 'bounds'> = {
   zoomRate: 0.08,
 };
 
+/** The furthest the camera ever zooms out on any stage (visible world height): fighters stay readable even on a phone. */
+export const WIDEST_VISIBLE_H = 680;
+
+/**
+ * How far out the camera may zoom on a stage (visible world height, at 16:9). The default suits the normal stages; a wide
+ * one (Skyhold's outer islands) gets a little more, so two fighters on opposite islands can share the frame, capped at
+ * WIDEST_VISIBLE_H. Measured over the platforms inside the play area (a walk-off's ground runs on past the blast zone).
+ */
+export function stageMaxVisibleH(platforms: readonly { x: number; w: number }[], blast: { left: number; right: number }): number {
+  let lo = Infinity;
+  let hi = -Infinity;
+  for (const p of platforms) {
+    lo = Math.min(lo, Math.max(p.x, blast.left + 200));
+    hi = Math.max(hi, Math.min(p.x + p.w, blast.right - 200));
+  }
+  if (!(hi > lo)) return DEFAULT_CAMERA.maxVisibleH;
+  const need = ((hi - lo + DEFAULT_CAMERA.padX * 2) * 9) / 16;
+  return Math.round(Math.max(DEFAULT_CAMERA.maxVisibleH, Math.min(WIDEST_VISIBLE_H, need)));
+}
+
 /**
  * Multi-target camera. Frames every target with padding, zooms to fit (within limits), and is
  * clamped to the bounds. Stepped at the sim rate; the renderer interpolates prev -> current.

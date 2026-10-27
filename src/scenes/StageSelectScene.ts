@@ -61,6 +61,22 @@ export function blurbFromData(stage: StageData): string {
   return (stage.blurb ?? '').toUpperCase().replace(/\b(NO|ONE|TWO|THREE|FOUR|FIVE|SIX|SEVEN|EIGHT|NINE|TEN|\d+) PASS-THROUGH PLATFORMS?\b/, `${NUMBER_WORDS[n] ?? n} PASS-THROUGH PLATFORM${n === 1 ? '' : 'S'}`);
 }
 
+/** A stage's size class from its blast zones' width (Skyhold is the one large stage). */
+export function stageSize(stage: StageData): 'LARGE' | 'MEDIUM' | 'SMALL' {
+  const bw = stage.blast.right - stage.blast.left;
+  return bw > 1350 ? 'LARGE' : bw > 1150 ? 'MEDIUM' : 'SMALL';
+}
+
+/** A stage's quick tags (the chips on its preview card), read from the stage data: what makes it play differently. */
+export function stageTags(stage: StageData): { label: string; color: number }[] {
+  const out: { label: string; color: number }[] = [];
+  if (stage.hazards?.length) out.push({ label: 'HAZARDS', color: COLORS.warn });
+  if (stage.walkOff) out.push({ label: 'WALK-OFF', color: COLORS.bad });
+  if (stageSize(stage) === 'LARGE') out.push({ label: 'LARGE', color: COLORS.good });
+  if (stage.phases?.length || stage.platforms.some((p) => p.move || p.path)) out.push({ label: 'MOVING', color: COLORS.accent });
+  return out;
+}
+
 /** The session lineup's fighters in their (bumped) palettes, written back to the session so the match uses the same ones. */
 function outfitWants(): PaletteWant[] {
   const players = session.players;
@@ -86,6 +102,8 @@ export class StageSelectScene extends MenuScene {
   private tagChars = 48;
   private blurbK = 1;
   private preview!: Phaser.GameObjects.Graphics;
+  /** The quick-tag chips on the preview card (HAZARDS / WALK-OFF / LARGE / MOVING), one text each. */
+  private chips: Phaser.GameObjects.BitmapText[] = [];
   private thumb!: Phaser.GameObjects.Image;
   private area = { x: 0, y: 0, w: 0, h: 0 };
   /** Backdrop theme currently shown behind the menu. */
@@ -158,6 +176,7 @@ export class StageSelectScene extends MenuScene {
     this.thumb = this.add.image(0, 0, '__WHITE').setOrigin(0, 0).setVisible(false);
     this.preview = this.add.graphics();
     this.ui.add([this.thumb, this.preview]);
+    this.chips = [0, 1, 2, 3].map(() => text(this, this.ui, '', COLORS.text).setOrigin(0, 0).setVisible(false));
     this.blurb = text(this, this.ui, '', COLORS.text).setOrigin(0, 0).setLineSpacing(3);
     this.tags = text(this, this.ui, '', COLORS.accent).setOrigin(0, 0);
     this.hint = text(this, this.ui, footerHint(this.footer), COLORS.dim).setOrigin(0.5);
@@ -259,11 +278,11 @@ export class StageSelectScene extends MenuScene {
       g.fillStyle(0x0b0a24, 0.85).fillRect(a.x, a.y, a.w, a.h);
     }
     g.lineStyle(3, COLORS.title, 1).strokeRect(a.x - 2, a.y - 2, a.w + 4, a.h + 4);
+    this.drawChips(g, stage);
     const pool = session.rules.stagePool?.length ? STAGE_LIST.filter((st) => session.rules.stagePool!.includes(st.id)).length : 0;
     const blurb = stage ? blurbFromData(stage) : pool ? `A RANDOM STAGE FROM YOUR POOL OF ${pool}.` : 'A RANDOM STAGE FROM THE LIST.';
     if (stage) {
-      const bw0 = stage.blast.right - stage.blast.left;
-      const size = bw0 > 1500 ? 'LARGE' : bw0 > 1150 ? 'MEDIUM' : 'SMALL';
+      const size = stageSize(stage);
       const pc = platformCounts(stage);
       const tags = [`FORM: ${FORM_NAMES[stage.form ?? 'normal']}`, `SIZE: ${size}`, `GROUND: ${pc.solid}`, `PASS-THROUGH: ${pc.pass}`];
       if (pc.moving) tags.push(`MOVING: ${pc.moving}`);
@@ -305,6 +324,37 @@ export class StageSelectScene extends MenuScene {
       // RANDOM: question mark card
       g.fillStyle(0x4a4578, 1).fillRect(a.x + a.w / 2 - 6, a.y + a.h / 2 - 20, 12, 40);
     }
+  }
+
+  /**
+   * The quick tags as small chips along the top of the preview card: a dark plate with a border and text in the tag's
+   * colour, wrapping to a second row on a narrow card (never past its edge).
+   */
+  private drawChips(g: Phaser.GameObjects.Graphics, stage: StageData | undefined): void {
+    const tags = stage ? stageTags(stage) : [];
+    const a = this.area;
+    const u = this.u;
+    const k = Math.max(0.75, Math.min(u, a.w / 260));
+    const pad = Math.round(3 * k);
+    let x = a.x + 4 * u;
+    let y = a.y + 4 * u;
+    this.chips.forEach((c, i) => {
+      const t = tags[i];
+      c.setVisible(!!t);
+      if (!t) return;
+      if (c.text !== t.label) c.setText(t.label);
+      c.setScale(k).setTint(t.color);
+      const w = c.displayWidth + pad * 2;
+      const h = c.displayHeight + pad * 2;
+      if (x + w > a.x + a.w - 4 * u && x > a.x + 4 * u) {
+        x = a.x + 4 * u;
+        y += h + 3 * u;
+      }
+      g.fillStyle(0x0b0a24, 0.88).fillRect(x, y, w, h);
+      g.lineStyle(Math.max(1, Math.round(k)), t.color, 1).strokeRect(x, y, w, h);
+      c.setPosition(Math.round(x + pad), Math.round(y + pad));
+      x += w + 3 * u;
+    });
   }
 
   /** Word-wrap to the card width (fixed-width pixel font, so a character count is enough). */

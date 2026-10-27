@@ -1,5 +1,5 @@
 import Phaser from 'phaser';
-import { DEFAULT_CAMERA, MultiTargetCamera, type CamPoint } from '../../engine/camera';
+import { DEFAULT_CAMERA, MultiTargetCamera, stageMaxVisibleH, type CamPoint } from '../../engine/camera';
 import type { Fighter } from '../../engine/fighter';
 import type { MatchScene } from '../MatchScene';
 import { stagePhase } from '../../stages/express';
@@ -34,7 +34,10 @@ export class MatchCamera {
 
   constructor(private readonly s: MatchScene) {
     const bz = s.runner.stage.blast;
-    this.cam.cfg = { ...DEFAULT_CAMERA, bounds: { x: bz.left, y: bz.top, w: bz.right - bz.left, h: bz.bottom - bz.top } };
+    const st = s.runner.stage;
+    // a wide stage may zoom out a little further (still capped, so the fighters stay readable)
+    const maxVisibleH = s.runner.launch ? DEFAULT_CAMERA.maxVisibleH : stageMaxVisibleH(st.platforms, bz);
+    this.cam.cfg = { ...DEFAULT_CAMERA, maxVisibleH, bounds: { x: bz.left, y: bz.top, w: bz.right - bz.left, h: bz.bottom - bz.top } };
     // the opening shot shows the whole stage, so high platforms are not cut off before anyone has moved (not in the Launch
     // Contest, whose runway runs far off to the side, or Target Smash, which frames its targets)
     if (!s.runner.launch && !s.world.targets.length) {

@@ -2,7 +2,7 @@ import type { StageData } from '../engine/types';
 
 /**
  * Stormspire: a narrow tower top in a thunderstorm. Two drifting cloud platforms and a high perch, and lightning that
- * strikes the tower top (left then right, telegraphed for 1.3 s). Lightning hurts and throws you up but never KOs outright.
+ * strikes the tower top (left then right, telegraphed for 1.5 s). Lightning hurts and throws you up but never KOs outright.
  */
 export const stormStage: StageData = {
   id: 'storm',
@@ -16,10 +16,10 @@ export const stormStage: StageData = {
     { x: -46, y: -136, w: 92, h: 6, kind: 'pass', move: { axis: 'y', amplitude: 22, period: 380 } },
   ],
   hazards: [
-    { kind: 'bolt', x: -92, y: -380, w: 40, h: 380, period: 560, offset: 0, warn: 80, active: 14, damage: 11, base: 48, scaling: 0.85, angle: 84 },
-    { kind: 'bolt', x: 92, y: -380, w: 40, h: 380, period: 560, offset: 280, warn: 80, active: 14, damage: 11, base: 48, scaling: 0.85, angle: 96 },
+    { kind: 'bolt', x: -92, y: -380, w: 40, h: 380, period: 560, offset: 0, warn: 90, active: 14, damage: 11, base: 44, scaling: 0.55, angle: 84 },
+    { kind: 'bolt', x: 92, y: -380, w: 40, h: 380, period: 560, offset: 280, warn: 90, active: 14, damage: 11, base: 44, scaling: 0.55, angle: 96 },
   ],
-  blast: { left: -580, right: 580, top: -480, bottom: 360 },
+  blast: { left: -580, right: 580, top: -460, bottom: 360 },
   spawns: [
     { x: -100, y: -4 },
     { x: 100, y: -4 },

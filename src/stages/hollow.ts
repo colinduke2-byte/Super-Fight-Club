@@ -4,7 +4,7 @@ const ROOF = -205;
 
 /**
  * Amethyst Hollow: a geode cavern under the arena, Obelisk's home. A wide crystal-crusted floor with a low tier on the left,
- * two rock shelves and a high crystal ledge. Three stalactites take turns cracking loose from the roof (1.25 s warning): the
+ * two rock shelves and a high crystal ledge. Three stalactites take turns cracking loose from the roof (1.5 s warning): the
  * spike hurts and drives you down as it falls, then shatters on the floor into a crystal stump that stands for four seconds.
  */
 const stalactite = (x: number, floor: number, offset: number) => ({
@@ -15,7 +15,7 @@ const stalactite = (x: number, floor: number, offset: number) => ({
   h: floor - ROOF,
   period: 540,
   offset,
-  warn: 75,
+  warn: 90,
   active: 26,
   damage: 10,
   base: 34,
@@ -37,10 +37,11 @@ export const hollowStage: StageData = {
   hazards: [stalactite(-104, -18, 0), stalactite(24, 0, 180), stalactite(140, 0, 360)],
   blast: { left: -600, right: 600, top: -470, bottom: 360 },
   spawns: [
-    { x: -120, y: -22 },
-    { x: 150, y: -4 },
-    { x: -20, y: -4 },
+    // mirrored for the 1v1 pair (P1 on the low tier, P2 level with it on the floor), and clear of every stalactite's drop
+    { x: -80, y: -22 },
     { x: 80, y: -4 },
+    { x: -44, y: -4 },
+    { x: 56, y: -4 },
   ],
   background: { topColor: 0x05030a, bottomColor: 0x4a2670, layers: ['stars'], theme: 'cavern', light: { rim: 0xc8a0ff, dir: [0.4, 0.9], strength: 0.7 } },
   music: 'hollow',

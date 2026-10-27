@@ -138,9 +138,9 @@ describe('CPU recovery', () => {
     for (let i = 0; i < 140; i++) world.step([makeInput(), makeInput()]);
     Object.assign(f, { x: 0, y: -20, grounded: false, groundPlat: null, state: 'air' });
     expect(offstage(f, world)).toBe(false);
-    Object.assign(f, { x: 340, y: -60 }); // over the gap between the main stage and an island
+    Object.assign(f, { x: 285, y: 20 }); // in the gap between the main stage and an island, under its bridge
     expect(offstage(f, world)).toBe(true);
-    Object.assign(f, { x: 500, y: -60 }); // above an island
+    Object.assign(f, { x: 400, y: -60 }); // above an island
     expect(offstage(f, world)).toBe(false);
   });
   it('lands on the stage from just past the edge above it instead of dropping to the ledge', () => {
@@ -183,7 +183,7 @@ describe('CPU recovery', () => {
     const cpu = new CpuController(1, 3);
     const ins = [makeInput(), makeInput()];
     for (let i = 0; i < 60; i++) world.step(ins);
-    Object.assign(me, { x: -360, y: -20, vx: 2, vy: 1, grounded: false, groundPlat: null, state: 'air', invuln: 0, jumpsLeft: 0, facing: 1 });
+    Object.assign(me, { x: -285, y: -20, vx: 2, vy: 1, grounded: false, groundPlat: null, state: 'air', invuln: 0, jumpsLeft: 0, facing: 1 });
     let home: string | null = null;
     for (let t = 0; t < 300 && !home; t++) {
       cpu.update(me, world, ins[0]);

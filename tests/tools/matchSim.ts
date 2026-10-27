@@ -194,7 +194,7 @@ export function playMatch(chars: string[], stage: string, level: CpuLevel | CpuL
           ult: !sd && lastHitUlt[f.id],
           move: sd ? '' : lastHitMove[f.id],
           tick,
-          trace: sd && opts.trace ? t.log.slice() : undefined,
+          trace: opts.trace ? t.log.slice() : undefined,
           hazard: !sd && t.lastHazard === t.lastHit,
         });
       }

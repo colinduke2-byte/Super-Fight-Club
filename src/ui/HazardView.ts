@@ -2,6 +2,7 @@ import Phaser from 'phaser';
 import { avalancheX, hazardPhase, stalactiteFall } from '../engine/hazards';
 import type { HazardDef } from '../engine/types';
 import { fastShapes } from './fastShapes';
+import { settings } from '../settings';
 
 /** Scratch points of the lightning strike's jagged path, reused each redraw. */
 const BOLT_STEPS = 14;
@@ -83,7 +84,7 @@ export class HazardView {
         continue;
       }
       if (h.kind === 'avalanche') {
-        this.avalanche(g, h, phase, tick);
+        this.avalanche(g, this.ga, h, phase, tick);
         continue;
       }
       if (h.style === 'water') this.spout(g, this.ga, h, phase, tick);
@@ -92,13 +93,37 @@ export class HazardView {
   }
 
   /** Avalanche: a rumble of loose snow sliding off the slope first, then a rolling wall of snow, chunks and spray. */
-  private avalanche(g: Phaser.GameObjects.Graphics, h: HazardDef, phase: 'idle' | 'warn' | 'active', tick: number): void {
+  private avalanche(g: Phaser.GameObjects.Graphics, ga: Phaser.GameObjects.Graphics, h: HazardDef, phase: 'idle' | 'warn' | 'active', tick: number): void {
     const dir = (h.travel ?? 1) >= 0 ? 1 : -1;
     const jit = (i: number, k: number): number => {
       const r = Math.sin(i * 12.9898 + k * 78.233) * 43758.5453;
       return r - Math.floor(r);
     };
     if (phase === 'warn') {
+      // the lane it will sweep, like every other hazard's danger zone: a low band of cold light along the floor that
+      // brightens as it nears, with chevrons marching the way the snow will roll (steady pixels: no strobing)
+      const k = warnProgress(h, tick);
+      const travel = h.travel ?? 0;
+      // (it breaks loose off the slope beyond the floor's end: the lane marks the floor it crosses, not the open air)
+      const inset = Math.min(Math.abs(travel) / 4, h.w * 1.3);
+      const x0 = Math.min(h.x, h.x + travel) + inset;
+      const len = Math.abs(travel) - inset * 2;
+      const band = Math.round(h.h * 0.6);
+      ga.fillGradientStyle(0x9fc8ff, 0x9fc8ff, 0x9fc8ff, 0x9fc8ff, 0, 0, 0.1 + 0.2 * k, 0.1 + 0.2 * k);
+      ga.fillRect(x0, h.y - band, len, band);
+      const gap = 30;
+      const off = (((tick * (0.5 + 0.9 * k)) % gap) + gap) % gap;
+      for (let c = 0; c * gap < len; c++) {
+        const cx = Math.round(dir > 0 ? x0 + c * gap + off : x0 + len - c * gap - off);
+        if (cx < x0 || cx > x0 + len) continue;
+        const cy = h.y - 10;
+        ga.fillStyle(0xf4f8ff, 0.25 + 0.5 * k);
+        for (let j = 0; j < 5; j++) ga.fillRect(cx + dir * j, cy - 5 + j, 2, 2).fillRect(cx + dir * j, cy + 3 - j, 2, 2);
+      }
+      // corner brackets at both ends of the lane (the same marks the columns' danger zones carry)
+      ga.fillStyle(0xf4f8ff, 0.55 + 0.4 * k);
+      ga.fillRect(x0 - 1, h.y - 1, 8, 2).fillRect(x0 - 1, h.y - 8, 2, 8);
+      ga.fillRect(x0 + len - 7, h.y - 1, 8, 2).fillRect(x0 + len - 1, h.y - 8, 2, 8);
       // snow trickling down from the high side, a few clumps bouncing in
       for (let i = 0; i < 14; i++) {
         const life = ((tick + i * 5) % 30) / 30;
@@ -149,7 +174,7 @@ export class HazardView {
     if (phase === 'warn') {
       // bubbling glow that grows as the eruption nears, and sparks spitting out of the grate
       const p = (tick % 12) / 12;
-      ga.fillStyle(0xff7a2a, 0.18 + 0.18 * (tick % 12 < 6 ? 1 - p : p)).fillEllipse(h.x, h.y - 6, h.w + 10, 18 + 8 * p);
+      ga.fillStyle(0xff7a2a, settings.reduceFlashes ? 0.27 : 0.18 + 0.18 * (tick % 12 < 6 ? 1 - p : p)).fillEllipse(h.x, h.y - 6, h.w + 10, 18 + 8 * p);
       for (let i = 0; i < 10; i++) {
         const life = ((tick + i * 7) % 26) / 26;
         const sx = x + jit(i, Math.floor((tick + i * 7) / 26)) * h.w;
@@ -298,7 +323,8 @@ export class HazardView {
     g.fillStyle(phase === 'idle' ? 0x4a6a8a : 0xcfe8ff, 1).fillRect(h.x - 2, rod - 6, 4, 3);
     if (phase === 'warn') {
       const p = (tick % 10) / 10;
-      g.lineStyle(1, 0xcfe8ff, 0.25 + 0.3 * (tick % 6 < 3 ? 1 - p : p));
+      // (the crackle flickers; steady under REDUCE FLASHES)
+      g.lineStyle(1, 0xcfe8ff, settings.reduceFlashes ? 0.4 : 0.25 + 0.3 * (tick % 6 < 3 ? 1 - p : p));
       g.lineBetween(h.x, h.y, h.x, rod - 6);
       g.fillStyle(0x9fd8ff, 0.2 + 0.25 * p).fillCircle(h.x, rod - 6, 10 + 8 * p);
       g.lineStyle(1, 0xffffff, 0.5);
