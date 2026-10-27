@@ -1,5 +1,7 @@
 # Combat physics pass — plan
 
+> **Historical plan.** This document records a build pass as it was planned and is kept for the reasoning behind the design. Numbers, names and layouts in it may since have changed; the README and `docs/stages.md` describe the game as it is now.
+
 Goal: the best-feeling combat we can make, with a physics layer that makes every launch, wall and stray item part of the
 fight. The core rules (knockback, DI, SDI, techs, bounces, clanks, rage, staling) already exist; this pass makes bodies and
 objects *interact*.

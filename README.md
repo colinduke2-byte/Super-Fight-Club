@@ -1,609 +1,346 @@
 # Super Fight Club
 
-A sci-fi/fantasy platform fighter built with **Phaser 3 + TypeScript (Vite)**. All characters, art and
-audio are original and generated in code. The game runs in the browser.
+A sci-fi / fantasy platform fighter for the browser, built with **Phaser 3 + TypeScript (Vite)**. Up to four players (people
+on keyboards, gamepads or a touch screen, plus CPUs) knock each other off the stage. Damage builds a percent; the higher it
+is, the further a hit sends you, and leaving the screen past a blast zone costs a stock. Every character, sprite, stage,
+sound effect and music track is original and generated in code.
 
-> **Status: all twelve roadmap phases are built** (see `ROADMAP.md`), plus polish passes: ten fighters (Brick, Vex, Nova, Gizmo, Agni, Halcyon, Riptide, Obelisk, Rime, Havoc) with two alternate outfits each, ten stages, fourteen challenges,
-> Versus for 2-4 (humans on any device + CPUs), Arcade Ladder with story cards and a scripted boss, training mode with frame-data
-> scenarios, rebindable keyboard / gamepad controls, synthesized SFX and chiptune music, CPU AI with three difficulties.
-> What still needs **you**: hands-on play (balance feel), real Xbox / PlayStation / Switch pads, Safari, 120/144 Hz displays and GPU
-> measurements. `?bench=20&stage=reactor&players=4&cpu=3&auto` gives you comparable numbers (see *Performance*).
-> Dev shortcuts: `?char=<id>` training, `?stage=<id>&players=<2-4>&cpu=<1-3>[&auto][&vs=<id>,<id>...]` versus, `?arcade=<char>[&fight=<0-8>]` ladder,
-> `?scene=<Key>` any scene, `?bench=<seconds>` benchmark.
+**Play it:** <https://claude.ai/artifact/6jy1SBiWnaLn7jakZNhtSH> (one self-contained page; works in Chrome, Edge, Firefox and
+Safari, on desktop and on phones and tablets).
 
-## Run
+- 11 fighters, each with its own mechanic, eight looks (two alternate outfits) and a cinematic or screen-wide ultimate.
+- 13 stages, most with a twist (a hazard, a walk-off, a travelling layout), each playable in NORMAL, BATTLEFIELD or PLAIN form.
+- Versus for 2-4 with teams, items, stamina and timed rules, modifiers and rule presets; Arcade routes with story cards and a
+  scripted boss; Endless, Gauntlet, Boss Battle, Co-op Arcade, 46 Challenges, a Daily Challenge, Target Smash, the Launch
+  Contest, Training with frame data and trials, a hands-on Tutorial, replays, records and player profiles.
 
-```bash
-npm install
-npm run dev        # http://localhost:5173
-npm test           # unit tests (vitest)
-npm run typecheck  # strict TypeScript
-npm run build      # production build -> dist/
-```
+## Contents
 
-Chrome, Edge, Safari and Firefox all work. Gamepads: press any button on the pad once after the page
-loads (browser requirement); USB, wireless dongles and Bluetooth (macOS) are all handled by the
-browser's Gamepad API.
+- [How to play](#how-to-play) · [Controls](#controls) · [Modes](#modes) · [Match rules and items](#match-rules-and-items)
+- [Fighters](#fighters) · [Stages](#stages) · [Settings and accessibility](#settings-and-accessibility)
+- [Mechanics reference](#mechanics-reference) · [CPU opponents](#cpu-opponents)
+- [Development](#development) · [Measurement tools](#measurement-tools) · [Project layout](#project-layout) · [Docs](#docs)
 
-## Menus and flow
+## How to play
 
-Title -> Main Menu (Versus / Arcade Ladder / Target Smash / Launch Contest / Challenges / Training / How to Play / Records / Settings). Every menu works with both keyboard schemes and any
-gamepad: confirm = Attack or Jump (J / I / Enter / Space / pad face buttons), back = Special or Shield (K / L / Esc),
-alt = Grab (U / Tab: add CPU in the lobby), Start = pad Start. In the character lobby each device presses confirm to
-join the next free slot; empty slots are filled with CPUs (a warning says so). Players 3-4 need controllers.
-Settings holds audio, the announcer, stage ambience (surf, rain and thunder, the reactor's hum, birdsong; `src/audio/ambience.ts`), particles, resolution (SHARP renders at full device resolution; AUTO and PERFORMANCE cap
-the canvas near 1440p / 720p and upscale it crisply, for slow machines; `src/display.ts`), FPS counter, fullscreen, tap-jump, smash mode and deadzone, with a one-line
-explanation of the selected option; **Controls** rebinds both keyboard schemes and both gamepad profiles (saved to localStorage),
-and opened from the pause menu it runs over the paused match and returns to it. **How to Play** is a ten-page guide (the goal,
-moving, attacking, defending, grabs, advanced tech, physics, items and stages, the fighters) with an animated fighter on each page (`src/game/howToPlay.ts`). Menus fade
-between scenes and every list sits on a backing plate with a cursor bar. **Challenges** are fourteen hand-built scenarios (as a set
-fighter or any, against odds, in teams, on a timer, with bombs only...; `src/game/challenges.ts`), each cleared once and ticked off in
-Records. Leave the title screen idle for 25 s and a **demo** match of random CPUs (in random outfits) plays; any key returns to the title. During READY every fighter makes an entrance (Brick drops in with a slam, Vex blinks in, Nova materialises in a rune
-circle, Gizmo lands on a jet, Agni rises from flame, Halcyon glides down, Riptide bursts from a splash, Obelisk rises out of the ground, Rime blinks in and Havoc slams down). A taunt shows
-the fighter's catchphrase in a speech bubble, the winner taunts on the results screen, and CPUs taunt after scoring a KO. Unplugging a pad mid-match pauses with the
-player named; re-plugging (or plugging another pad) re-attaches it.
+From the title, the **Home** screen has three tiles: **PLAY** (straight back into your last setup, or a new 1v1), **BATTLE**
+(a 1v1 at character select with your last rules; more players join there) and **MORE** (every mode, extras and settings).
+New players: the **TUTORIAL** banner on Home runs eight short hands-on lessons (move, jump, attack, specials, shield, grab and
+throw, recover, knock out), and **How to Play** (under MORE) has a page for each input device and every technique.
 
-## Arcade Ladder and the boss
+In the character lobby, each device presses its confirm button to take the next free slot. Empty slots can be filled with
+CPUs (level 1-9). Up / Down on a fighter card picks an outfit and colour.
 
-Pick Arcade Ladder, choose a fighter, and climb nine fights: three rivals from the roster (Easy, Easy, Normal), a **mirror match** (on
-Stormspire, in another colourway), a duel in the dark of Amethyst Hollow, **Avalanche Pass** at Frostfang Shrine (Normal), a **Sky Raid** on the Stormrunner (Hard),
-a **four-way brawl** against the three rivals not met yet (Hard, Normal, Normal; on Skyhold Expanse), so a
-run faces the whole roster in a shuffled order, then **The Overseer** (`src/characters/overseer.*`), the arena AI's warden body.
-Story cards (pixel-art scenes drawn in code, `src/art/storyArt.ts`, text in `src/game/story.ts`) play before each fight and in
-the ending, with lines specific to your fighter. You get **3 continues**: losing a fight retries it (stocks reset) until they run out
-and then it is game over; opponents start with fewer stocks than you in the early fights (`src/game/ladder.ts`).
-The Overseer is not a reactive CPU but a **scripted pattern machine** (`src/ai/boss.ts`): it idles and repositions, picks a pattern
-(claws, overhead slam, quake, orb volley, plasma beam, summon drones, skyfist, leap slam) by distance / height without repeating, shows a
-long windup (armored on the big ones) and then leaves a punish window. At one stock left it **enrages** (+35% damage, shorter pauses,
-a double-smash combo) and uses **Cataclysm**, a telegraphed set of ground pillars across the stage. It is very heavy (weight 300), so
-expect to land many hits per stock. Dev shortcut: `?arcade=<char>&fight=<0-8>` jumps straight onto the ladder.
+## Controls
+
+Every binding can be changed in **Controls** (keyboard schemes and gamepad profiles, saved in the browser). Keys are matched by
+physical position (`KeyboardEvent.code`), so they work on any keyboard layout.
+
+### Keyboard
+
+| Action | Keyboard player 1 | Keyboard player 2 |
+|---|---|---|
+| Move / crouch | W A S D | Arrow keys |
+| Jump | **W** (up jumps), or I | **Up**, or `'` (quote) / Numpad 5 |
+| Attack | J | `,` (comma) / Numpad 1 |
+| Special | K | `.` (period) / Numpad 2 |
+| Shield (also tech, air dodge) | L | `/` / Numpad 3 |
+| Grab | U | `;` / Numpad 4 |
+| Smash (or tap a direction + Attack) | O | Right Shift / Numpad 6 |
+| Ultimate (taunt while the meter is not full) | Q | `\` / Numpad 0 |
+| Pause | **Esc** (any keyboard player) | Esc, Backspace or Numpad Enter |
+
+- **Up jumps** on keyboards by default; Up + Attack and Up + Special still give the up tilt, up smash and up special (the jump
+  waits a couple of frames to see if a move button follows). Controls > W / UP JUMPS turns it off.
+- **Run / sprint:** hold a direction to run. **Double-tap** a direction and hold it to sprint: a burst off the mark, then a
+  sustained run about 25% faster. Double-tap back mid-sprint to skid-turn into a sprint the other way.
+- **Two people on one keyboard:** the first player joins with their select key as usual. The second **holds** their own
+  select key (comma) for about half a second to join beside them; the lobby shows the hint.
+- In menus, confirm is Attack or Jump (or Enter / Space), back is Special or Shield (or Esc).
+
+### Gamepads
+
+Xbox, PlayStation, Switch and generic pads work through the browser's Gamepad API (press a button once after the page loads;
+that is a browser rule). Pads are hot-pluggable: unplugging one mid-match pauses with the player named, and the pause menu can
+continue on a free keyboard or hand the slot to a CPU.
+
+| Action | Xbox / PlayStation / generic | Nintendo layout |
+|---|---|---|
+| Move | Left stick or D-pad | same |
+| Attack | A (Cross) | A |
+| Special | B (Circle) | B |
+| Jump | X or Y (Square / Triangle), or flick the stick up (tap-jump) | X or Y |
+| Shield | LT or RT (L2 / R2) | ZL / ZR |
+| Grab | LB or RB (L1 / R1) | L / R |
+| Smash | R3, or flick the stick + Attack | R3 |
+| Ultimate | L3 | L3 |
+| Pause | Menu / Start | + |
+
+On a pad a sharp flick sprints as well as a double-tap (Settings > Gameplay > SPRINT: DOUBLE-TAP / FLICK / BOTH, set
+separately for keyboards and for pads and touch). Tap-jump can be turned off in Controls.
+
+### Touch
+
+Touch the screen and on-screen controls appear: a floating stick on the left, Attack / Special / Shield / Jump in an arc at the
+bottom right, smaller Grab / Smash / Ultimate around them and Pause at the top right. Menus are tapped directly. Settings set the
+size and opacity, and there is a left-handed mirror; **Controls > TOUCH SCREEN > EDIT LAYOUT** lets you drag the stick and buttons to new spots.
+A phone held upright is asked to rotate.
+
+### Combat inputs
+
+- **Attack** on the ground: jab (tap again to continue), tilts while holding a direction, a dash attack while running. A
+  **smash** comes from a flick + Attack or the Smash button + a direction (hold to charge).
+- **Attack** in the air: neutral / forward / back / up / down aerials.
+- **Special** + a direction: four specials per fighter. The **Ultimate** button fires the ultimate once the meter is full.
+- **Shield** (hold): the bubble shrinks as it takes hits. While shielding: down = spot dodge, sideways = roll, Attack / Grab =
+  grab, Jump = jump out. Shield in the air is an air dodge. Press Shield just before hitting a floor or wall to **tech**.
+- **Grab** holds the rival (they mash to escape); push a direction to throw.
+- Tap Down on a pass-through platform to drop through it. Walking off an edge catches the ledge.
+
+### Training keys
+
+In Training: `1` hitboxes and frame data · `2` hit the dummy · `3` hit yourself · `4` dummy +25% · `5` clear % · `6` dummy
+mode (stand / shield / jump / jab / CPU) · `[` `]` pick a move scenario, `Enter` runs it · `M` slow motion · `N` step mode,
+`B` step one frame · `0` reset · `T` tap-jump · `F` fullscreen · `` ` `` performance counter · `H` key list. In other modes
+these hotkeys need Ctrl or Alt held, since the keys may be someone's controls. Replays: `,` `.` step, `[` `]` skip, `C`
+camera, `H` HUD.
+
+## Modes
+
+**BATTLE** (under MORE)
+- **Versus:** 2-4 fighters, any mix of people and CPUs, with the rules, stage and items of your choice.
+- **Quick Match:** your last fighter against one CPU on a random stage.
+- **Team Battle:** four fighters in two teams (no friendly fire); team layouts are in Versus Setup.
+- **Target Turns / Launch Turns:** 2-4 players take turns on one target course or in the Launch Contest and compare.
+
+**SOLO**
+- **Arcade:** each fighter has its own route of eight fights, each with a story reason: two duels, a team fight with a CPU
+  ally, a mirror match, a metal fight, a duel, the fighter's **rival** on the rival's home stage and a brawl, then **the
+  Overseer** at The Apex. Story cards (drawn in code) play between fights. Continues retry a lost fight.
+- **Co-op Arcade:** two players, one team, the whole route; the rivals come in pairs.
+- **Boss Battle:** straight to the Overseer at a chosen difficulty; a second player can join.
+- **Endless:** one stock, rival after rival, each sharper; half your damage carries over.
+- **Gauntlet:** the ten core fighters in a row on their home stages, three stocks, little healing, against the clock.
+- **Challenges:** 46 set-piece fights (a set fighter, against odds, in teams, on a timer, stamina...) with silver and gold goals.
+- **Daily Challenge:** a new fighter, stage, rule and goals each day.
+- **Target Smash / Target Courses:** break every target as fast as you can, on each fighter's own course or the shared ones.
+- **Launch Contest:** ten seconds to pile damage on a dummy behind a barrier, then four to smash it down the runway. Best of three.
+- **Training:** a dummy, hitboxes, frame data, move scenarios, trials (with a DEMO that plays the proven route) and no clock.
+- **Tutorial:** the eight lessons described above.
+
+**EXTRAS:** Replays (your last matches and starred ones; watch, seek, share as codes), Records, Profiles (every fighter's story,
+stats and rival, plus your named player profiles), How to Play, Sound Test, Credits, Controls and Settings.
+
+The Overseer as an Arcade boss is a scripted pattern machine (`src/ai/boss.ts`): it picks attack patterns by distance and
+height, shows a long windup and then leaves a punish window, and in its second phase it enrages and calls the **Cataclysm**, a
+telegraphed set of ground pillars. Leave the title screen idle and a CPU **demo** match plays.
+
+## Match rules and items
+
+- **Win by** stocks, time (a tie goes to SUDDEN DEATH at 300%) or **stamina** (HP per stock; 0 HP is a KO on the spot).
+- **Presets** CLASSIC, QUICK, COMPETITIVE and PARTY, plus three custom slots; the last rules used come back next time.
+- **Teams**, **stage hazards** on / off, **stage form** (NORMAL / BATTLEFIELD / PLAIN), a **stage pool** for random picks,
+  damage and launch ratios.
+- **Modifiers:** GIANT, TINY, METAL, LOW GRAVITY or TURBO for everyone.
+- **Items** off / low / high, and each kind can be switched off: Healing Orb, Meter Cell, Speed Boost, Shock Bomb, Aegis
+  (brief invincibility), Beam Sword, Ray Gun, Crate, Ultimate Core, Home-Run Bat, Proximity Mine and Assist Drone. Held items
+  are thrown with Attack (forward, up or down). Items are physics objects: hits bat them around. Drops use a seeded generator.
+- After a match: results with KOs, falls, damage and best combo, a rematch, and **WATCH REPLAY**.
+
+## Fighters
+
+Fighter data lives in `src/characters/<id>.ts` (stats, look, persona, resources), `<id>.moves.json` (frame data, the single
+source of truth) and `<id>.fx.json` (visual effects). Full frame data per fighter is in `docs/frame-data-<id>.md`
+(`npm run framedata`), and kill percents are in [`docs/kill-percents.md`](docs/kill-percents.md).
+
+| Fighter | Weight | Style | Mechanic | Neutral / Side / Up / Down special | Ultimate |
+|---|---|---|---|---|---|
+| **Brick** | 120 | heavy cyber-knight | **Tough Guy** (light melee hits never flinch him) and **Heat** (from damage taken and heavy hits; at 50%+ his smashes get armour and +15% damage; Vent spends it) | Charge Shoulder (can be stored) / Grapple Slam / Whirling Jet / Vent | Meltdown |
+| **Vex** | 98 | space-pirate rogue | very fast, two double jumps, wall jump; teleports leave a **Blink Trail** marker to recall to | Blink Strike / Pirate's Dash / Shadow Climb / Snare Mine | Pirate King's Raid |
+| **Nova** | 100 | spell-slinging zoner | **Arcana Cycle**: down special cycles Fire / Ice / Lightning, which changes her bolts, runes and melee effects | Spell Bolt / Rune Trap / Aether Step / Cycle | Elemental Convergence |
+| **Gizmo** | 88 | tinkerer mech | **Scrap** from damage and broken turrets; Overclock upgrades turrets; jet hover, wall jump, tether recovery | Turret Deploy / Rocket Fist / Grapple Tether / Overclock | Mega Mech Mode |
+| **Agni** | 92 | fire-god all-rounder | **Inner Flame** levels 0-3 from dealing and taking damage; every special has a stronger variant per level | Flame Orb / Blazing Spin Kick / Rising Flare / Flare Burst | Solar Beam |
+| **Halcyon** | 95 | storm-winged lancer | spear tip is the sweet spot; two air flaps and a held-Jump **glide**; **Gale** upgrades the Javelin | Javelin / Skewer Dash / Sky Ascent / Falcon Dive | Judgement From Above |
+| **Riptide** | 102 | cyber-shark grappler | water moves **soak** (more knockback taken, fire put out); his throws and bite wring the soak out for damage | Tidal Shot / Shark Lunge / Waterspout / Whirlpool | Maelstrom |
+| **Obelisk** | 100 | crystal golem, terrain builder | raises **crystal pillars** (solid terrain that blocks shots), shatters them into shards or knocks them over at rivals; wall jump | Crystal Spire / Shard Volley / Upheaval / Bedrock Stomp | Mountain's Wrath |
+| **Rime** | 89 | frost ninja | fastest runner, two double jumps, wall cling; **Frostbite**: six chill stacks freeze the rival solid; skates on its own ice | Ice Kunai / Frost Step / Shatter Ascent / Substitution (counter) | Thousand Cuts |
+| **Havoc** | 99 | gadget soldier | every explosion is a **blast** that pushes rivals out from its centre; a steerable missile and remote C4 | Frag Grenade / Remote Missile / Cypher Drone / C4 | Airstrike |
+| **The Overseer** | 115 | the arena AI, cut down to fighter size | the boss's claws, eye beam and blade spires with a normal moveset and meter, no boss armour or scripts | Orb Volley / Eye Beam / Ascension / Blade Spires | Cataclysm (six spires) |
+
+The Overseer is the eleventh, playable fighter (`overseer-versus`); the Arcade boss is a separate, larger, scripted body
+(`overseer`). The Gauntlet uses the ten core fighters.
+
+**Ultimates** fill from damage dealt and taken. Every ultimate plays a cut-in banner. Cinematic ultimates (Meltdown, Pirate
+King's Raid, Judgement From Above, Maelstrom, Mountain's Wrath, Thousand Cuts) freeze the world, push the camera in and draw
+their own staging (`src/ui/CinematicArt.ts`); the others (Solar Beam, Mega Mech Mode, Elemental Convergence, Airstrike,
+Cataclysm) get a super flash during the wind-up.
+
+**Looks:** every fighter has eight looks (`src/art/palettes.ts`): the original outfit in four colours and two alternate outfits
+in two colours each. Alternate outfits change gear and shape, not just hue, and everything is re-rendered rather than tinted.
+Two players on the same fighter always get different looks.
+
+## Stages
+
+Thirteen stages, each with its own backdrop, music loop and ambience. Full layouts, hazard timings and blast zones are in
+[`docs/stages.md`](docs/stages.md).
+
+| Stage | Twist |
+|---|---|
+| Skyline Classic | the reference layout: main stage and three pass-through platforms |
+| Training Ring | one flat platform, nothing else |
+| Reactor Core | a short stage, moving platforms and a plasma geyser in the middle every 10 s |
+| Stormspire | a narrow tower top; lightning strikes left then right |
+| Sunken Temple | a raised centre tier to fight around; no hazards |
+| Wreck Cove | a galleon deck; blowholes throw up water spouts that soak |
+| Amethyst Hollow | stalactites crack loose and leave crystal stumps |
+| Frostfang Shrine | ice platforms; avalanches roll across from alternating sides every 20 s |
+| Stormrunner | a sky galleon with a skiff alongside; lightning on the mainmast |
+| Skyhold Expanse | the large stage: wide blast zones and floating islands across gaps |
+| Harbour Pier | a walk-off: the right side runs off the screen with no ledge |
+| Skyline Express | a train roof whose layout changes every 20 s (open line, viaduct, station) |
+| The Apex | the Overseer's chamber and the Arcade final stage |
+
+**Forms:** any stage can be played NORMAL, BATTLEFIELD (its main platform plus three standard platforms, no hazards) or PLAIN
+(the main platform alone). Versus Setup can also switch hazards off.
+
+## Settings and accessibility
+
+Settings has four sections:
+
+- **Audio:** master, effects and music volume, announcer, fighter voices, stage ambience.
+- **Video:** resolution (SHARP renders at full device resolution; AUTO and PERFORMANCE cap the canvas and upscale it crisply
+  for slow machines), particles and auto particles, FPS counter, fullscreen, screen shake strength, kill-cam slow motion.
+- **Gameplay:** a link to Controls, sprint start for keyboards and for pads and touch, smash attacks (stick flick or button
+  only), stick deadzone, controller rumble, touch button size and opacity.
+- **Accessibility:** **colour-blind player colours** (an Okabe-Ito set), **player shapes** (a circle / square / triangle /
+  diamond per port on name tags, off-screen bubbles and HUD plates), **reduce motion** (calmer menus; starts on when the
+  device asks for less motion), **reduce flashes** (softer white flashes, no blinking or strobing text), text size.
+
+**Controls** holds the rebinding pages per keyboard scheme, pad profile and touch screen, plus per-device options: W / UP
+JUMPS for keyboards, TAP-JUMP for pads and touch, and the touch layout editor.
+
+Everything is saved in the browser (`localStorage`); private windows simply play with the defaults.
+
+## Mechanics reference
+
+- **Knockback** = `(base + damage% x scaling) x moveWeight / targetWeight` (`src/engine/knockback.ts`); hit-stop grows with
+  damage. Kill moves are tuned to start KOing middleweights from centre stage at around 110-140%.
+- **DI and SDI:** hold the stick across the launch to bend it; flicks during hit-stop nudge you. **Crouch cancel** absorbs some
+  knockback. **Rage** adds knockback at high percent. **Stale-move negation** and **combo scaling** keep repeats and long
+  combos in check; a hit counter shows from three hits.
+- **Defence:** perfect shield (raise it just before a hit to deflect it for free), out-of-shield options, dodge staleness, ledge
+  trump, techs on floors, walls and ceilings, get-up options and a **burst** that spends meter to break out of a long combo.
+- **Hitstun canceling:** after a big launch you can act again before the hitstun runs out, so strong hits do not lock you out.
+- **Clank:** grounded attacks whose hitboxes meet cancel out unless one is much stronger. Aerials trade.
+- **Combat physics** (`src/engine/physics.ts`): a fighter launched fast enough crashes into others in their path; untech'd slams
+  into walls and floors hurt; a moving attacker carries momentum into its hits; items are knocked around by hits.
+- **Input buffer:** presses are remembered for 8 frames. Jump + Attack on the same frame short-hops into an aerial.
+- **Hit-confirm cancels:** a move that connects can cancel into the next move or a jump (`cancels` in the move file).
+- **Status effects:** burn, slow, freeze, stun, soak, chill.
+- **Stage surfaces:** ice, sticky, conveyor and bouncy platforms.
 
 ## CPU opponents
 
-`src/ai/` is a CPU that produces the same input a human would (so it works for every character and for modded ones).
-State machine: neutral (approach / spacing / attack), defend (shield, spot dodge, roll, hop over projectiles, reflect),
-recover (double jump, ledge-aimed recovery special), edge-guard (cut off recoveries, ranged zoning, hard CPUs leap out), plus hitstun
-DI + teching, grab pummel / throw choice, ledge options and a stall breaker for mirror matches. Three levels (`LEVELS`
-in `src/ai/profiles.ts`): **Easy** reacts slowly, rarely defends, never techs or edge-guards, recovers sloppily and wastes
-actions; **Normal** reacts in ~13 frames, shields / techs / DIs about half the time, uses grabs and platforms; **Hard** reacts in
-5 frames, defends, techs and recovers almost perfectly, punishes whiffs and edge-guards.
-Free-for-all targeting (`targeting.ts`) scores distance, damage (kill range), grudges against whoever hit it, openings, and
-penalises piling onto a fighter that others are already brawling with; a per-CPU seeded bias keeps CPUs from all picking the same victim.
-Reach, startup and damage of every normal are read from the move JSON (`moveInfo.ts`); character knowledge that frame data cannot say
-(ranged moves, setups, finishers, recovery reach, preferred spacing) lives in `CHARACTER_AI`. Add an entry when you add a character; unknown
-characters fall back to generic behaviour. The CPU uses a seeded PRNG so matches are reproducible. In training, key **6** cycles the dummy through
-stand / shield / jump / jab / CPU 1-3.
+The CPU (`src/ai/`) produces the same input a human would, so it plays every fighter. It runs a state machine (neutral,
+defend, recover, edge-guard) with hitstun DI and teching, grab and throw choice, ledge options, item use and per-fighter
+knowledge of ranged moves, setups, finishers and recovery (`CHARACTER_AI` in `src/ai/profiles.ts`; reach, startup and damage
+come from the move files). Skill runs from 1 to 9: a strong CPU is not faster (reactions are capped at a human ~12 frames) but
+makes better decisions: it punishes whiffs, follows up hits, picks kill moves, traps the ledge and mixes up its recovery.
+Free-for-all targeting scores distance, kill range, grudges and openings, and avoids piling onto one fighter. The CPU uses a
+seeded generator, so matches are reproducible.
 
-## Stages and music
+## Development
 
-| Stage | What it is |
-|---|---|
-| Skyline Classic | main stage with ledges + three pass-through platforms; purple dusk skyline |
-| Training Ring | one wide flat platform, nothing else; cold cyan void |
-| Reactor Core | short main stage, two moving platforms and a **plasma geyser** in the middle: 1.5 s telegraph, then an eruption every 10 s that hurts (12%) and launches upward. Damage-only: it never KOs by itself |
-| Stormspire | a narrow tower top in a thunderstorm: drifting cloud platforms, a high perch, and **lightning** that strikes the tower top (left, then right; 1.3 s telegraph, 11% and a launch). Rain, distant bolts, slate-and-cloud art |
-| Sunken Temple | a jungle ziggurat: a wide main floor with a **raised centre tier** (a low wall to fight around, jump over or wall-jump off), two side bridges and a bobbing stone altar on top; misty ziggurats, canopy, god rays and fireflies. No hazards: the terrain is the twist |
-| Wreck Cove | the deck of a wrecked galleon in a moonlit cove: a **raised quarterdeck** at the stern, rigging spars, a crow's nest and a raft bobbing off the bow. Two blowholes take turns throwing up **water spouts** (1.5 s telegraph, 9% and a launch) that also **soak** whoever they hit, so fire goes out and every hit after sends them a little further. Sea stacks, a sweeping lighthouse beam, shipwrecks and rolling surf; a sea-shanty loop |
-| Amethyst Hollow | a geode cavern under the arena (Obelisk's home): a wide crystal-crusted floor with a **low tier**, two rock shelves and a high crystal ledge. Three **stalactites** take turns cracking loose from the roof (1.25 s warning: cracks, grit and a glow on the floor); the spike hurts and drives you down as it falls, then shatters into a **crystal stump** that stands for four seconds. Stalagmites, crystal clusters, a dripping roof and violet mist; a slow minor-key loop and cave ambience |
-| Frostfang Shrine | Rime's home: a snowed-in mountain shrine on a granite bridge, red-lacquered beams, shide streamers and icicles. Two **ice** pass-through platforms (slippery: you slide on landing and turning) and a high perch. **Avalanches** come down the slopes, alternating sides every 20 s: a rumble and a warning stripe, then a wall of snow sweeps across the floor (hurts, launches; jump it or get to a platform). Falling snow, snowy peaks and pines; a koto-and-taiko loop and wind ambience |
-| Stormrunner | a sky galleon at sunset: a long deck with a **raised stern quarterdeck**, pass-through rigging platforms, and a **skiff** that sails alongside, back and forth. A **lightning rod** on the mast calls down a bolt on the deck (telegraphed). Rigging ropes and brass portholes on the hull; the mesas and clouds **scroll past** as the ship flies; a sea-shanty-in-the-sky loop and wind and creaking timber |
-| Skyhold Expanse | the **large** stage (blast zones +-900 x 620): a 520-wide bridge deck, two floating islands across gaps, tiers of platforms and a drifting cloud; a golden-hour sky with a sun, god rays, birds and floating islands |
+```bash
+npm install
+npm run dev         # dev server at http://localhost:5173
+npm test            # unit tests (vitest)
+npm run typecheck   # strict TypeScript
+npm run build       # typecheck + production build -> dist/
+npm run artifact    # build, then inline it into one page: dist/super-fight-club.html
+npm run framedata   # regenerate docs/frame-data-*.md from the move files
+npm run smoke       # browser smoke test (Playwright): node tests/e2e/smoke.mjs <url-or-path>
+npm run ci          # typecheck, tests, build and artifact
+```
 
-Stages are data (`src/stages/*.ts`: platforms, blast zones, spawns, hazards, `background.theme`, `music`); register a new
-one in `src/stages/index.ts`. Hazards are a pure function of the sim tick (`engine/hazards.ts`), so they stay deterministic.
-Each stage and the menus have a synthesized chiptune loop (`src/audio/tracks.ts`: 4-bar patterns as data, played by
-`src/audio/music.ts` with a WebAudio lookahead scheduler). Music volume is in Settings.
-Dev shortcut: `?stage=<id>&players=<2-4>&cpu=<1-3>` starts a versus match without the menus (add `&auto` to make every slot a CPU and just watch).
+The game is a single page: `scripts/make-artifact.mjs` inlines the one production script chunk and the page's metadata into
+`dist/super-fight-club.html`, which is what gets published.
 
-## Match / training controls
+**Dev URL parameters** (dev server or the built page):
 
-| Action | Keyboard P1 (default) | Xbox / PlayStation pad (Smash-style) | Nintendo pad |
-|---|---|---|---|
-| Move / crouch | W A S D | Left stick / D-pad | same |
-| Attack | J | A (Cross) | A |
-| Special | K | B (Circle) | B |
-| Jump | I (or W with tap-jump) | X or Y (Square / Triangle) | X or Y |
-| Shield (also **tech**, air dodge) | L | LT or RT (L2 / R2) | ZL / ZR |
-| Grab | U | LB or RB (L1 / R1) | L / R |
-| Smash (or flick the stick + Attack) | O | R3 (right-stick click) | R3 |
-| Ultimate (taunt when empty) | Q | L3 (left-stick click) | L3 |
-| Pause | Esc | Menu (Start) | + |
+- `?char=<id>` training as a fighter (`?char=proto` loads the engine-feature sample fighter).
+- `?stage=<id>&players=<2-4>&cpu=<1-3>` starts a versus match; add `&auto` (every slot a CPU), `&vs=<id>,<id>`, `&mirror`,
+  `&teams`, `&items=<0-2>`, `&form=battlefield|plain`, `&mod=giant|tiny|metal|lowgrav|turbo`, `&stamina=<hp>`,
+  `&time=<seconds>`, `&pal=<n>,<n>` (outfit per slot).
+- `?arcade=<char>[&fight=<n>]` the Arcade route; `?targets=<char>[&course=<id>]` Target Smash; `?launch=<char>` Launch Contest;
+  `?scene=<Key>` any scene.
+- `?bench=<seconds>` with a 4-CPU match (for example `?stage=reactor&players=4&cpu=3&auto&bench=20`) measures frame times
+  and prints `BENCH RESULT {...}` to the console.
 
-Everything is rebindable in Settings > Controls (button names there use the Xbox labels A B X Y LB RB LT RT).
+**Key design points**
 
-Player 2 keyboard scheme (used in Versus): arrows + numpad (`1` attack, `2` special, `3` shield, `5`
-jump, `4` grab, `6` smash), with laptop-friendly alternates `, . /` and Right Shift. Keys are matched by
-`KeyboardEvent.code`, so they are layout-independent. All bindings are rebindable data
-(`src/input/bindings.ts`, saved to `localStorage`) and rebindable in Settings > Controls (both keyboard schemes and both gamepad
-profiles; Esc cancels a capture).
+- **Fixed timestep.** The sim advances in exact 1/60 s ticks; rendering runs at the display rate and interpolates, so 60, 120
+  and 144 Hz screens play the same.
+- **Determinism.** `src/engine/` has no `Math.random`, wall clock or Phaser calls. Same inputs give the same state, which is
+  what makes replays, replay codes and the measurement tools work.
+- **Input pipeline.** Device -> raw input -> per-player input (edge detection, deadzone, tap-jump, sprint) -> fighter input ->
+  sim. Keyboard taps shorter than a tick are latched, never lost.
+- **Crisp pixels.** The canvas is backed at device resolution with nearest-neighbour filtering; the camera snaps so pixels stay
+  sharp.
+- **Data-driven content.** Fighters are data plus optional behaviour hooks; visuals are `fx.json`; stages are data. A test
+  fails if shared code branches on a fighter id.
 
-Combat inputs: **Attack** + direction in the air = aerials (nair/fair/bair/uair/dair). On the ground, a
-**flick** of the stick + Attack, or the **Smash** button + a direction, is a smash (hold to charge); plain
-Attack is the jab chain (tap again to continue). **Shield** (hold) shrinks the bubble as it takes hits; while
-shielding flick down = spot dodge, flick sideways = roll, Attack/Grab = grab, Jump = jump out. **Grab**
-holds the victim (mash to escape); pick a direction to throw. Press Shield just before a bounce to **tech**.
+### Measurement tools
 
-Training-mode keys (the dev tools; in other modes only `1`, `H`, `T`, `F`, `` ` `` and Esc work): `1` debug overlay (hitboxes, frame data) · `2` hit dummy · `3` hit yourself · `4` dummy +25% · `5` clear % ·
-`6` dummy mode (stand / shield / jump / jab / CPU 1-3) · `[` `]` pick a move scenario, `Enter` runs it · `M` slow-mo · `N` / `B` step mode · `0` reset · `T` tap-jump on/off · `F` fullscreen · `` ` `` perf counter. Esc / Start pauses (and losing window focus pauses a live match). Tech a bounce by pressing Shield
-just before you hit the floor/wall.
+These are vitest files that are skipped unless their environment variable is set. They are slow; run them one at a time.
 
-## Art density
+| Tool | Command | What it reports |
+|---|---|---|
+| Stage audit | `STAGEAUDIT=1 STAGEAUDIT_N=48 STAGEAUDIT_SKILLS=3,7 [STAGEAUDIT_STAGES=a,b] npx vitest run tests/tools/stageAudit.test.ts` | per stage: match length, KO percents and directions, self-destructs, hazard KOs, P1 win rate, time-outs |
+| Match sim | `MATCHSIM=sd\|ladder\|win [MATCHSIM_SKILLS=1,5,9] npx vitest run tests/tools/matchSimReport.test.ts` | self-destruct rates, skill N vs N-1 ladder, per-fighter win rates |
+| Balance report | `BALANCE=1 [BALANCE_WRITE=1] npx vitest run tests/balanceReport.test.ts` | CPU round robin; `BALANCE_WRITE=1` regenerates `docs/balance-report.md` |
+| Kill table | `KILLTABLE=1 KILLTABLE_OUT=docs/kill-percents.md npx vitest run tests/killpercent.test.ts` | regenerates `docs/kill-percents.md` |
+| Kill targets | `KILL_TARGETS=1 npx vitest run tests/killpercent.test.ts` | checks every fighter against the 110-140% design bands |
+| Recovery report | `RECREPORT=reach\|launch\|sim npx vitest run tests/tools/recoveryReport.test.ts` | recovery reach and where recoveries start failing |
+| Point blank | `POINTBLANK=1\|overlap npx vitest run tests/tools/pointBlankReport.test.ts` | point-blank whiffs and CPU overlap time |
+| Art hashes | `UPDATE_ART_HASHES=1 npx vitest run tests/art.test.ts` | regenerates `tests/fixtures/artHashes.json` after an intended art change (look at the art first) |
+| Trial plans | `UPDATE_TRIAL_PLANS=1 npx vitest run tests/trials.test.ts` | rewrites the proven training-trial routes in `src/game/trialPlans.ts` |
 
-Stage tiles and the UI use one pixel density (**1 art pixel = 0.5 world units**, 32px tiles, a 5x7 pixel font). Fighters are drawn at full
-resolution (**1 art pixel = 0.29 world units**: 160px frames, 240x288 for the spear-carrier) by the hero-art renderer in `src/art/hero/`. Stage/background/HUD art is generated in code (`src/art/`); the camera
-snaps to even zoom levels and whole device pixels so pixels stay crisp. Press `H` to hide the on-screen help.
+`tests/art.test.ts` hashes the pixels of every generated sheet and stage piece, so any change to drawing code that alters a
+pixel fails it: performance work on the art pipeline must keep every pixel the same.
 
-## Architecture
+## Project layout
 
 ```
 src/
-  engine/      pure simulation, no Phaser imports (unit-testable, deterministic)
-    fixedTimestep.ts  60 Hz accumulator, vsync-jitter snapping, interpolation alpha
-    fighter.ts        movement state machine (jump/short hop/coyote/buffer/fast-fall/ledge/hitstun/tech)
-    collision.ts      sub-stepped AABB vs solid + one-way platforms
-    platform.ts       static & moving platforms, ledges
-    knockback.ts      (base + dmg% * scaling) * move_weight / target_weight, hitstun, launch vector
-    inputBuffer.ts    6-frame input buffer
-    camera.ts         multi-target zoom/pan camera
-    world.ts          stage + fighters, one deterministic step()
-  characters/  data-driven roster (brick.ts) + registry
-  stages/      stage data (platforms, blast zones, spawns, background)
-  input/       devices (keyboard schemes, gamepad hot-plug), bindings, deadzone, per-player edge/tap-jump
-  art/         code-generated placeholder sprite sheets and stage textures
-  ui/          Phaser views: fighters, stage, parallax, particles (pooled), debug overlay, perf counter
-  scenes/      Boot, Title, ModeSelect, VersusSetup, CharacterSelect, StageSelect, Match, Results, LadderMap, Story, Settings, Controls
-  game/        session / lobby / ladder / story / results (pure game-flow logic, unit-tested) and the Controller interface
-  ai/          CPU state machine, targeting, recovery, scripted boss brain, per-character knowledge
-  audio/       WebAudio SFX synth, chiptune tracks (data) + lookahead music player
+  engine/      pure, deterministic simulation (no Phaser): fighter state machine, collision, platforms, knockback,
+               moves, hazards, items, physics, pillars, match rules, training scenarios, stage validation
+  characters/  <id>.ts + <id>.moves.json + <id>.fx.json per fighter, mechanics modules, registry (index.ts)
+  stages/      stage data, stage forms (forms.ts), target courses, registry (index.ts)
+  game/        game flow (session, lobby, rules, arcade routes and runs, challenges, daily, trials, tutorial, replays,
+               records, profiles), unit-tested and Phaser-free
+  ai/          CPU brain, targeting, recovery, ledge play, threat reading, the scripted boss
+  input/       keyboard, gamepad and touch devices, bindings, deadzone, per-player input, menu input
+  art/         code-generated sprite sheets (hero renderer in art/hero/), stage art, HUD textures, pixel font, story art
+  fx/          the fx.json interpreter and shared effect library
+  ui/          Phaser views: fighters, stage, backgrounds, HUD, particles, cinematics, menus kit
+  scenes/      Boot, Title, Home, ModeSelect, CharacterSelect, VersusSetup, StageSelect, VersusSplash, Match (+ match/),
+               Results, LadderMap, Story, Challenges, ReplayVault, Records, Profiles, HowToPlay, Controls, Settings,
+               SoundTest, Credits
+  audio/       WebAudio synth effects, chiptune tracks as data, music player, announcer, ambience, footsteps
+tests/         vitest suites; tests/tools/ holds the measurement tools; tests/e2e/ the browser smoke test
+scripts/       framedata.mjs (frame-data docs), make-artifact.mjs (single-page build)
+docs/          see below
 ```
 
-Key design points
-
-- **Fixed timestep.** The sim always advances in exact 1/60 s ticks; rendering runs at the display rate
-  and interpolates between the last two sim states, so 60/120/144 Hz screens play identically.
-- **Determinism.** No `Math.random`, wall-clock or Phaser calls in `engine/`. Same inputs → same state
-  (see `tests/physics.test.ts`).
-- **Input pipeline.** Device → `RawInput` → `PlayerInput` (edge detection, deadzone, tap-jump) →
-  `FighterInput` → sim. Keyboard taps shorter than a tick are latched, never lost.
-- **Crisp pixels.** The canvas backing store is `innerWidth × devicePixelRatio` and nearest-neighbour
-  filtered; the world is drawn by a zoomed camera, UI/background by zoom-1 cameras.
-
-## More mechanics
-
-- **Drop through platforms:** tap Down while standing on a pass-through platform (or Down + Jump). Walking off a stage edge catches the ledge automatically.
-- **Tilts:** hold a direction (no flick) and press Attack for a forward / up / down tilt. A flick or the Smash button is still a smash.
-- **Dash attack:** press Attack while running at full stick.
-- **Running and sprinting:** holding a direction runs. **Double-tap to sprint:** tap a direction twice (within ~0.2 s) and hold it: a burst off the mark, then a sustained sprint ~25% faster than the run. On a pad or touch stick a sharp flick sprints too (Settings > Gameplay > SPRINT: DOUBLE-TAP / FLICK / BOTH; defaults: keyboard DOUBLE-TAP, pad and touch BOTH). Let go and the sprint skids to a stop; double-tap back mid-sprint for a skid turn into a sprint the other way (inside the burst it turns on the spot: dash-dancing). Dash attack, dash grab and running jumps all work out of a sprint, and a sprint jump carries extra momentum. A gentle tilt walks. Turning against a full run skids first (the facing flips once the slide stops). Flick + Attack is still a smash.
-- **Fast-fall aerials:** a fresh down flick while falling fast-falls, during an aerial too (a fast fall also carries into an aerial). A white glint marks it.
-- **Air dodge:** Shield in the air, once per airtime. With no stick it is a short in-place dodge that slows your fall; with a direction it is a burst of momentum you can slide into the ground (wavelanding). Either way you can act again afterwards (no helpless fall).
-- **Hitstun canceling:** after a big launch (32+ frames of hitstun) you may air dodge after 40 frames and attack, special or jump after 45, so a strong hit sends you flying without locking you out. Combo-length hitstun is unaffected.
-- **Clank:** two grounded attacks whose hitboxes meet cancel out with a spark and both recoil, unless one is 8+ damage stronger (then only the weaker one is stopped). Aerials never clank; they trade.
-- **Turnaround specials:** a side special goes the way the stick points; flick back within 3 frames of a neutral / down special to turn it around (B-reverse), which also flips your air drift.
-- **Get-up options:** after a missed tech, hold left / right to roll away, press Jump / Shield / Up to stand straight up, or Attack for a get-up attack (all with a little invincibility).
-- **Input buffer:** presses are remembered for 8 frames (jumps, attacks, specials, shields).
-- **Short-hop aerial shortcut:** Jump + Attack on the same frame always short hops into the aerial (even with Jump held).
-- **Wall jump:** Vex only; kick off the side of a solid platform (twice per airtime) as an extra recovery.
-- **Ledge attack / get-up attack:** Attack on the ledge, or while lying down, for an invulnerable attack (generic moves in `src/engine/genericMoves.ts`; a character can override `ledgeAttack` / `getupAttack` in its move file).
-- **Taunt:** press Ultimate while the meter is not full.
-- **Team battles:** Versus Setup > Teams (4 players): P1+P2 vs P3+P4, no friendly fire (hits, projectiles, traps), the match ends when a whole team is out; results rank the winning team first.
-- **Items:** Versus Setup > Items (off / low / high): Heart (-25%), Energy Cell (+50 ultimate meter) Overdrive (10 s of +30% damage, a red pulse) and the rare Aegis Core (5 s of invincibility, a prismatic shimmer) drop onto the stage, plus the Shock Bomb: touch it to pick it up, then Attack throws it (forward in an arc, Up straight up, Down drops it). It bursts on the first fighter it touches, on landing or when its fuse runs out; shields soak it. The CPU goes for items and lobs bombs. Drops use a seeded generator, so they are deterministic.
-- **Soft push:** grounded fighters standing inside each other drift apart (never off a ledge, never mid-attack), so bodies stay readable.
-- **Stamina mode:** Versus Setup > Rules > STAMINA: every fighter has 50-300 HP per stock (the HUD counts it down, green to red). Reaching 0 HP is a KO on the spot; the blast zones still KO too.
-- **Records** (main menu): matches played, wins, win rate, KOs and falls per fighter for human players (versus and arcade), plus Target Smash best times and Launch Contest best distances; RESET RECORDS asks to confirm. Stored in this browser only.
-- **Move list:** Pause > MOVE LIST shows the paused player's moves with their inputs, damage and first active frame.
-- **Launch Contest** (main menu): ten seconds behind a barrier to pile damage on a rival dummy that just stands there, then the barrier drops and you have four seconds to smash it down the Launch Pad runway. The camera rides the flight, posts mark every 25 m, a gold flag marks your best, and the run scores the furthest point reached (`src/game/launch.ts`, stage `src/stages/launch.ts`). Best distances are saved per fighter. Dev shortcut: `?launch=<fighter>`.
-- **Outfits and colours:** every fighter has eight looks (`src/art/palettes.ts`): the original outfit in four colours and two alternate outfits in two colours each. Alternate outfits change gear and shape, not just hue (each hero drawer reads `look.outfit`), and everything is re-rendered rather than tinted. Press Up / Down on character select to pick one; the card names the outfit and colour. Two players on the same fighter always get different looks.
-
-  | Fighter | Outfit 1 | Outfit 2 |
-  | --- | --- | --- |
-  | Brick | Siege: horned great helm, spiked pauldron, chain | Diver: brass diving helmet, air tank |
-  | Vex | Oni: wild mane, horned demon mask | Cyber: visor helmet, neon traces, no cape |
-  | Nova | Stargazer: hood, star circlet, crescent staff | Witch: huge crooked hat, patched robe |
-  | Gizmo | Steamworks: top hat, monocle, boiler pack | Astronaut: fishbowl helmet, air pack, flag |
-  | Agni | Inferno: horns, wild blaze, magma cracks | Temple: shaved monk, kasaya, wraps |
-  | Halcyon | Valkyrie: plumed crest, battle cape | Raven: black wings, hood and beak mask |
-  | Riptide | Pirate: tricorn, eyepatch, long coat | Hammerhead: hammer head, heavy plate |
-  | Obelisk | Ancient: carved stone face, moss and vines | Molten: basalt, magma seams, crown of spikes |
-  | Rime | Kitsune: fox mask, ponytail | Yeti: fur hood, mantle and boots |
-  | Havoc | Sniper: boonie hat, ghillie, scoped rifle | Commando: beret, shades, bandolier |
-- **Announcer:** a voice calls the countdown, GAME! / TIME!, sudden death and the winner, using the browser's speech synthesis (no audio files; Settings > Announcer).
-- **Results:** KOs, falls, damage dealt and each fighter's **best combo**; CPUs are named by port (CPU2, CPU3...) when there are several.
-- **Target Smash** (main menu): pick a fighter and break the ten targets on the Target Gauntlet course as fast as you can. Any hit or projectile breaks a target; falling off fails the run. Best times are saved per fighter in this browser (`src/game/records.ts`). Dev shortcut: `?targets=<fighter>`.
-- **Timed matches:** an on-screen clock counts down (red for the last ten seconds). A tie at the bell goes to SUDDEN DEATH: the tied fighters respawn at 300% with one stock each and the first to fall loses.
-- **Replays:** after a Versus match, Results > WATCH REPLAY re-runs it from the recorded inputs (the sim is deterministic). ESC/Enter exits. Versus Setup > STAGE HAZARDS turns stage hazards off.
-- **Rumble:** gamepad vibration on hits, pickups and KOs (Chromium / Edge; Settings > Controller rumble).
-Dev shortcut: add `&teams&items=2` to a 4-player `?stage=...&players=4` URL.
-
-## Combos, flow and animation
-
-- **Hit-confirm cancels** (`MoveDef.cancels` in each moves file): after a move connects, a buffered press can cancel straight into the
-  next move, or into a **jump** (`@jump`) so you can follow up in the air. Each fighter has its own combo web (Vex: jab strings into
-  tilts, Pirate's Dash and jump-cancelled juggles; Brick: jab/tilt into smashes and grabs; Nova: melee into elemental bolts and runes;
-  Gizmo: melee into Rocket Fist, turrets and grabs). The CPU uses them too.
-- **Momentum in attacks:** tilts, jabs and forward smashes step forward (`motion` in the move data), dash attacks slide.
-- **Animation:** every attack uses six poses (wind-up, anticipation, fast in-between, strike, follow-through, recovery) driven by the
-  move's real frame data, with tapered slash arcs along each live hitbox in the fighter's colour (Nova's follow her element), afterimages
-  on dashes, blinks and big launches, and per-character flourishes: Vex blade storms and speed streaks, Brick ground cracks, embers and
-  dust, Nova's rotating rune circle while casting, Gizmo's welding sparks and Mech-mode gears and steam.
-
-## Combat and frame data
-
-Each character has `src/characters/<id>.moves.json`, the single source of truth for frame data. Frame 1
-is the frame the move starts on; `startup` frames are harmless, the next `active` frames are live, then
-`recovery`. Per hitbox: position (x forward, y down from the feet), size, `damage`, `angle`
-(0 ahead, 90 up, 180 behind, 270 spike, 361 auto), `base` and `scaling` knockback, optional `window`
-(sub-range of the active frames), `group`/`rehit` (multi-hit), `dir: "away"` (both-sides moves), `hitlag`,
-`minHitstun`, `grab`/`throw`/`unblockable`/`breaksShield`. Per move: `charge`, `armor` (frames + damage
-threshold), `next` (jab chain), `motion` impulses, `landingLag` + `autocancel` windows, `landBounce`,
-`invuln`. `parseMoves()` validates the file on load. The debug overlay (`1`) draws live hitboxes (red),
-hurtboxes (green / blue invulnerable / purple armored) and prints the move's s/a/r bar and live numbers.
-
-Rules implemented: knockback `(base + dmg% * scaling) * move_weight / target_weight` (see `knockback.ts`),
-hitlag `floor(dmg*0.4+4)` frames for both fighters, hitstun scales with knockback, simultaneous hits
-trade unless one move is 8+ damage stronger (grounded hitboxes that meet clank instead), armored frames absorb weak hits, grabs ignore shields.
-Stocks / KOs / respawn / time-mode scoring live in `engine/match.ts`.
-
-## Engine hooks for characters (Phase 3)
-
-Everything below is data in `<id>.moves.json` unless noted; see `src/characters/proto.ts` for a complete,
-working example that uses every feature (load it in the sandbox with `?char=proto`).
-
-- **Move events** (`events: [{ frame, action, ... }]`): `projectile`, `deploy`, `teleport` (8-way / forward /
-  up / back), `barrier` (reflects projectiles), `tether` (hooks a ledge or one-way platform; can grab an
-  opponent), `ledgeSnap` (grab a ledge from a distance), `status` (on self), `resource`, `custom` (calls the
-  character's behaviour hook). Moves can also set `noLedge`, `helpless`, `requires`, `cinematic`.
-- **Projectiles** (`projectiles`): size, `gravity` (arcs), `drag`, `bounce`, zig-zag `path`, `pierce`, `health`
-  (attacks can destroy it), `reflectable`, hit payload with optional `status`.
-- **Deployables** (`deployables`): turrets, mines, runes, markers with per-owner `limit` (`limitGroup`,
-  `replaceOldest`), `armFrames`, `life`, contact `trigger`, `turret` fire pattern, health, `reward` resource when
-  an enemy destroys it. A KO'd owner's deployables vanish.
-- **Status effects** (on any hitbox): `burn` (damage over time), `slow`, `freeze` (needs `minPercent`, else a
-  `fallback`; breaks when hit), `stun`.
-- **Hitbox `travel`**: beams / sweeps that move across the screen while active.
-- **Resources + hooks**: `CharacterData.resources` (Heat, Scrap, ...) live in `fighter.res`;
-  `behavior` hooks (`onTick`, `onMoveFrame`, `onHitDealt`, `onHitTaken`, `onDeployableDestroyed`, `onMoveEvent`)
-  run inside the deterministic sim. Everything is part of the determinism hash.
-- **Ultimate meter**: fills from damage dealt / taken (`CharacterData.ultimate`); a `kind: "ultimate"` move
-  with a `cinematic` script freezes the world, plays timed hits, then launches.
-- **Dash**: `CharacterData.dash` gives a ground dash with an invulnerability window.
-
-### Training mode
-
-Every move of the player's character gets a scenario (sorted jab / smash / aerial / grab / throw / special /
-ultimate). `[` `]` select, **Enter** runs it (the dummy is placed at the right range, aerials hover in place),
-`M` toggles slow-motion, `N` frame-step mode and `B` advances one tick. The panel shows startup / active /
-recovery, the live hitbox numbers and the last hit's damage, knockback and hitstun. `1` shows hitboxes.
-
-### Sound
-
-All sound effects are synthesized with WebAudio (`src/audio/`): hits scale with damage and knockback, sounds
-pan with screen position. The audio context starts on the first key press (browser autoplay rules).
-`masterVolume` / `sfxVolume` are in settings.
-
-## Characters
-
-### Brick: heavy cyber-knight (complete, Phase 4)
-
-Tanky juggernaut (Bowser / Donkey Kong cues): weight 108 (heaviest), run 1.9, air speed 1.45, high gravity, fast fall,
-one double jump, armored smashes, but quick close-range buttons (jab 4, nair 5, a frame-5 up special). Weakness: slow
-smashes, a big target, and he is easy to combo out of the air.
-
-- **Tough Guy:** melee hits of 2.2 damage or less (4.5 while Heat is hot) never flinch Brick: he takes the damage and
-  keeps swinging. Projectiles and traps still interrupt him, so zoners can chip him.
-Full frame data: [`docs/frame-data-brick.md`](docs/frame-data-brick.md) (regenerate with `npm run framedata`).
-
-**HEAT** (glowing seam under his damage percent; his armor also glows and steams when hot)
-- Fills when he **takes damage** (0.8 per %) and when he lands **heavy hits** (9+ damage, 0.5 per %).
-- **50%+**: every smash gets **super-armor** and deals **+15% damage**.
-- **Vent** (down special, needs 30%+): spends all Heat on an explosion around him; damage 0.7x-2.0x and
-  knockback 0.7x-1.6x depending on how much was spent (full burst at 100%).
-- Decays slowly (~5 per second) once 3 seconds have passed without combat.
-- Numbers live in `src/characters/brickHeat.ts` (pure functions, unit-tested).
-
-| Move | Notes |
-|---|---|
-| Jab | 3-hit piston punches; the last one pushes |
-| Piston Slam (fsmash) | slow, huge knockback, armor frames 8-20 |
-| Overhead Crush (usmash) | hits both sides, anti-air |
-| Shockwave Stomp (dsmash) | ground ripple on both sides |
-| Plate Spin / Hammer Fist / Shoulder Bash / Rising Uppercut / Crater Stomp | nair (multi-hit) / fair (meteor) / bair / uair / dair (lands with a shockwave both ways) |
-| Charge Shoulder (neutral special) | hold Special to charge, then ram; full charge = armor + shield break. **Shield mid-charge banks it** (the arm glows); the next one starts from the banked charge, so a full one comes out at once (Giant Punch) |
-| Grapple Slam (side special) | command grab mid-run: unblockable, avoided by jumping, 15 damage, long whiff recovery |
-| Whirling Jet (up special) | frame-5 multi-hit spin with a launching finish. In the air it climbs (helpless after); on the ground it starts intangible and travels where the stick steers it, his out-of-shield answer |
-| Vent (down special) | Heat burst, see above |
-| Meltdown (ultimate) | cinematic grab; detonates a huge blast that KOs at low percent |
-
-### Vex: space-pirate rogue (complete, Phase 5)
-
-Weight 80, very fast (run 3.1), high air speed, floaty fall, **two** double jumps, a ground dash with a short
-invincibility window. Low damage, easy to KO, punishable when a blink ends. Frame data:
-[`docs/frame-data-vex.md`](docs/frame-data-vex.md). Try her with `?char=vex`.
-
-**BLINK TRAIL**: any teleport (Blink Strike, Shadow Climb) leaves one glowing marker at the departure point for
-3 seconds (HUD seam shows the time left). Press neutral special again to recall to the marker (invulnerable
-on arrival; one recall per marker). Blink Strike: tap Special with a neutral stick, then push any of 8
-directions during the start-up; usable once per airtime.
-
-| Move | Notes |
-|---|---|
-| Jab | up to 5 rapid slashes, the last angles upward: a combo starter |
-| Double Cross (fsmash) | two sweeping slashes; the second launches upward |
-| Scarf Whip / Low Sweep | usmash wide overhead arc / dsmash both sides at the feet |
-| Aerials | Twin Spin (nair), Diagonal Slash (fair, spikes on the late hit), Back Kick, Juggle Slash, Dive Kick (bounces off enemies) |
-| Blink Strike (neutral special) | 8-way teleport + slash, leaves the marker |
-| Pirate's Dash (side special) | fast sliding slash, low-risk approach |
-| Shadow Climb (up special) | teleports up and grabs a ledge from up to 110px away; arrival is vulnerable and helpless |
-| Snare Mine (down special) | proximity trap (max 2), launches upward, enemies can destroy it |
-| Pirate King's Raid (ultimate) | cinematic grab: a 9-hit teleport flurry then a big finisher |
-
-### Nova: spell-slinging zoner (complete, Phase 6)
-
-Weight 100, floaty with good air drift, one double jump; weak up close (slow, low-damage melee), easy to knock
-off stage. A floating orb companion changes colour with the element. Frame data:
-[`docs/frame-data-nova.md`](docs/frame-data-nova.md). Try her with `?char=nova`.
-
-**ARCANA CYCLE**: down special cycles Fire -> Ice -> Lightning (hold it to plant a reflecting barrier). The
-element changes her neutral and side specials, and tags her smashes / jab finisher / up air:
-
-| Element | Spell Bolt (neutral special, chargeable) | Rune Trap (side special, max 1 per element) | Melee effect |
-|---|---|---|---|
-| Fire | slow, arcs under gravity, high damage, burns | burning geyser that launches up | burn, +12% damage |
-| Ice | floats nearly level, slows; freezes at 100%+ | slows / freezes at 90%+ | slow (freeze at 100%+) |
-| Lightning | fast zig-zag, pierces and multi-hits, brief stun | stuns | short stun, -8% damage |
-
-Aether Step (up special): a telegraphed float-teleport (10-frame start-up) that can snap to a ledge within 70px,
-then glides; helpless afterwards. It bursts on arrival (Farore's Wind style), launching anyone where Nova reappears. Elemental Convergence (ultimate): three beams (fire, ice, lightning)
-sweep across the screen; the lightning beam is the finisher.
-
-### Gizmo: tricky tinkerer mech (complete, Phase 7)
-
-Weight 88, medium speed, one double jump, a wall jump, a small low-profile hurtbox, a solid tether recovery (cues: Peach,
-R.O.B.). Weak without setup; turrets can be destroyed. Frame data: [`docs/frame-data-gizmo.md`](docs/frame-data-gizmo.md).
-Try him with `?char=gizmo`.
-
-- **Jet hover:** hold Jump while falling to hang in the air for up to 1.5 s per airtime; aerials thrown from a hover keep
-  hovering (float-cancel pressure), and the CPU hovers to get back to the stage.
-- **Catch the Rocket Fist:** catching the returning fist refunds 1.5 Scrap and overcharges the next one (bigger, faster,
-  7.5 damage).
-
-**SCRAP** (counter above his head, seam on the HUD plate): +0.3 per damage he deals (wrench, fist, turret
-shots) and +3 whenever an enemy breaks one of his turrets. Cap 40.
-- **Overclock** (down special) spends 5 Scrap to upgrade turrets within 170px for 7 seconds. The stick picks
-  the upgrade: neutral = fire rate x2, forward = damage x1.6, back = an 8-damage shield. **Hold** it instead to
-  recall the turrets for +3 Scrap each.
-
-| Move | Notes |
-|---|---|
-| Jab | 3-hit wrench combo |
-| Wrench Swing (fsmash) | heavy; the tip sweet-spot stuns |
-| Spark Plug / Spin Gear | usmash electric burst (short stun) / dsmash both sides |
-| Aerials | Spinning Gear, Drill Jab (multi-hit), Rocket Kick, Head-Bolt, Hammer Drop (meteor) |
-| Turret Deploy (neutral special) | max 2 turrets that fire slow shots; destroying one pays you Scrap |
-| Rocket Fist (side special) | boomerang fist: hits on the way out and again on the way back; catch it for an overcharged follow-up |
-| Grapple Tether (up special) | wide-cone hook: latches ledges / platforms, or grabs an opponent mid-air; helpless if it whiffs |
-| Overclock (down special) | see above |
-| Mega Mech Mode (ultimate) | 8 seconds in a giant suit: 1.7x size, super-armor, +35% damage, mech punch / stomp / missiles |
-
-### Agni: fire-god all-rounder (Phase 15)
-
-Weight 96, medium speed, one double jump. Solid fundamentals (quick jabs and tilts, a dash attack, three smashes, five aerials,
-four throws) and a stored-energy mechanic. Frame data: [`docs/frame-data-agni.md`](docs/frame-data-agni.md). Try him with `?char=agni`.
-
-**INNER FLAME** (bar on the HUD plate, embers off his gauntlets): fills by dealing (+0.9 per damage) and taking (+0.7 per damage)
-damage, and only drains after 5 quiet seconds. Level 1 / 2 / 3 at 25 / 55 / 85 flame; every level also adds +3% damage to all his moves.
-Each special has a variant per level (`neutralB_0..3`, ...), picked when you press it:
-
-| Special | L0 | L1 | L2 | L3 |
-|---|---|---|---|---|
-| Flame Orb (neutral) | fireball | faster, longer burn | pierces | big piercing orb |
-| Blazing Spin Kick (side) | 2-hit | 2-hit, more reach | 3-hit, burns | 4-hit, burns |
-| Rising Flare (up, recovery) | uppercut | stronger | invincible start | higher, burns |
-| Flare Burst (down) | spends ALL flame: a ground eruption that grows with the level | | | |
-| Solar Beam (ultimate) | spends all flame: a screen-wide beam that gets taller and harder-hitting with the level | | | |
-
-### Halcyon: storm-winged lancer
-
-Weight 98, three air flaps and a **glide** (hold Jump while falling: slower fall, faster drift, up to 80 frames per airtime). A long spear
-whose **tip is the sweet spot** (every spear move lists a stronger tip hitbox before the weaker shaft). Frame data:
-[`docs/frame-data-halcyon.md`](docs/frame-data-halcyon.md). Try her with `?char=halcyon`.
-
-**GALE** (HUD seam, gold sparkles off her wings): builds while airborne (+6/s) and from damage dealt (+0.8 per %), bleeds on the ground.
-Level 1 / 2 at 33 / 66: +3% / +6% speed, and the Javelin upgrades (`neutralB_0..2`): single, piercing, then a three-spear **Tempest Volley** that spends 40 gale.
-Sky Ascent (up special) is her recovery; Falcon Dive (down special) plunges spear-first and bounces on landing; Skewer Dash (side special) is a long lunge.
-
-### Riptide: cyber-shark grappler
-
-Weight 106, a heavy middleweight, one double jump. A shark-headed gladiator with an anchor on a chain (reach on his tilts, smashes and
-fair) and a shark's jaws. His water moves **SOAK** whoever they hit (`src/characters/riptide.*`, `riptideSoak.ts`).
-
-- **Soak** is a status any fighter can carry: it stacks up to three levels (2 s each, dripping away), a soaked fighter takes
-  +4% knockback per level from everyone, water puts out a burn, and fire on a soaked fighter just boils the water off.
-- **Wring it out:** Riptide's throws and the Shark Lunge bite spend the victim's soak for +12% damage and +6% launch per level.
-- Harpoon Grab has extra reach; jabs, dtilt and the dash attack cancel straight into it.
-
-| Special | |
-|---|---|
-| Tidal Shot (neutral) | a lobbed water orb that soaks heavily |
-| Shark Lunge (side) | lunging command grab: unblockable (goes through shields), then a big bite |
-| Waterspout (up, recovery) | rising multi-hit water spiral, soaks on the last hit |
-| Whirlpool (down) | a trap on the ground (one at a time, 6 s): soaks and pops up whoever steps in |
-| Maelstrom (ultimate) | a cinematic grab: dragged under for nine hits, then flung out |
-
-### Obelisk: crystal golem, the terrain builder
-
-Weight 90, a light middleweight (well under Brick's 108), quick on its feet, one double jump and a wall jump. A grumpy living obelisk: a tall,
-tapering shaft of granite under an amethyst capstone with one glowing eye-slit, a geode heart glowing through a crack, shards
-of crystal orbiting its head, and arms and legs of separate floating stones held together by crystal light; the arena was
-built over its cave (`src/characters/obelisk.*`, `obeliskPillars.ts`). Its **crystal pillars** are real terrain
-(`src/engine/pillars.ts`): solid platforms that grow out of the ground at run time.
-
-- **Pillars** (two at a time, a third replaces the oldest; 8 s each): they rise out of the ground in 9 frames, lifting anyone
-  standing there and hitting rivals they rise into; while up they block fighters and projectiles, can be stood on and
-  wall-jumped off; rival shots and attacks chip them down; they sink back when their time runs out.
-- **Shatter:** Obelisk's own shots break its pillars into a fan of five crystal shards, and Bedrock Stomp shatters every
-  pillar in range at once. Rock Bottom (back throw) into a pillar slams the rival through it for +35% damage and launch.
-- **Knock it over:** any of Obelisk's melee hits (jabs, tilts, smashes, aerials) on one of its risen pillars flings the
-  whole pillar as a tight, fast shard spray along the blow's launch angle: build a wall, then smash it into the rival.
-  ftilt and dash attack cancel into Crystal Spire on hit, so the pillar pops the rival up. Pillars are walls to jump off.
-- The CPU raises walls as setups, zones with Shard Volley, stomps a pillar when you stand next to it, and smashes a pillar
-  into you when you stand beyond it.
-
-| Special | |
-|---|---|
-| Crystal Spire (neutral) | raises a crystal pillar in front |
-| Shard Volley (side) | three crystal shards; fired into its own pillar, it bursts into a bigger spray |
-| Upheaval (up, recovery) | rides a rising pillar up (leaving it behind when there is ground below) |
-| Bedrock Stomp (down) | a shockwave both ways along the floor that shatters every pillar in range |
-| Mountain's Wrath (ultimate) | a cinematic grab: sealed in a growing amethyst crystal, then a monolith falls on it |
-
-### Rime: frost ninja
-
-The lightest and fastest fighter: weight 80, run 3.3, three-frame jab, **two** double jumps and a wall cling (`src/characters/rime.*`).
-A slim ninja under a wide ice-blue kasa hat, a long scarf streaming behind and a kunai with a frozen edge.
-
-- **Frostbite:** nearly every hit adds a chill stack to the rival (shown on their HUD). At six stacks they **freeze solid** for 42 frames:
-  a free follow-up. Chill also works through armour (Brick's Tough Guy still takes the stacks).
-- **Skating:** on its own ice patches Rime runs 22% faster; rivals slip on them instead. Avalanche Kick (down air) bounces off the rival into the next hit.
-
-| Special | |
-|---|---|
-| Ice Kunai (neutral) | fast needles; hold to throw a fan of three |
-| Frost Step (side) | a slashing dash that leaves a slippery ice patch behind |
-| Shatter Ascent (up, recovery) | an icy teleport that bursts on arrival |
-| Substitution (down) | a counter: an ice decoy takes the hit and Rime strikes from behind |
-| Thousand Cuts (ultimate) | a cinematic grab: frost creeps over the floor, a flurry of twelve cuts, the rival freezes over and shatters out |
-
-### Havoc: gadget soldier
-
-Weight 100, steady speed, one double jump (`src/characters/havoc.*`). A helmeted soldier with goggles, a tactical vest, a backpack
-radio and a rifle on his back. Combat knife and boots up close; explosives for everything else. Every explosion is a **blast**:
-it hits every rival in its radius (never Havoc or his teammates) and pushes them away from the centre.
-
-| Special | |
-|---|---|
-| Frag Grenade (neutral) | lobbed in an arc, bounces, and goes off on a short fuse |
-| Remote Missile (side) | a missile he **steers** with the stick while holding Special (one at a time); let go and he puts the controller away |
-| Cypher Drone (up, recovery) | a rotor drone carries him up |
-| C4 (down) | plants a charge on the floor, or **slaps it onto a rival** standing in front; down special again detonates it by remote |
-| Airstrike (ultimate) | radios in a barrage: strikes rain down across the whole stage |
-
-Smashes: a Rocket Launcher (forward), a Mortar (up) and a Tripwire Kick (down). The CPU throws grenades and missiles from range,
-plants C4 where you walk and sets it off when you are close.
-
-## Ultimates
-
-Every ultimate plays a cut-in banner with the fighter and the move's name. Cinematic ultimates (a grab that freezes the world) push the
-camera in, dim the backdrop and stage, and play bespoke staging named by `cinematic.art` in the move data (`src/ui/CinematicArt.ts`):
-Meltdown, Pirate King's Raid, Judgement From Above, Maelstrom, Mountain's Wrath and Thousand Cuts each draw their own scene over the
-grapple. The launching hit plays a beat of slow motion with a double shockwave. The other ultimates (Solar Beam, Mega Mech Mode,
-Elemental Convergence, Airstrike) get a **super flash**: the camera pushes in on the caster during the wind-up while the stage dims.
-
-## Knockback and hit reactions
-
-- **Knockback** = `(base + damage% x scaling) x moveWeight / targetWeight`; launch speed is `kb x 0.05` (cap 24 px/frame). Launched fighters
-  are floaty: gravity is x0.2 while rising and x0.9 while falling, and horizontal drag is 0.085, tuned so that on the classic stage a
-  forward smash kills mid-weights at about 70-115%, an up smash at about 130-210%, and a back air at about 95-140% (heavier fighters
-  survive longer; Brick is the toughest, Gizmo the lightest).
-- **Directional influence (DI):** hold the stick across the launch direction when the hit-stop ends and the trajectory bends by up to
-  ~17 degrees (applied once). The CPU DIs toward the stage centre.
-- **Crouch cancel:** getting hit while crouching on the ground absorbs 20% of the knockback.
-- **Recoil:** sideways hits turn the victim to face the attacker; near-vertical launches keep their facing.
-- **Hurt poses** are picked from the launch: light flinch (`hurtL`), heavy (`hurt`), launched upward (`hurtU`), spiked down (`hurtD`).
-  Fast launches tumble (rotate around the centre), rolls spin the sprite, and the hit-stop flash is coloured by the hit's element
-  (fire orange, lightning yellow, ice blue, blast, shock).
-- Other movement poses: `dash` (two-stride loop), `skid` (braking), `roll`, `held` (dangling in a grab).
-
-## Combat physics (`src/engine/physics.ts`)
-
-Bodies and objects interact, so every launch, wall and stray item is part of the fight:
-
-- **Human projectiles:** a fighter in hitstun flying at 5.5 px/frame or faster crashes into anyone in their path. The one hit
-  takes damage by the speed (2-13%) and is knocked along the flier's path, credited to whoever made the launch; the flier takes
-  40% of it and loses momentum. Weight matters: a heavy body ploughs through a light one, a light one glances off a heavy one.
-  Once per pair per launch; the launcher and teammates of either side are spared. Fliers stream smoke while they are dangerous.
-- **Splats:** an untech'd slam into a floor, wall or ceiling at 6.5 px/frame or more deals damage by impact speed (up to 9%),
-  credited to the launcher, with a crunch and a jolt. Teching (Shield just before impact) avoids it; CPUs tech floors, walls
-  and ceilings (Normal about half the time, Hard always).
-- **Momentum hits:** an attacker moving into its own melee hit (a dash attack, a drifting aerial) carries part of its speed into
-  the launch (up to +2 px/frame). Backing away adds nothing.
-- **Items are physics objects:** attacks bat loose items around (they bounce, slide and settle; the hitter cannot catch the
-  item for a moment). A knocked Shock Bomb arms and flies for the hitter. A fast knocked item bumps the first rival it meets
-  (4%, credited to the knocker), then drops.
-- **Launch-path preview (training):** every launching hit draws the no-DI flight path: orange while it is fast enough to crash
-  into others, a ring where it lands, a red cross where it would KO.
-
-## Phase 16-17: content foundations and deeper mechanics
-
-**Data-driven effects.** Every character's visuals beyond the sprite live in `src/characters/<id>.fx.json` (named recipes for move events,
-per-tick rules for auras / trails / charge effects, trail colour, cinematic hit effects), interpreted by `src/fx/runner.ts` with a shared
-library in `src/fx/library.ts`. Story text lives in the character's `persona`. A guard test fails if shared code branches on a character id.
-`validateFx` / `validateStage`, the conformance suite (`tests/content.test.ts`), the all-lineups soak test and the kill-percent test
-(`docs/kill-percents.md`) check new content automatically. See `docs/CONTENT-GUIDE.md`.
-
-**New mechanics** (all deterministic, all tested in `tests/mechanics17.test.ts`):
-- **Perfect shield:** a shield raised in the last 4 frames before a hit deflects it for free and freezes the attacker 10 extra frames
-  (Hard CPUs time their shields for it). Dropping the shield locks it out for 6 frames (no shield mashing).
-- **Out of shield:** Attack + up = up smash, Smash = smash by stick direction, any special, or jump-cancelled grab.
-- **Dodge staleness:** repeated spot dodges / rolls / air dodges lose invincibility frames; it recovers after 1.5 s of not dodging.
-- **Stale-move negation:** each of the last 9 connecting moves that repeats costs 4.5% damage. **Rage:** up to +10% knockback for attackers
-  at high percent. **Combo scaling:** each further hit of a combo deals 3% less damage (floor 65%) and shortens hitstun; a "N HITS"
-  counter shows on the victim from 3 hits.
-- **Hitlag SDI:** stick flicks during hit-stop nudge the victim 5 px (up to 3 times per hit).
-- **Ledge trump:** grabbing an occupied ledge knocks the hanging fighter off. **Moving platforms** pass their motion on when you jump.
-- **Stage surfaces:** `surface: 'ice' | 'sticky' | 'conveyor' | 'bouncy'` on a platform (+ `conveyor` speed) changes friction, carries
-  fighters, or makes launched fighters rebound harder.
-- **Also:** analog **walk** (gentle stick tilts), **wall cling** for wall-jumpers, **ledge roll / ledge hop / slow get-up** when damaged,
-  **burst** (spend 50 meter in a 4+ hit combo to break out and shove attackers away), status icons and level marks on the HUD, a live input
-  display in training.
-- **Audio:** hit sounds are layered by the hit's element (fire / lightning / ice / heavy thud), plus a parry ping and ledge-trump cue.
-
-## Add a character
-
-1. Create `src/characters/<id>.ts` exporting a `CharacterData` (copy `brick.ts`): stats, body size,
-   animation table and a placeholder look.
-2. Register it in `src/characters/index.ts`.
-3. (Optional) Real art: add a sprite sheet (one animation per row, frames left→right, square frames; placeholders are 64×64 with `pixelScale: 0.5`, i.e. half a world unit per sprite pixel)
-   and set `sprite.sheetUrl`; the placeholder generator is skipped automatically.
-
-## Add a stage
-
-Create `src/stages/<id>.ts` exporting a `StageData` (platforms with `solid`/`pass`, optional `ledges`
-and `move`, blast zones, spawns, background) and register it in `src/stages/index.ts`.
-
-## Performance
-
-Measured on the build machine's software renderer (so GPU numbers are not meaningful, CPU numbers are):
-the whole sim for 4 fighters + 4 CPUs costs about 0.01-0.05 ms per 60 Hz tick (`tests/perf.test.ts` asserts it stays under 1.5 ms), the
-CPU brains allocate under ~1 KB per tick together with the sim (a regression test uses V8's sampling heap profiler), a 4-player match
-issues about 9 WebGL draw calls per frame (Phaser batches the generated textures, so an atlas would not help), and JS time per frame is
-under 1 ms. Effects, projectiles, deployables and HUD objects are pooled. Particle quality has three tiers, and **auto particle
-quality** (Settings) temporarily drops a tier if the frame rate stays under ~45 fps for a few seconds.
-The perf line (backtick) shows fps, 1% low, sim ms and JS ms per frame. For comparable measurements on your machines open
-`http://localhost:5173/?stage=reactor&players=4&cpu=3&auto&bench=20` in each browser: after 20 s it prints `BENCH RESULT {...}` to the
-console and shows avg fps, 1% low, sim and JS ms per frame on screen. Please send me those lines from the MacBook (Safari + Chrome)
-and the Windows PC (Chrome / Edge).
-
-## Balance
-
-`docs/balance-report.md` is a CPU-vs-CPU round robin (`BALANCE=1 npx vitest run tests/balanceReport.test.ts`). Treat it as a smoke
-test: the CPU plays Brick and Gizmo (straightforward kits) far better than Vex (hit-and-run) and Nova, so it exaggerates the gaps. It
-did find real bugs (simultaneous cinematic grabs and a KO'd grabber could leave a fighter grabbed forever) and tuned values that
-were clearly too strong: ultimate meter gain was roughly halved (about one ultimate per fighter per match), Brick's up / down smashes
-and forward smash are slower. The Phase 15 pass (five fighters) compressed the weights (Brick 106, Vex 104, Nova 100, Agni 96, Gizmo 88
-instead of 125 / 80 / 90 / n/a / 95: weight was by far the strongest lever and made Brick unbeatable and Vex unwinnable), raised Vex's
-damage by 25% and Nova's fire / ice bolts by 25%, and slowed Gizmo's turrets and Mech punches. Hard CPUs now sit at roughly 45-55%
-(Brick 55, Vex 39, Nova 53, Gizmo 49, Agni 54, Halcyon 49 in the latest Hard-CPU run; weights are now Brick 114, Vex 106, Nova 100, Agni 92, Gizmo 88). Real balance needs your hands-on feedback.
-
-The CPU later learned each fighter's whole kit: Havoc fires its rocket and mortar, steers the missile and slaps C4; Riptide bites and
-throws; Rime counters; Nova switches elements. It also stopped lunging off ledges and recovering to the ledge instead of the stage.
-That moved the numbers, mostly because fighters stopped self-destructing, so the roster was retuned: Havoc 96 weight, Riptide 102 with
-gentler up / down smashes, Brick's smashes scale a little less, Vex 107 (still lighter than Brick) with stronger forward / down smash
-kill power, Halcyon 101. With 84 Hard-CPU matches per pairing: Brick 54, Vex 40, Nova 46, Gizmo 51, Agni 44, Halcyon 51, Riptide 56,
-Obelisk 45, Rime 49, Havoc 63. Havoc is the remaining outlier: its zoning outlasts rivals (it is KO'd near 195% and kills near 150%),
-and frame-data nerfs to its explosives barely moved it. Normal CPUs spread about as wide (39-65%, Rime highest, Havoc lowest): at
-that skill level speed matters more than kit, so tune against the Hard numbers.
-
-## Roadmap
-
-Phases 1-12 are done. Possible next steps: real sprite sheets (drop in `sheetUrl`), more characters and stages, online play (the
-sim is deterministic, so rollback netcode is feasible), a replay system, and more CPU play-style tuning (Vex now plays hit-and-run; it still loses to the zoners Nova and Gizmo).
+## Docs
+
+- [`docs/stages.md`](docs/stages.md): every stage's layout, hazard timing, blast zones and intent.
+- [`docs/CONTENT-GUIDE.md`](docs/CONTENT-GUIDE.md): how to add a fighter or a stage.
+- [`docs/kill-percents.md`](docs/kill-percents.md) and [`docs/balance-report.md`](docs/balance-report.md): generated
+  measurements (see [Measurement tools](#measurement-tools)).
+- `docs/frame-data-<id>.md`: generated frame data per fighter.
+- [`ROADMAP.md`](ROADMAP.md), [`docs/master-plan.md`](docs/master-plan.md), [`docs/fun-pass-plan.md`](docs/fun-pass-plan.md),
+  [`docs/physics-plan.md`](docs/physics-plan.md), [`docs/obelisk-plan.md`](docs/obelisk-plan.md) and
+  [`docs/MECHANICS-BACKLOG.md`](docs/MECHANICS-BACKLOG.md): historical build plans, kept for the reasoning behind design
+  choices. They describe the game at the time they were written; this README and `docs/stages.md` describe it as it is.

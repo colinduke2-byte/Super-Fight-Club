@@ -1,5 +1,7 @@
 # Obelisk: the crystal golem (8th fighter) — build plan
 
+> **Historical plan.** This document records a build pass as it was planned and is kept for the reasoning behind the design. Numbers, names and layouts in it may since have changed; the README and `docs/stages.md` describe the game as it is now.
+
 ## The brief (from the Q&A)
 
 | Question | Answer |

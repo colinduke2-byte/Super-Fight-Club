@@ -33,6 +33,14 @@
 2. Register in `src/stages/index.ts` (`STAGES`, and `STAGE_LIST` if it should appear in Stage Select).
 3. `tests/content.test.ts` runs `validateStage` on every registered stage (sizes, ledges only on solid platforms, everything inside the blast zones, spawns supported, hazard timing).
 
+Building blocks, all data on `StageData` (see `src/engine/types.ts` and the existing stages, summarised in [`stages.md`](stages.md)):
+- Platforms: `solid` (with `ledges`) or `pass`; `move` for a sine sway on one axis; `path` for keyframed routes; `surface` (`ice`, `sticky`, `conveyor`, `bouncy`).
+- Hazards (`kind`: `geyser` (with `style: 'water'` and `soak` for spouts), `bolt`, `stalactite` (optional `stump`), `avalanche`), each timed by `period`, `offset`, `warn` and `active` frames as a pure function of the tick.
+- `walkOff: { left?, right? }` for a side with no ledge; `route` + `phases` for a travelling stage whose legs the backdrop and HUD call out.
+- BATTLEFIELD and PLAIN forms are built automatically from the stage's widest solid platform (`src/stages/forms.ts`); nothing to add.
+- If the stage is a fighter's home, set it in `HOME_STAGE` (`src/game/routes.ts`) so the Arcade rival fight is held there.
+4. Measure it: `STAGEAUDIT=1 STAGEAUDIT_STAGES=<id> npx vitest run tests/tools/stageAudit.test.ts` (match length, KO percents, self-destructs, hazard KOs, spawn-side fairness; targets in [`stages.md`](stages.md#measuring-a-stage)). New stage pieces change `tests/art.test.ts`'s hashes: look at the art, then regenerate with `UPDATE_ART_HASHES=1`.
+
 ## Give moves a punchy look (all optional, all data)
 
 - `pose` on a move (`{ t: 'punch' | 'hook' | 'uppercut' | 'kick' | 'sweep' | 'slash' | 'thrust' | 'spin' | 'slam' | 'stomp' | 'elbow' | 'overhead' | 'custom', hand, foot, reach, h, ... }`)

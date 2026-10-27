@@ -1,5 +1,7 @@
 # Fun pass: Brick, Gizmo and Obelisk (plus the rest of the game)
 
+> **Historical plan.** This document records a build pass as it was planned and is kept for the reasoning behind the design. Numbers, names and layouts in it may since have changed; the README and `docs/stages.md` describe the game as it is now.
+
 Vex is fun because everything it does is quick and has a follow-up: 3-5 frame normals, two double jumps, a dash, a wall
 jump, a teleport to recover, and a dive kick that bounces into the next hit. The three fighters below are slow, have few
 follow-ups, and ask the player to wait. This pass gives each of them a signature toy (with Smash design cues), faster

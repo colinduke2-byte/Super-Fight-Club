@@ -1,5 +1,12 @@
 # Mechanics backlog: everything to improve before adding characters and maps
 
+> **Historical snapshot** (written at Phase 15, updated at Phase 16-17). Much of the list has been done since, including: replays
+> (deterministic re-runs, a replay vault and shareable codes), stage forms (BATTLEFIELD and PLAIN versions of every stage), new hazard
+> kinds (lightning bolts, water spouts that soak, falling stalactites, avalanches), keyframed travelling stages (Skyline Express),
+> walk-offs (Harbour Pier), Stage Select thumbnails, tags and a random-stage pool, more items (sword, ray gun, bat, mine, drone,
+> crate...), a 1-9 CPU skill scale, and measurement tools (`tests/tools/`: stage audit, match sim, recovery report). Read the open items
+> against the current code before acting on them; the README and `docs/stages.md` describe the game as it is now.
+
 Status of the codebase at the end of Phase 15 (5 fighters, 3 stages + sandbox, 1 boss). Items are tagged:
 
 - **[BLOCKER]** will hurt or break the "add a character / add a map" workflow if not done first

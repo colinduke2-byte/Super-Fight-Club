@@ -4,7 +4,7 @@ import type { StageBackground, StageData } from '../engine/types';
 const APEX_THEME = 'apex' as NonNullable<StageBackground['theme']>;
 
 /**
- * The Apex: the Overseer's chamber at the top of the arena, the Arcade Ladder's final stage (not in Stage Select). One
+ * The Apex: the Overseer's chamber at the top of the arena, the Arcade Ladder's final stage (also in Stage Select). One
  * long dais built for a boss 1.6x a fighter's size, with two low ledges either side to dodge the Cataclysm's pillars and
  * a high perch over the middle. No hazards: the boss is the hazard. Its own 'apex' look: the Overseer's throne-citadel above
  * the clouds at the top of the world, an ivory dais on an obsidian spire under the vast shadow of its spire crown and eye.

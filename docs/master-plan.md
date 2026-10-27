@@ -1,5 +1,7 @@
 # Master plan: the overnight build
 
+> **Historical plan.** This document records a build pass as it was planned and is kept for the reasoning behind the design. Numbers, names and layouts in it may since have changed; the README and `docs/stages.md` describe the game as it is now.
+
 The brief: make every fighter as fun as Vex, add two fighters (a frost ninja and a gadget soldier), two maps (the ninja's
 frozen shrine and a flying airship), real alternate outfits for everyone, bigger ultimates, better models and animations,
 and polish everything else. Smash Bros. is the design reference. Decisions are made as we go; every phase ends green
