@@ -387,7 +387,9 @@ export class WorldEventFx {
         break;
       case 'jump':
         // push-off: a soft puff of the floor's own dust out from both feet (wall, ledge and coyote jumps start in the air)
-        if (extra === 1) e.dust(x, y, 4, 0);
+        // a wall jump (extra 1, emitted at the body's middle) kicks off the wall it pushed from: the puff leaves the wall face
+        // in the new jump direction
+        if (extra === 1) e.kickDust(x - f.facing * f.hw, y, 3, f.facing);
         else if (this.onFloor(x, y)) {
           e.kickDust(x - 3, y, 2, -1);
           e.kickDust(x + 3, y, 2, 1);
@@ -399,10 +401,13 @@ export class WorldEventFx {
         break;
       case 'land':
         // a real drop (not a step off a ledge) splashes dust out both ways, more the harder it lands
+        // (heavier bodies throw more of it, from under wider feet: it matches FighterView's weight-tuned landing squash)
         if (mag > 3) {
-          const n = 2 + Math.min(4, Math.round((mag - 3) * 0.6));
-          e.kickDust(x - 4, y, n, -1);
-          e.kickDust(x + 4, y, n, 1);
+          const heavy = Math.max(0.85, Math.min(1.3, f.data.stats.weight / 100));
+          const n = 2 + Math.min(5, Math.round((mag - 3) * 0.6 * heavy));
+          const off = Math.max(4, f.hw * 0.45 * f.sizeMul);
+          e.kickDust(x - off, y, n, -1);
+          e.kickDust(x + off, y, n, 1);
         }
         break;
       case 'landBounce':

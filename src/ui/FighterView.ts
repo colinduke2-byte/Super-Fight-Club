@@ -3,7 +3,7 @@ import { PIXEL_FONT } from '../art/pixelFont';
 import { animFrameIndex, fighterAnimKey, fighterTextureKey } from '../art/proceduralFighter';
 import { flipsOnDoubleJump } from '../art/poses';
 import type { CharacterData } from '../engine/types';
-import { INITIAL_DASH_FRAMES, SHIELD_MAX, type Fighter } from '../engine/fighter';
+import { SHIELD_MAX, type Fighter } from '../engine/fighter';
 import type { Platform } from '../engine/platform';
 import { color, fighterTrailColor } from '../fx/runner';
 import { BASIC_KINDS, basicOf } from '../fx/basicFx';
@@ -11,6 +11,7 @@ import { applyMechSkin } from './mechSkin';
 import { RimLight } from './RimLight';
 import { fastShapes } from './fastShapes';
 import { settings } from '../settings';
+import { BodyMotion, bodyFeel } from './bodyMotion';
 
 /** Pixels the body is drawn left of the frame centre in the procedural sprite sheet (see proceduralFighter). */
 const BODY_SHIFT = 5;
@@ -103,6 +104,8 @@ export class FighterView {
   /** This fighter's double jump is a somersault: the view spins the sprite through `jump2`. */
   private readonly flips: boolean;
   private readonly av: AttackView = { sx: 1, sy: 1, rot: 0 };
+  /** Movement squash / stretch / lean, tuned by the fighter's weight (see bodyMotion). */
+  private readonly body: BodyMotion;
   /** Trail tint for the smear when it does not depend on the fighter's state (null = resolve each frame). */
   private readonly trailTint: number | null;
   private readonly accentHex: number;
@@ -150,6 +153,7 @@ export class FighterView {
     this.layer = layer;
     this.scene = scene;
     this.skin = skin ?? fighter.data.id;
+    this.body = new BodyMotion(bodyFeel(fighter.data.stats.weight));
     this.flips = flipsOnDoubleJump(fighter.data.sprite.placeholder?.build?.helmet ?? '');
     const trail = fighter.data.fx?.trail;
     this.trailTint = typeof trail === 'object' ? null : fighterTrailColor(fighter, 0);
@@ -296,6 +300,9 @@ export class FighterView {
     s.setPosition(this.x + shake + f.facing * BODY_SHIFT * (f.data.sprite.frameSize / 64) * f.data.sprite.pixelScale * f.sizeMul, this.y + 1);
     s.setFlipX(f.facing < 0);
     const av = this.attackView(f);
+    const body = this.body;
+    if (snapTo !== null) body.reset();
+    else body.step(f, dt, settings.reduceMotion);
     // launched victims tumble around their centre, rolls spin the tucked sprite; everything else stands upright on its feet
     const tumbling = f.state === 'hitstun' && !f.grounded && Math.hypot(f.vx, f.vy) > 5;
     const rolling = f.state === 'roll' || (f.state === 'tech' && Math.abs(f.vx) > 1);
@@ -315,43 +322,13 @@ export class FighterView {
       this.spin = 0;
       // grounded flinch: rocked back away from the hit, easing upright as hitstun runs out
       const recoil = f.state === 'hitstun' ? -f.facing * 0.2 * Math.min(1, f.hitstun / 12) : 0;
-      s.setOrigin(0.5, 1).setRotation(av.rot + recoil + this.sprintTilt(f));
+      s.setOrigin(0.5, 1).setRotation(av.rot + recoil + body.rot);
     }
     this.shadow.setX(this.x);
 
-    // squash & stretch
-    let sx = 1;
-    let sy = 1;
-    if (snapTo === null) switch (f.state) {
-      case 'jumpsquat':
-      case 'landing':
-        sx = 1.12;
-        sy = 0.86;
-        break;
-      case 'air':
-        if (f.fastFalling) {
-          sx = 0.9;
-          sy = 1.12;
-        } else if (f.vy < -4) {
-          sx = 0.94;
-          sy = 1.08;
-        }
-        break;
-      case 'run':
-        if (f.sprinting && f.dashTimer > 0 && f.grounded) {
-          // sprint start: a quick stretch along the run that settles over the first frames of the burst
-          const k = Math.max(0, (f.dashTimer - (INITIAL_DASH_FRAMES - 6)) / 6) * (settings.reduceMotion ? 0.4 : 1);
-          sx = 1 + 0.14 * k;
-          sy = 1 - 0.1 * k;
-        } else if (f.sprintTurn > 0) {
-          // skid turn: squashed down over the planted feet
-          sx = 1.07;
-          sy = 0.94;
-        }
-        break;
-      default:
-        break;
-    }
+    // squash & stretch: the movement spring (jump squat, take-off, landing, fast fall, sprint start, skids) times the attack's
+    let sx = body.sx;
+    let sy = body.sy;
     sx *= av.sx;
     sy *= av.sy;
     this.updateSmear(f, av);
@@ -752,15 +729,6 @@ export class FighterView {
     this.shadow.setVisible(true).setScale(w / 32, (w / 32) * 0.28).setY(plat.top + 0.5).setAlpha(this.shadowA);
   }
 
-  /** Body tilt for sprinting (radians, around the feet): pitched into the burst, rocked back through a skid. */
-  private sprintTilt(f: Fighter): number {
-    if (!f.grounded || f.state !== 'run') return 0;
-    const m = settings.reduceMotion ? 0.4 : 1;
-    if (f.sprinting && f.dashTimer > 0 && f.sprintTurn === 0) return f.facing * 0.13 * m * Math.min(1, f.dashTimer / 4);
-    if (f.sprintTurn > 0 || f.sprintSkid > 0) return -Math.sign(f.vx || f.facing) * 0.07 * m;
-    return 0;
-  }
-
   /** Spawn a fading copy of the current sprite (afterimage) at a world position. */
   /** Entrance (READY countdown only): shift, fade and stretch the body on top of its pose. */
   entrance(dx: number, dy: number, alpha: number, sy = 1): void {
@@ -819,9 +787,11 @@ export class FighterView {
     } else this.ghostMove = null;
     const speed = Math.hypot(f.vx, f.vy);
     const fast = f.state === 'dash' || (f.state === 'attack' && (speed > 3.2 || (!!f.move?.view?.ghosts && f.attackPhase >= 3 && f.attackPhase <= 4))) || (f.state === 'hitstun' && speed > 9);
-    if (fast && tick - this.lastGhostTick >= 2 && f.hitlag === 0) {
+    // a dash leaves the same trail colour as the sprint it runs into (fewer copies with REDUCE MOTION)
+    const dashing = f.state === 'dash';
+    if (fast && tick - this.lastGhostTick >= (dashing && settings.reduceMotion ? 4 : 2) && f.hitlag === 0) {
       this.lastGhostTick = tick;
-      this.afterimage(this.x, this.y, f.state === 'hitstun' ? 0xff8080 : this.accentHex);
+      this.afterimage(this.x, this.y, f.state === 'hitstun' ? 0xff8080 : dashing ? (this.trailTint ?? fighterTrailColor(f, tick)) : this.accentHex);
     } else if (f.sprinting && f.grounded && f.state === 'run' && f.sprintTurn === 0 && f.hitlag === 0 && !settings.reduceMotion && tick - this.lastGhostTick >= 5) {
       // sprinting: a faint after-image left behind every few frames, in the fighter's trail colour
       this.lastGhostTick = tick;
