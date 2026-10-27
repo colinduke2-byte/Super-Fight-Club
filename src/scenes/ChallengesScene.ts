@@ -136,7 +136,7 @@ export class ChallengesScene extends MenuScene {
     this.ui.add([this.arrows, this.medalG]);
     this.count = text(this, this.ui, '', COLORS.good).setOrigin(0.5);
     this.brief = text(this, this.ui, '', COLORS.accent).setOrigin(0.5);
-    this.setup = text(this, this.ui, '', COLORS.dim).setOrigin(0.5);
+    this.setup = text(this, this.ui, '', COLORS.hint).setOrigin(0.5);
     this.medals = [1, 2, 3].map(() => text(this, this.ui, '', COLORS.dim).setOrigin(0, 0.5));
     this.hint = text(this, this.ui, '', COLORS.dim).setOrigin(0.5);
     this.bindFooter(this.hint, [['updown', 'MOVE'], ['leftright', 'PAGE'], ['confirm', 'START'], ['alt', 'NEXT UNCLEARED'], ['back', 'BACK']]);
@@ -414,6 +414,10 @@ export class ChallengesScene extends MenuScene {
     this.setup.setPosition(w / 2, y0 + 7 * this.brief.scaleY + gap + (7 * this.setup.scaleY) / 2);
     const my = this.setup.y + (7 * this.setup.scaleY) / 2 + gap + Math.max(7 * mk, disc * 2) / 2;
     const total = this.medals.reduce((n, m) => n + m.displayWidth + disc * 2 + 3 * u, 0) + gapM * 2;
+    // a plate behind the brief, the setup line and the medals: they read over the brightest backdrop (the sunset sky)
+    const pw = Math.min(w - 4 * u, Math.max(this.brief.displayWidth, this.setup.displayWidth, total) + 16 * u);
+    const pp = 4 * u;
+    drawPanel(g, w / 2 - pw / 2, y0 - pp, pw, block + pp * 2, u, 0.88);
     let x = w / 2 - total / 2;
     this.medals.forEach((m, i) => {
       this.medal(g, x + disc, my, disc, i + 1, tier > i);

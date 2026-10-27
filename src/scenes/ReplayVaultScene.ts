@@ -403,7 +403,8 @@ export class ReplayVaultScene extends MenuScene {
     const bottom = this.status.y - 8 * u;
     // wide: the list on the left, the selected replay's details on the right; narrow: details under a shorter list
     const wide = w / u > 360;
-    const listW = wide ? Math.min(300, (w / u) * 0.6) : Math.min(300, w / u - 16);
+    // (at most about half the width: at a large TEXT SIZE a wider list would starve the details panel and shrink its text)
+    const listW = wide ? Math.min(300, (w / u) * 0.6, (w * 0.48) / u) : Math.min(300, w / u - 16);
     const detailH = wide ? 0 : 58 * u;
     const listX = wide ? 8 * u + (listW * u) / 2 + 6 * u : w / 2;
     // (touch rows are taller and the plate grows upward with them: start them lower so it clears the counts line)

@@ -225,19 +225,32 @@ export class ProfilesScene extends MenuScene {
 
   protected override layoutUi(w: number, h: number, u: number): void {
     if (!this.title) return;
-    this.title.setScale(Math.min(u * 3, (w * 0.9) / Math.max(1, textPx(this.title)))).setPosition(w / 2, 6 * u + (7 * u * 3) / 2);
+    this.layoutWith(w, h, u, u);
+    // TEXT SIZE above 100%: the biography is what the larger text is for. When a larger title and menu would squeeze it
+    // smaller than at 100%, the title and menu stay at their 100% size and the panels get the room
+    const base = u / Math.max(1, settings.uiScale);
+    if (this.view === 'fighters' && !this.editor && base < u && this.bodyT.scaleX < base) this.layoutWith(w, h, u, base);
+  }
+
+  /** The unit the last layout gave the title, the menu and the name (below `u` when the biography needed the room). */
+  private chromeU = 0;
+
+  /** Lays the screen out with `cu` for the title and the menu (the chrome) and `u` for the panels' text. */
+  private layoutWith(w: number, h: number, u: number, cu: number): void {
+    this.chromeU = cu;
+    this.title.setScale(Math.min(cu * 3, (w * 0.9) / Math.max(1, textPx(this.title)))).setPosition(w / 2, 6 * cu + (7 * cu * 3) / 2);
     this.hint.setText(this.editor ? `${footerHint([['move', 'LETTER'], ['confirm', 'PRESS'], ['back', 'DELETE']])}   OR TYPE IT` : footerHint([['updown', 'MOVE'], ['leftright', 'CHANGE'], ['confirm', 'SELECT'], ['back', 'BACK']]));
     const footTop = this.placeFooter(this.hint);
-    const top = this.title.y + (7 * this.title.scaleY) / 2 + 6 * u;
+    const top = this.title.y + (7 * this.title.scaleY) / 2 + 6 * cu;
     const narrow = w < h;
     const rows = this.list.items.length;
-    const rowH = 18 * u;
+    const rowH = 18 * cu;
     const listW = Math.min(220, (w * 0.9) / u);
     if (this.view === 'fighters') {
       // the menu along the bottom, the two panels above it
-      const listTop = footTop - 4 * u - Math.min(rows, 3) * rowH;
-      this.list.layout(w / 2, listTop, u, listW, footTop - 2 * u);
-      const bottom = listTop - 10 * u;
+      const listTop = footTop - 4 * cu - Math.min(rows, 3) * rowH;
+      this.list.layout(w / 2, listTop, cu, Math.min(220, (w * 0.9) / cu), footTop - 2 * cu);
+      const bottom = listTop - 10 * cu;
       const ph = Math.max(40 * u, bottom - top);
       if (narrow) {
         const lh = ph * 0.38;
@@ -256,7 +269,7 @@ export class ProfilesScene extends MenuScene {
     if (this.editor) this.placeEditor(w, h, u);
   }
 
-  private placeFighter(u: number): void {
+  private placeFighter(u: number, cu = this.chromeU || u): void {
     const c = this.fighter();
     const L = this.panelL;
     const R = this.panelR;
@@ -273,11 +286,12 @@ export class ProfilesScene extends MenuScene {
       else this.bust.setScale((side / 40) * portraitK(c)).setPosition(L.x + side / 2 + 6 * u, L.y + side + 6 * u);
     }
     // the text column: name, tagline, then the body and the record, sized to fit the panel
-    const pad = 8 * u;
+    // (the name and the margins keep their 100% size when the panel is short of room: see layoutUi)
+    const pad = 8 * cu;
     const tw = R.w - pad * 2;
-    this.nameT.setScale(Math.min(u * 2.5, tw / Math.max(1, textPx(this.nameT)))).setPosition(R.x + pad, R.y + pad);
-    this.tagT.setScale(Math.min(u, tw / Math.max(1, textPx(this.tagT)))).setPosition(R.x + pad, this.nameT.y + this.nameT.displayHeight + 4 * u);
-    const y0 = this.tagT.y + this.tagT.displayHeight + 6 * u;
+    this.nameT.setScale(Math.min(cu * 2.5, tw / Math.max(1, textPx(this.nameT)))).setPosition(R.x + pad, R.y + pad);
+    this.tagT.setScale(Math.min(u, tw / Math.max(1, textPx(this.tagT)))).setPosition(R.x + pad, this.nameT.y + this.nameT.displayHeight + 4 * cu);
+    const y0 = this.tagT.y + this.tagT.displayHeight + 6 * cu;
     const room = R.y + R.h - pad - y0;
     // the largest whole-ish scale at which the wrapped block fits the panel
     // the advance of one glyph at scale 1 (measured over a run, so the letter gap counts)

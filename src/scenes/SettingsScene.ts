@@ -4,7 +4,7 @@ import { sfx } from '../audio/sfx';
 import type { MenuEvent } from '../input/menuInput';
 import { resetSettings, saveSettings, settings, type ParticleQuality, type RenderQuality, type Settings, type SmashMode, SPRINT_LABEL, stepSprint } from '../settings';
 import { applySize, fullscreenSupported, isIosBrowser, showHomeScreenTip } from '../display';
-import { COLORS, MenuList, MenuScene, PORT_SHAPES, drawButton, drawPortShape, playerColors, pointerXY, tapMin, text, textPx, type MenuBackdrop, type MenuItem } from '../ui/menuKit';
+import { COLORS, MenuList, MenuScene, PANEL, PORT_SHAPES, drawButton, drawPanel, drawPortShape, playerColors, pointerXY, tapMin, text, textPx, type MenuBackdrop, type MenuItem } from '../ui/menuKit';
 
 const QUALITY: ParticleQuality[] = ['low', 'medium', 'high'];
 const SMASH: SmashMode[] = ['flick', 'button'];
@@ -258,7 +258,7 @@ export class SettingsScene extends MenuScene {
           { label: 'PLAYER COLOURS', hint: 'COLOUR-BLIND swaps the player colours for a set that stays distinct with any colour vision.', value: () => (settings.playerPalette === 'classic' ? 'CLASSIC' : 'COLOUR-BLIND'), onLeft: pal, onRight: pal, onConfirm: pal },
           sw('portShapes', 'PLAYER SHAPES', 'A shape per player (circle, square, triangle, diamond) on tags, HUD plates and off-screen bubbles.'),
           { label: 'TEXT SIZE', hint: 'Scales menu text and the match HUD. Long menus scroll rather than shrink.', value: () => pct(settings.uiScale), onLeft: sc(-1), onRight: sc(1), onConfirm: sc(1) },
-          sw('reduceMotion', 'REDUCE MOTION', 'Calmer menus: no gliding cursor, sliding intros, swaying lights or confetti. Starts on when your device asks for less motion.'),
+          sw('reduceMotion', 'REDUCE MOTION', 'Calmer menus (no gliding cursor, sliding intros, swaying lights or confetti) and, in matches, gentler camera punches, HUD jolts and body squash. Starts on when your device asks for less motion.'),
           sw('reduceFlashes', 'REDUCE FLASHES', 'Softer white flashes on KOs, hits and ultimates, and no blinking or strobing text.'),
         ];
         break;
@@ -333,20 +333,67 @@ export class SettingsScene extends MenuScene {
       drawButton(g, b.x, b.y, b.w, b.h, u, { sel: on });
       this.tabTexts[i].setTint(on ? COLORS.hot : COLORS.hint);
     });
-    // the accessibility tab previews the player colours and shapes
-    if (this.tab === 'access') {
+    // the accessibility tab previews its settings live: the player colours and shapes, a gliding marker that holds
+    // still with REDUCE MOTION, and an impact pop that softens with REDUCE FLASHES (the same damping as the match's)
+    const pv = this.previewBox();
+    if (pv) {
+      const u = pv.u;
       const cols = playerColors();
       const r = 3 * u;
-      const y = this.list.bottom + 9 * u;
-      if (y < this.desc.y - this.desc.displayHeight / 2 - 6 * u) {
-        const step = 26 * u;
-        PORT_SHAPES.forEach((_, i) => {
-          const x = this.scale.width / 2 + (i - 1.5) * step;
-          if (settings.portShapes) drawPortShape(g, i, x - 6 * u, y, r, cols[i], 1, u);
-          else g.fillStyle(cols[i], 1).fillRect(x - 6 * u - r, y - r, r * 2, r * 2);
-        });
+      const time = this.lastTime;
+      drawPanel(g, pv.x, pv.y, pv.w, pv.h, u, 0.86);
+      g.fillStyle(PANEL.border, 0.7).fillRect(pv.x + 4 * u, pv.rowB - 9 * u, pv.w - 8 * u, Math.max(1, u * 0.5));
+      const step = 26 * u;
+      PORT_SHAPES.forEach((_, i) => {
+        const x = this.scale.width / 2 + (i - 1.5) * step;
+        if (settings.portShapes) drawPortShape(g, i, x - 6 * u, pv.rowA, r, cols[i], 1, u);
+        else g.fillStyle(cols[i], 1).fillRect(x - 6 * u - r, pv.rowA - r, r * 2, r * 2);
+      });
+      // MOTION: a marker sweeping its track (with two fading after-images), or parked in the middle
+      const tx0 = pv.motionX;
+      const tw = pv.trackW;
+      const ty = pv.rowB;
+      g.fillStyle(0x2a2550, 1).fillRect(tx0, ty - u * 0.5, tw, u);
+      const still = settings.reduceMotion;
+      const mx = (t: number): number => Math.round(tx0 + tw / 2 + (still ? 0 : Math.sin(t * 2.2) * (tw / 2 - 3 * u)));
+      const dia = (x: number, col: number, a: number): void => {
+        g.fillStyle(col, a).fillTriangle(x, ty - 3 * u, x + 3 * u, ty, x - 3 * u, ty).fillTriangle(x, ty + 3 * u, x + 3 * u, ty, x - 3 * u, ty);
+      };
+      if (!still) {
+        dia(mx(time - 0.1), COLORS.accent, 0.18);
+        dia(mx(time - 0.05), COLORS.accent, 0.36);
       }
+      dia(mx(time), COLORS.hot, 1);
+      // FLASHES: an impact star every 1.6 s, white-hot and full size, or dimmed to the match's REDUCE FLASHES strength
+      const soft = settings.reduceFlashes ? 0.35 : 1;
+      const size = settings.reduceFlashes ? 0.6 : 1;
+      const life = (time % 1.6) / 0.4;
+      const fx = pv.flashX;
+      if (life < 1) {
+        const k = 1 - life;
+        const R = (5 + 4 * life) * u * size;
+        g.fillStyle(COLORS.title, 0.22 * soft * k).fillCircle(fx, ty, R * 0.9);
+        const col = settings.reduceFlashes ? 0xfff0c0 : 0xffffff;
+        g.fillStyle(col, soft * k);
+        g.fillTriangle(fx - R, ty, fx, ty - R * 0.28, fx, ty + R * 0.28).fillTriangle(fx + R, ty, fx, ty - R * 0.28, fx, ty + R * 0.28);
+        g.fillTriangle(fx, ty - R, fx - R * 0.28, ty, fx + R * 0.28, ty).fillTriangle(fx, ty + R, fx - R * 0.28, ty, fx + R * 0.28, ty);
+      } else g.fillStyle(0x2a2550, 1).fillCircle(fx, ty, u * 1.5);
     }
+  }
+
+  /** Where the ACCESSIBILITY tab's live preview plate goes (null on other tabs or when it does not fit above the footer). */
+  private previewBox(): { u: number; x: number; y: number; w: number; h: number; rowA: number; rowB: number; motionX: number; trackW: number; flashX: number } | null {
+    if (this.tab !== 'access' || !this.desc) return null;
+    // its own unit: a little larger than the text unit, so the samples read at a glance (row B is 176 units across)
+    // (whole-number scales keep the pixel font and the shapes crisp)
+    const u = Math.min(Math.max(1, Math.floor(this.u * 1.5)), Math.floor((this.scale.width * 0.94) / 176));
+    if (u < 1 || u < this.u * 0.75) return null;
+    const w = 176 * u;
+    const h = 30 * u;
+    const y = this.list.bottom + 6 * this.u;
+    if (y + h > this.desc.y - this.desc.displayHeight / 2 - 6 * this.u) return null;
+    const x = this.scale.width / 2 - w / 2;
+    return { u, x, y, w, h, rowA: y + 8 * u, rowB: y + 21 * u, motionX: x + 51 * u, trackW: 30 * u, flashX: x + 155 * u };
   }
 
   protected override backdrop(): MenuBackdrop {
@@ -354,8 +401,12 @@ export class SettingsScene extends MenuScene {
   }
 
   private swatchLabels: Phaser.GameObjects.BitmapText[] = [];
+  /** MOTION / FLASHES captions in the accessibility preview. */
+  private previewLabels: Phaser.GameObjects.BitmapText[] = [];
+  private lastTime = 0;
 
   protected override tick(time: number): void {
+    this.lastTime = time;
     this.list.update(time);
     const d = up(this.list.hint);
     if (d !== this.desc.text) {
@@ -366,11 +417,19 @@ export class SettingsScene extends MenuScene {
     this.drawTabs();
     // P1..P4 next to the preview swatches
     if (!this.swatchLabels.length) this.swatchLabels = [0, 1, 2, 3].map((i) => text(this, this.ui, `P${i + 1}`, COLORS.text).setOrigin(0, 0.5));
-    const u = this.u;
-    const y = this.list.bottom + 9 * u;
-    const show = this.tab === 'access' && y < this.desc.y - this.desc.displayHeight / 2 - 6 * u;
+    if (!this.previewLabels.length) this.previewLabels = ['MOTION', 'FLASHES'].map((s) => text(this, this.ui, s, COLORS.hint).setOrigin(1, 0.5));
+    const pv = this.previewBox();
+    const u = pv?.u ?? this.u;
     const cols = playerColors();
-    this.swatchLabels.forEach((t, i) => t.setVisible(show).setScale(u).setTint(cols[i]).setPosition(this.scale.width / 2 + (i - 1.5) * 26 * u, y));
+    this.swatchLabels.forEach((t, i) => t.setVisible(!!pv).setScale(u).setTint(cols[i]).setPosition(this.scale.width / 2 + (i - 1.5) * 26 * u, pv?.rowA ?? 0));
+    if (pv) {
+      this.previewLabels[0].setPosition(pv.motionX - 4 * u, pv.rowB);
+      this.previewLabels[1].setPosition(pv.flashX - 18 * u, pv.rowB);
+    }
+    // highlighted while their setting's row is selected
+    const sel = this.list.items[this.list.index];
+    const selLabel = sel ? (typeof sel.label === 'function' ? sel.label() : sel.label) : '';
+    this.previewLabels.forEach((t, i) => t.setVisible(!!pv).setScale(u).setTint(selLabel === (i ? 'REDUCE FLASHES' : 'REDUCE MOTION') ? COLORS.hot : COLORS.hint));
   }
 
   protected onEvent(e: MenuEvent): void {

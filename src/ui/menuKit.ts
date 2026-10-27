@@ -64,10 +64,14 @@ export function truncateText(t: Phaser.GameObjects.BitmapText, str: string, maxP
   return out;
 }
 
-/** Player / port colours: the classic set, and an Okabe-Ito set (sky blue, orange, bluish green, reddish purple) that stays distinct for colour-blind players. */
+/**
+ * Player / port colours: the classic set, and a colour-blind set that keeps the blue / red / green / yellow identities but
+ * spreads them in lightness and hue so the closest pair stays at least CIE76 dE 40 apart under simulated protanopia,
+ * deuteranopia and tritanopia (the earlier Okabe-Ito set fell to 10-18 there, worse than classic).
+ */
 export const PLAYER_PALETTES = {
   classic: [0x4aa3ff, 0xff6a5a, 0x5fe08a, 0xffd04a],
-  colorblind: [0x56b4e9, 0xe69f00, 0x1fbf8f, 0xd884b6],
+  colorblind: [0x7a8cff, 0xff4a5a, 0x6fffd8, 0xffe000],
 } as const;
 
 /** The live port colours (the PLAYER COLOURS setting): the one source every tag, plate, bubble and menu chip reads. */

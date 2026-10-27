@@ -8,6 +8,12 @@ import { ART_D, CRATE_SCALE, DEP_ART, ITEM_SCALE, pillarCanvas, PROJ_ART, type D
 import { addCanvasTexture } from '../art/canvasTexture';
 import { slashStyle, type SlashStyle } from './SlashArcs';
 import { fastShapes } from './fastShapes';
+import { settings } from '../settings';
+
+/** The on-phase of an expiry / fuse warning blink: 7.5 Hz, slowed to under 2 Hz with REDUCE FLASHES. */
+function warnBlink(tick: number): boolean {
+  return ((tick >> (settings.reduceFlashes ? 4 : 2)) & 1) === 0;
+}
 
 const SHAPE_TEX: Record<string, string> = { orb: 'proj-orb', bolt: 'proj-bolt', bullet: 'proj-bullet', fist: 'proj-fist', beam: 'proj-beam', shard: 'proj-shard', wave: 'proj-wave' };
 const DEP_TEX: Record<string, string> = { mine: 'dep-mine', turret: 'dep-turret', rune: 'dep-rune', marker: 'dep-marker', whirlpool: 'dep-whirlpool', icepatch: 'dep-icepatch' };
@@ -261,7 +267,7 @@ export class EntityViews {
       const armed = d.age >= (d.def.armFrames ?? 0);
       if (dart) {
         const hover = dart.key === 'da-drone' ? Math.sin(tick * 0.09 + d.index) * 1.5 : 0;
-        const expiring = d.def.life ? d.def.life - d.age < 36 && (tick >> 2) % 2 === 0 : false;
+        const expiring = d.def.life ? d.def.life - d.age < 36 && warnBlink(tick) : false;
         s.setTexture(dart.key).setVisible(true).clearTint().setRotation(0).setScale(1 / ART_D).setFlipX(d.facing < 0).setPosition(d.x, d.y + hover).setAlpha(expiring ? 0.35 : 1);
         // a hit-flash as it takes damage
         if (d.def.health > 0 && d.hp < d.def.health && (tick >> 1) % 2 === 0 && d.hp / d.def.health < 0.35) s.setTint(0xffb0b0);
@@ -280,7 +286,7 @@ export class EntityViews {
       if (shape === 'marker') y = d.y - 6 + Math.sin(tick * 0.12) * 2;
       s.setPosition(d.x, y);
       s.setFlipX(d.facing < 0);
-      const expiring = d.def.life ? d.def.life - d.age < 36 && (tick >> 2) % 2 === 0 : false;
+      const expiring = d.def.life ? d.def.life - d.age < 36 && warnBlink(tick) : false;
       s.setAlpha(expiring ? 0.35 : shape === 'marker' ? 0.9 : 1);
       s.setScale(shape === 'rune' ? d.def.w / 64 : 0.5);
       if (shape === 'whirlpool') {
@@ -372,7 +378,7 @@ export class EntityViews {
     if (it.kind === 'mine' && (it.thrown || it.deployed)) {
       // a thrown mine tumbles; planted, it sits flat with its light blinking slowly while it arms and pulsing once live
       const live = mineArmed(it);
-      const fading = it.deployed && it.age > MINE.life - 60 && (tick >> 2) % 2 === 0;
+      const fading = it.deployed && it.age > MINE.life - 60 && warnBlink(tick);
       s.setTexture('item-mine').setVisible(!fading).setOrigin(0.5, 0.5).setPosition(it.x, it.y + (it.deployed ? 1.5 : 0)).setRotation(it.thrown ? it.spin : 0).setScale(ITEM_SCALE).setFlipX(false);
       s.clearTint();
       const on = live ? (tick >> 3) % 2 === 0 : (tick >> 4) % 2 === 0;
@@ -382,7 +388,7 @@ export class EntityViews {
     }
     if (it.kind === 'drone' && it.deployed) {
       // hovering by its owner, tilting toward its last shot; it blinks out over its last second and a half
-      const fading = it.fuse < 90 && (tick >> 2) % 2 === 0;
+      const fading = it.fuse < 90 && warnBlink(tick);
       const lean = Math.max(-0.35, Math.min(0.35, it.vx * 0.12));
       s.setTexture('item-drone').setVisible(!fading).setOrigin(0.5, 0.5).setPosition(it.x, it.y).setRotation(lean).setScale(ITEM_SCALE * 1.1).setFlipX(false);
       s.clearTint();
@@ -406,7 +412,7 @@ export class EntityViews {
       const k = it.primed ? (it.fuse < 15 ? 2 : 1) : 0;
       const shake = it.primed ? Math.sin(tick * 2.1) * (0.6 + k * 0.4) : 0;
       const hurt = 1 - Math.max(0, it.hp) / CRATE.hp;
-      const blink = (it.age > 660 && (tick >> 2) % 2 === 0) || (it.primed && (tick >> (3 - k)) % 2 === 0);
+      const blink = (it.age > 660 && warnBlink(tick)) || (it.primed && (tick >> (3 - k)) % 2 === 0);
       s.setTexture(itemTexture('crate', it.volatile)).setVisible(true).setOrigin(0.5, 1).setScale(CRATE_SCALE).setFlipX(false).setRotation(it.resting ? 0 : it.spin * 0.3);
       s.setPosition(it.x + shake, it.y + 7 + 0.5);
       if (blink && it.primed) s.setTint(0xff6040);
@@ -419,7 +425,7 @@ export class EntityViews {
       sp.setVisible(false);
       return;
     }
-    const blink = it.age > 600 && (tick >> 2) % 2 === 0;
+    const blink = it.age > 600 && warnBlink(tick);
     const still = it.resting && it.vx === 0;
     const y = it.y - (still ? 1.5 : 0) + Math.sin(tick * 0.1 + i) * (still ? 1.4 : 0);
     // a slow turn on the spot: the sprite narrows and widens as if spinning about its vertical axis
@@ -580,7 +586,7 @@ export class EntityViews {
         for (let k = 0; k < 6; k++) {
           const a = tick * 0.05 + (k * Math.PI) / 3;
           const c = PRISM[k];
-          const fl = f.aegisFrames < 50 && (tick >> 2) % 2 === 0 ? 0.3 : 1;
+          const fl = f.aegisFrames < 50 && warnBlink(tick) ? 0.3 : 1;
           g.lineStyle(1.1, c, 0.55 * fl).lineBetween(fx + Math.cos(a) * r, cy + Math.sin(a) * r * 1.1, fx + Math.cos(a + 0.6) * r, cy + Math.sin(a + 0.6) * r * 1.1);
         }
       }

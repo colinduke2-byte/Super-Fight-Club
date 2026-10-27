@@ -1,7 +1,7 @@
 export type SmashMode = 'flick' | 'button';
 export type ParticleQuality = 'low' | 'medium' | 'high';
 export type RenderQuality = 'auto' | 'sharp' | 'fast';
-/** Player colours: the classic blue / red / green / yellow, or an Okabe-Ito set that stays distinct with colour-blindness. */
+/** Player colours: the classic blue / red / green / yellow, or a colour-blind set spread in lightness and hue so it stays distinct under any colour-vision deficiency. */
 export type PlayerPalette = 'classic' | 'colorblind';
 /** How a sprint is started: a double-tap of a direction, a fast flick of the stick (every key press is one), or either. */
 export type SprintMode = 'doubletap' | 'flick' | 'both';

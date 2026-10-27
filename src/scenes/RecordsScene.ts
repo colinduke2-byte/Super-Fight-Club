@@ -1,4 +1,5 @@
 import Phaser from 'phaser';
+import { settings } from '../settings';
 import { fighterAnimKey, fighterTextureKey, uiTexK } from '../art/proceduralFighter';
 import { PIXEL_FONT, up } from '../art/pixelFont';
 import { CHARACTER_LIST } from '../characters';
@@ -438,18 +439,31 @@ export class RecordsScene extends MenuScene {
 
   protected override layoutUi(w: number, h: number, u: number): void {
     if (!this.list) return;
-    this.title.setScale(Math.min(u * 4, (w * 0.9) / Math.max(1, textPx(this.title)))).setPosition(w / 2, h * 0.08);
+    this.layoutWith(w, h, u, u);
+    // TEXT SIZE above 100%: when a larger title and menu would squeeze the table's rows below their 100% height, those
+    // stay at their 100% size and the table gets the room
+    const base = u / Math.max(1, settings.uiScale);
+    if (base < u && this.tableRowH > 0 && this.tableRowH < 18 * base) this.layoutWith(w, h, u, base);
+  }
+
+  /** Row height the last FIGHTERS / ARCADE table got (0 on the other pages). */
+  private tableRowH = 0;
+
+  /** Lays the screen out with `cu` for the title, the tally and the menu (the chrome) and `u` for the page. */
+  private layoutWith(w: number, h: number, u: number, cu: number): void {
+    this.tableRowH = 0;
+    this.title.setScale(Math.min(cu * 4, (w * 0.9) / Math.max(1, textPx(this.title)))).setPosition(w / 2, h * 0.08);
     const footTop = this.placeFooter(this.hint);
     // bottom up: hint, menu (3-4 rows), tally; the page fills what is left under the title
     // (rows are a finger tall on a touch screen: see MenuList.layout)
-    const menuH = this.list.items.length * Math.max(18 * u, tapMin(this));
-    const menuTop = footTop - 6 * u - menuH;
-    this.list.layout(w / 2, menuTop + 4 * u, u, 150, footTop);
+    const menuH = this.list.items.length * Math.max(18 * cu, tapMin(this));
+    const menuTop = footTop - 6 * cu - menuH;
+    this.list.layout(w / 2, menuTop + 4 * cu, cu, 150, footTop);
     // (finger-tall touch rows pad the menu's plate further up: the tally stays clear of it, and on the screen)
-    this.chal.setScale(Math.min(u, (w * 0.94) / Math.max(1, textPx(this.chal)))).setPosition(w / 2, menuTop - 10 * u - Math.max(0, tapMin(this) - 18 * u) / 2);
-    this.sub.setScale(u * 1.2).setPosition(w / 2, this.title.y + this.title.displayHeight / 2 + 7 * u);
-    const top = this.sub.y + 8 * u;
-    const bottom = this.chal.y - 7 * u;
+    this.chal.setScale(Math.min(cu, (w * 0.94) / Math.max(1, textPx(this.chal)))).setPosition(w / 2, menuTop - 10 * cu - Math.max(0, tapMin(this) - 18 * cu) / 2);
+    this.sub.setScale(Math.min(cu * 1.2, (w * 0.94) / Math.max(1, textPx(this.sub)))).setPosition(w / 2, this.title.y + this.title.displayHeight / 2 + 7 * cu);
+    const top = this.sub.y + 8 * cu;
+    const bottom = this.chal.y - 7 * cu;
     const g = this.plate.clear();
     const page = PAGES[this.page];
     if (page === 'FIGHTERS' || page === 'ARCADE') this.layoutTable(g, w, u, top, bottom);
@@ -476,6 +490,7 @@ export class RecordsScene extends MenuScene {
     // the icon column sits left of the text, so the text starts right of centre by half its width (plate centred)
     const x = w / 2 - tw / 2 + 9 * u;
     const rowH = Math.min(18 * u, (bottom - top) / (this.rows.length + 1));
+    this.tableRowH = rowH;
     const off = (rowH - 7 * ts) / 2;
     const y0 = top + off;
     head.setScale(ts).setPosition(x, y0);

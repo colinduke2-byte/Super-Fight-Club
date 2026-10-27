@@ -22,6 +22,24 @@ const PROFILE_NAME: Record<Profile, string> = {
 /** TOUCH: the button size and opacity steps. */
 const TOUCH_SIZES = [0.75, 0.875, 1, 1.15, 1.3, 1.5];
 const TOUCH_OPACITY = [0.2, 0.35, 0.5, 0.6, 0.75, 0.9];
+/** What each action does, shown under the list while its row is selected. */
+const ACTION_HINT: Record<Action, string> = {
+  left: 'Walk and run left; steers you in the air.',
+  right: 'Walk and run right; steers you in the air.',
+  up: 'Aims up attacks and up-special. On a keyboard it also jumps when W / UP JUMPS is on.',
+  down: 'Crouch, tap to drop through thin platforms, flick in the air to fast-fall.',
+  jump: 'Jump; press again in the air for a double jump.',
+  attack: 'Jabs, tilts with a direction, aerials in the air. A flick + Attack smashes (STICK FLICK mode).',
+  special: 'Four signature moves: alone or with a direction.',
+  shield: 'Block. With a direction: roll or spot dodge; in the air: air dodge.',
+  grab: 'Grab a rival close by, then a direction throws them.',
+  smash: 'Smash attack in the held direction, no flick needed. Hold to charge.',
+  ultimate: 'Unleash your ultimate once the meter under your portrait is full.',
+  pause: 'Pause the match (and open the pause menu).',
+};
+const DEVICE_HINT = 'The keyboard, controller or touch layout to edit.';
+/** Rows above the first action on a keyboard / pad page: DEVICE, W / UP JUMPS (TAP-JUMP), SPRINT. */
+const ACTION_ROW0 = 3;
 /** A capture nobody answers gives up after this long (ms), leaving the binding as it was. */
 const CAPTURE_TIMEOUT = 8000;
 /** Holding the pad's B or Start this long (ms) during a capture cancels it instead of binding it. */
@@ -47,6 +65,8 @@ export class ControlsScene extends MenuScene {
   private list!: MenuList;
   private title!: Phaser.GameObjects.BitmapText;
   private hint!: Phaser.GameObjects.BitmapText;
+  /** The selected row's explanation, over the footer. */
+  private desc!: Phaser.GameObjects.BitmapText;
   private back = 'Settings';
   private backData: object | undefined;
   /** Opened over a paused match: leaving resumes that scene instead of restarting it. */
@@ -88,6 +108,7 @@ export class ControlsScene extends MenuScene {
     this.title = this.add.bitmapText(0, 0, PIXEL_FONT, 'CONTROLS').setOrigin(0.5).setTint(COLORS.title);
     this.ui.add(this.title);
     this.list = new MenuList(this, this.ui, this.items());
+    this.desc = text(this, this.ui, '', COLORS.accent).setOrigin(0.5);
     this.hint = text(this, this.ui, '', COLORS.dim).setOrigin(0.5);
     this.events.once('shutdown', () => {
       keyboardHub.onKeyDown = null;
@@ -112,8 +133,9 @@ export class ControlsScene extends MenuScene {
     if (this.isTouch) return this.touchItems(cyc);
     const actions: Action[] = this.isKb ? ALL_ACTIONS : BUTTON_ACTIONS;
     const rows: MenuItem[] = [
-      { label: 'DEVICE', value: () => PROFILE_NAME[this.profile], onLeft: cyc(-1), onRight: cyc(1), onConfirm: cyc(1) },
+      { label: 'DEVICE', hint: DEVICE_HINT, value: () => PROFILE_NAME[this.profile], onLeft: cyc(-1), onRight: cyc(1), onConfirm: cyc(1) },
       {
+        hint: this.isKb ? 'Pressing Up (W) jumps. Up + Attack or Special still gives up attacks and up-special.' : 'Pushing the stick up also jumps. Off: only the Jump button.',
         // a keyboard's own switch is W / Up jumping (the same setting as Settings > W / UP JUMPS (KEYBOARD))
         label: this.isKb ? 'W / UP JUMPS' : 'TAP-JUMP',
         value: () => ((this.isKb ? settings.upJumpKeyboard : settings.tapJump) ? 'ON' : 'OFF'),
@@ -126,25 +148,39 @@ export class ControlsScene extends MenuScene {
     for (const a of actions) {
       rows.push({
         label: ACTION_LABEL[a],
+        hint: ACTION_HINT[a],
         value: () => (this.capturing === a ? this.captureValue() : this.boundText(a)),
         onConfirm: () => this.beginCapture(a, 0),
       });
     }
     rows.push({
       label: 'RESET TO DEFAULTS',
+      hint: `Put every ${this.isKb ? 'key' : 'button'} of ${PROFILE_NAME[this.profile]} back to the default layout.`,
       onConfirm: () => {
         if (this.isKb) bindings.resetKeys(this.profile as 'kb1' | 'kb2');
         else bindings.resetPad(this.profile as 'standard' | 'nintendo');
         this.notice = 'DEFAULTS RESTORED';
       },
     });
-    rows.push({ label: 'BACK', onConfirm: () => this.leave() });
+    rows.push({ label: 'BACK', hint: 'Bindings are saved as you change them.', onConfirm: () => this.leave() });
     return rows;
+  }
+
+  /** The action a row rebinds (null for DEVICE / TAP-JUMP / SPRINT / RESET / BACK and on the touch page). */
+  private actionAt(index: number): Action | null {
+    if (this.isTouch) return null;
+    const actions: Action[] = this.isKb ? ALL_ACTIONS : BUTTON_ACTIONS;
+    const i = index - ACTION_ROW0;
+    return i >= 0 && i < actions.length ? actions[i] : null;
   }
 
   /** SPRINT: how a sprint starts on this device (the same setting as Settings > Gameplay > SPRINT). */
   private sprintRow(key: 'sprintKeyboard' | 'sprintPad'): MenuItem {
-    return { label: 'SPRINT', value: () => SPRINT_LABEL[settings[key]], onLeft: () => stepSprint(key, -1), onRight: () => stepSprint(key, 1), onConfirm: () => stepSprint(key, 1) };
+    const hint =
+      key === 'sprintKeyboard'
+        ? 'DOUBLE-TAP: tap a direction twice and hold to sprint; one press just runs. FLICK: every press bursts into a sprint. BOTH: either.'
+        : 'FLICK: a sharp flick of the stick bursts into a sprint. DOUBLE-TAP: push the stick out twice. BOTH: either.';
+    return { label: 'SPRINT', hint, value: () => SPRINT_LABEL[settings[key]], onLeft: () => stepSprint(key, -1), onRight: () => stepSprint(key, 1), onConfirm: () => stepSprint(key, 1) };
   }
 
   /** TOUCH SCREEN page: tap-jump, size, opacity, handedness, and the layout editor. */
@@ -165,15 +201,16 @@ export class ControlsScene extends MenuScene {
       saveSettings();
     };
     return [
-      { label: 'DEVICE', value: () => PROFILE_NAME[this.profile], onLeft: cyc(-1), onRight: cyc(1), onConfirm: cyc(1) },
-      { label: 'TAP-JUMP', value: () => (settings.tapJump ? 'ON' : 'OFF'), onLeft: tap, onRight: tap, onConfirm: tap },
+      { label: 'DEVICE', hint: DEVICE_HINT, value: () => PROFILE_NAME[this.profile], onLeft: cyc(-1), onRight: cyc(1), onConfirm: cyc(1) },
+      { label: 'TAP-JUMP', hint: 'Pushing the stick up also jumps. Off: only the Jump button.', value: () => (settings.tapJump ? 'ON' : 'OFF'), onLeft: tap, onRight: tap, onConfirm: tap },
       this.sprintRow('sprintPad'),
-      { label: 'BUTTON SIZE', value: () => `${Math.round(settings.touchSize * 100)}%`, onLeft: stepIn(TOUCH_SIZES, 'touchSize', -1), onRight: stepIn(TOUCH_SIZES, 'touchSize', 1) },
-      { label: 'OPACITY', value: () => `${Math.round(settings.touchOpacity * 100)}%`, onLeft: stepIn(TOUCH_OPACITY, 'touchOpacity', -1), onRight: stepIn(TOUCH_OPACITY, 'touchOpacity', 1) },
-      { label: 'HANDS', value: () => (settings.touchLeftHanded ? 'LEFT-HANDED' : 'RIGHT-HANDED'), onLeft: hand, onRight: hand, onConfirm: hand },
-      { label: 'EDIT LAYOUT...', onConfirm: () => this.editTouchLayout() },
+      { label: 'BUTTON SIZE', hint: 'Size of the on-screen stick and buttons.', value: () => `${Math.round(settings.touchSize * 100)}%`, onLeft: stepIn(TOUCH_SIZES, 'touchSize', -1), onRight: stepIn(TOUCH_SIZES, 'touchSize', 1) },
+      { label: 'OPACITY', hint: 'How see-through the on-screen buttons are when not pressed.', value: () => `${Math.round(settings.touchOpacity * 100)}%`, onLeft: stepIn(TOUCH_OPACITY, 'touchOpacity', -1), onRight: stepIn(TOUCH_OPACITY, 'touchOpacity', 1) },
+      { label: 'HANDS', hint: 'LEFT-HANDED mirrors the layout: the stick on the right, the buttons on the left.', value: () => (settings.touchLeftHanded ? 'LEFT-HANDED' : 'RIGHT-HANDED'), onLeft: hand, onRight: hand, onConfirm: hand },
+      { label: 'EDIT LAYOUT...', hint: 'Drag the stick and the button cluster to where your thumbs rest.', onConfirm: () => this.editTouchLayout() },
       {
         label: 'RESET TO DEFAULTS',
+        hint: 'Default size, opacity, hands and layout.',
         onConfirm: () => {
           settings.touchSize = 1;
           settings.touchOpacity = 0.6;
@@ -182,7 +219,7 @@ export class ControlsScene extends MenuScene {
           this.notice = 'DEFAULTS RESTORED';
         },
       },
-      { label: 'BACK', onConfirm: () => this.leave() },
+      { label: 'BACK', hint: 'Touch settings are saved as you change them.', onConfirm: () => this.leave() },
     ];
   }
 
@@ -356,7 +393,7 @@ export class ControlsScene extends MenuScene {
     this.title.setScale(k).setPosition(w / 2, Math.max(h * 0.08, 8 * u + (7 * k) / 2));
     const top = this.title.y + this.title.displayHeight / 2 + 10 * u;
     // the rows keep their size and the list scrolls when they do not all fit above the footer
-    const footTop = this.placeFooter(this.hint);
+    const footTop = this.placeFooter(this.hint, this.desc);
     // (wide enough for GAMEPAD (XBOX / PS / GENERIC) beside DEVICE)
     this.list.layout(w / 2, top, u, 350, footTop - 6 * u);
   }
@@ -378,7 +415,7 @@ export class ControlsScene extends MenuScene {
     if (this.notice) return this.notice;
     if (this.isTouch) return footerHint([['updown', 'MOVE'], ['confirm', 'SELECT'], ['leftright', 'CHANGE'], ['back', 'BACK']]);
     const sel = this.list.items[this.list.index];
-    const onAction = !!sel && this.list.index >= 2 && this.list.index < this.list.items.length - 2;
+    const onAction = !!sel && this.actionAt(this.list.index) !== null;
     return footerHint([
       ['updown', 'MOVE'],
       ['confirm', onAction ? 'REBIND' : 'SELECT'],
@@ -389,15 +426,20 @@ export class ControlsScene extends MenuScene {
   }
 
   private lastMsg = '';
+  private lastDesc = '';
 
   protected override tick(time: number): void {
     this.pollCapture();
     this.list.update(time);
     const msg = up(this.footerText());
-    // the message changes (capture prompts, notices, the device in use): refit it to the width when it does
-    if (this.lastMsg !== msg) {
+    // while a key is being captured the footer carries the prompt; the description steps aside
+    const d = this.capturing || inputManager.touch.editing ? '' : up(this.list.hint);
+    // the message changes (capture prompts, notices, the device in use, the selected row): refit it to the width when it does
+    if (this.lastMsg !== msg || this.lastDesc !== d) {
       this.lastMsg = msg;
-      this.placeFooter(this.hint.setText(msg));
+      this.lastDesc = d;
+      this.hint.setText(msg);
+      this.desc.setText(d);
       this.layoutUi(this.scale.width, this.scale.height, this.u);
     }
   }
@@ -411,9 +453,8 @@ export class ControlsScene extends MenuScene {
     if (e.action === 'up' || e.action === 'down' || e.action === 'confirm') this.notice = '';
     if (e.action === 'alt' && !this.isTouch) {
       // the alternate key / button of the selected action
-      const i = this.list.index - 2;
-      const actions: Action[] = this.isKb ? ALL_ACTIONS : BUTTON_ACTIONS;
-      if (i >= 0 && i < actions.length) this.beginCapture(actions[i], 1);
+      const a = this.actionAt(this.list.index);
+      if (a) this.beginCapture(a, 1);
       return;
     }
     if (this.list.handle(e)) return;
