@@ -63,11 +63,21 @@ export class HomeScene extends MenuScene {
   private pressOn: SpotId | null = null;
   private fighter: Phaser.GameObjects.Sprite | null = null;
   private fighterK = 1;
+  /** The PLAY fighter's sheet id (an outfit's own) and its taunt animation name. */
+  private fighterSkin = '';
+  private fighterTaunt = '';
   private fighterColor = COLORS.accent;
   private bannerBox = { x: 0, y: 0, w: 0, h: 0 };
   private lastDevice: InputDevice | undefined;
   private now = 0;
   private built = false;
+  /** The spot focused last frame and when focus last moved (scene s): the newly lit tile rings out and its icon pops. */
+  private shownFocus: SpotId | null = null;
+  private focusAt = -9;
+  /** Next scene time the PLAY tile's fighter strikes a pose while PLAY is lit. */
+  private nextPose = 1.2;
+  /** The selected tile's glint quad (reused every frame). */
+  private readonly glintPts = [new Phaser.Math.Vector2(), new Phaser.Math.Vector2(), new Phaser.Math.Vector2(), new Phaser.Math.Vector2()];
 
   constructor() {
     super('Home');
@@ -81,6 +91,9 @@ export class HomeScene extends MenuScene {
     this.held = null;
     this.pressOn = null;
     this.pressAt = -9;
+    this.shownFocus = null;
+    this.focusAt = -9;
+    this.nextPose = 1.2;
     this.spots = [];
     this.glow = this.add.graphics().setBlendMode(Phaser.BlendModes.ADD);
     this.g = this.add.graphics();
@@ -151,6 +164,8 @@ export class HomeScene extends MenuScene {
       const skin = palette > 0 && paletteReady(this, c, palette) ? ensurePalette(this, c, palette) : c.id;
       if (!this.textures.exists(fighterTextureKey(skin))) return;
       this.fighter = this.add.sprite(0, 0, fighterTextureKey(skin), 0).setOrigin(0.5, 1);
+      this.fighterSkin = skin;
+      this.fighterTaunt = c.moves.taunt?.anim ?? '';
       if (this.anims.exists(fighterAnimKey(skin, 'idle'))) this.fighter.play(fighterAnimKey(skin, 'idle'));
       this.fighterK = uiTexK(c);
       this.ui.addAt(this.fighter, this.ui.getIndex(this.g) + 1);
@@ -311,6 +326,13 @@ export class HomeScene extends MenuScene {
     const gl = this.glow.clear();
     const pulse = settings.reduceMotion ? 1 : 0.5 + 0.5 * Math.sin(time * 5);
     this.setGearLit(this.focus === 'gear');
+    if (this.focus !== this.shownFocus) {
+      // (not on arrival: the screen's own fade-in is the entrance)
+      if (this.shownFocus !== null) this.focusAt = time;
+      this.shownFocus = this.focus;
+      if (this.focus === 'play') this.nextPose = Math.min(this.nextPose, time + 0.15);
+    }
+    const lit = time - this.focusAt;
     if (this.banner) {
       const b = this.bannerBox;
       drawButton(g, b.x, b.y, b.w, b.h, u, { accent: COLORS.accent });
@@ -323,13 +345,16 @@ export class HomeScene extends MenuScene {
       const tile = TILES.find((t) => t.id === s.id);
       if (tile) {
         drawButton(g, s.x, s.y, s.w, s.h, u, { sel, press, accent: tile.accent, glow: pulse });
+        if (sel && !press) this.tileLife(g, s, tile.accent, time, lit, u);
         const { t, sub } = this.labels.get(tile.id)!;
         t.setTint(sel ? COLORS.hot : COLORS.text);
         sub.setTint(sel ? COLORS.text : COLORS.hint);
         const at = this.iconAt.get(tile.id);
         // the selected tile's icon bobs a little (still with REDUCE MOTION)
         const bob = sel && !settings.reduceMotion && tile.id !== 'play' ? Math.round(Math.sin(time * 4) * u) : 0;
-        if (at) drawIcon(g, tile.icon, at.x, at.y + dy + bob, at.px, sel ? COLORS.hot : tile.accent);
+        // (and pops a pixel larger for a moment as it lights up)
+        const popPx = sel && lit < 0.12 && !settings.reduceMotion ? 1 : 0;
+        if (at) drawIcon(g, tile.icon, at.x, at.y + dy + bob, at.px + popPx, sel ? COLORS.hot : tile.accent);
       } else {
         drawButton(g, s.x, s.y, s.w, s.h, u, { sel, press });
         const col = sel ? COLORS.hot : COLORS.hint;
@@ -340,8 +365,57 @@ export class HomeScene extends MenuScene {
         } else drawIcon(g, 'close', s.x + s.w / 2, s.y + s.h / 2 + dy, px, col);
       }
     }
+    // every few seconds while PLAY is lit (and as it lights up) its fighter strikes their taunt pose, then settles back
+    if (this.fighter && this.focus === 'play' && time > this.nextPose) {
+      this.nextPose = time + 5 + Math.random() * 2;
+      this.strikePose();
+    }
     // PLAY's fighter under a soft spotlight
     if (this.fighter) drawShowcaseLight(gl, this.fighter.x, this.fighter.y, this.fighter.scaleX / this.fighterK, this.fighterColor, this.focus === 'play' ? 1 : 0.55, time);
+  }
+
+  /**
+   * The lit tile's life: as it lights up its edge rings outward and fades (0.22 s); after that a glint sweeps across it
+   * every few seconds. A gentle sweep stays with REDUCE FLASHES; nothing moves with REDUCE MOTION.
+   */
+  private tileLife(g: Phaser.GameObjects.Graphics, s: Spot, accent: number, time: number, lit: number, u: number): void {
+    if (settings.reduceMotion) return;
+    if (lit < 0.22) {
+      const e = 1 - lit / 0.22;
+      const o = (3 + 6 * (1 - e)) * u;
+      g.lineStyle(u, COLORS.hot, 0.8 * e).strokeRect(s.x - o, s.y - o, s.w + 2 * o, s.h + 2 * o);
+      g.fillStyle(accent, 0.12 * e).fillRect(s.x, s.y, s.w, s.h);
+      return;
+    }
+    const ph = ((time - this.focusAt - 0.22) % 3.2) / 3.2;
+    if (ph > 0.25) return;
+    const k = ph / 0.25;
+    const slant = Math.min(s.h * 0.35, s.w * 0.3);
+    const band = Math.max(6 * u, s.w * 0.08);
+    const gx = s.x - slant - band + (s.w + slant + band) * k;
+    const clampX = (x: number): number => Math.max(s.x, Math.min(s.x + s.w, x));
+    const p = this.glintPts;
+    p[0].set(clampX(gx), s.y + s.h);
+    p[1].set(clampX(gx + slant), s.y);
+    p[2].set(clampX(gx + slant + band), s.y);
+    p[3].set(clampX(gx + band), s.y + s.h);
+    g.fillStyle(0xffffff, settings.reduceFlashes ? 0.03 : 0.06).fillPoints(p, true);
+  }
+
+  /** The PLAY fighter's taunt pose, once through, then back to the idle. */
+  private strikePose(): void {
+    const f = this.fighter;
+    if (!f) return;
+    const skin = this.fighterSkin;
+    const anim = this.fighterTaunt;
+    if (!skin || !anim) return;
+    const pose = fighterAnimKey(skin, anim);
+    const idle = fighterAnimKey(skin, 'idle');
+    if (!this.anims.exists(pose) || f.anims.currentAnim?.key !== idle) return;
+    f.play({ key: pose, frameRate: 8, repeat: 0 });
+    f.once(Phaser.Animations.Events.ANIMATION_COMPLETE, () => {
+      if (f.active) f.play(idle);
+    });
   }
 
   /** Spatial navigation: the nearest spot in the pressed direction (left / right wrap round the row). */

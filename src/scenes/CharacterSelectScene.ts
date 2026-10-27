@@ -287,7 +287,10 @@ export class CharacterSelectScene extends MenuScene {
     }
     // the edit overlay sits above the card sprites; its row text above that
     this.editG = this.add.graphics();
-    this.ui.add(this.editG);
+    // the pick / lock-in flourishes sit over the card sprites, under the row text and status
+    this.fxG = fastShapes(this.add.graphics());
+    this.ui.add([this.editG, this.fxG]);
+    this.cardFxState = this.cards.map(() => ({ pick: '', locked: false, pickAt: -9, lockAt: -9 }));
     for (const c of this.cards) this.ui.bringToTop(c.rows);
     // an empty card's "PRESS TO JOIN" sits on its own dark plate (drawn on the overlay) over the silhouette
     for (const c of this.cards) this.ui.bringToTop(c.status);
@@ -891,6 +894,90 @@ export class CharacterSelectScene extends MenuScene {
   }
 
   private hoverT = 0;
+  /** Overlay for the cards' pick reveal and lock-in punch (above the sprites). */
+  private fxG!: Phaser.GameObjects.Graphics;
+  /** Per card: what it showed last frame (fighter / kind, locked) and when its last reveal and lock-in started (scene s). */
+  private cardFxState: { pick: string; locked: boolean; pickAt: number; lockAt: number }[] = [];
+  /** The lock-in burst's rays (unit directions, made once). */
+  private static readonly RAYS = Array.from({ length: 10 }, (_, k) => {
+    const a = (k / 10) * Math.PI * 2 + 0.3;
+    return [Math.cos(a), Math.sin(a)] as const;
+  });
+
+  /**
+   * Visual only (reads the lobby, never changes it). A fighter appearing on a card (a pick, a change, a CPU added) is
+   * revealed: a beam drops onto the pad, the fighter pops up out of a white flash. Locking in punches: the card flashes in
+   * the player's colour, a ring and rays burst off the pad, the fighter and READY! pop. REDUCE MOTION drops the scale pops,
+   * REDUCE FLASHES the white / colour flashes (the ring stays).
+   */
+  private cardFx(time: number): void {
+    const g = this.fxG.clear();
+    const calm = settings.reduceFlashes;
+    const still = settings.reduceMotion;
+    this.cards.forEach((c, i) => {
+      const slot = this.lobby.slots[i];
+      const st = this.cardFxState[i];
+      if (!st) return;
+      const random = slot.kind !== 'empty' && this.lobby.isRandom(slot);
+      const pick = slot.kind === 'empty' ? '' : `${slot.kind}:${random ? 'R' : slot.character}`;
+      const locked = slot.kind === 'human' && slot.locked;
+      // (a card that opens already filled, e.g. back from the rules screen, does not replay its reveal)
+      if (pick !== st.pick) {
+        if (pick && time > 0.2) st.pickAt = time;
+        st.pick = pick;
+      }
+      if (locked !== st.locked) {
+        if (locked && time > 0.2) st.lockAt = time;
+        st.locked = locked;
+      }
+      if (!pick) return;
+      const u = c.cu;
+      const col = this.cardColor(i);
+      const x0 = c.cx - c.cw / 2;
+      const H = this.cardH * u;
+      const floor = c.top + 92 * u;
+      const k0 = (c.sprite.getData('k0') as number | undefined) ?? c.sprite.scaleX;
+      let pop = 1;
+      // the reveal (0.35 s)
+      const rp = (time - st.pickAt) / 0.35;
+      if (rp >= 0 && rp < 1) {
+        const e = 1 - rp;
+        // a beam of light drops from the header onto the pad and fades
+        const drop = Math.min(1, rp * 4);
+        const beamW = c.cw * 0.22 * (0.6 + 0.4 * e);
+        g.fillStyle(col, 0.5 * e).fillRect(c.cx - beamW / 2, c.top + 21 * u, beamW, (floor - c.top - 21 * u) * drop);
+        g.fillStyle(0xffffff, (calm ? 0.12 : 0.4) * e).fillRect(c.cx - beamW / 6, c.top + 21 * u, beamW / 3, (floor - c.top - 21 * u) * drop);
+        if (!calm && rp < 0.3 && c.sprite.visible) c.sprite.setTintFill(0xffffff);
+        if (!still) pop = Math.max(pop, 1 + 0.12 * e * e);
+      }
+      // the lock-in (0.45 s)
+      const lp = (time - st.lockAt) / 0.45;
+      if (lp >= 0 && lp < 1) {
+        const e = 1 - lp;
+        g.fillStyle(col, (calm ? 0.1 : 0.35) * e * e).fillRect(x0, c.top, c.cw, H);
+        if (!calm && lp < 0.12) g.fillStyle(0xffffff, 0.35 * (1 - lp / 0.12)).fillRect(x0, c.top, c.cw, H);
+        // a ring and short rays burst off the pad
+        const r = c.cw * (0.18 + 0.32 * (1 - e * e));
+        g.lineStyle(Math.max(1, Math.round(1.5 * u)), COLORS.good, 0.9 * e).strokeEllipse(c.cx, floor, r * 2, r * 0.3);
+        g.lineStyle(Math.max(1, u), 0xffffff, 0.6 * e).strokeEllipse(c.cx, floor, r * 1.4, r * 0.2);
+        const cy = floor - 32 * u;
+        const r0 = 20 * u + 30 * u * (1 - e);
+        g.lineStyle(Math.max(1, u), lp < 0.5 ? 0xffffff : COLORS.good, 0.8 * e);
+        const len = 8 * u * e;
+        for (const [dx, dy] of CharacterSelectScene.RAYS) g.lineBetween(c.cx + dx * r0, cy + dy * r0, c.cx + dx * (r0 + len), cy + dy * (r0 + len));
+        // the card's edge rings out in green
+        g.lineStyle(u, COLORS.good, e).strokeRect(x0 - 2.5 * u - 3 * u * (1 - e), c.top - 2.5 * u - 3 * u * (1 - e), c.cw + 5 * u + 6 * u * (1 - e), H + 5 * u + 6 * u * (1 - e));
+        if (!still) {
+          pop = Math.max(pop, 1 + 0.1 * Math.sin(Math.min(1, lp * 2.5) * Math.PI));
+          // READY! lands with a stamp
+          const sk = 1 + 0.7 * Math.pow(Math.max(0, 1 - lp * 2.2), 2);
+          c.status.setScale(c.status.scaleX * sk);
+          c.name.setScale(c.name.scaleX * (1 + 0.15 * Math.max(0, 1 - lp * 2.2)));
+        }
+      }
+      if (c.sprite.visible && k0 > 0) c.sprite.setScale(k0 * pop);
+    });
+  }
 
   /** Dark plates behind the empty cards' join text, so it reads over the cycling silhouette (on the overlay layer). */
   private drawStatusPlates(): void {
@@ -980,7 +1067,7 @@ export class CharacterSelectScene extends MenuScene {
     const left = fr.x ?? 0;
     const topPx = fr.y ?? 0;
     const k = Math.min((64 * u) / bh, (c.cw - 34 * u) / bw);
-    c.sprite.setScale(k);
+    c.sprite.setScale(k).setData('k0', k);
     // origin is the bottom centre of the untrimmed frame: shift so the body's own box sits centred on the floor line
     c.sprite.setPosition(c.cx - (left + bw / 2 - fw / 2) * k, c.top + 92 * u + (fh - (topPx + bh)) * k);
   }
@@ -1120,6 +1207,7 @@ export class CharacterSelectScene extends MenuScene {
     this.drawCards(time);
     this.drawRoster();
     this.drawStatusPlates();
+    this.cardFx(time);
     const pads = inputManager.padList.length;
     // everyone ready: the message becomes a CONTINUE button (click / tap it, or confirm again / start)
     // (the lobby's "press a button" in the words of the device in use: a tap on touch)

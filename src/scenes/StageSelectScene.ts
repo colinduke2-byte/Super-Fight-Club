@@ -25,6 +25,7 @@ const PICK_FOOTER: readonly (readonly [MenuVerb, string])[] = [
 import type { MenuEvent } from '../input/menuInput';
 import { STAGE_LIST } from '../stages';
 import { FORM_NAMES, STAGE_FORMS, stageInForm } from '../stages/forms';
+import { settings } from '../settings';
 import { COLORS, MenuList, MenuScene, PANEL, drawIcon, drawPanel, text, textPx, type MenuBackdrop } from '../ui/menuKit';
 import { stageThumb } from '../ui/stageThumb';
 import { ensureStageArt, stageArtReady } from '../art/stageArt';
@@ -108,6 +109,11 @@ export class StageSelectScene extends MenuScene {
   private area = { x: 0, y: 0, w: 0, h: 0 };
   /** Backdrop theme currently shown behind the menu. */
   private theme: string | undefined = '';
+  /** The preview's picture last frame (stage + form, '' for none) and when it last changed (scene s): the new one tunes in. */
+  private shownPic = '';
+  private picAt = -9;
+  /** The preview's glint quad (reused every frame). */
+  private readonly glintPts = [new Phaser.Math.Vector2(), new Phaser.Math.Vector2(), new Phaser.Math.Vector2(), new Phaser.Math.Vector2()];
 
   constructor() {
     super('StageSelect');
@@ -275,10 +281,18 @@ export class StageSelectScene extends MenuScene {
       this.thumb.setTexture(stageThumb(this, stage.form ? previewOf(stage) : stage)).setVisible(true);
       const k = Math.min(a.w / this.thumb.width, a.h / this.thumb.height);
       this.thumb.setScale(k).setPosition(a.x + (a.w - this.thumb.width * k) / 2, a.y + (a.h - this.thumb.height * k) / 2);
+      const pic = `${stage.id}:${stage.form ?? ''}`;
+      if (pic !== this.shownPic) {
+        if (this.shownPic) this.picAt = time;
+        this.shownPic = pic;
+      }
     } else {
+      if (this.shownPic && !stage) this.picAt = time;
+      this.shownPic = '';
       this.thumb.setVisible(false);
       g.fillStyle(0x0b0a24, 0.85).fillRect(a.x, a.y, a.w, a.h);
     }
+    this.tuneIn(g, time);
     this.drawChips(g, stage);
     const pool = session.rules.stagePool?.length ? STAGE_LIST.filter((st) => session.rules.stagePool!.includes(st.id)).length : 0;
     const blurb = stage ? blurbFromData(stage) : pool ? `A RANDOM STAGE FROM YOUR POOL OF ${pool}.` : 'A RANDOM STAGE FROM THE LIST.';
@@ -331,6 +345,40 @@ export class StageSelectScene extends MenuScene {
       const px = Math.max(1, Math.floor(a.h / 14));
       drawIcon(g, 'help', a.x + a.w / 2, a.y + a.h / 2, px, 0x6a63a8, 1);
     }
+  }
+
+  /**
+   * The preview's life (over the picture, under its frame and chips): a newly shown stage tunes in, its picture lit
+   * from dark behind a bright line sweeping down it (0.24 s); then a glint crosses the glass every few seconds. A fade
+   * without the white line with REDUCE FLASHES; a cut and no glint with REDUCE MOTION.
+   */
+  private tuneIn(g: Phaser.GameObjects.Graphics, time: number): void {
+    if (settings.reduceMotion || !this.thumb.visible) return;
+    const a = this.area;
+    const u = this.u;
+    const k = (time - this.picAt) / 0.24;
+    if (k >= 0 && k < 1) {
+      const y = a.y + a.h * k;
+      g.fillStyle(0x05040e, 0.75 * (1 - k)).fillRect(a.x, a.y, a.w, y - a.y);
+      g.fillStyle(0x05040e, 0.9).fillRect(a.x, y, a.w, a.y + a.h - y);
+      if (!settings.reduceFlashes) {
+        g.fillStyle(0xffffff, 0.5).fillRect(a.x, y - u, a.w, 2 * u);
+        g.fillStyle(COLORS.accent, 0.25).fillRect(a.x, y - 4 * u, a.w, 3 * u);
+      }
+      return;
+    }
+    const ph = ((time - Math.max(0, this.picAt) + 1.2) % 4.5) / 4.5;
+    if (ph > 0.18) return;
+    const slant = a.h * 0.45;
+    const band = Math.max(8 * u, a.w * 0.07);
+    const gx = a.x - slant - band + (a.w + slant + band) * (ph / 0.18);
+    const cx = (x: number): number => Math.max(a.x, Math.min(a.x + a.w, x));
+    const p = this.glintPts;
+    p[0].set(cx(gx), a.y + a.h);
+    p[1].set(cx(gx + slant), a.y);
+    p[2].set(cx(gx + slant + band), a.y);
+    p[3].set(cx(gx + band), a.y + a.h);
+    g.fillStyle(0xffffff, settings.reduceFlashes ? 0.04 : 0.08).fillPoints(p, true);
   }
 
   /**
