@@ -153,8 +153,11 @@ function planRecovery(f: Fighter, world: World, l: Ledge, ai: CharacterAi, ep: R
       const pol = setPol(polPool[0], -1, 0, -1, inX, sy, float);
       if (!ok(pol)) continue;
       keep(ep, pol);
-      // a precise CPU keeps drifting while firing 6 frames later still works (comes in lower, keeps its options)
-      if (ep.precise && ok(setPol(probe, -1, 6, -1, inX, sy, float))) return 'wait';
+      // keep drifting while firing a little later still works: the first frame an attempt works is the far edge of what
+      // works, a hair from missing (a gust, a moving platform grazed, and it falls). A precise CPU waits for the last
+      // moment (comes in lower, keeps its options); a sloppier one, which looks less often, fires while its next look would
+      // still be in time
+      if (ok(setPol(probe, -1, ep.precise ? 6 : ep.planEvery + 4, -1, inX, sy, float))) return 'wait';
       return 'special';
     }
   }

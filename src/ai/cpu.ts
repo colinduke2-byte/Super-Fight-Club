@@ -55,6 +55,13 @@ interface SeqStep {
 
 /** Slots of the move-usage counters (normals first, then the profile's specials). */
 const USE_SLOTS = 48;
+/** Ticks ahead a CPU riding a route platform (a travelling stage) reads the route: near ones first, the far one only while it sits level. */
+const ROUTE_LOOK = [20, 45, 150];
+/** Fixed ground carrying on past a platform edge at most this far below it is walked onto (see groundAhead). */
+const STEP_DROP = 48;
+/** A jump from a platform edge to the next fixed platform toward a far rival: widest gap and highest rise it tries. */
+const HOP_GAP = 110;
+const HOP_RISE = 80;
 
 type Mode = 'neutral' | 'recover' | 'edgeguard' | 'defend';
 
@@ -601,15 +608,31 @@ export class CpuController implements Controller {
     const now = pathOffset(path, world.tick);
     const nx = now.dx;
     const ny = now.dy;
-    const ahead = pathOffset(path, world.tick + 45);
-    const dy = ahead.dy - ny;
-    const dx = ahead.dx - nx;
     const b = world.blast;
-    const futureX = self.x + dx;
-    const sinking = dy > 8 && pl.y + dy > main.top + 30;
-    const carried = Math.abs(dx) > 8 && (futureX > b.right - 160 || futureX < b.left + 160 || futureX < main.x - 40 || futureX > main.right + 40);
-    if (!sinking && !carried) return false;
+    // read the route a little way ahead (the platform's own key frames): early enough to walk off before it moves
+    let soon = false;
+    let later = false;
+    for (const ahead of ROUTE_LOOK) {
+      const o = pathOffset(path, world.tick + ahead);
+      const dy = o.dy - ny;
+      const dx = o.dx - nx;
+      const futureX = self.x + dx;
+      const sinking = dy > 8 && pl.y + dy > main.top + 30;
+      const carried = Math.abs(dx) > 8 && (futureX > b.right - 160 || futureX < b.left + 160 || futureX < main.x - 40 || futureX > main.right + 40);
+      if (sinking || carried) {
+        if (ahead <= 45) soon = true;
+        else later = true;
+      }
+    }
+    if (!soon && !later) return false;
     const toward = Math.sign(main.x + main.w / 2 - self.x) || 1;
+    // still level with the main platform and up against it (Skyline Express's docked carriage): walk across in good time
+    const level = Math.abs(pl.top - main.top) < 6 && Math.abs(pl.dy) < 0.5 && (toward > 0 ? main.x - pl.right : pl.x - main.right) < 8;
+    if (level) {
+      this.sx = toward;
+      return true;
+    }
+    if (!soon) return false; // further out only matters while a walk across is still possible
     this.sx = toward;
     // over the main platform: drop through onto it; otherwise jump back toward it
     if (self.x > main.x + 10 && self.x < main.right - 10 && pl.y < main.top) this.sy = 1;
@@ -623,10 +646,14 @@ export class CpuController implements Controller {
     return best;
   }
 
-  /** Never run off the platform we stand on unless dropping is intended. */
-  private clampEdge(self: Fighter): void {
+  /**
+   * Never run off the platform we stand on unless dropping is intended. Walking on to fixed ground that carries on from the
+   * edge (Skyhold's bridges and islands, a crate on the deck) is not running off.
+   */
+  private clampEdge(self: Fighter, world: World): void {
     const pl = self.groundPlat;
     if (!pl || !self.grounded || this.sx === 0) return;
+    if (this.groundAhead(world, pl, Math.sign(this.sx))) return;
     // leave room to brake: a fast runner / dasher needs a few frames to stop; a full flick from standing starts a dash
     // (Vex's blink dash) that carries its whole length
     const dash = self.data.dash;
@@ -634,6 +661,49 @@ export class CpuController implements Controller {
     const margin = 10 + Math.abs(self.vx) * 7 + flick;
     if (this.sx > 0 && self.x > pl.right - margin) this.sx = 0;
     else if (this.sx < 0 && self.x < pl.x + margin) this.sx = 0;
+  }
+
+  /**
+   * A fixed platform that carries on from `pl`'s edge toward `dir` (spanning the ground just past the corner) with its top
+   * level with `pl` or a short drop below it (a solid one may sit a step higher: see wallAhead): walking off onto it is safe.
+   * Moving platforms never count (a route platform docked against the stage may be about to drop away).
+   */
+  private groundAhead(world: World, pl: Platform, dir: number): Platform | null {
+    const edge = dir > 0 ? pl.right : pl.x;
+    const px = edge + dir * 6;
+    for (const p of world.platforms) {
+      if (p === pl || p.moving || px < p.x || px > p.right) continue;
+      const drop = p.top - pl.top;
+      if (drop <= STEP_DROP && (drop >= -0.5 || (p.kind === 'solid' && drop >= -8))) return p;
+    }
+    return null;
+  }
+
+  /**
+   * Stopped at our edge on the way to a rival out beyond it: a fixed platform across the gap (or up a level) that a jump
+   * reaches, toward the rival (Skyhold's bridges and islands). Null when there is none, or the rival is off the stage.
+   */
+  private hopAhead(self: Fighter, world: World, tgt: Fighter, dir: number): Platform | null {
+    const pl = self.groundPlat;
+    if (!pl || !self.grounded || offstage(tgt, world)) return null;
+    const edge = dir > 0 ? pl.right : pl.x;
+    if ((tgt.x - edge) * dir < 0) return null; // the rival is not out past this edge
+    let best: Platform | null = null;
+    let bestGap = Infinity;
+    for (const p of world.platforms) {
+      if (p === pl || p.moving) continue;
+      const gap = dir > 0 ? p.x - edge : edge - p.right;
+      const rise = pl.top - p.top;
+      // it must carry on past our edge (not a platform overhead that ends here), across a gap a jump clears
+      if (gap < -8 || gap > HOP_GAP || rise > HOP_RISE || rise < -60 || (dir > 0 ? p.right : -p.x) < (dir > 0 ? edge : -edge) + 30) continue;
+      // on the way to the rival: it is out past this platform's near edge, and not well below its top (no climbing away)
+      if ((tgt.x - (dir > 0 ? p.x : p.right)) * dir < 0 || tgt.y - p.top > 60) continue;
+      if (gap < bestGap) {
+        bestGap = gap;
+        best = p;
+      }
+    }
+    return best;
   }
 
   /** True when the fighter's current ground speed would carry it off its platform within ~14 frames. */
@@ -780,7 +850,7 @@ export class CpuController implements Controller {
       // step out of the column toward the nearer side (and away from the edge)
       const dir = self.x >= h.x ? 1 : -1;
       this.sx = dir;
-      this.clampEdge(self);
+      this.clampEdge(self, world);
       if (this.sx === 0) this.sx = -dir; // cornered: go the other way
       return true;
     }
@@ -1302,7 +1372,7 @@ export class CpuController implements Controller {
       if (!it.active || it.kind !== 'crate' || !it.primed) continue;
       if (Math.abs(it.x - self.x) > 60 || Math.abs(it.y - self.y) > 50) continue;
       this.sx = self.x >= it.x ? 1 : -1;
-      this.clampEdge(self);
+      this.clampEdge(self, world);
       if (this.sx === 0) this.held |= Button.Jump;
       return true;
     }
@@ -1340,7 +1410,7 @@ export class CpuController implements Controller {
     }
     if (!best) return false;
     this.sx = Math.abs(best.x - self.x) < 4 ? 0 : Math.sign(best.x - self.x);
-    this.clampEdge(self);
+    this.clampEdge(self, world);
     return true;
   }
 
@@ -1367,7 +1437,7 @@ export class CpuController implements Controller {
       }
       if (Math.abs(dy) < 60 && Math.abs(dx) < 200) {
         this.sx = Math.sign(dx);
-        this.clampEdge(self);
+        this.clampEdge(self, world);
         return true;
       }
       return false;
@@ -1388,7 +1458,7 @@ export class CpuController implements Controller {
       }
       if (Math.abs(dy) < 60 && Math.abs(dx) < 220) {
         this.sx = Math.sign(dx);
-        this.clampEdge(self);
+        this.clampEdge(self, world);
         return true;
       }
       return false;
@@ -1700,7 +1770,7 @@ export class CpuController implements Controller {
     if (p.smart && tgt.armorThreshold() > 0 && grounded && dist < 90 && candidates.every((m) => m.kind !== 'grab' && !m.cmdGrab && m.maxHit <= tgt.armorThreshold())) {
       // the target is mid armored windup and nothing we have breaks it: step out of range and punish the lag
       this.sx = -dir;
-      this.clampEdge(self);
+      this.clampEdge(self, world);
       return true;
     }
     if (candidates.length > 0) {
@@ -1878,7 +1948,7 @@ export class CpuController implements Controller {
       this.sx = 0;
       this.facingFix(self, tgt);
     }
-    this.clampEdge(self);
+    this.clampEdge(self, world);
     return true;
   }
 
@@ -2066,7 +2136,7 @@ export class CpuController implements Controller {
       this.retreat--;
       if (self.grounded && dist < 90 && self.state !== 'attack' && !chasing) {
         this.sx = -dir;
-        this.clampEdge(self);
+        this.clampEdge(self, world);
         return;
       }
     }
@@ -2097,7 +2167,7 @@ export class CpuController implements Controller {
     // the target is off the stage and we are not edge-guarding it: hold our ground (no jump after it, no run off the edge)
     if (this.mode === 'edgeguard' && self.grounded && offstage(tgt, world)) {
       this.sx = dist > 30 ? dir * 0.5 : 0;
-      this.clampEdge(self);
+      this.clampEdge(self, world);
       return;
     }
     const want = chasing ? 0 : ai.spacing * (p.smart ? 1 : 0.7) * (this.stall > 420 ? 0.5 : 1);
@@ -2110,7 +2180,7 @@ export class CpuController implements Controller {
       if (land !== null) {
         const off = land - self.x;
         this.sx = Math.abs(off) < 6 ? 0 : Math.sign(off) * (Math.abs(off) > 30 ? 1 : 0.5);
-        this.clampEdge(self);
+        this.clampEdge(self, world);
         return;
       }
     }
@@ -2137,7 +2207,7 @@ export class CpuController implements Controller {
     if (p.smart && !chasing && this.sx * dir > 0 && tgt.state === 'attack' && punishWindow(tgt) === 0 && this.walksIntoHit(self, world, tgt, dir)) this.sx = 0;
     if (this.hotAhead(self, world, Math.sign(this.sx))) this.sx = 0; // wait for the eruption in front of us to pass
     const wanted = this.sx;
-    if (!(downBelow && dist < 160)) this.clampEdge(self);
+    if (!(downBelow && dist < 160)) this.clampEdge(self, world);
     // stopped at our edge while the target stands on another platform within jumping range: jump the gap
     if (wanted !== 0 && this.sx === 0 && tgt.grounded && tgt.groundPlat && tgt.groundPlat !== self.groundPlat && dist < 300 && (Math.abs(dy) < 110 || (this.stall > 480 && dy > 0 && dy < 200)) && self.jumpsLeft > 0 && !this.cooldownBusy('gap', 45)) {
       this.held |= Button.Jump;
@@ -2148,6 +2218,21 @@ export class CpuController implements Controller {
       this.hopPlat = tgt.groundPlat;
       this.hopAt = world.tick;
       return;
+    }
+    // stopped at our edge with the rival out beyond it, further than that: jump to the next fixed platform toward it (a
+    // CPU on Skyhold's far island would otherwise wait at its corner for ever)
+    if (wanted !== 0 && this.sx === 0 && self.jumpsLeft > 0 && Math.sign(wanted) === dir) {
+      const hop = this.hopAhead(self, world, tgt, dir);
+      if (hop && !this.cooldownBusy('gap', 45)) {
+        this.held |= Button.Jump;
+        this.sx = wanted;
+        this.hopTarget = true;
+        this.cross = hop;
+        this.crossUntil = world.tick + 150;
+        this.hopPlat = hop;
+        this.hopAt = world.tick;
+        return;
+      }
     }
     // a step or low wall in the way (Sunken Temple's centre tier): hop up onto it instead of running into it forever
     if (this.sx !== 0 && this.wallAhead(self, world, Math.sign(this.sx)) && !this.cooldownBusy('wallhop', 30)) {
@@ -2320,7 +2405,7 @@ export class CpuController implements Controller {
     if (Math.abs(self.x - edgeX) > 10) {
       // walk the last stretch: a run (or a dash) into the corner overshoots it
       this.sx = Math.sign(edgeX - self.x) * (Math.abs(edgeX - self.x) > 60 ? 1 : 0.5);
-      this.clampEdge(self);
+      this.clampEdge(self, world);
     } else {
       this.facingFix(self, tgt);
     }

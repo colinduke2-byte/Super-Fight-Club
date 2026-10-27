@@ -98,7 +98,7 @@ function lerpParams(a: LevelParams, b: LevelParams, t: number, skill: number): L
 }
 
 /** Parameters of every skill 1..9 (index 0 unused). */
-export const SKILLS: readonly LevelParams[] = [ANCHORS[1], ...[1, 2, 3, 4, 5, 6, 7, 8, 9].map((s) => (s === 1 || s === 5 || s === 9 ? ANCHORS[s] : s < 5 ? lerpParams(ANCHORS[1], ANCHORS[5], (s - 1) / 4, s) : lerpParams(ANCHORS[5], ANCHORS[9], Math.pow((s - 5) / 4, 0.875), s)))];
+export const SKILLS: readonly LevelParams[] = [ANCHORS[1], ...[1, 2, 3, 4, 5, 6, 7, 8, 9].map((s) => (s === 1 || s === 5 || s === 9 ? ANCHORS[s] : s < 5 ? lerpParams(ANCHORS[1], ANCHORS[5], (s - 1) / 4, s) : lerpParams(ANCHORS[5], ANCHORS[9], Math.pow((s - 5) / 4, 1), s)))];
 
 /** The skill a lobby level plays at. */
 export function skillForLevel(level: CpuLevel): CpuSkill {
