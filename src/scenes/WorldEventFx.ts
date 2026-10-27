@@ -37,6 +37,8 @@ export interface WorldEventHost {
   screenFlash?(color: number, alpha: number): void;
   /** A big word popping out of a world point ("PARRY!"). */
   popup?(text: string, x: number, y: number, color: number): void;
+  /** A sky flash on the backdrop (a lightning hazard striking; dimmed by the backdrop under REDUCE FLASHES). */
+  skyFlash?(): void;
   /**
    * A KO that ends the match: the host may take it over (freeze, punch-in on `hitX, hitY`, desaturate) and play the KO
    * itself later through `playKo`. Returns true if it did.
@@ -324,6 +326,7 @@ export class WorldEventFx {
           e.burst(x, y - 8, 36, 190, 0xbfe6ff, 0.5, 3);
           e.ring(x, y - 4, 52, 0xffffff, 0.35);
           e.flash(x, y - 30, 4, 0xe8f6ff);
+          this.host.skyFlash?.();
           this.host.shake(9);
           break;
         }

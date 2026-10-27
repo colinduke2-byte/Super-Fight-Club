@@ -437,6 +437,7 @@ export class MatchScene extends Phaser.Scene {
     this.eventFx = new WorldEventFx({
       effects: this.effects,
       world: this.world,
+      skyFlash: () => this.bg?.strike(),
       views: () => this.views,
       pan: (x) => this.camera.pan(x),
       shake: (n) => (st.shake = Math.max(st.shake, n * settings.screenShake)),
