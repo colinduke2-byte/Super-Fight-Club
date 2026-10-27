@@ -29,5 +29,5 @@ export const wreckStage: StageData = {
   ],
   background: { topColor: 0x03060f, bottomColor: 0x215a6e, layers: ['stars'], theme: 'tide', light: { rim: 0xbfe8ff, dir: [-0.7, -0.7], strength: 0.45 } },
   music: 'cove',
-  blurb: "A wrecked galleon in a moonlit cove: a raised stern, a crow's nest, a bobbing raft and blowholes that soak you.",
+  blurb: "A wrecked galleon in a moonlit cove: a raised stern, a crow's nest, a bobbing raft and blowholes that throw up water spouts.",
 };

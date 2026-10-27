@@ -28,5 +28,5 @@ export const apexStage: StageData = {
   ],
   background: { topColor: 0x05030c, bottomColor: 0x4a2a6a, layers: ['stars'], theme: APEX_THEME, light: { rim: 0xc8a8ff, dir: [0, -1], strength: 0.5 } },
   music: 'boss',
-  blurb: 'The Overseer\'s chamber at the top of the arena. A long dais, two low ledges, one high perch, nowhere to hide.',
+  blurb: 'The Overseer\'s chamber at the top of the arena. A long dais, two low platforms, one high perch, nowhere to hide.',
 };

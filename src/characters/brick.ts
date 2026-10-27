@@ -28,11 +28,11 @@ export const brick: CharacterData = {
   id: 'brick',
   fx,
   name: 'Brick',
-  tagline: 'Heavy cyber-knight. Tough, armored, brutal.',
+  tagline: 'Heavy cyber-knight. Tough, armoured, brutal.',
   difficulty: 1,
   persona: {
     intro: 'Brick was built to guard a gate that fell long ago. Tonight he chooses to break the line instead of holding it.',
-    bio: 'A cyber-knight built to guard a gate that fell long ago. Brick is slow to anger and slower to fall, and a hit that lands while he is armored only makes the next swing hotter.',
+    bio: 'A cyber-knight built to guard a gate that fell long ago. Brick is slow to anger and slower to fall, and a hit that lands while he is armoured only makes the next swing hotter.',
     taunt: 'Not many get past me. Fewer get up.',
     // in-match taunt bubbles take turns through these
     taunts: [

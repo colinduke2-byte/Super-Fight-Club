@@ -25,5 +25,5 @@ export const harbourStage: StageData = {
   ],
   background: { topColor: 0x060a1c, bottomColor: 0x1c3a5a, layers: ['stars'], theme: 'harbour', light: { rim: 0xffd49a, dir: [0.6, -0.8], strength: 0.45 } },
   music: 'cove',
-  blurb: 'A night pier running into the docks: the right side is a walk-off with no edge to grab. Two lamp gantries and a swinging crane pallet.',
+  blurb: 'A night pier into the docks. The right side is a walk-off: past the striped end, no edge to grab. Lamp gantries and a swinging crane pallet.',
 };

@@ -30,5 +30,5 @@ export const stormStage: StageData = {
   ],
   background: { topColor: 0x0a1426, bottomColor: 0x2c4a6a, layers: ['clouds'], theme: 'storm', light: { rim: 0x9fd0ff, dir: [-0.5, -0.85], strength: 0.45 } },
   music: 'storm',
-  blurb: 'Lightning strikes the tower top, left then right, while storm clouds drift overhead.',
+  blurb: 'A narrow tower top in a thunderstorm. Lightning strikes left, then right, with a warning first. Two clouds drift overhead.',
 };

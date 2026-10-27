@@ -23,5 +23,5 @@ export const templeStage: StageData = {
   ],
   background: { topColor: 0x081a1e, bottomColor: 0x6a8a5a, layers: ['stars'], theme: 'temple', light: { rim: 0xffd890, dir: [0.8, -0.6], strength: 0.35 } },
   music: 'temple',
-  blurb: 'A jungle ziggurat with a raised centre tier to fight around, two side ledges and a bobbing altar on top.',
+  blurb: 'A jungle ziggurat with a raised centre tier to fight around, two side platforms and a bobbing altar on top.',
 };

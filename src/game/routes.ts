@@ -115,7 +115,7 @@ export const ROUTES: Record<string, RouteStep[]> = {
     { title: 'SHADOW MATCH', stage: 'storm', kind: 'mirror', foes: [], reason: 'Nova\'s reflection steps out of the Aether. It has her staff, and her stolen power.' },
     { title: 'LEAD STAR', stage: 'hollow', kind: 'metal', foes: ['obelisk'], reason: 'Obelisk in a coat of iron. The Aether does not like iron.' },
     { title: 'HIGH TIDE', stage: 'wreck', kind: 'duel', foes: ['riptide'], reason: 'Riptide has been drinking from the flooded pits. They glow with Nova\'s stolen Aether.' },
-    { title: 'THE FENCE', stage: 'ring', kind: 'rival', foes: ['vex'], reason: 'Vex stole the Aether and sold it to the arena. In the ring where he made the deal, Nova wants it back.' },
+    { title: 'THE FENCE', stage: 'ring', kind: 'rival', foes: ['vex'], reason: 'Vex stole the Aether and sold it to the arena. In the ring where they made the deal, Nova wants it back.' },
     { title: 'SUPERNOVA', stage: 'frostfang', kind: 'brawl', foes: ['agni', 'rime', 'brick'], reason: 'Every rival left, all at once, Rime among them. Nova lets the whole sky fall.' },
   ],
   obelisk: [
@@ -152,7 +152,7 @@ export const ROUTES: Record<string, RouteStep[]> = {
     { title: 'CASING THE JOINT', stage: 'ring', kind: 'duel', foes: ['havoc'], reason: 'Havoc is after the same vault. Professional courtesy only goes so far.' },
     { title: 'SLEIGHT OF HAND', stage: 'temple', kind: 'duel', foes: ['agni'], reason: 'Agni\'s flame lights the way down to the vault. Vex would like to borrow it.' },
     { title: 'HEIST CREW', stage: 'wreck', kind: 'team', foes: ['brick', 'obelisk'], ally: 'riptide', reason: 'Riptide knows the pits under the vault. Brick and Obelisk guard the door.' },
-    { title: 'SHADOW MATCH', stage: 'classic', kind: 'mirror', foes: [], reason: 'The arena sends a copy of Vex. It already stole his best move.' },
+    { title: 'SHADOW MATCH', stage: 'classic', kind: 'mirror', foes: [], reason: 'The arena sends a copy of Vex. It already stole their best move.' },
     { title: 'SILVER LINING', stage: 'frostfang', kind: 'metal', foes: ['halcyon'], reason: 'Halcyon in solid steel. Heavy, slow, and worth a fortune.' },
     { title: 'TURRET DEFENSE', stage: 'reactor', kind: 'duel', foes: ['gizmo'], reason: 'Gizmo wired the vault\'s turrets. Vex wants them unwired.' },
     { title: 'STARCROSSED', stage: 'storm', kind: 'rival', foes: ['nova'], reason: 'Vex sold Nova\'s stolen Aether. In her own storm, under her own stars, she wants it back with interest.' },

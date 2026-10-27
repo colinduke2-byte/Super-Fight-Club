@@ -29,5 +29,5 @@ export const skyholdStage: StageData = {
   ],
   background: { topColor: 0x4a2a6a, bottomColor: 0xf0a860, layers: ['clouds'], theme: 'dawn', light: { rim: 0xffe0b0, dir: [0.85, -0.5], strength: 0.25 } },
   music: 'dawn',
-  blurb: 'The large stage: wide blast zones, floating islands across the gaps and tiers of platforms.',
+  blurb: 'The large stage: wide blast zones, a long deck, bridges over the gaps to two floating islands, and tiers of platforms.',
 };

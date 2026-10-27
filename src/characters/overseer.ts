@@ -46,10 +46,10 @@ export const overseer: CharacterData = {
   persona: {
     intro: '',
     bio: 'The arena\'s mind given a body: the warden of the Super Fight Club. It has counted every fight in the Hollow and waits at the Apex for the one challenger worth its full attention.',
-    taunt: 'Challenger. The arena has counted every blow you threw, and has decided that you are surplus.',
+    taunt: 'Challenger. Every blow you threw is counted. Verdict: surplus.',
     // in-match taunt bubbles take turns through these
     taunts: [
-      'Challenger. The arena has counted every blow you threw, and has decided that you are surplus.',
+      'Challenger. Every blow you threw is counted. Verdict: surplus.',
       'Compliance is optional. Defeat is not.',
       'Your record is noted.',
       'Recalculating your odds. They are zero.',

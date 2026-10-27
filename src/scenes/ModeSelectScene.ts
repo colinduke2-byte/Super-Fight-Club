@@ -73,7 +73,7 @@ const GROUPS: Group[] = [
       },
       { label: 'LAUNCH CONTEST', icon: 'launch', desc: 'THREE ATTEMPTS: TEN SECONDS TO BUILD DAMAGE ON A DUMMY, THEN SEND IT FLYING. THE BEST COUNTS.', go: (s) => s.start('launch') },
       { label: 'TRAINING', icon: 'training', desc: 'PRACTISE FREELY: A DUMMY, HITBOXES, FRAME DATA AND NO CLOCK.', go: (s) => s.start('training') },
-      { label: 'TUTORIAL', icon: 'book', desc: 'NEW HERE? EIGHT SHORT HANDS-ON LESSONS: MOVING, ATTACKING, SHIELDING, RECOVERING.', go: (s, e) => startTutorial(s, 'ModeSelect', undefined, e?.device) },
+      { label: 'TUTORIAL', icon: 'book', desc: 'NEW HERE? SHORT HANDS-ON LESSONS: MOVING, ATTACKING, SHIELDING, RECOVERING AND MORE.', go: (s, e) => startTutorial(s, 'ModeSelect', undefined, e?.device) },
     ],
   },
   {

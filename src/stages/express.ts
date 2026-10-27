@@ -91,7 +91,7 @@ export const expressStage: StageData = {
   ],
   background: { topColor: 0x0a0820, bottomColor: 0x3a2a5a, layers: ['stars'], theme: 'rail', light: { rim: 0x9ae0ff, dir: [-0.5, -0.85], strength: 0.45 } },
   music: 'classic',
-  blurb: 'The roof of a sky-rail express. Three legs change the layout: open line, a viaduct with a carriage alongside, then a station canopy overhead.',
+  blurb: 'The roof of a sky-rail express in three legs: open line, a viaduct carriage that docks before it drops, then a station canopy overhead.',
 };
 
 /** The leg of a travelling stage's route at `tick` (null for other stages). Pure. */
