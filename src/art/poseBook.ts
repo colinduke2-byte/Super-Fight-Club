@@ -162,8 +162,33 @@ const splitSlam = (): PoseSpec => C(K(0, 2, [6, -34], [-6, -34], [6, 0], [-6, 0]
 
 // ---- the book -------------------------------------------------------------------------------------------------------
 
+/**
+ * The Overseer's strikes. Its arms are twice a fighter's length, so hand offsets (measured from the resting hang, then
+ * scaled 1.15 by the boss drawer) must climb ~35 just to bring a claw level with the shoulder: the moves' own keys left
+ * every jab, tilt and smash drooping at the hip. These reach the hitboxes: level thrusts, claws flung out behind for the
+ * back air, raked down past the tucked legs for the down air, slammed out to both sides for the down smash.
+ */
+const OV_W = (w: number): Extra => ({ wing: w });
+const overseerStrikes = {
+  jab1: C(K(-3, 2, [-4, -26], [-8, -6], [8, 0], [-10, 0], OV_W(0)), K(6, 3, [44, -36], [-10, -4], [14, 0], [-11, 0], { wing: 0.15, tw: -1 }), K(2, 2, [26, -24], [-6, -4], [10, 0], [-10, 0], OV_W(0))),
+  ftilt: C(K(-6, 4, [-10, -14], [-4, -8], [8, 0], [-12, 0], OV_W(0)), K(8, 6, [44, -26], [-14, -10], [20, 0], [-14, 0], { wing: 0.2, tw: -1 }), K(4, 4, [28, -16], [-8, -6], [14, 0], [-12, 0], OV_W(0))),
+  fsmash: C(K(-9, 0, [-8, -64], [2, -60], [6, 0], [-12, 0], { wing: 0.3, hy: -1 }), K(12, 9, [44, -28], [42, -16], [22, 0], [-14, 0], { wing: 0.6, tw: 1.5, hx: 1 }), K(8, 7, [30, -16], [26, -8], [18, 0], [-12, 0], OV_W(0.15))),
+  dsmash: C(K(0, 0, [6, -58], [-6, -58], [8, 6], [-8, 0], { wing: 0.25, hy: -1 }), K(2, 14, [30, 0], [-32, 2], [16, 0], [-16, 0], { wing: 0.6, hy: 1 }), K(0, 10, [20, -4], [-20, -2], [14, 0], [-14, 0], OV_W(0))),
+  nair: C(K(-2, 4, [-4, -28], [6, -32], [8, 6], [-8, 4], OV_W(0)), K(0, 2, [44, -32], [-44, -28], [10, 8], [-10, 8], { wing: 0.3, tw: 3 }), K(0, 2, [22, -18], [-22, -16], [8, 6], [-8, 4], OV_W(0))),
+};
+const overseerVersusStrikes = {
+  ...overseerStrikes,
+  jab2: C(K(-4, 3, [-6, -10], [-10, -28], [8, 0], [-10, 0], { tw: -1, wing: 0 }), K(6, 4, [10, -14], [50, -30], [16, 0], [-12, 0], { wing: 0.2, tw: 2.5 }), K(3, 3, [8, -10], [30, -20], [12, 0], [-10, 0], { tw: 1, wing: 0 })),
+  dtilt: C(K(4, 12, [6, 4], [-8, 2], [10, 0], [-12, 0], OV_W(0)), K(10, 20, [44, -4], [-12, 4], [20, 0], [-14, 0], { wing: 0.15, hy: 1 }), K(5, 14, [26, -2], [-8, 4], [14, 0], [-12, 0], OV_W(0))),
+  dashAttack: C(K(-4, 4, [-8, -10], [-14, -8], [10, 0], [-12, 0], OV_W(0)), K(12, 6, [44, -30], [40, -20], [22, 0], [-16, 4], { wing: 0.3, tw: 1, hx: 1 }), K(6, 4, [26, -18], [20, -10], [14, 0], [-12, 0], OV_W(0))),
+  bair: C(K(4, 2, [6, -14], [8, -12], [6, 6], [-4, 8], { tw: -2, wing: 0 }), K(6, 2, [10, -18], [-46, -28], [8, 6], [-8, 8], { wing: 0.15, tw: 3, hx: -1 }), K(2, 2, [6, -14], [-28, -18], [6, 6], [-6, 8], OV_W(0))),
+  dair: C(K(0, 6, [14, -34], [-14, -34], [6, 8], [-6, 10], { wing: 0, hy: -1 }), K(0, 0, [8, 26], [2, 26], [8, 16], [-6, 14], { wing: 0.2, hy: 1.5 }), K(0, 2, [10, 6], [-4, 6], [6, 10], [-5, 10], OV_W(0))),
+};
+
 type Entry = PoseSpec | ((own: PoseSpec | undefined) => PoseSpec);
 export const POSE_BOOK: Record<string, Record<string, Entry>> = {
+  overseer: overseerStrikes,
+  'overseer-versus': overseerVersusStrikes,
   brick: {
     // Brick's arms are short under huge pauldrons, so every move is built on a different big shape: the fists ride out on
     // forearm pistons (hero/brick.ts) past what the bones reach, the rear cross comes across in front of the chest, and the
@@ -232,12 +257,12 @@ export const POSE_BOOK: Record<string, Record<string, Entry>> = {
     neutralB: C(K(-4, 3, [-8, -16], [4, -8], [5, 0], [-5, 0], { tw: 2 }), K(4, 2, [18, -14], [-6, -6], [8, 0], [-6, 0], { tw: -2 }), K(1, 1, [8, -6], [-4, -4], [6, 0], [-5, 0])),
     nair: nairStar(12, -8),
     fair: fairArm([-6, -6], [22, -8]),
-    bair: bairKick(18),
+    bair: bairArm(20, -6),
     uair: uairArm(4, -40),
     dair: dairSlam([2, -30], 16),
   },
   agni: {
-    jab3: C(K(-2, 2, [4, -12], [-2, -10], [6, 0], [-6, 0]), K(3, 1, [-4, -16], [8, -14], [9, 16], [-6, 0], { tw: 1 }), K(1, 1, [2, -10], [-2, -8], [8, 4], [-6, 0])),
+    jab3: C(K(-2, 2, [4, -12], [-2, -10], [9, 14], [-6, 0]), K(-5, 1, [-6, -16], [6, -14], [25, 15], [-7, 0], { tw: -1, hx: -0.5 }), K(-1, 1, [2, -12], [-2, -10], [12, 8], [-6, 0])),
     upB_0: C(K(-2, 8, [4, 4], [-2, 4], [6, 0], [-6, 0]), K(-3, 0, [4, -46], [-2, -42], [6, 10], [0, 12], { hy: -1 }), K(-1, 0, [4, -30], [-2, -28], [5, 8], [-1, 10])),
     fair: fairKick(24),
     bair: bairKick(22),
@@ -282,8 +307,10 @@ export const POSE_BOOK: Record<string, Record<string, Entry>> = {
     fair: fairArm([-4, -34], [20, 10], {}, 'both'),
     bair: bairArm(22, -12),
     // the crystal horn is a headbutt: arms swept down and back, the crown driven straight up
-    uair: C(K(1, 2, [6, -8], [-6, -8], [5, 13], [0, 14]), K(-1, 0, [-6, 8], [-12, 6], [3, 6], [-5, 9], { bob: -1.5, hy: -2.5 }), K(0, 0, [2, 0], [-6, 0], [5, 8], [-4, 10], { hy: -1 })),
+    uair: uairArm(4, -42, true, { hy: -1.5 }),
     dair: dairStomp(),
+    utilt: C(K(-2, 6, [4, 2], [-4, 2], [6, 0], [-6, 0], { hy: 0.5 }), K(-3, -1, [6, -42], [-4, -40], [6, 0], [-6, 0], { bob: -1, hy: -1.5 }), K(-1, 1, [6, -24], [-4, -22], [6, 0], [-6, 0])),
+    usmash: C(K(-3, 11, [8, 6], [-6, 6], [8, 0], [-8, 0], { hy: 1 }), K(0, -2, [10, -46], [-8, -44], [5, 4], [-5, 6], { bob: -2, hy: -1.5 }), K(0, 2, [8, -26], [-6, -24], [6, 0], [-6, 0], { bob: -0.5 })),
   },
   rime: {
     // the smash crosses both kunai high over the shoulder and slashes them out together
@@ -309,13 +336,14 @@ export const POSE_BOOK: Record<string, Record<string, Entry>> = {
     // the rifle butt is a rising butt-stroke: the rifle hauled down by the hip, then the stock driven up at the jaw
     ftilt: C(K(-5, 4, [-8, 4], [-12, 2], [8, 0], [-9, 0], { tw: 3 }), K(9, 3, [20, -24], [12, -26], [13, 0], [-10, 0], { tw: -2, hy: -0.5 }), K(3, 2, [10, -14], [6, -14], [8, 0], [-7, 0])),
     // the rising kick goes all the way up: the front boot snapped up past the head off the planted leg
-    utilt: C(K(1, 3, [6, -12], [0, -10], [5, 0], [-5, 0]), K(-10, 0, [10, -4], [-10, -8], [8, 44], [-6, 0], { tw: -1, hy: 0.5 }), K(-4, 1, [6, -8], [-4, -6], [8, 20], [-6, 0])),
+    // (a stocky build: a high kick only reaches the chin, so the overhead boxes take an uppercut swing of the blade arm)
+    utilt: C(K(1, 5, [10, 2], [-4, -4], [6, 0], [-6, 0], { tw: 1 }), K(-5, 0, [6, -42], [-12, 0], [6, 0], [-6, 0], { tw: -1, hy: -1 }), K(-1, 2, [8, -20], [-6, -4], [5, 0], [-5, 0])),
     dashAttack: shoulderCharge(),
     fsmash: C(K(2, 6, [10, -16], [4, -16], [10, 0], [-11, 0]), K(-8, 5, [14, -18], [8, -17], [11, 0], [-12, 0], { hx: -1.5, tw: 1 }), K(-3, 4, [12, -16], [6, -15], [9, 0], [-10, 0])),
     nair: nairStar(16, -10),
     fair: fairKick(18),
     bair: bairKick(20),
-    uair: uairKick(40),
+    uair: uairArm(4, -42, true),
     dair: dairStomp(),
   },
 };

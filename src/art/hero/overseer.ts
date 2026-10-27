@@ -19,7 +19,8 @@ import { skeleton, solveLimb, type HeroPose, type Skel } from './skeleton';
  * the spires light. The drawer also re-poses the standard rows (see `bossPose`) so every row reads on this body.
  */
 export function drawOverseer(r: Raster, k0: Skel, look: PlaceholderLook): void {
-  const k = k0.pose.laid ? k0 : skeleton(look, bossPose(k0.pose), k0.W, k0.H, k0.phase);
+  // (laid poses are re-posed too: the shared sprawl is built for fighter-length arms and leaves these standing off the chest)
+  const k = skeleton(look, bossPose(k0.pose), k0.W, k0.H, k0.phase);
   const armor = col(look.armor);
   const dark = col(look.armorDark);
   const accent = col(look.accent);
@@ -60,8 +61,9 @@ export function drawOverseer(r: Raster, k0: Skel, look: PlaceholderLook): void {
   const waistY = top + h * 0.62;
   const midX = x0 + w * 0.52;
   // the long arms and the sabatons stay inside the frame on the widest reaches
-  const handF = clampV(k.handF, 30, r.w - 34, 30, r.h - 18);
-  const handB = clampV(k.handB, 30, r.w - 34, 30, r.h - 18);
+  // (pulled back along the arm's own line, so a full-reach thrust stays a straight thrust instead of folding at the elbow)
+  const handF = clampRay(k.shF, k.handF, 30, r.w - 34, 30, r.h - 18);
+  const handB = clampRay(k.shB, k.handB, 30, r.w - 34, 30, r.h - 18);
   const ankleF = clampV(k.ankleF, 30, r.w - 40, 0, k.base - 8);
   const ankleB = clampV(k.ankleB, 30, r.w - 40, 0, k.base - 8);
   const elbowF = handF === k.handF ? k.elbowF : solveLimb(k.shF, handF, k.armBone, 1).mid;
@@ -274,12 +276,16 @@ export function bossPose(p0: HeroPose): HeroPose {
       p.twist = s * 0.8;
       break;
     case 'dash': {
-      // the burst: two beats of the claws thrown back in turn
-      const k = f % 2 ? 1 : -1;
-      p.lean = 10 + k * 0.5;
-      p.crouch += 3 + k * 0.3;
-      p.frontHand = [-14 + k * 3, -2 + k];
-      p.backHand = [-24 - k * 3, -10 - k];
+      // the burst: the claws thrown back in turn (two beats; a four-frame row adds the passing in-betweens, the body
+      // rising through them and the shoulders turning with the claws)
+      const k = -c;
+      const mid = s * s;
+      p.lean = 10 + k * 0.5 - mid * 0.4;
+      p.crouch += 3 + k * 0.3 - mid * 0.8;
+      p.frontHand = [-14 + k * 3, -2 + k - mid * 1.5];
+      p.backHand = [-24 - k * 3, -10 - k + mid];
+      p.bob = (p.bob ?? 0) - mid * 0.6;
+      if (n > 2) p.twist = (p.twist ?? 0) + s * 0.8;
       break;
     }
     case 'crouch':
@@ -322,17 +328,52 @@ export function bossPose(p0: HeroPose): HeroPose {
     case 'ledge':
       key(p, [0, 2, [8, -44], [0, -44], [3, 0], [-3, 0]]);
       break;
+    case 'down':
+    case 'ko':
+      // laid out on its back (drawn upright, then laid down: up is past the head, back is the floor): both claws flung
+      // overhead along the floor, the long arms reaching past the crown instead of standing up off the chest
+      key(p, [0, 0, [-10, 0], [-10, -86], [6, 4], [-3, 0]]);
+      p.head = [-1, 0];
+      p.wing = 0;
+      break;
+    case 'getup':
+      // still on its back, propped on both elbows behind it with the knees drawn up, before the kneel and the rise
+      if (f === 0) {
+        key(p, [0, 0, [-10, 2], [-26, -26], [6, 14], [-1, 10]]);
+        p.wing = 0;
+      }
+      break;
     case 'held':
       key(p, [-4, 0, [12, -34], [-10, -34], [4, 6], [-4, 8]]);
       p.head = [-1.5, -0.5];
       break;
+    // the hit reactions, each its own shape (they were one scaled-up flinch): rocked back with the claws thrown up, a
+    // short flinch, flung upward with the arms trailing overhead, driven down and folded over
     case 'hurt':
+      key(p, [-7, 2, [16, -30], [-6, -34], [6, 0], [-11, 0]]);
+      p.head = [-1.5, -0.8];
+      p.twist = -1.5;
+      p.wing = 0.2;
+      break;
     case 'hurtL':
+      key(p, [-4, 4, [8, -18], [-14, -10], [9, 0], [-8, 0]]);
+      p.head = [-1, 0.3];
+      p.wing = 0.15;
+      break;
     case 'hurtU':
+      key(p, [-3, 0, [12, -62], [-14, -58], [6, 6], [-4, 10]]);
+      p.head = [-0.5, -1.2];
+      p.bob = -1;
+      p.wing = 0.25;
+      break;
     case 'hurtD':
+      key(p, [9, 9, [18, 8], [4, 10], [8, 5], [-7, 3]]);
+      p.head = [1.5, 2];
+      p.wing = 0.2;
+      break;
     case 'dizzy':
       amp(1.6);
-      p.wing = anim === 'dizzy' ? 0.05 : 0.2;
+      p.wing = 0.05;
       break;
     case 'victory':
       key(p, track(VICTORY, f / Math.max(1, n - 1)));
@@ -974,6 +1015,18 @@ function plate(r: Raster, R: Ramp, draw: (m: Raster) => void, o: { line?: number
 }
 
 /** `v` kept inside the box; the same object back when it already was (so callers can tell whether it moved). */
+/** `v` moved back towards `from` along their line until it lies inside the box (or `v` itself when it already does). */
+function clampRay(from: V2, v: V2, x0: number, x1: number, y0: number, y1: number): V2 {
+  if (v[0] >= x0 && v[0] <= x1 && v[1] >= y0 && v[1] <= y1) return v;
+  const dx = v[0] - from[0];
+  const dy = v[1] - from[1];
+  let t = 1;
+  if (v[0] > x1 && dx > 0) t = Math.min(t, (x1 - from[0]) / dx);
+  if (v[0] < x0 && dx < 0) t = Math.min(t, (x0 - from[0]) / dx);
+  if (v[1] > y1 && dy > 0) t = Math.min(t, (y1 - from[1]) / dy);
+  if (v[1] < y0 && dy < 0) t = Math.min(t, (y0 - from[1]) / dy);
+  return clampV([from[0] + dx * Math.max(0, t), from[1] + dy * Math.max(0, t)], x0, x1, y0, y1);
+}
 function clampV(v: V2, x0: number, x1: number, y0: number, y1: number): V2 {
   const x = Math.max(x0, Math.min(x1, v[0]));
   const y = Math.max(y0, Math.min(y1, v[1]));

@@ -81,6 +81,8 @@ applyMovePoses(overseerVersus);
 // the boss's transition and results rows; every move (each jab, tilt, smash, aerial, throw and special, and its own taunt)
 // has a row of its own in overseerVersus.moves.json, drawn wind-up, anticipation, strike, follow-through and recovery
 Object.assign(overseerVersus.sprite.animations, {
+  // four dash beats (the extra two cells fit in the sheet's last row: same texture size)
+  dash: { frames: 4, fps: 18, loop: true },
   land: { frames: 2, fps: 20, loop: false },
   getup: { frames: 3, fps: 10, loop: false },
   dizzy: { frames: 4, fps: 6, loop: true },

@@ -170,6 +170,17 @@ export function drawRime(r: Raster, k: Skel, look: PlaceholderLook): void {
     hand(r, P, el, handB, true);
   }
 
+  // ---- the seat of the trousers: ties both hips to the waist, so a deep lunge (the torso carried well past the hips)
+  // never leaves a thigh floating free of the body ----
+  {
+    const wx = T.x + T.w * 0.5;
+    const wy = T.y + T.h - 4;
+    r.seg(P.ink, wx, wy + 0.5, k.hipB[0], k.hipB[1] + 0.5, 15, 13.5);
+    r.seg(P.deep, wx - 0.5, wy, k.hipB[0] - 0.5, k.hipB[1], 13, 12);
+    r.seg(P.ink, wx, wy + 0.5, k.hipF[0], k.hipF[1] + 0.5, 15, 13.5);
+    r.seg(P.pants, wx - 0.5, wy, k.hipF[0] - 0.5, k.hipF[1], 13, 12);
+  }
+
   // ---- back leg ----
   leg(r, P, k.hipB, kneeB, ankleB, true, o === 2 ? F.furD : -1);
 
