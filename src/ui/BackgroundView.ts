@@ -56,6 +56,15 @@ export function setArenaPhase(phase: number, sinceChange = 999): void {
   arenaShift = sinceChange;
 }
 
+/**
+ * Tile offset (texels) for a layer drawn `scale` device px per texel, shifted `shift` device px: the shift is rounded to a
+ * whole device pixel, so the layer's pixel grid stays on the screen's while it pans (a fractional offset re-samples the
+ * texels at a new phase every frame: uneven pixel widths that shimmer as the camera moves).
+ */
+function devPx(shift: number, scale: number): number {
+  return Math.round(shift) / scale;
+}
+
 /** Horizontal parallax of the three ground layers (the near skyline is 0.26, so the far floor stays planted under it). */
 const GROUND_PARALLAX = [0.26, 0.34, 0.45];
 
@@ -819,15 +828,15 @@ export class BackgroundView {
     const H = this.h;
 
     this.nebula.setTileScale(ps * 2, ps * 2);
-    this.nebula.tilePositionX = (cx * 0.03 * zoom) / (ps * 2);
-    this.nebula.tilePositionY = (cy * 0.03 * zoom) / (ps * 2);
+    this.nebula.tilePositionX = devPx(cx * 0.03 * zoom, ps * 2);
+    this.nebula.tilePositionY = devPx(cy * 0.03 * zoom, ps * 2);
 
     this.starsA.setTileScale(ps, ps);
-    this.starsA.tilePositionX = (cx * 0.05 * zoom) / ps;
-    this.starsA.tilePositionY = (cy * 0.05 * zoom) / ps;
+    this.starsA.tilePositionX = devPx(cx * 0.05 * zoom, ps);
+    this.starsA.tilePositionY = devPx(cy * 0.05 * zoom, ps);
     this.starsB.setTileScale(ps, ps);
-    this.starsB.tilePositionX = (cx * 0.1 * zoom) / ps;
-    this.starsB.tilePositionY = (cy * 0.1 * zoom) / ps;
+    this.starsB.tilePositionX = devPx(cx * 0.1 * zoom, ps);
+    this.starsB.tilePositionY = devPx(cy * 0.1 * zoom, ps);
     this.starsB.setAlpha(0.65 + 0.35 * Math.sin(time * 1.7));
 
     this.planet.setScale(ps * 1.5);
@@ -843,7 +852,7 @@ export class BackgroundView {
       t.setTileScale(s, s);
       t.setSize(W, 192 * s);
       t.setPosition(0, (baseY - cy * f) * zoom + H / 2 - 192 * s);
-      t.tilePositionX = (cx * f * zoom) / s + this.travel * (f / 0.12);
+      t.tilePositionX = devPx(cx * f * zoom + this.travel * (f / 0.12) * s, s);
     }
     // the ground layers hang rigidly from the near skyline's base and slide past one another, nearer ones faster
     let bottom = this.near.y + this.near.height;
@@ -858,7 +867,7 @@ export class BackgroundView {
         t.setTileScale(s, s);
         t.setSize(W, Math.ceil(L.h * s) + 1);
         t.setPosition(0, Math.floor(base + L.top * s));
-        t.tilePositionX = (cx * f * zoom) / s + this.travel * (f / 0.12);
+        t.tilePositionX = devPx(cx * f * zoom + this.travel * (f / 0.12) * s, s);
       });
       const last = this.grounds[this.grounds.length - 1];
       bottom = last.y + GROUND_LAYERS[GROUND_LAYERS.length - 1].h * s;
@@ -873,7 +882,7 @@ export class BackgroundView {
       this.overcast.setTileScale(k, k);
       this.overcast.setSize(W, 128 * k);
       this.overcast.setPosition(0, -k * 40 - Math.max(0, cy) * 0.03 * zoom);
-      this.overcast.tilePositionX = (cx * 0.06 * zoom + time * 14 * ps) / k;
+      this.overcast.tilePositionX = devPx(cx * 0.06 * zoom + time * 14 * ps, k);
     }
 
     if (this.bankOn) {
@@ -881,7 +890,7 @@ export class BackgroundView {
       this.bank.setTileScale(k, k);
       this.bank.setSize(W, 128 * k);
       this.bank.setPosition(0, H - 128 * k * 0.55 + Math.max(0, cy * 0.02 * zoom));
-      this.bank.tilePositionX = (cx * 0.35 * zoom + (time * 5 + this.travel * 4) * ps) / k;
+      this.bank.tilePositionX = devPx(cx * 0.35 * zoom + (time * 5 + this.travel * 4) * ps, k);
     }
 
     this.drawExtras(cx, cy, zoom, time);
@@ -911,7 +920,7 @@ export class BackgroundView {
           this.clouds.setTileScale(k, k);
           this.clouds.setSize(W, 64 * k);
           this.clouds.setPosition(0, H * 0.34 - cy * 0.04 * zoom);
-          this.clouds.tilePositionX = (cx * 0.08 * zoom + (time * 7 + this.travel * 2) * ps) / k;
+          this.clouds.tilePositionX = devPx(cx * 0.08 * zoom + (time * 7 + this.travel * 2) * ps, k);
           this.clouds.setAlpha(0.85);
           break;
         }

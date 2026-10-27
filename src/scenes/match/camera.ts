@@ -16,6 +16,23 @@ export interface CameraFrame {
  * The world camera: follows the living fighters (and Target Smash targets, and the Launch Contest bag in flight), pushes in
  * for ultimates, snaps to crisp pixel zooms, and applies shake / heavy-hit punch.
  */
+/**
+ * Pixel snapping for a zoomed camera, in device pixels rather than world units. Phaser's `roundPixels` floors the camera
+ * scroll and every sprite's position to whole world units, which at the world camera's zoom (2-9 device px per unit, more on
+ * big screens) moves the whole world, and each fighter, in visible 3-9 px jumps, out of step with the backdrop, and
+ * throws away the camera's own device-pixel snap (see `frame`). Instead: no world-unit flooring, and each sprite's top-left
+ * corner lands on a whole device pixel (Phaser does this itself only at whole-number zooms), so motion is smooth to one
+ * device pixel and a sprite's pixel pattern stays the same while it moves. Nearest-neighbour sampling is unchanged.
+ */
+export function snapToDevicePixels(cam: Phaser.Cameras.Scene2D.Camera): void {
+  cam.setRoundPixels(false);
+  const base = cam.preRender;
+  cam.preRender = function (this: Phaser.Cameras.Scene2D.Camera): void {
+    base.call(this);
+    (this as { renderRoundPixels: boolean }).renderRoundPixels = true;
+  };
+}
+
 /** Sim ticks at the start of a match during which the camera frames the whole stage (its platforms) as well as the fighters. */
 const OPENING_TICKS = 150;
 /** Headroom kept above a platform's top while framing it (a fighter standing on it). */
@@ -45,6 +62,7 @@ export class MatchCamera {
     }
     for (let i = 0; i < s.fighters.length + s.world.targets.length + this.opening.length; i++) this.targets.push({ x: 0, y: 0 });
     this.cam.snap();
+    snapToDevicePixels(s.worldCam);
   }
 
   createDim(): void {
@@ -155,7 +173,8 @@ export class MatchCamera {
     // the impact punch-in (heavy hits, a KO launch): a quarter as strong with REDUCE MOTION
     const zp = zoom * (1 + st.punch * (settings.reduceMotion ? 0.25 : 1));
     s.worldCam.setZoom(zp);
-    s.worldCam.centerOn(cx + sx, cy + sy);
+    // shake and punch keep the centre on whole device pixels too, so the stage pieces shake as one (see snapToDevicePixels)
+    s.worldCam.centerOn(Math.round((cx + sx) * zp) / zp, Math.round((cy + sy) * zp) / zp);
     // what the world camera shows this frame (its worldView only catches up in its pre-render, a frame late, so screen-space
     // tags and bubbles placed from it trailed the fighters and jittered against them under screen shake)
     const vw = s.scale.width / zp;

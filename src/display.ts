@@ -71,12 +71,49 @@ function noteViewport(s: number): void {
 
 let game: Phaser.Game | null = null;
 
+/** The canvas's exact size in device pixels, as the browser lays it out (0 until it reports one; Safari never does). */
+const deviceBox = { w: 0, h: 0 };
+
+/**
+ * Canvas backing size (render px) for a cssW x cssH window at `s` render px per CSS px. At a fractional devicePixelRatio
+ * (125% / 150% laptops) cssW x dpr is not a whole number and rounding it can miss the screen by a pixel, so the browser
+ * re-samples the whole picture with one doubled or dropped pixel column / row (a seam through the pixel art). When the
+ * game renders at full device resolution and the browser reports the canvas's device-pixel box, that exact size is used,
+ * so one canvas pixel is one screen pixel. A box far from cssW x dpr (an emulated or stale report) is ignored.
+ */
+export function canvasSize(cssW: number, cssH: number, s: number, dpr: number, box: { w: number; h: number }): { w: number; h: number } {
+  let w = Math.max(1, Math.round(cssW * s));
+  let h = Math.max(1, Math.round(cssH * s));
+  if (s === dpr && box.w > 0 && box.h > 0 && Math.abs(box.w - cssW * dpr) <= 1.5 && Math.abs(box.h - cssH * dpr) <= 1.5) {
+    w = box.w;
+    h = box.h;
+  }
+  return { w, h };
+}
+
+/** Watch the canvas's device-pixel box (ResizeObserver 'device-pixel-content-box') and resize when it changes. */
+function watchDeviceBox(canvas: HTMLCanvasElement): void {
+  try {
+    const ro = new ResizeObserver((entries) => {
+      const box = entries[entries.length - 1]?.devicePixelContentBoxSize?.[0];
+      if (!box || (box.inlineSize === deviceBox.w && box.blockSize === deviceBox.h)) return;
+      deviceBox.w = box.inlineSize;
+      deviceBox.h = box.blockSize;
+      scheduleApplySize();
+    });
+    ro.observe(canvas, { box: 'device-pixel-content-box' });
+  } catch {
+    /* not supported: the rounded CSS size x DPR stands */
+  }
+}
+
 /** Size the canvas backing store in render pixels and display it at CSS size. */
 export function applySize(): void {
   if (!game) return;
   const s = renderScale();
   noteViewport(s);
-  game.scale.resize(Math.max(1, Math.round(window.innerWidth * s)), Math.max(1, Math.round(window.innerHeight * s)));
+  const size = canvasSize(window.innerWidth, window.innerHeight, s, window.devicePixelRatio || 1, deviceBox);
+  game.scale.resize(size.w, size.h);
   const canvas = game.canvas;
   if (canvas) {
     canvas.style.width = `${window.innerWidth}px`;
@@ -277,5 +314,8 @@ export function initDisplay(g: Phaser.Game): void {
     if (isIosBrowser() && !fullscreenSupported()) setTimeout(() => showHomeScreenTip(), 600);
   }, { once: true, capture: true });
   if (!watchRaf) watchRaf = requestAnimationFrame(watchOrientation);
-  g.events.once('ready', applySize);
+  g.events.once('ready', () => {
+    applySize();
+    if (g.canvas) watchDeviceBox(g.canvas);
+  });
 }
