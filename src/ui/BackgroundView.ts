@@ -43,7 +43,7 @@ export interface Backdrop {
   nearHaze?: { drop: number; alpha: number; farDrop?: number; farAlpha?: number };
 }
 
-export type Extra = 'rain' | 'flash' | 'sun' | 'birds' | 'godrays' | 'shooting' | 'clouds' | 'embers' | 'glow' | 'lightning' | 'beams' | 'grid' | 'motes' | 'aurora' | 'airships' | 'moon' | 'beacon' | 'ceiling' | 'drips' | 'snow' | 'smoke' | 'shafts' | 'fireflies' | 'searchlights' | 'traffic' | 'datastream' | 'wisps' | 'petals' | 'flare' | 'wind' | 'crown' | 'ascend' | 'floodlights' | 'flashbulbs';
+export type Extra = 'rain' | 'flash' | 'sun' | 'birds' | 'godrays' | 'shooting' | 'clouds' | 'embers' | 'glow' | 'lightning' | 'beams' | 'grid' | 'motes' | 'aurora' | 'airships' | 'moon' | 'beacon' | 'ceiling' | 'drips' | 'snow' | 'smoke' | 'shafts' | 'fireflies' | 'searchlights' | 'traffic' | 'datastream' | 'wisps' | 'petals' | 'flare' | 'wind' | 'crown' | 'ascend' | 'floodlights' | 'flashbulbs' | 'boats' | 'haze' | 'blimp';
 
 /**
  * The boss arena's phase (0 calm, 1 enraged) and how far into the change it is: set every frame by ui/BossCinematic, read
@@ -64,6 +64,15 @@ export function setArenaPhase(phase: number, sinceChange = 999): void {
 function devPx(shift: number, scale: number): number {
   return Math.round(shift) / scale;
 }
+
+/** The lens flare's ghosts: [position along the sun-to-centre line, radius / screen height, colour, alpha]. */
+const FLARE_GHOSTS: readonly (readonly [number, number, number, number])[] = [
+  [0.45, 0.018, 0xffd0a0, 0.08],
+  [0.8, 0.035, 0xff9ab0, 0.05],
+  [1.15, 0.012, 0xffffff, 0.1],
+  [1.5, 0.06, 0xb8a0ff, 0.035],
+  [1.85, 0.025, 0xffe0a0, 0.06],
+];
 
 /** Horizontal parallax of the three ground layers (the near skyline is 0.26, so the far floor stays planted under it). */
 const GROUND_PARALLAX = [0.26, 0.34, 0.45];
@@ -139,7 +148,7 @@ export const BACKDROPS: Record<string, Backdrop> = {
     ground: 'bg-jungle-ground',
     stars: true,
     nebulaOn: false,
-    extras: ['godrays', 'motes', 'birds', 'fireflies'],
+    extras: ['haze', 'godrays', 'motes', 'birds', 'fireflies'],
   },
   tide: {
     sky: ['#03060f', '#071226', '#0c1e3a', '#14304e', '#1e4862', '#215a6e', '#0c2a3c'],
@@ -209,7 +218,7 @@ export const BACKDROPS: Record<string, Backdrop> = {
   },
   harbour: {
     // a night harbour: the city across the water, the docks' cranes and warehouses, the moon's path on the sea and the
-    // lighthouse sweeping the bay
+    // running lights of boats crossing the bay
     sky: ['#03050f', '#060c1e', '#0c162e', '#142242', '#1c3052', '#28405e', '#3a5468'],
     planet: false,
     nebula: 0x8ab0d8,
@@ -224,7 +233,7 @@ export const BACKDROPS: Record<string, Backdrop> = {
     glowCol: [0x1a2a4a, 0xff9a40],
     glowAlpha: 0.12,
     nebulaOn: false,
-    extras: ['moon', 'beacon', 'glow', 'searchlights', 'motes'],
+    extras: ['moon', 'glow', 'searchlights', 'boats', 'motes'],
   },
   rail: {
     // the sky-rail at night: the city streaming past below the line, searchlights, air traffic and the wind of the run
@@ -274,7 +283,10 @@ export const BACKDROPS: Record<string, Backdrop> = {
     nearTex: 'bg-stands-near',
     nearHaze: { drop: 20, alpha: 1 },
     nebulaOn: false,
-    extras: ['floodlights', 'flashbulbs', 'shooting'],
+    // the last of the sunset glowing behind the stands, and the contest's blimp idling over the stadium
+    glowCol: [0x2a1440, 0xff8a5a],
+    glowAlpha: 0.13,
+    extras: ['glow', 'blimp', 'floodlights', 'flashbulbs', 'shooting'],
   },
   reactor: {
     sky: ['#120404', '#240808', '#3a0e0a', '#5a1a0c', '#8a2c0c', '#c0501a', '#f08a30'],
@@ -675,6 +687,10 @@ export class BackgroundView {
   private lastTime = -1;
   /** Set once a leg changes the speed: from then on the travel is integrated (otherwise exactly time x speed, as before). */
   private varies = false;
+  /** When (scene seconds) a lightning hazard last struck, for the sky's flash (see strike()). */
+  private strikeAt = -1;
+  /** The far skyline's texture key as the backdrop names it (a loaded texture's own key may be an alias). */
+  private farKey = 'bg-ruins-far';
   private nearDrop = 0;
   private farDrop = 0;
   private sky = SKY;
@@ -724,7 +740,8 @@ export class BackgroundView {
     this.near.setAlpha(b.nearHaze?.alpha ?? 1);
     this.farDrop = b.nearHaze?.farDrop ?? 0;
     this.far.setAlpha(b.nearHaze?.farAlpha ?? 1);
-    this.far.setTexture(b.farTex ?? 'bg-ruins-far');
+    this.farKey = b.farTex ?? 'bg-ruins-far';
+    this.far.setTexture(this.farKey);
     this.near.setTexture(b.nearTex ?? 'bg-ruins-near');
     if (b.ground) {
       ensureGroundTextures(this.scene, b.ground);
@@ -758,6 +775,7 @@ export class BackgroundView {
     this.scroll = b.scroll ?? 0;
     this.scrollMul = this.scrollGoal = 1;
     this.lastTime = -1;
+    this.strikeAt = -1;
     this.varies = false;
     this.clouds.setVisible(this.extras.includes('clouds'));
     this.starsA.setVisible(b.stars !== false);
@@ -843,17 +861,8 @@ export class BackgroundView {
     this.planet.setPosition(W * 0.78 - cx * 0.02 * zoom, H * 0.26 - cy * 0.02 * zoom);
 
     // skylines: art pixel = 0.5 world units * layer scale; base line follows the camera with parallax
-    const layers: [Phaser.GameObjects.TileSprite, number, number, number][] = [
-      [this.far, 0.12, 0.5 * 0.55, 20 + this.farDrop],
-      [this.near, 0.26, 0.5 * 0.85, 52 + this.nearDrop],
-    ];
-    for (const [t, f, k, baseY] of layers) {
-      const s = zoom * k;
-      t.setTileScale(s, s);
-      t.setSize(W, 192 * s);
-      t.setPosition(0, (baseY - cy * f) * zoom + H / 2 - 192 * s);
-      t.tilePositionX = devPx(cx * f * zoom + this.travel * (f / 0.12) * s, s);
-    }
+    this.placeSkyline(this.far, 0.12, 0.5 * 0.55, 20 + this.farDrop, cx, cy, zoom);
+    this.placeSkyline(this.near, 0.26, 0.5 * 0.85, 52 + this.nearDrop, cx, cy, zoom);
     // the ground layers hang rigidly from the near skyline's base and slide past one another, nearer ones faster
     let bottom = this.near.y + this.near.height;
     if (this.groundOn) {
@@ -896,7 +905,25 @@ export class BackgroundView {
     this.drawExtras(cx, cy, zoom, time);
   }
 
-  private drawExtras(cx: number, cy: number, zoom: number, time: number): void {
+  /** One skyline layer: parallax `f`, art px = `k` world units, its base `baseY` world units below the camera's centre line. */
+  private placeSkyline(t: Phaser.GameObjects.TileSprite, f: number, k: number, baseY: number, cx: number, cy: number, zoom: number): void {
+    const s = zoom * k;
+    t.setTileScale(s, s);
+    t.setSize(this.w, 192 * s);
+    t.setPosition(0, (baseY - cy * f) * zoom + this.h / 2 - 192 * s);
+    t.tilePositionX = devPx(cx * f * zoom + this.travel * (f / 0.12) * s, s);
+  }
+
+  /** A lightning hazard just struck: the sky flashes with it (and a storm's overcast lights up from inside). */
+  strike(): void {
+    this.strikeAt = this.lastTime;
+  }
+
+  private drawExtras(cx: number, cy: number, zoom: number, now: number): void {
+    // REDUCE MOTION: the ambience keeps moving, at half speed, without the streaking extras (wind lines, shooting stars)
+    const calm = settings.reduceMotion;
+    const time = calm ? now * 0.5 : now;
+    const dimFlash = settings.reduceFlashes ? 0.2 : 1;
     const gb = this.gBack;
     const gf = this.gFront;
     gb.clear();
@@ -910,6 +937,7 @@ export class BackgroundView {
     this.pMid.begin();
     this.flashNow = 0;
     const gm = this.gMid;
+    const g2 = this.gGlint;
     const W = this.w;
     const H = this.h;
     const ps = this.ps;
@@ -971,21 +999,23 @@ export class BackgroundView {
           const d = time - slot * 5.5 - off;
           if (d > 0 && d < 0.55 && hash(slot * 3 + 4) > 0.2) {
             const fade = d < 0.08 ? 1 : d < 0.18 ? 0.25 : d < 0.28 ? 0.8 : Math.max(0, 1 - d * 1.9);
-            this.flashNow = fade * (settings.reduceFlashes ? 0.2 : 1);
-            gb.fillStyle(0xcfe8ff, 0.14 * fade * (settings.reduceFlashes ? 0.2 : 1));
+            this.flashNow = fade * dimFlash;
+            gb.fillStyle(0xcfe8ff, 0.14 * fade * dimFlash);
             gb.fillRect(0, 0, W, H);
             const bx = W * (0.15 + hash(slot * 3 + 9) * 0.7) - cx * 0.02 * zoom;
             let x = bx;
             let y = -4;
-            gb.fillStyle(0xffffff, 0.9 * fade);
+            // REDUCE FLASHES: the bolt stays visible but dim, like the sky's flash
+            const bolt = settings.reduceFlashes ? 0.3 : 1;
+            gb.fillStyle(0xffffff, 0.9 * fade * bolt);
             for (let i = 0; i < 12; i++) {
               const nx = x + (hash(slot * 31 + i) - 0.5) * 38 * ps;
               const ny = y + H * 0.075;
               line(gb, x, y, nx, ny, Math.max(2, ps * 1.5));
               if (i === 4 || i === 8) {
-                gb.fillStyle(0xbfe0ff, 0.6 * fade);
+                gb.fillStyle(0xbfe0ff, 0.6 * fade * bolt);
                 line(gb, nx, ny, nx + (hash(slot * 17 + i) - 0.3) * 60 * ps, ny + H * 0.1, Math.max(1, ps));
-                gb.fillStyle(0xffffff, 0.9 * fade);
+                gb.fillStyle(0xffffff, 0.9 * fade * bolt);
               }
               x = nx;
               y = ny;
@@ -1115,6 +1145,7 @@ export class BackgroundView {
         }
         case 'wind': {
           // speed lines: thin streaks of air rushing past the moving ship
+          if (calm) break;
           for (let i = 0; i < 26; i++) {
             const sp = 1.2 + hash(i * 3 + 950) * 1.4;
             const ph = (time * sp * 0.35 + hash(i * 3 + 951)) % 1;
@@ -1133,14 +1164,7 @@ export class BackgroundView {
           const sy = H * 0.36 - cy * 0.01 * zoom;
           const dx = W / 2 - sx;
           const dy = H / 2 - sy;
-          const ghosts: [number, number, number, number][] = [
-            [0.45, 0.018, 0xffd0a0, 0.08],
-            [0.8, 0.035, 0xff9ab0, 0.05],
-            [1.15, 0.012, 0xffffff, 0.1],
-            [1.5, 0.06, 0xb8a0ff, 0.035],
-            [1.85, 0.025, 0xffe0a0, 0.06],
-          ];
-          for (const [t, r, col, a] of ghosts) {
+          for (const [t, r, col, a] of FLARE_GHOSTS) {
             const x = sx + dx * t;
             const y = sy + dy * t;
             this.pFront.circle(x, y, H * r, col, a);
@@ -1194,7 +1218,8 @@ export class BackgroundView {
           const tile = 512 * s;
           const tp = this.far.tilePositionX;
           const top = this.far.y;
-          INDUSTRY_VENTS.forEach((v, vi) => {
+          for (let vi = 0; vi < INDUSTRY_VENTS.length; vi++) {
+            const v = INDUSTRY_VENTS[vi];
             const first = ((((v.x - tp) * s) % tile) + tile) % tile;
             for (let lx = first - tile; lx < W + 20 * s; lx += tile) {
               if (lx < -120 * s) continue;
@@ -1208,7 +1233,7 @@ export class BackgroundView {
                 this.pFar.circle(lx + drift * s, top + (v.y - rise) * s, r, col, a);
               }
             }
-          });
+          }
           break;
         }
         case 'fireflies': {
@@ -1250,7 +1275,9 @@ export class BackgroundView {
           break;
         }
         case 'beacon': {
-          // the lighthouse lamp in the far layer sweeps its beam round; brightest when it swings toward us
+          // the lighthouse lamp in the far layer sweeps its beam round; brightest when it swings toward us. The lamp sits on
+          // bg-cove-far's lighthouse: over any other far skyline there is no tower to hang it on
+          if (this.farKey !== 'bg-cove-far') break;
           const s = zoom * 0.5 * 0.55;
           const top = (20 - cy * 0.12) * zoom + H / 2 - 192 * s;
           const tile = 1024 * s; // bg-cove-far is twice the usual width so the lighthouse appears once
@@ -1264,10 +1291,12 @@ export class BackgroundView {
             const ly = top + COVE_LAMP.y * s;
             const ex = lx + sweep * reach;
             const spread = H * (0.04 + 0.05 * toward);
-            gb.fillStyle(0xfff4c8, 0.07 + 0.05 * (1 - Math.abs(sweep)));
+            // the beam fades out along its length into the night (a flat-lit wedge read as a solid grey slab)
+            const ba = 0.12 + 0.07 * (1 - Math.abs(sweep));
+            gb.fillGradientStyle(0xfff4c8, 0xfff4c8, 0xfff4c8, 0xfff4c8, ba, 0, 0, 0);
             gb.fillTriangle(lx, ly, ex, ly - spread, ex, ly + spread * 0.6);
-            gb.fillStyle(0xffffff, 0.05);
-            gb.fillTriangle(lx, ly, ex, ly - spread * 0.35, ex, ly + spread * 0.2);
+            gb.fillGradientStyle(0xffffff, 0xffffff, 0xffffff, 0xffffff, ba * 0.6, 0, 0, 0);
+            gb.fillTriangle(lx, ly, (lx + ex) / 2, ly - spread * 0.18, (lx + ex) / 2, ly + spread * 0.1);
             this.pBack.circle(lx, ly, (3 + 10 * toward ** 6) * ps, 0xfff4c8, 0.12 + 0.35 * toward ** 6);
           }
           break;
@@ -1359,6 +1388,7 @@ export class BackgroundView {
         }
         case 'shooting': {
           // one streak every ~6 s, each with its own start point and angle
+          if (calm) break;
           const slot = Math.floor(time / 6);
           const t = (time - slot * 6) / 0.7;
           if (t < 1 && hash(slot * 3 + 1) > 0.25) {
@@ -1386,7 +1416,7 @@ export class BackgroundView {
           const d = t - off;
           if (d > 0 && d < 0.35) {
             const a = (d < 0.07 ? 0.2 : d < 0.15 ? 0.04 : d < 0.22 ? 0.16 : 0.05) * (1 - d);
-            gb.fillStyle(0xffb878, a * (settings.reduceFlashes ? 0.2 : 1));
+            gb.fillStyle(0xffb878, a * dimFlash);
             gb.fillRect(0, 0, W, H);
           }
           break;
@@ -1464,7 +1494,12 @@ export class BackgroundView {
           // in the middle, slowly looking about. Phase 2: the sky burns, the blades are rimmed in fire, the eye turns red
           const p2 = arenaPhase > 0;
           // the change: the sigil gutters out and comes back burning (BossCinematic's transition window)
-          const k = p2 && arenaShift < 90 ? (arenaShift < 10 ? 1 - arenaShift / 10 : arenaShift < 50 ? ((arenaShift >> 2) & 1) * 0.6 : Math.min(1, (arenaShift - 50) / 40)) : 1;
+          // (the sputter blinks at under 2 Hz; with REDUCE FLASHES it does not blink at all but climbs smoothly back from
+          // dark, as this term drives a full-screen red wash)
+          const calmShift = settings.reduceFlashes;
+          const sputter = calmShift ? ((arenaShift - 10) / 40) * 0.6 : ((arenaShift >> 4) & 1) * 0.6;
+          const relight = calmShift ? 0.6 + ((arenaShift - 50) / 40) * 0.4 : (arenaShift - 50) / 40;
+          const k = p2 && arenaShift < 90 ? (arenaShift < 10 ? 1 - arenaShift / 10 : arenaShift < 50 ? sputter : Math.min(1, relight)) : 1;
           const ox = W * 0.5 - cx * 0.05 * zoom;
           const oy = H * 0.58 - cy * 0.03 * zoom;
           const hot = p2 ? 0xff4a2a : 0xb685ff;
@@ -1531,12 +1566,46 @@ export class BackgroundView {
               if (lx < -W * 0.5 || lx > W * 1.5) continue;
               const toward = lx < W / 2 ? 1 : -1;
               const ex = lx + toward * W * (0.25 + 0.03 * Math.sin(time * 0.3 + L.x));
-              gb.fillStyle(0xfff0d0, 0.05);
+              // the cone is brightest at the lamps and fades out before it reaches the field
+              gb.fillGradientStyle(0xfff0d0, 0xfff0d0, 0xfff0d0, 0xfff0d0, 0.085, 0.085, 0, 0);
               gb.fillTriangle(lx - 8 * s, ly, lx + 8 * s, ly, ex + W * 0.12, H);
+              gb.fillGradientStyle(0xfff0d0, 0xfff0d0, 0xfff0d0, 0xfff0d0, 0.085, 0, 0, 0);
               gb.fillTriangle(lx - 8 * s, ly, ex - W * 0.12, H, ex + W * 0.12, H);
-              this.pBack.circle(lx, ly + 3 * s, 14 * s, 0xfff6dc, 0.25);
+              // the lamp bank's glare, kept tight (the masts stand at play height, behind the fighters)
+              this.pBack.circle(lx, ly + 3 * s, 12 * s, 0xfff6dc, 0.12);
+              this.pBack.circle(lx, ly + 3 * s, 6 * s, 0xffffff, 0.22);
             }
           }
+          break;
+        }
+        case 'blimp': {
+          // the contest blimp idling across the sky above the stands: a pixel-drawn envelope, its belly lit warm by the
+          // floodlights, a ticker of lights along its side, fins and a gondola. High and slow, well clear of the action
+          const u = 2 * ps; // one blimp pixel
+          const L = 44; // length, blimp pixels
+          const R = 11; // height
+          const span = W + L * u * 2;
+          const bx = Math.round(((((time * 7 * ps - cx * 0.04 * zoom + W * 0.35) % span) + span) % span) - L * u);
+          const by = Math.round(H * 0.13 - cy * 0.03 * zoom + Math.sin(time * 0.35) * u);
+          for (let r = 0; r < R; r++) {
+            const v = ((r + 0.5) / R) * 2 - 1;
+            const half = Math.round((L / 2) * Math.sqrt(1 - v * v));
+            const col = r === 0 ? 0x4a4258 : r < 3 ? 0x3a3448 : r < R - 3 ? 0x2c2638 : r < R - 1 ? 0x4a3444 : 0x6a4448;
+            gm.fillStyle(col, 1).fillRect(bx + (L / 2 - half) * u, by + r * u, half * 2 * u, u);
+          }
+          // tail fins (at the left: it flies to the right) and the gondola
+          gm.fillStyle(0x221e2c, 1).fillRect(bx - u, by - u, u * 4, u * 3);
+          gm.fillRect(bx - u, by + (R - 2) * u, u * 4, u * 3);
+          gm.fillStyle(0x221e2c, 1).fillRect(bx + 18 * u, by + R * u, u * 8, u * 2);
+          gm.fillStyle(0xffd890, 0.8).fillRect(bx + 20 * u, by + R * u, u, u).fillRect(bx + 23 * u, by + R * u, u, u);
+          // the ticker: lights chasing along the side, warm and cool
+          const step = Math.floor(time * 6);
+          for (let i = 0; i < 14; i++) {
+            const on = (i + step) % 4 === 0 ? 0.95 : 0.35;
+            gm.fillStyle(i % 2 ? 0x7fe8ff : 0xffcf6a, on).fillRect(bx + (9 + i * 2) * u, by + 5 * u, u, u);
+          }
+          // a red beacon on top, blinking
+          if (Math.sin(time * 2.6) > 0.3) gm.fillStyle(0xff4a4a, 0.95).fillRect(bx + 21 * u, by - u, u, u);
           break;
         }
         case 'flashbulbs': {
@@ -1549,7 +1618,57 @@ export class BackgroundView {
             const x = ((hash(i * 5 + 3) * W - cx * 0.26 * zoom) % W + W) % W;
             const y = top + (100 + hash(i * 5 + 4) * 80) * s;
             if (y > H) continue;
-            this.pFront.circle(x, y, ps * 2.5, 0xffffff, (a - 0.93) * 10);
+            this.pFront.circle(x, y, ps * 2.5, 0xffffff, (a - 0.93) * 10 * (settings.reduceFlashes ? 0.35 : 1));
+          }
+          break;
+        }
+        case 'haze': {
+          // the low sun behind the jungle's evening haze: no disc, only a warm veil of light where the god rays fan from
+          const sx = W * 0.7 - cx * 0.015 * zoom;
+          const sy = H * 0.36 - cy * 0.01 * zoom;
+          const breathe = 0.9 + 0.1 * Math.sin(time * 0.4);
+          for (let r = 6; r >= 1; r--) this.pBack.circle(sx, sy, r * H * 0.05, r > 3 ? 0xffa860 : 0xffd890, (0.022 + (6 - r) * 0.008) * breathe);
+          this.pBack.circle(sx, sy, H * 0.028, 0xfff0c8, 0.22 * breathe);
+          this.pBack.circle(sx, sy, H * 0.016, 0xfff8e8, 0.3 * breathe);
+          break;
+        }
+        case 'boats': {
+          // boats crossing the bay far out on the water: a dark hull, cabin windows, red / green running lights and a white
+          // masthead light, each light laid on the water below as a wavering streak. Small and slow, low in the view
+          if (!this.groundOn) break;
+          const s = this.groundS;
+          const span = W + 240;
+          for (let i = 0; i < 5; i++) {
+            const row = 10 + hash(i * 7 + 1200) * 30; // art rows down the far water: farther boats sit higher and smaller
+            const k = s * (0.55 + (row / 40) * 0.45);
+            const dir = i % 2 ? -1 : 1;
+            const sp = (5 + hash(i * 7 + 1201) * 7) * k;
+            const x0 = hash(i * 7 + 1202) * span + dir * time * sp - cx * 0.26 * zoom;
+            const x = Math.round((((x0 % span) + span) % span) - 120);
+            const y = Math.round(this.groundTop + row * s);
+            if (y > H) continue;
+            const L = Math.max(4, Math.round((16 + hash(i * 7 + 1203) * 14) * k));
+            const hh = Math.max(ps, Math.round(3 * k));
+            const bob = Math.round(Math.sin(time * 1.1 + i * 2.3) * 0.6 * k);
+            // the hull and a cabin, in silhouette against the water
+            gm.fillStyle(0x060a12, 0.92).fillRect(x - (L >> 1), y - hh + bob, L, hh);
+            const cw = Math.max(2, Math.round(L * 0.34));
+            const cx0 = x - (cw >> 1) - dir * Math.round(L * 0.12);
+            gm.fillStyle(0x0a101a, 0.92).fillRect(cx0, y - hh * 2 + bob, cw, hh);
+            const lp = Math.max(1, Math.round(k));
+            // two lit cabin windows, the masthead and the running lights (red to port, green to starboard)
+            gm.fillStyle(0xffcf7a, 0.85).fillRect(cx0 + lp, y - hh * 2 + bob + lp, lp, lp);
+            if (cw > lp * 4) gm.fillStyle(0xffcf7a, 0.6).fillRect(cx0 + lp * 3, y - hh * 2 + bob + lp, lp, lp);
+            const blink = Math.sin(time * 2.2 + i * 1.7) > -0.6 ? 0.95 : 0.35;
+            gm.fillStyle(0xf4f8ff, blink).fillRect(x, y - hh * 4 + bob, lp, lp);
+            gm.fillStyle(dir > 0 ? 0x5aff8a : 0xff4a4a, 0.9).fillRect(x + dir * ((L >> 1) - lp), y - hh + bob, lp, lp);
+            // reflections, shivering on the swell
+            const q = Math.floor(time * 4 + i * 3);
+            for (let r = 0; r < 4; r++) {
+              const ry = y + lp + r * lp * 2;
+              const rw = lp * (1 + Math.round(hash(q * 13 + r + i * 50) * 2));
+              g2.fillStyle(0xffcf7a, 0.22 * (1 - r / 4)).fillRect(cx0 + lp - (rw >> 1) + Math.round((hash(q * 7 + r + i * 40) - 0.5) * 2 * lp), ry, rw, lp);
+            }
           }
           break;
         }
@@ -1566,11 +1685,20 @@ export class BackgroundView {
         }
       }
     }
+    if (this.strikeAt >= 0) {
+      // a lightning hazard's strike: the whole sky blinks pale blue-white, twice, and dies away
+      const d = now - this.strikeAt;
+      if (d >= 0 && d < 0.45) {
+        const fade = d < 0.06 ? 1 : d < 0.14 ? 0.3 : d < 0.22 ? 0.75 : (0.75 * (0.45 - d)) / 0.23;
+        const amt = fade * dimFlash;
+        gb.fillStyle(0xdcecff, 0.16 * amt).fillRect(0, 0, W, H);
+        this.flashNow = Math.max(this.flashNow, amt);
+      } else if (d >= 0.45 || d < 0) this.strikeAt = -1;
+    }
     if (this.overcastOn) {
       // the cloud ceiling lights up from inside when lightning flashes
       const f = this.flashNow;
-      const c = (a: number): number => Math.round(a + (255 - a) * f);
-      this.overcast.setTint((c(0x9a) << 16) | (c(0xa8) << 8) | c(0xc0));
+      this.overcast.setTint((Math.round(0x9a + (255 - 0x9a) * f) << 16) | (Math.round(0xa8 + (255 - 0xa8) * f) << 8) | Math.round(0xc0 + (255 - 0xc0) * f));
     }
     this.pBack.end();
     this.pFront.end();
