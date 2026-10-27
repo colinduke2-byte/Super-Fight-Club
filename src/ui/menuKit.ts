@@ -576,7 +576,7 @@ export class MenuList {
   /** Bottom edge of the plate in screen pixels, for placing what follows the list. */
   get bottom(): number {
     const rh = this.rowH * this.u;
-    return this.top - (rh - 7 * this.fontK * this.u) / 2 - this.u * 2 + this.shown * rh + this.u * 3;
+    return this.top - (rh - 7 * this.fontK * this.u) / 2 - this.u * 2 + this.shown * rh + this.u * 4;
   }
 
   /** Solid plate behind the rows plus a bar under the cursor, so the menu reads over any backdrop. */
@@ -591,7 +591,7 @@ export class MenuList {
     const x = this.cx - (this.width / 2) * u - pad;
     const w = this.width * u + pad * 2;
     const y = this.top - (rh - textH) / 2 - u * 2;
-    const h = this.shown * rh + u * 3;
+    const h = this.shown * rh + u * 4; // 2 units over the first row, 2 under the last
     drawPanel(g, x, y, w, h, u);
     // cursor bar (glides between rows; hidden while it is scrolled out of view)
     const slot = (this.barPos < 0 ? this.index : this.barPos) - this.first;
