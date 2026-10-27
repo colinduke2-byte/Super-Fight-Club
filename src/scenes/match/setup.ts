@@ -96,7 +96,7 @@ export function ensureSession(): void {
   const q = new URLSearchParams(location.search);
   const id = q.get('char') ?? 'brick';
   const n = Math.min(4, Math.max(1, Number(q.get('players') ?? 1)));
-  const device = new MergedDevice('p1', 'Keyboard + Gamepad', () => [inputManager.keyboards[0], ...inputManager.padList]);
+  const device = new MergedDevice('p1', 'Keyboard + Gamepad', () => [...inputManager.keyboards, ...inputManager.padList]);
   const ids = Object.keys(CHARACTERS);
   session.mode = n > 1 ? 'versus' : 'training';
   session.rules.teams = q.has('teams');

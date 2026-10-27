@@ -188,7 +188,7 @@ export class ModeSelectScene extends MenuScene {
   /** Quick Match: the last fighter vs one CPU on a random stage, straight into the fight. */
   quick(e?: MenuEvent): void {
     const d = e?.device;
-    const device = d && (d.kind === 'gamepad' || d.kind === 'touch') ? d : new MergedDevice('p1', 'Keyboard + Gamepad', () => [inputManager.keyboards[0], ...inputManager.padList]);
+    const device = d && (d.kind === 'gamepad' || d.kind === 'touch') ? d : new MergedDevice('p1', 'Keyboard + Gamepad', () => [...inputManager.keyboards, ...inputManager.padList]);
     quickMatch(device);
     saveLastSetup(); // PLAY on Home repeats it
     // the VS splash first, as before every arcade fight

@@ -262,6 +262,8 @@ class BootLoader {
   }
 
   private draw(): void {
+    // the boot scene may already have shut down (a scene started early) and destroyed these: nothing left to draw
+    if (!this.g.scene || !this.head.scene) return;
     const s = this.scene;
     const w = s.scale.width;
     const h = s.scale.height;

@@ -70,12 +70,14 @@ export class PlayerInput {
     fightActivity.at = typeof performance !== 'undefined' ? performance.now() : 0;
     d.sample(raw);
     if (raw.held !== 0 && d.kind === 'gamepad') notePad((d as { padId?: string }).padId ?? '');
+    // keyboard rules for a keyboard, and for a keyboard + pad device whose keys were pressed last
+    const keys = d.kind === 'keyboard' || (d.kind === 'merged' && (d as { lastKind?: string }).lastKind === 'keyboard');
     let held = raw.held;
     const sx = raw.stickX;
-    const sy = d.kind === 'keyboard' && settings.upJumpKeyboard ? Math.max(raw.stickY, KEYBOARD_UP) : raw.stickY;
+    const sy = keys && settings.upJumpKeyboard ? Math.max(raw.stickY, KEYBOARD_UP) : raw.stickY;
 
     // per device kind: keyboards have their own setting (W / Up jumps, default on), pads and touch use `tapJump` (default on)
-    if (d.kind === 'keyboard' ? settings.upJumpKeyboard : settings.tapJump) {
+    if (keys ? settings.upJumpKeyboard : settings.tapJump) {
       const freshMove = (raw.held & ~this.prevRawHeld & UP_MOVE_BUTTONS) !== 0;
       if (sy < TAP_UP_THRESHOLD && this.prevStickY >= TAP_UP_THRESHOLD) {
         this.tapJumpHeld = false;
@@ -97,7 +99,7 @@ export class PlayerInput {
       this.tapPending = 0;
     }
     this.prevRawHeld = raw.held;
-    held |= this.sprint(sx, d.kind === 'keyboard' ? settings.sprintKeyboard : settings.sprintPad);
+    held |= this.sprint(sx, keys ? settings.sprintKeyboard : settings.sprintPad);
 
     out.stickX = sx;
     out.stickY = sy;
