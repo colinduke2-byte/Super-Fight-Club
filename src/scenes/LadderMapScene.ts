@@ -47,6 +47,11 @@ export class LadderMapScene extends MenuScene {
   /** Node frames and number tabs, over the thumbnails. */
   private front!: Phaser.GameObjects.Graphics;
   private nodes: Node[] = [];
+  /** The next rival's bust, framed over the details panel (null: no hero art, or a narrow layout hides it). */
+  private hero: Phaser.GameObjects.Image | null = null;
+  private heroFrame!: Phaser.GameObjects.Graphics;
+  /** Where the hero bust's frame sits (device px; w = 0: hidden). */
+  private heroBox = { x: 0, y: 0, w: 0, h: 0 };
   /** Waiting for the boss's sheet before the last fight. */
   private waiting: { g: Phaser.GameObjects.Graphics; t: Phaser.GameObjects.BitmapText } | null = null;
   /** Side layout (tower left, details right) or stacked (narrow windows: details under a shorter tower). */
@@ -110,7 +115,8 @@ export class LadderMapScene extends MenuScene {
       if (thumb) this.ui.add(thumb);
       // the rival's bust portrait (in this run's outfit: drawn from the hero art, no sheet needed); the idle frame's crop
       // for a fighter without hero art
-      const bust = portraitKey(this, opp, outfit ? pal : 0);
+      // (a rival already beaten shows its knocked-out bust: the climb so far reads at a glance)
+      const bust = portraitKey(this, opp, outfit ? pal : 0, f.index < this.ladder.index);
       const ready = this.textures.exists(fighterTextureKey(skin));
       const img = bust ? this.add.image(0, 0, bust).setOrigin(0.5, 0.5) : this.add.image(0, 0, ready ? fighterTextureKey(skin) : '__DEFAULT', ready ? animFrameIndex(opp, 'idle', 0) : undefined).setOrigin(0.5, 0.5);
       img.setData('bust', !!bust);
@@ -128,6 +134,14 @@ export class LadderMapScene extends MenuScene {
     });
     this.front = this.add.graphics();
     this.ui.add(this.front);
+    // the next rival, large, framed over the fight's details (wide layouts; the boss in its violet frame)
+    const nextOpp = characterById(currentFight(this.ladder).opponents[0].character);
+    const curFight = currentFight(this.ladder);
+    const heroKey = nextOpp ? portraitKey(this, nextOpp, nextOpp.id !== this.ladder.player ? (curFight.opponents[0].palette ?? 0) : 0) : null;
+    this.hero = heroKey ? this.add.image(0, 0, heroKey).setOrigin(0.5, 1) : null;
+    this.heroFrame = this.add.graphics();
+    this.ui.add(this.heroFrame);
+    if (this.hero) this.ui.add(this.hero);
     for (const nd of this.nodes) this.ui.bringToTop(nd.num);
     this.info = text(this, this.ui, '', COLORS.text).setOrigin(0.5);
     this.sub = text(this, this.ui, '', COLORS.accent).setOrigin(0.5);
@@ -248,7 +262,9 @@ export class LadderMapScene extends MenuScene {
     const room = Math.max(nw * 0.95, Math.min(nw * 1.6, (colR - colL) * 0.9));
     const lk = Math.max(1, Math.min(lkMax, ...this.nodes.map((nd) => Math.floor(room / Math.max(1, textPx(nd.lvl))))));
     for (const nd of this.nodes) nd.lvl.setScale(lk);
-    this.towerBox = { x0: tx0, x1: tx1, top, bottom };
+    // the ground the tower stands on runs under the lowest label (it used to cut through it), short of the footer
+    const lowest = Math.max(...this.nodes.map((nd) => nd.lvl.y + 7 * lk));
+    this.towerBox = { x0: tx0, x1: tx1, top, bottom, ground: Math.min(footTop - 4 * u, Math.max(bottom + 12 * u, lowest + 3 * u)) };
     // the next fight's details and the menu: beside the tower, or under it on narrow screens
     const cx = this.wide ? w * 0.75 : w / 2;
     const cw = this.wide ? w * 0.4 : w * 0.88;
@@ -257,27 +273,45 @@ export class LadderMapScene extends MenuScene {
     this.sub.setPosition(cx, cy + 14 * u);
     this.cont.setScale(Math.min(u * 1.2, cw / Math.max(1, textPx(this.cont)))).setPosition(cx, cy + 27 * u);
     this.list.layout(cx, cy + 46 * u, u, this.list.items.length > 2 ? 170 : 70, footTop - 4 * u);
+    // the hero bust: whole-number scale, standing on the details panel, as tall as the room above it allows
+    this.heroBox.w = 0;
+    if (this.hero) {
+      const room = cy - 7 * u - this.info.displayHeight / 2 - (this.title.y + this.title.displayHeight / 2) - 10 * u;
+      const k = Math.min(4, Math.floor(room / Math.max(1, this.hero.height)));
+      const show = this.wide && k >= 1;
+      this.hero.setVisible(show);
+      if (show) {
+        const bh = this.hero.height * k;
+        const bw = this.hero.width * k;
+        const by = Math.round(cy - this.info.displayHeight / 2 - 7 * u);
+        this.hero.setScale(k).setPosition(Math.round(cx), by);
+        this.heroBox = { x: Math.round(cx - bw / 2 - 6 * u), y: Math.round(by - bh - 4 * u), w: Math.round(bw + 12 * u), h: Math.round(bh + 4 * u) };
+      }
+    }
     this.layoutWaiting();
     this.drawTower();
   }
 
-  private towerBox = { x0: 0, x1: 0, top: 0, bottom: 0 };
+  private towerBox = { x0: 0, x1: 0, top: 0, bottom: 0, ground: 0 };
 
   /** The tower behind the nodes: a stepped spire with lit windows, a floor line per level and a beacon at the top. */
   private drawTower(): void {
     const g = this.tower.clear();
-    const { x0, x1, top, bottom } = this.towerBox;
+    const { x0, x1, top, bottom, ground } = this.towerBox;
     const u = this.u;
     const cx = (x0 + x1) / 2;
     const tw = (x1 - x0) * 0.62;
     const tiers = 4;
     for (let t = 0; t < tiers; t++) {
-      const y0 = bottom + 12 * u - ((bottom - top + 20 * u) * t) / tiers;
+      const y0 = t === 0 ? ground : bottom + 12 * u - ((bottom - top + 20 * u) * t) / tiers;
       const y1 = bottom + 12 * u - ((bottom - top + 20 * u) * (t + 1)) / tiers;
       const half = (tw / 2) * (1 - t * 0.17);
-      g.fillStyle(0x0c0a1e, 0.82).fillRect(cx - half, y1, half * 2, y0 - y1);
-      g.fillStyle(0x3c3478, 0.9).fillRect(cx - half, y1, half * 2, u);
-      g.fillStyle(0x3c3478, 0.5).fillRect(cx - half, y1, u, y0 - y1).fillRect(cx + half - u, y1, u, y0 - y1);
+      // a solid block (the sky no longer muddies it), lit along its top and its sunward right edge, shaded on the left
+      g.fillStyle(0x0c0a1e, 0.95).fillRect(cx - half, y1, half * 2, y0 - y1);
+      g.fillStyle(0x07061a, 0.6).fillRect(cx - half, y1, 3 * u, y0 - y1);
+      g.fillStyle(0x5a4a9a, 1).fillRect(cx - half, y1, half * 2, u);
+      g.fillStyle(0xffb48a, 0.35).fillRect(cx + half - 2 * u, y1, 2 * u, y0 - y1);
+      g.fillStyle(0x3c3478, 0.7).fillRect(cx - half, y1, u, y0 - y1);
       // windows
       for (let wy = y1 + 6 * u; wy < y0 - 4 * u; wy += 9 * u) {
         for (let wx = cx - half + 6 * u; wx < cx + half - 6 * u; wx += 10 * u) {
@@ -289,10 +323,17 @@ export class LadderMapScene extends MenuScene {
     // the spire and its beacon
     const sy = top - 8 * u;
     g.fillStyle(0x0c0a1e, 0.9).fillTriangle(cx - 10 * u, top + 4 * u, cx + 10 * u, top + 4 * u, cx, sy);
-    g.fillStyle(0xb685ff, 0.25).fillCircle(cx, sy, 4 * u);
-    g.fillStyle(0xb685ff, 0.9).fillCircle(cx, sy, 1.5 * u);
+    g.fillStyle(0xb685ff, 0.12).fillCircle(cx, sy, 9 * u);
+    g.fillStyle(0xb685ff, 0.25).fillCircle(cx, sy, 5 * u);
+    g.fillStyle(0xe8dcff, 1).fillCircle(cx, sy, 2 * u);
     // the ground it stands on
-    g.fillStyle(0x07060f, 0.7).fillRect(x0, bottom + 12 * u, x1 - x0, 3 * u);
+    g.fillStyle(0x07060f, 0.85).fillRect(x0, ground, x1 - x0, 3 * u);
+    // a dark plate under each node's label, so it reads over the lit windows
+    for (const nd of this.nodes) {
+      const lw = nd.lvl.displayWidth;
+      const lh = nd.lvl.displayHeight;
+      g.fillStyle(0x07061a, 0.85).fillRect(Math.round(nd.lvl.x - lw / 2 - 2 * u), Math.round(nd.lvl.y - u), Math.round(lw + 4 * u), Math.round(lh + 2 * u));
+    }
   }
 
   protected override backdrop(): MenuBackdrop {
@@ -345,8 +386,14 @@ export class LadderMapScene extends MenuScene {
       nd.thumb?.setAlpha(done ? 0.55 : 1).setTint(i > cur ? 0x6a6490 : 0xa8a4c8);
       fg.lineStyle(Math.max(2, u), col, 1).strokeRect(x, y, nd.w, nd.h);
       if (isCur) fg.lineStyle(u, col, 0.4).strokeRect(x - 2 * u, y - 2 * u, nd.w + 4 * u, nd.h + 4 * u);
+      // the boss waits at the top in a slow violet pulse until it is beaten
+      if (boss && !done) {
+        const pz = settings.reduceMotion ? 0.5 : 0.5 + 0.5 * Math.sin(time * 1.8);
+        g.fillStyle(0xb685ff, 0.1 + 0.12 * pz).fillRect(x - 4 * u, y - 4 * u, nd.w + 8 * u, nd.h + 8 * u);
+        fg.lineStyle(u, 0xb685ff, 0.3 + 0.4 * pz).strokeRect(x - 3 * u, y - 3 * u, nd.w + 6 * u, nd.h + 6 * u);
+      }
       const bustK = nd.img.getData('bust') ? (nd.h * 0.95) / Math.max(1, nd.img.height) : 0;
-      nd.img.setPosition(nd.x + nd.w * 0.22, nd.y).setScale(bustK || ((nd.h * 0.95) / 40) * (nd.img.getData('k') as number)).setAlpha(done ? 0.45 : i > cur ? 0.8 : 1).setTint(i > cur && !boss ? 0x8f8ab8 : 0xffffff);
+      nd.img.setPosition(nd.x + nd.w * 0.22, nd.y).setScale(bustK || ((nd.h * 0.95) / 40) * (nd.img.getData('k') as number)).setAlpha(done ? 0.75 : i > cur ? 0.8 : 1).setTint(i > cur && !boss ? 0x8f8ab8 : 0xffffff);
       const nk = Math.max(u, Math.round(nd.h / 16));
       nd.num.setScale(nk).setPosition(x + 5 * nk, y + 5 * nk).setTint(col);
       fg.fillStyle(0x07060f, 0.75).fillRect(x + u, y + u, 8 * nk, 9 * nk);
@@ -362,6 +409,18 @@ export class LadderMapScene extends MenuScene {
     this.info.setScale(Math.min(this.u * 2, cw / Math.max(1, textPx(this.info))));
     this.cont.setText(up(this.progressLine(l, f)));
     this.cont.setScale(Math.min(this.u * 1.2, cw / Math.max(1, textPx(this.cont))));
+    // the hero bust's frame: a plate whose rim takes the fight's colour (the boss violet, a rival gold), lit from below
+    const hf = this.heroFrame.clear();
+    const hb = this.heroBox;
+    if (hb.w > 0) {
+      const rim = f.kind === 'boss' ? 0xb685ff : f.rival || f.kind === 'metal' ? COLORS.accent : 0x5a4a9a;
+      const glow = settings.reduceFlashes ? 0.25 : 0.2 + 0.1 * Math.sin(time * 2.4);
+      hf.fillStyle(0x07061a, 0.9).fillRect(hb.x, hb.y, hb.w, hb.h);
+      hf.fillStyle(rim, glow).fillRect(hb.x + u, hb.y + hb.h - 10 * u, hb.w - 2 * u, 10 * u);
+      hf.fillStyle(rim, glow * 0.5).fillRect(hb.x + u, hb.y + hb.h - 22 * u, hb.w - 2 * u, 12 * u);
+      hf.lineStyle(Math.max(2, u), rim, 1).strokeRect(hb.x, hb.y, hb.w, hb.h);
+      hf.fillStyle(0xe2be70, 1).fillRect(hb.x - u, hb.y - u, 3 * u, 3 * u).fillRect(hb.x + hb.w - 2 * u, hb.y - u, 3 * u, 3 * u);
+    }
     // the next fight's details on one plate, so they read over the lit skyline
     const pw = Math.max(this.info.displayWidth, this.sub.displayWidth, this.cont.displayWidth) + 24 * u;
     const top = this.info.y - this.info.displayHeight / 2 - 7 * u;

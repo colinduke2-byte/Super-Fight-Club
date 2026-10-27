@@ -1,6 +1,7 @@
 import Phaser from 'phaser';
 import { PIXEL_FONT, up } from '../art/pixelFont';
 import type { CharacterData } from '../engine/types';
+import { settings } from '../settings';
 
 /** Damage at which a boss stock's integrity bar reads empty (the Overseer is very heavy: KOs usually land past this). */
 export const BOSS_KO_REF = 170;
@@ -28,9 +29,12 @@ export class BossBar {
   private x = 0;
   private y = 0;
   private w = 300;
-  /** Shown fill (0..1 of the whole bar) and the trailing chip. */
-  private fill = 1;
-  private chip = 1;
+  /** Shown fill (0..1 of the whole bar) and the trailing chip (both start empty: the bar charges up on entrance). */
+  private fill = 0;
+  private chip = 0;
+  /** The entrance: 0..1 as the bar charges up segment by segment while the boss arrives (the labels fade in with it). */
+  private intro = 0;
+  private introAt = -1;
   private lastStocks = -1;
   /** 1 right after a phase change, decaying (flash + banner). */
   private phasePop = 0;
@@ -141,9 +145,18 @@ export class BossBar {
     const critical = left > 0 && damage >= ref * 0.92;
     const integrity = left > 0 ? Math.max(0.03, 1 - damage / ref) : 0;
     const target = left > 0 ? (left - 1 + integrity) / n : 0;
-    // the fill snaps down quickly, the chip follows after a beat; refills (a new stock) sweep up
-    this.fill += (target - this.fill) * Math.min(1, (target < this.fill ? 0.5 : 0.08) * k);
-    this.chip = target > this.chip ? this.fill : this.chip + (target - this.chip) * Math.min(1, 0.03 * k);
+    if (this.intro < 1) {
+      // the entrance: the bar charges from empty with an ease-out (about 1.2 s), then hands over to the normal readout
+      // (wall clock from the first frame: a beat after the match fades in, then 1.4 s; a load hitch never skips it)
+      if (this.introAt < 0) this.introAt = now;
+      this.intro = Math.min(1, Math.max(0, (now - this.introAt - 400) / 1400));
+      this.fill = Math.min(target, 1 - (1 - this.intro) ** 3);
+      this.chip = this.fill;
+    } else {
+      // the fill snaps down quickly, the chip follows after a beat; refills (a new stock) sweep up
+      this.fill += (target - this.fill) * Math.min(1, (target < this.fill ? 0.5 : 0.08) * k);
+      this.chip = target > this.chip ? this.fill : this.chip + (target - this.chip) * Math.min(1, 0.03 * k);
+    }
     this.jolt = Math.max(0, this.jolt - 0.07 * k);
     this.phasePop = Math.max(0, this.phasePop - 0.012 * k);
     if (!this.visible) return;
@@ -168,7 +181,9 @@ export class BossBar {
     g.fillStyle(0x1a1430, 1).fillRect(x, y, w, h);
     g.fillStyle(0xfff0d0, 0.85).fillRect(x, y, w * this.chip, h);
     const fw = w * this.fill;
-    const blink = critical && ((tick >> 3) & 1) === 0;
+    // (about 1.9 Hz; steady red under REDUCE FLASHES)
+    const calm = settings.reduceFlashes;
+    const blink = critical && !calm && ((tick >> 4) & 1) === 0;
     g.fillStyle(blink ? 0xffffff : col, 1).fillRect(x, y, fw, h);
     g.fillStyle(hot, 1).fillRect(x, y, fw, u * 2);
     g.fillStyle(0x000000, 0.28).fillRect(x, y + h - 2 * u, fw, 2 * u);
@@ -176,22 +191,34 @@ export class BossBar {
     const sh = (tick * 3 * u) % (w + 40 * u);
     if (sh < fw) a.fillStyle(0xffffff, 0.22).fillRect(x + sh, y, Math.min(14 * u, fw - sh), h);
     a.fillStyle(col, 0.18 + 0.1 * Math.sin(tick * 0.12)).fillRect(x, y - u, fw, h + 2 * u);
-    // phase notches between the stock segments
+    // phase notches between the stock segments (during the entrance each one lights white as the charge passes it)
     for (let i = 1; i < n; i++) {
       const nx = x + Math.round((w * i) / n);
+      const lit = this.intro < 1 && fw >= nx - x ? Math.max(0, 1 - (fw - (nx - x)) / (w * 0.15)) : 0;
       g.fillStyle(0x07061a, 1).fillRect(nx - u, y - 3 * u, 2 * u, h + 6 * u);
-      g.fillStyle(0xe2be70, 1).fillTriangle(nx - 3 * u, y - 4 * u, nx + 3 * u, y - 4 * u, nx, y);
+      g.fillStyle(lit > 0 ? 0xffffff : 0xe2be70, 1).fillTriangle(nx - 3 * u, y - 4 * u, nx + 3 * u, y - 4 * u, nx, y);
       g.fillTriangle(nx - 3 * u, y + h + 4 * u, nx + 3 * u, y + h + 4 * u, nx, y + h);
+      if (lit > 0) a.fillStyle(hot, 0.6 * lit).fillRect(nx - 3 * u, y - 4 * u, 6 * u, h + 8 * u);
     }
+    // the entrance's charge front: a white-hot edge running ahead of the fill
+    if (this.intro < 1 && fw > 0) {
+      a.fillStyle(0xffffff, 0.9).fillRect(x + fw - 2 * u, y - u, 2 * u, h + 2 * u);
+      a.fillStyle(hot, 0.45).fillRect(x + fw - 8 * u, y - u, 6 * u, h + 2 * u);
+    }
+    const la = Math.min(1, this.intro * 2.5);
+    this.name.setAlpha(la);
+    this.title.setAlpha(la);
+    this.phaseText.setAlpha(la);
+    this.pct.setAlpha(la);
     // a phase change: the whole bar flashes white-hot and a banner pops under it
     if (this.phasePop > 0) {
       const p = this.phasePop;
-      a.fillStyle(0xffffff, Math.min(0.8, p * 1.2)).fillRect(x - 3 * u, y - 2 * u, w + 6 * u, h + 4 * u);
+      a.fillStyle(0xffffff, Math.min(calm ? 0.3 : 0.8, p * 1.2)).fillRect(x - 3 * u, y - 2 * u, w + 6 * u, h + 4 * u);
       a.fillStyle(col, 0.25 * p).fillRect(x - 3 * u, y + h + 2 * u, w + 6 * u, 30 * u * p);
     }
     const label = `PHASE ${ROMAN[Math.min(ROMAN.length - 1, n - Math.max(1, left))]}`;
     if (this.phaseText.text !== label) this.phaseText.setText(label);
-    this.phaseText.setTint(phase > 0 && ((tick >> 4) & 1) === 0 ? 0xffffff : col);
+    this.phaseText.setTint(phase > 0 && !calm && ((tick >> 4) & 1) === 0 ? 0xffffff : col);
     const shown = left > 0 ? (hpMax > 0 ? Math.max(0, Math.ceil(hpMax - damage)) : Math.floor(damage)) : -1;
     if (shown !== this.shownPct) {
       this.shownPct = shown;
@@ -202,7 +229,7 @@ export class BossBar {
     this.banner.setVisible(showBanner);
     if (showBanner) {
       if (this.banner.text !== label) this.banner.setText(label);
-      this.banner.setTint(((tick >> 2) & 1) === 0 ? 0xffffff : col).setAlpha(Math.min(1, this.phasePop * 3));
+      this.banner.setTint(!calm && ((tick >> 3) & 1) === 0 ? 0xffffff : col).setAlpha(Math.min(1, this.phasePop * 3));
     }
   }
 }

@@ -23,6 +23,8 @@ const ERUPT_AT = 66;
 const RIG = [-300, -150, 0, 150, 300];
 const LIGHT = [0xb685ff, 0xff3a1a];
 const LIGHT_HOT = [0xf0e4ff, 0xffa060];
+/** The order the rig's lamps die in when the boss goes down (per RIG entry: outside in, the centre last). */
+const DIE_ORDER = [0, 2, 4, 3, 1];
 /** The boss's eye, as a fraction of its body height above its feet (the drawer's head sits on a neck above the collar). */
 const EYE_H = 0.93;
 /** The playable Overseer's eye (its fighter build carries the head a little higher on its body box). */
@@ -56,6 +58,8 @@ export class BossCinematic {
   private lastEnrage = 0;
   /** The READY countdown's length as first seen (ticks), for the entrance clock. */
   private countStart = 0;
+  /** When the boss's last stock went (performance.now ms; -1 = still standing): the arena powers down from then on. */
+  private downAt = -1;
 
   constructor(
     private readonly scene: Phaser.Scene,
@@ -100,7 +104,15 @@ export class BossCinematic {
     else if (this.since2 >= 0) this.since2++;
     this.lastEnrage = enr;
     setArenaPhase(enr, this.since2 >= 0 ? this.since2 : 999);
-    if (world.stage.id === BOSS_ARENA_ID) this.rig(enr, tick);
+    // the boss's last stock (scored before its KO is drawn, so this starts under the finale freeze): wall clock, as the
+    // sim holds still through the freeze
+    const sc = (this.scene as unknown as { match?: { scores?: readonly { eliminated: boolean }[] } }).match?.scores?.[b.id];
+    if (sc?.eliminated) {
+      if (this.downAt < 0) this.downAt = performance.now();
+    } else this.downAt = -1;
+    const down = this.downAt < 0 ? -1 : (performance.now() - this.downAt) / (1000 / 60);
+    if (world.stage.id === BOSS_ARENA_ID) this.rig(enr, tick, down);
+    if (down >= 0) this.powerDown(down, tick);
     if (this.since2 >= 0 && this.since2 < 120) this.transition(b, this.since2);
     if (b.state === 'attack' && b.move?.id === 'roar') this.roar(b, b.moveFrame, b.move.startup);
     if (b.state === 'attack' && b.move?.id === 'ultimate') this.cataclysm(b, b.moveFrame, enr, tick, PILLARS, WARN_AT, ERUPT_AT, 1);
@@ -352,7 +364,7 @@ export class BossCinematic {
   }
 
   /** The arena light rig: shafts from the ceiling, pools on the floor, a slow sweep; flickers during the transition. */
-  private rig(enr: number, tick: number): void {
+  private rig(enr: number, tick: number, down = -1): void {
     const a = this.backGlow;
     const col = LIGHT[enr];
     const hot = LIGHT_HOT[enr];
@@ -363,12 +375,20 @@ export class BossCinematic {
       level = s < 10 ? 1 - s / 10 : s < 50 ? (((s >> 2) & 1) === 0 ? 0.15 : 0.7) : Math.min(1, (s - 50) / 40);
     }
     const pulse = enr ? 0.75 + 0.25 * Math.sin(tick * 0.18) : 0.85 + 0.15 * Math.sin(tick * 0.04);
-    const L = level * pulse;
+    const Lr = level * pulse;
     RIG.forEach((x0, i) => {
+      // the boss down: the lamps die one by one from the outside in (a stutter each), and stay dark
+      let lamp = 1;
+      if (down >= 0) {
+        const cut = 30 + DIE_ORDER[i] * 16;
+        lamp = down < cut ? 1 : down < cut + 10 ? (settings.reduceFlashes ? 1 - (down - cut) / 10 : (((down | 0) >> 1) & 1) === 0 ? 0.2 : 0.8) : 0;
+        if (lamp <= 0) return;
+      }
       const sway = Math.sin(tick * (enr ? 0.05 : 0.02) + i * 1.7) * (enr ? 26 : 14);
       const top = -420;
       const x = x0 + sway * 0.3;
       const fx = x0 + sway;
+      const L = Lr * lamp;
       // a soft cone: wide and faint, then narrow and brighter
       a.fillStyle(col, 0.05 * L).fillTriangle(x - 6, top, x + 6, top, fx + 46, 0).fillTriangle(x - 6, top, fx - 46, 0, fx + 46, 0);
       a.fillStyle(hot, 0.06 * L).fillTriangle(x - 3, top, x + 3, top, fx + 16, 0).fillTriangle(x - 3, top, fx - 16, 0, fx + 16, 0);
@@ -379,11 +399,30 @@ export class BossCinematic {
       a.fillStyle(hot, 0.5 * L).fillCircle(x, top + 6, 4);
     });
     // phase 2: a red haze rising off the arena floor
-    if (enr) {
+    if (enr && down < 0) {
       for (let i = 0; i < 6; i++) {
         const h = 40 + 30 * Math.sin(tick * 0.07 + i);
         a.fillStyle(0xff3a1a, 0.04 * level).fillRect(-360 + i * 120, -h, 120, h);
       }
+    }
+  }
+
+  /**
+   * The boss's last stock gone: the arena powers down. The world dims (behind the fighters) over two seconds while violet
+   * sparks drift up off the floor, the core's last light leaving the stage; the rig's lamps go out one by one (see rig).
+   */
+  private powerDown(d: number, tick: number): void {
+    const dim = Math.min(1, d / 120);
+    this.back.fillStyle(0x05030c, 0.4 * dim).fillRect(-1400, -1000, 2800, 1400);
+    if (settings.reduceMotion) return;
+    const a = this.glow;
+    for (let i = 0; i < 28; i++) {
+      const life = 90 + (i % 5) * 14;
+      const k = ((d + i * 11) % life) / life;
+      const x = ((i * 137) % 760) - 380 + Math.sin(tick * 0.03 + i) * 6;
+      const y = -k * (140 + (i % 4) * 40);
+      const al = Math.min(1, d / 30) * (1 - k) * 0.8;
+      a.fillStyle(i % 4 === 0 ? 0xffffff : 0xb685ff, al).fillRect(x, y, 2, i % 3 === 0 ? 3 : 2);
     }
   }
 

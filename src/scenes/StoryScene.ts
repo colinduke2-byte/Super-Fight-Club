@@ -3,7 +3,8 @@ import { animFrameIndex, ensureFightersReady, ensurePalette, fighterAnimKey, fig
 import { paletteCount } from '../art/palettes';
 import { session } from '../game/session';
 import { PIXEL_FONT, up } from '../art/pixelFont';
-import { CARD_H, CARD_W, drawStoryArt } from '../art/storyArt';
+import { CARD_H, CARD_W, drawStoryArt, drawStoryOverlay } from '../art/storyArt';
+import { settings } from '../settings';
 import { characterById } from '../characters';
 import { music } from '../audio/music';
 import { announcer } from '../audio/announcer';
@@ -28,6 +29,10 @@ export class StoryScene extends MenuScene {
   private hint!: Phaser.GameObjects.BitmapText;
   private vs!: Phaser.GameObjects.BitmapText;
   private art!: Phaser.GameObjects.Graphics;
+  /** Over a composed card's still picture: motes, dimming light and a vignette (see drawStoryOverlay). */
+  private over!: Phaser.GameObjects.Graphics;
+  /** The duel card is laid over the fight's own stage. */
+  private duelStage = false;
   private frame!: Phaser.GameObjects.Graphics;
   private left: Phaser.GameObjects.Sprite | null = null;
   private right: Phaser.GameObjects.Sprite | null = null;
@@ -56,10 +61,12 @@ export class StoryScene extends MenuScene {
   }
 
   protected build(): void {
-    this.art = this.add.graphics();
+    // the stage picture under the drawn art (a duel card washes its two sides over the fight's stage)
     this.stageImg = this.add.image(0, 0, '__DEFAULT').setOrigin(0, 0).setVisible(false);
+    this.art = this.add.graphics();
+    this.over = this.add.graphics();
     this.frame = this.add.graphics();
-    this.ui.add([this.art, this.stageImg, this.frame]);
+    this.ui.add([this.stageImg, this.art, this.over, this.frame]);
     this.left = null;
     this.right = null;
     this.mate = null;
@@ -117,7 +124,11 @@ export class StoryScene extends MenuScene {
     this.extras = [];
     // a composed card: the stage's own picture behind the fighters (a slightly darkened backdrop so they read over it)
     const stage = c.stage ? STAGES[c.stage] : undefined;
-    if (stage) this.stageImg.setTexture(stageThumb(this, stage, 480, 270)).setTint(0xb8b4d0).setVisible(true);
+    // a ladder fight's card: the two sides face off over the stage they are about to fight on (darker, so they read)
+    const fightStage = !stage && c.art === 'duel' && session.mode === 'arcade' && session.stage ? STAGES[session.stage] : undefined;
+    this.duelStage = !!fightStage;
+    if (stage) this.stageImg.setTexture(stageThumb(this, stage, 480, 270)).setTint(c.stage === 'apex' ? 0x9a94b8 : 0xb8b4d0).setVisible(true);
+    else if (fightStage) this.stageImg.setTexture(stageThumb(this, fightStage, 480, 270)).setTint(0x8a86a8).setVisible(true);
     else this.stageImg.setVisible(false);
     // the player in their chosen look, the rival in the one it rolled (a mirror match never shows two identical fighters)
     const lp = session.arcadeHuman?.palette ?? 0;
@@ -231,8 +242,13 @@ export class StoryScene extends MenuScene {
     if (!c) return;
     const { x, y, s } = this.box;
     const pc = playerColors();
-    if (this.stageImg.visible) this.art.clear();
-    else drawStoryArt(this.art, c.art, x, y, s, time, pc[0], pc[1]);
+    const t = settings.reduceMotion ? 0 : time;
+    if (this.stageImg.visible && !this.duelStage) this.art.clear();
+    else drawStoryArt(this.art, c.art, x, y, s, t, pc[0], pc[1], this.duelStage);
+    // a composed card's still picture gets its light and motes (the Overseer's arena going dark, the champion's sunrise)
+    if (this.stageImg.visible && !this.duelStage) drawStoryOverlay(this.over, c.stage === 'apex' ? 'fallen' : c.calm ? 'calm' : 'ending', x, y, s, t, settings.reduceMotion);
+    else if (c.pose === 'lose') drawStoryOverlay(this.over, 'defeat', x, y, s, t, settings.reduceMotion);
+    else this.over.clear();
     const f = this.frame;
     f.clear();
     const pb = this.plateBox;

@@ -75,8 +75,26 @@ function stars(p: Pen, seed: number, n: number, time: number): void {
   }
 }
 
-/** Draw a story card's backdrop into `g` (call every frame; `time` in seconds drives the animation). */
-export function drawStoryArt(g: Phaser.GameObjects.Graphics, art: StoryArt, ox: number, oy: number, s: number, time: number, tintA = 0x4aa3ff, tintB = 0xff6a5a): void {
+/** `n` colours blended evenly through `keys` (a smoother sky for `bands`: more, thinner steps). */
+function ramp(keys: readonly number[], n: number): number[] {
+  const out: number[] = [];
+  for (let i = 0; i < n; i++) {
+    const t = (i / Math.max(1, n - 1)) * (keys.length - 1);
+    const k = Math.min(keys.length - 2, Math.floor(t));
+    const f = t - k;
+    const a = keys[k];
+    const b = keys[k + 1];
+    const ch = (sh: number): number => Math.round(((a >> sh) & 255) * (1 - f) + ((b >> sh) & 255) * f) << sh;
+    out.push(ch(16) | ch(8) | ch(0));
+  }
+  return out;
+}
+
+/**
+ * Draw a story card's backdrop into `g` (call every frame; `time` in seconds drives the animation). `overStage`: the duel
+ * card is laid over the fight's stage picture (drawn under `g`), so its split halves are washes instead of a solid ground.
+ */
+export function drawStoryArt(g: Phaser.GameObjects.Graphics, art: StoryArt, ox: number, oy: number, s: number, time: number, tintA = 0x4aa3ff, tintB = 0xff6a5a, overStage = false): void {
   const p: Pen = { g, s, ox, oy };
   g.clear();
   switch (art) {
@@ -100,19 +118,27 @@ export function drawStoryArt(g: Phaser.GameObjects.Graphics, art: StoryArt, ox: 
           rect(p, 80 + k * 20 + sway * (1 - y / 50) * k - w / 2 + (y / 50) * k * 18, 56 - y, w, 1, 0xffffff, 0.07);
         }
       }
-      rect(p, 0, 83, CARD_W, 7, 0x05030c);
+      // the rooftop the fighter stands on (top at row 78, where the sprites' feet land), its edge catching the arena light
+      rect(p, 0, 78, CARD_W, 12, 0x07040f);
+      rect(p, 0, 78, CARD_W, 1, 0x3a2a66);
+      for (let x = 3; x < CARD_W; x += 9) rect(p, x, 81, 4, 1, 0x150e2a);
       break;
     }
     case 'duel': {
+      // a solid night ground first (the card is a picture of its own: nothing behind it may show through), unless the
+      // fight's stage is drawn under it
+      if (!overStage) bands(p, [0x070520, 0x0c0928, 0x120c32, 0x0c0928, 0x070520]);
       // two halves split by a diagonal slash, tinted for each side
+      const wash = overStage ? 0.3 : 0.42;
       for (let y = 0; y < CARD_H; y++) {
         const split = 80 + (y - 45) * 0.45;
         const shade = 0.55 + 0.25 * Math.sin(y * 0.2 + time);
-        rect(p, 0, y, split, 1, tintA, 0.38 * shade);
-        rect(p, split, y, CARD_W - split, 1, tintB, 0.38 * shade);
+        rect(p, 0, y, split, 1, tintA, wash * shade);
+        rect(p, split, y, CARD_W - split, 1, tintB, wash * shade);
+        rect(p, split - 3, y, 1, 1, 0xffffff, 0.35);
         rect(p, split - 2, y, 4, 1, 0xffffff, 0.9);
+        rect(p, split + 2, y, 1, 1, 0xffffff, 0.35);
       }
-      rect(p, 0, 0, CARD_W, CARD_H, 0x070520, 0.0);
       // speed lines
       const r = rng(21);
       for (let i = 0; i < 28; i++) {
@@ -174,11 +200,25 @@ export function drawStoryArt(g: Phaser.GameObjects.Graphics, art: StoryArt, ox: 
       break;
     }
     case 'victory': {
-      bands(p, [0x2a1a5a, 0x5a2a7a, 0xa04a7a, 0xe0705a, 0xffa04a, 0xffd46a]);
+      // sunrise over the city: a fine-stepped sky, the sun's rays turning slowly behind the skyline
+      bands(p, ramp([0x2a1a5a, 0x5a2a7a, 0xa04a7a, 0xe0705a, 0xffa04a, 0xffd46a], 15));
+      for (let i = 0; i < 10; i++) {
+        const an = Math.PI + (i / 9) * Math.PI + Math.sin(time * 0.3) * 0.06;
+        for (let r = 24; r < 70; r += 2) rect(p, 80 + Math.cos(an) * r, 66 + Math.sin(an) * r, 1, 1, 0xfff0b0, 0.22 * (1 - r / 70));
+      }
+      circle(p, 80, 66, 22, 0xffe08a);
       circle(p, 80, 66, 20, 0xfff0b0, 0xffffff);
       for (let i = 0; i < 6; i++) rect(p, 80 - 30 + i * 2, 60 + i * 4, 60 - i * 4, 1, 0xffffff, 0.08);
       skyline(p, 3, 78, 0x2a1238, 0xffe9a8, time, 0.9);
       skyline(p, 12, 86, 0x120820, 0xffd46a, time, 0.6);
+      // the champion's rooftop: a ledge with a rim of sunlight and a rail, so the winner stands on something
+      // (its top at row 78: the fighters' frames end a couple of rows under their feet)
+      rect(p, 40, 78, 80, 12, 0x1c0c26);
+      rect(p, 40, 78, 80, 1, 0xffc070);
+      rect(p, 40, 79, 80, 1, 0x5a2a4a);
+      for (let x = 44; x < 118; x += 6) rect(p, x, 82, 3, 2, 0x2c1438);
+      rect(p, 36, 80, 4, 10, 0x140818);
+      rect(p, 120, 80, 4, 10, 0x140818);
       const r = rng(77);
       const cols = [0xffd46a, 0xff6a8a, 0x7fe8ff, 0x7affa0];
       for (let i = 0; i < 40; i++) {
@@ -188,5 +228,67 @@ export function drawStoryArt(g: Phaser.GameObjects.Graphics, art: StoryArt, ox: 
       }
       break;
     }
+  }
+}
+
+/** The vignette's rings: inset (art px) and darkness. */
+const VIGNETTE = [[0, 0.5], [1, 0.25]] as const;
+
+/**
+ * Life over a composed card (a still stage picture): `ending` (the champion's moment: golden motes rising and a soft
+ * light from above), `fallen` (the Overseer's arena going dark: the picture dims from the top, ash and violet sparks
+ * drifting down), `calm` (two old rivals at peace: a few slow fireflies), `defeat` (game over: a cold wash and rain, over a
+ * drawn card, no vignette). Always a dark keyline vignette so the picture
+ * sits inside the frame like the drawn cards do. Call every frame after the picture; `time` in seconds.
+ */
+export function drawStoryOverlay(g: Phaser.GameObjects.Graphics, kind: 'ending' | 'fallen' | 'calm' | 'defeat', ox: number, oy: number, s: number, time: number, still = false): void {
+  const p: Pen = { g, s, ox, oy };
+  g.clear();
+  const t = still ? 0 : time;
+  if (kind === 'defeat') {
+    // game over: the night turns cold and wet: a blue-black wash and slanting rain
+    rect(p, 0, 0, CARD_W, CARD_H, 0x05061a, 0.45);
+    const r = rng(13);
+    for (let i = 0; i < 46; i++) {
+      const x0 = r() * (CARD_W + 30);
+      const y = (r() * (CARD_H + 10) + t * (70 + r() * 30)) % (CARD_H + 10) - 6;
+      const x = x0 - (y + 6) * 0.3;
+      if (x < 0 || x >= CARD_W - 1) continue;
+      rect(p, x, y, 1, 1, 0x8aa0d8, 0.45);
+      rect(p, x - 1, y + 2, 1, 2, 0x8aa0d8, 0.3);
+    }
+    return;
+  }
+  if (kind === 'fallen') {
+    // the lights dying: a dark wash heavier toward the top, stepped in pixel rows
+    for (let y = 0; y < 60; y += 2) rect(p, 0, y, CARD_W, 2, 0x05030c, 0.55 * (1 - y / 60));
+    const r = rng(91);
+    for (let i = 0; i < 26; i++) {
+      const x = (r() * CARD_W + Math.sin(t * 0.7 + i) * 4 + CARD_W) % CARD_W;
+      const y = (r() * CARD_H + t * (5 + r() * 9)) % CARD_H;
+      rect(p, x, y, 1, 1, i % 4 === 0 ? 0xb685ff : 0x8a8498, i % 4 === 0 ? 0.8 : 0.55);
+    }
+  } else if (kind === 'ending') {
+    for (let y = 0; y < 24; y += 2) rect(p, 0, y, CARD_W, 2, 0xfff0c0, 0.1 * (1 - y / 24));
+    const r = rng(57);
+    for (let i = 0; i < 30; i++) {
+      const x = (r() * CARD_W + Math.sin(t + i) * 3 + CARD_W) % CARD_W;
+      const y = CARD_H - ((r() * CARD_H + t * (6 + r() * 10)) % CARD_H);
+      rect(p, x, y, 1, 1 + (i % 3 === 0 ? 1 : 0), i % 3 === 0 ? 0xffffff : 0xffd46a, 0.4 + 0.4 * Math.abs(Math.sin(t * 2 + i)));
+    }
+  } else {
+    const r = rng(23);
+    for (let i = 0; i < 9; i++) {
+      const x = r() * CARD_W + Math.sin(t * 0.5 + i * 2) * 6;
+      const y = 20 + r() * 50 + Math.cos(t * 0.4 + i) * 4;
+      rect(p, x, y, 1, 1, 0xfff4b0, 0.3 + 0.5 * Math.abs(Math.sin(t * 1.3 + i * 1.7)));
+    }
+  }
+  // vignette: two stepped dark rings just inside the frame
+  for (const [d, a] of VIGNETTE) {
+    rect(p, d, d, CARD_W - 2 * d, 1, 0x05030c, a);
+    rect(p, d, CARD_H - 1 - d, CARD_W - 2 * d, 1, 0x05030c, a);
+    rect(p, d, d + 1, 1, CARD_H - 2 - 2 * d, 0x05030c, a);
+    rect(p, CARD_W - 1 - d, d + 1, 1, CARD_H - 2 - 2 * d, 0x05030c, a);
   }
 }
