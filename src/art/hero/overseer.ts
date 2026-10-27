@@ -246,34 +246,42 @@ export function bossPose(p0: HeroPose): HeroPose {
     case 'idle': {
       // still and regal: the front claw held open at the chest, the other low and out; only the breath and the claw move
       const b = (1 - c) / 2;
-      key(p, [-1, b * 0.6, [12 + s * 0.8, -22 - b * 1.2], [-10, -2 + b], [8, 0], [-8, 0]]);
+      key(p, [-1, b * 0.6, [12 + s * 0.8, -22 - b * 1.2], [-10 - s * 0.7, -2 + b + c * 0.6], [8, 0], [-8, 0]]);
       p.bob = b * 0.9 - 0.2;
+      p.head = [s * 0.35, b * 0.3];
       p.wing = 0.12 + b * 0.08;
       break;
     }
     case 'walk':
-      // a slow, gliding advance: short steps, upright, the claws carried still
-      p.frontFoot = [s * 6, Math.max(0, -c) * 2];
-      p.backFoot = [-s * 6, Math.max(0, c) * 2];
-      p.frontHand = [10, -16 + s * 0.6];
-      p.backHand = [-12 + s, -4];
-      p.lean = 1;
-      p.bob = Math.abs(s) * 0.5;
-      p.crouch = 0.5;
+      // a slow, gliding advance: short steps under the robe (the planted foot pushing back), the body settling on each
+      // step, the claws swinging against the legs and the shoulders turning with them
+      p.frontFoot = [-s * 6, Math.max(0, -c) * 2];
+      p.backFoot = [s * 6, Math.max(0, c) * 2];
+      p.frontHand = [10 + s * 2.5, -16 + Math.abs(s) * 0.8];
+      p.backHand = [-12 - s * 3, -4 + Math.max(0, -s) * 1.5];
+      p.lean = 1.5 + s * s * 0.5;
+      p.bob = s * s * 1.1 - 0.3;
+      p.crouch = 0.5 + s * s * 0.4;
+      p.head = [c * 0.3, s * s * 0.3];
+      p.twist = s * 0.6;
       break;
     case 'run':
-      // a predator's lope: leaning hard in, both claws swept back and low
+      // a predator's lope: leaning hard in, both claws swept back and low, pumping against the stride
       p.lean = 7 + s * 0.6;
-      p.frontHand = [-8 + s * 3, 2];
-      p.backHand = [-20 - s * 3, -4];
+      p.frontHand = [-8 + s * 5, 2 - Math.max(0, s) * 2];
+      p.backHand = [-20 - s * 5, -4 - Math.max(0, -s) * 2];
       p.crouch = (p.crouch ?? 0) + 2;
+      p.twist = s * 0.8;
       break;
-    case 'dash':
-      p.lean = 10;
-      p.crouch += 3;
-      p.frontHand = [-14, -2];
-      p.backHand = [-24, -10];
+    case 'dash': {
+      // the burst: two beats of the claws thrown back in turn
+      const k = f % 2 ? 1 : -1;
+      p.lean = 10 + k * 0.5;
+      p.crouch += 3 + k * 0.3;
+      p.frontHand = [-14 + k * 3, -2 + k];
+      p.backHand = [-24 - k * 3, -10 - k];
       break;
+    }
     case 'crouch':
       key(p, [5, 11, [20, 12], [-6, 6], [10, 0], [-10, 0]]);
       break;

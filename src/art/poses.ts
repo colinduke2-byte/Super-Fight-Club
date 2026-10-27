@@ -278,18 +278,26 @@ const STYLES: Record<string, MotionStyle> = {
   kasa: {
     amp: 1,
     idle: (p, ph, b) => {
-      p.bob = b * 0.4 - 0.1;
-      p.crouch = 0.4 + b * 0.2;
-      p.frontHand = [2 + sin(ph) * 0.2, b * 0.3];
-      p.backHand = [-2 - sin(ph) * 0.2, b * 0.3];
+      // still, but alive: knees soft, a slow breath that dips the kasa, the kunai hand turning a little as the weight drifts
+      p.bob = b * 0.6 - 0.15;
+      p.crouch = 0.9 + b * 0.35;
+      p.lean = 0.6 + sin(ph) * 0.35;
+      p.frontFoot = [5, 0];
+      p.backFoot = [-5, 0];
+      p.frontHand = [3 + sin(ph) * 0.6, -1 + b * 0.5 + cos(ph) * 0.3];
+      p.backHand = [-2.5 - sin(ph + 0.9) * 0.5, b * 0.4];
+      p.head = [sin(ph) * 0.3, b * 0.35];
+      p.twist = sin(ph + 0.6) * 0.35;
     },
     gait: { stride: 13, lift: 8, arms: 0.6, lean: 7, bounce: 0.8 },
     jump2: 'flip',
     victory: [
-      [2, 2, [12, -6], [-10, -4], [8, 0], [-8, 0]],
-      [-1, 4, [-2, -2], [-4, -2], [7, 0], [-7, 0]],
-      [3, 5, [2, -2], [-2, -2], [5, 0], [-5, 0]],
-      [3, 4, [2, -1], [-2, -1], [5, 0], [-5, 0]],
+      // drawn high behind the shoulder, a full slash out low, held, the blade put away at the hip, a deep bow
+      [-4, 3, [-8, -24], [-6, -8], [8, 0], [-8, 0], undefined, undefined, 2],
+      [10, 6, [24, 2], [-12, -6], [14, 0], [-12, 0], undefined, undefined, -2, undefined, 1, 0],
+      [5, 5, [15, 0], [-9, -4], [11, 0], [-10, 0], undefined, undefined, -1],
+      [0, 2, [-1, -3], [-3, -3], [6, 0], [-6, 0]],
+      [8, 6, [3, 3], [-1, 3], [4, 0], [-4, 0], undefined, undefined, 0, undefined, 0.5, 2],
     ],
     lose: 'turned',
   },
@@ -307,10 +315,12 @@ const STYLES: Record<string, MotionStyle> = {
     gait: { stride: 12, lift: 8, arms: 1.2, lean: 6, bounce: 1.3 },
     jump2: 'kick',
     victory: [
-      [-1, 3, [4, -2], [-2, 0], [6, 0], [-6, 0]],
-      [-2, 0, [6, -32], [-2, 0], [5, 0], [-5, 0]],
-      [-2, 0, [8, -28], [-2, 0], [5, 0], [-5, 0]],
-      [0, 0, [2, -20], [-2, 0], [4, 0], [-4, 0]],
+      // a fist pump (down, up, down, up) and then a parade-ground salute: heels together, chest out, hand at the brow
+      [-1, 4, [6, 2], [-4, 0], [6, 0], [-6, 0]],
+      [-3, 0, [7, -34], [-3, -2], [5, 0], [-5, 0], undefined, undefined, -1, undefined, 0, -1],
+      [0, 3, [8, -15], [-3, 0], [5, 0], [-5, 0]],
+      [-3, 0, [7, -34], [-3, -2], [5, 0], [-5, 0], undefined, undefined, -1, undefined, 0, -1],
+      [-1.5, 0, [5, -27], [-1, 1], [3, 0], [-3, 0], undefined, undefined, 0, undefined, 0, -0.5],
     ],
     lose: 'kneel',
   },
@@ -370,9 +380,13 @@ function applyExtras(p: Pose, e: Key): void {
 /** Position (0..1) of frame f in a one-shot row of n frames. */
 const at = (f: number, n: number): number => (n <= 1 ? 1 : f / (n - 1));
 
-/** A stride: feet on a sin/cos cycle, the body lowest just after each contact and highest after the passing position. */
+/**
+ * A stride: feet on a sin/cos cycle, the body lowest just after each contact and highest after the passing position.
+ * A planted foot travels backward under the body (it is still on the ground while the body moves on) and the lifted foot
+ * swings forward to its next contact, so the feet grip the floor instead of sliding.
+ */
 function stride(p: Pose, ph: number, g: Gait, scale = 1): void {
-  const s = sin(ph);
+  const s = -sin(ph);
   const c = cos(ph);
   const st = g.stride * scale;
   p.frontFoot = [s * st, Math.max(0, -c) * g.lift];
@@ -453,8 +467,9 @@ export function poseFor(anim: string, f: number, frames: number, style?: string)
       stride(p, ph, S.gait);
       break;
     case 'walk': {
-      // gentle stride: shorter steps, upright, lowest on each contact, arms swinging lightly
-      const s = sin(ph);
+      // gentle stride: shorter steps, upright, lowest on each contact, arms swinging lightly (the planted foot pushes back,
+      // the lifted one swings through: see stride)
+      const s = -sin(ph);
       const c = cos(ph);
       const g = S.gait;
       p.frontFoot = [s * g.stride * 0.55, Math.max(0, -c) * 3.2];
