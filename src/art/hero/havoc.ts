@@ -70,9 +70,12 @@ export function drawHavoc(r: Raster, k: Skel, look: PlaceholderLook): void {
   const o = look.outfit ?? 0;
   const ghillie = [r.part(mix(armor, [70, 90, 40], 0.4), { soft: true }), r.part(mul(mix(armor, [70, 90, 40], 0.4), 0.7), { soft: true }), r.part(mix(shirt, [150, 140, 90], 0.3), { soft: true })];
   const brass = r.part([214, 170, 70]);
+  // the launcher moves (the rocket, the remote missile, the mortar) bring the long gun off the back onto the front
+  // shoulder, both fists closing on it
+  const tube = shoulderedGun(k);
   // keep the hands and feet inside the frame on the widest reaches
-  const handF = clampV(k.handF, 12, r.w - 22, 10, r.h - 10);
-  const handB = clampV(k.handB, 9, r.w - 10, 9, r.h - 10);
+  const handF = clampV(tube ? tube.gripF : k.handF, 12, r.w - 22, 10, r.h - 10);
+  const handB = clampV(tube ? tube.gripB : k.handB, 9, r.w - 10, 9, r.h - 10);
   // a hand pulled in re-solves its elbow, so the arm folds to the new grip instead of stretching to the old joint
   const elbowF = handF === k.handF ? k.elbowF : solveLimb(k.shF, handF, k.armBone, 1).mid;
   const elbowB = handB === k.handB ? k.elbowB : solveLimb(k.shB, handB, k.armBone, 1).mid;
@@ -93,7 +96,7 @@ export function drawHavoc(r: Raster, k: Skel, look: PlaceholderLook): void {
   }
 
   // ---- the long gun slung across the back, over the radio pack: a rocket launcher, or the sniper's scoped rifle ----
-  {
+  if (!tube) {
     if (o === 1) {
       // the long rifle slung muzzle-up behind the back shoulder: stock low at the hip, a big scope, a long barrel
       const rx0 = T.x + T.w - 4;
@@ -268,8 +271,88 @@ export function drawHavoc(r: Raster, k: Skel, look: PlaceholderLook): void {
     }
   }
 
-  // ---- front arm with a combat knife ----
-  arm(r, P, k.shF, elbowF, handF, false, o, armUnder ? 'lower' : 'all');
+  // ---- a shouldered launcher crosses in front of the cheek, under the gripping front arm ----
+  if (tube) shoulderGun(r, P, tube, o, k.pose.hit ?? 0);
+
+  // ---- front arm with a combat knife (sheathed while both fists hold the launcher) ----
+  arm(r, P, k.shF, elbowF, handF, false, o, armUnder ? 'lower' : 'all', !tube);
+}
+
+/** Launcher moves: the tube's aim (radians, 0 level ahead, negative up) per move row. */
+const TUBE_AIM: Record<string, number> = { mv_fsmash: -0.05, mv_sideB: 0, mv_usmash: -1.0 };
+/** Where the tube rests, from the front shoulder (the mortar is braced low and out in front, clear of the face). */
+const TUBE_AT: Record<string, V2> = { mv_usmash: [7, 7] };
+interface Tube {
+  x0: number;
+  y0: number;
+  x1: number;
+  y1: number;
+  dx: number;
+  dy: number;
+  gripF: V2;
+  gripB: V2;
+}
+/** The long gun shouldered for a launcher move (rear end behind the shoulder, muzzle out ahead), or undefined. */
+function shoulderedGun(k: Skel): Tube | undefined {
+  const a = TUBE_AIM[k.pose.anim ?? ''];
+  if (a === undefined) return undefined;
+  const dx = Math.cos(a);
+  const dy = Math.sin(a);
+  // it kicks back along its axis as it fires
+  const kick = (k.pose.hit ?? 0) >= 0.95 ? 2 : (k.pose.hit ?? 0) >= 0.7 ? 1 : 0;
+  const at = TUBE_AT[k.pose.anim ?? ''] ?? [-2, -5];
+  const sx = k.shF[0] + at[0] - dx * kick;
+  const sy = k.shF[1] + at[1] - dy * kick;
+  const nx = -dy; // the underside of the tube
+  const ny = dx;
+  return {
+    x0: sx - dx * 18,
+    y0: sy - dy * 18,
+    x1: sx + dx * 23,
+    y1: sy + dy * 23,
+    dx,
+    dy,
+    gripF: [Math.round(sx + dx * 11 + nx * 5), Math.round(sy + dy * 11 + ny * 5)],
+    gripB: [Math.round(sx - dx * 3 + nx * 6), Math.round(sy - dy * 3 + ny * 6)],
+  };
+}
+/** The launcher (or the Sniper's scoped rifle) shouldered along the tube axis. */
+function shoulderGun(r: Raster, P: Parts, t: Tube, o: number, hit: number): void {
+  const { x0, y0, x1, y1, dx, dy } = t;
+  const ux = dy; // the top side of the tube
+  const uy = -dx;
+  if (o === 1) {
+    // the scoped rifle: a stock in the shoulder, the receiver, a long barrel with a brake, the big scope on top
+    r.seg(P.dark, x0 + dx * 4, y0 + dy * 4, x0 + dx * 13, y0 + dy * 13, 7, 6);
+    r.seg(P.gun, x0 + dx * 11, y0 + dy * 11, x1 - dx * 8, y1 - dy * 8, 5, 4);
+    r.seg(P.gun, x1 - dx * 9, y1 - dy * 9, x1 + dx * 5, y1 + dy * 5, 2.6, 2.2);
+    r.seg(P.gun, x1 + dx * 4, y1 + dy * 4, x1 + dx * 7, y1 + dy * 7, 3.5, 3.5);
+    const sx = x0 + dx * 17 + ux * 4;
+    const sy = y0 + dy * 17 + uy * 4;
+    r.seg(P.web, sx, sy, sx + dx * 10, sy + dy * 10, 5, 5);
+    r.ellipse(P.lens, sx + dx * 10, sy + dy * 10, 1.6, 1.6);
+    if (hit >= 0.95) r.ellipse(P.glow, x1 + dx * 9, y1 + dy * 9, 2.5, 2.5);
+    return;
+  }
+  // the tube: the kit colour over a dark rim, lit along the top, shadowed underneath
+  r.seg(P.web, x0, y0, x1, y1, 11, 11);
+  r.seg(P.armor, x0, y0, x1, y1, 9, 9);
+  r.seg(P.light, x0 + ux * 2.5, y0 + uy * 2.5, x1 + ux * 2.5, y1 + uy * 2.5, 2.4, 2.4);
+  r.seg(P.dark, x0 - ux * 2.5, y0 - uy * 2.5, x1 - ux * 2.5, y1 - uy * 2.5, 2, 2);
+  // the rear venturi, glowing with the backblast as the round leaves
+  r.seg(P.web, x0 - dx * 3, y0 - dy * 3, x0 + dx, y0 + dy, 12.5, 12.5);
+  r.seg(P.gun, x0 - dx * 2.5, y0 - dy * 2.5, x0 - dx * 0.5, y0 - dy * 0.5, 10.5, 10.5);
+  if (hit >= 0.6) r.ellipse(P.glow, x0 - dx * 4, y0 - dy * 4, 2.5 + hit, 2.5 + hit);
+  // the flared muzzle bell with a dark lip, the warning band behind it, the sight block on top
+  r.seg(P.web, x1 - dx * 2, y1 - dy * 2, x1 + dx * 2, y1 + dy * 2, 13.5, 13.5);
+  r.seg(P.gunL, x1 - dx * 1.5, y1 - dy * 1.5, x1 + dx * 1.5, y1 + dy * 1.5, 12, 12);
+  r.seg(P.web, x1 + dx * 2 + ux * 5, y1 + dy * 2 + uy * 5, x1 + dx * 2 - ux * 5, y1 + dy * 2 - uy * 5, 1.5, 1.5);
+  const bx = x1 - dx * 8;
+  const by = y1 - dy * 8;
+  r.seg(P.mark, bx + ux * 4, by + uy * 4, bx - ux * 4, by - uy * 4, 3, 3);
+  const gx = x0 + dx * 21 + ux * 6;
+  const gy = y0 + dy * 21 + uy * 6;
+  r.seg(P.gun, gx - dx * 2, gy - dy * 2, gx + dx * 2, gy + dy * 2, 3, 3);
 }
 
 interface Parts {
@@ -413,7 +496,7 @@ function grenade(r: Raster, P: Parts, x: number, y: number): void {
  * underside and a buttoned cuff; the commando rolls it up to the bare forearm), and a gloved fist with knuckle rolls and
  * a thumb. The front fist holds the knife.
  */
-function arm(r: Raster, P: Parts, sh: V2, el: V2, hand: V2, back: boolean, o: number, stage: 'upper' | 'lower' | 'all' = 'all'): void {
+function arm(r: Raster, P: Parts, sh: V2, el: V2, hand: V2, back: boolean, o: number, stage: 'upper' | 'lower' | 'all' = 'all', blade = true): void {
   const sleeve = back ? P.shirtD : P.shirt;
   const under = back ? P.web : P.shirtD;
   // the side of a bone that faces down the screen gets the shadow
@@ -467,7 +550,7 @@ function arm(r: Raster, P: Parts, sh: V2, el: V2, hand: V2, back: boolean, o: nu
     }
     r.seg(under, wx - fx * 4.5, wy - fy * 4.5, wx + fx * 4.5, wy + fy * 4.5, 3, 3); // cuff
   }
-  if (!back) {
+  if (!back && blade) {
     knife(r, P, dx, dy, hand);
   }
   gloveFist(r, P, hand, dx, dy, back);

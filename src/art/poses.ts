@@ -523,11 +523,12 @@ export function poseFor(anim: string, f: number, frames: number, style?: string)
       p.bob = (1 - at(f, n)) * 1.2;
       break;
     case 'jump': {
-      // take-off stretch -> rising -> knees tucked at the top
+      // take-off stretch -> rising -> knees tucked, already opening toward the fall pose (arms lifting, the front leg
+      // starting to reach), so the turn into the fall at the top of the arc is a step on, not a jump cut
       const J: Key[] = [
         [1, 0, [5, -14], [-6, -12], [4, 3], [-5, 1]],
         [0, 0, [6, -10], [-5, -8], [6, 7], [-3, 9]],
-        [2, 3, [7, -6], [-3, -5], [7, 10], [-1, 11]],
+        [1.5, 2, [7.5, -9], [-5, -8.5], [8, 8], [-3, 8]],
       ];
       applyKey(p, J[Math.min(f, J.length - 1)]);
       p.grav = [-0.25, 1];

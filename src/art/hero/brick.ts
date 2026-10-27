@@ -52,8 +52,10 @@ export function drawBrick(r: Raster, k: Skel, look: PlaceholderLook): void {
   const elbowF = clampV(handF === k.handF ? k.elbowF : solveLimb(k.shF, handF, k.armBone, 1).mid, 14, r.w - 13, 12, r.h - 12);
   const elbowB = clampV(handB === k.handB ? k.elbowB : solveLimb(k.shB, handB, k.armBone, 1).mid, 14, r.w - 13, 12, r.h - 12);
   // attack rows: an arm asked to reach past its bones telescopes, the forearm piston driving the fist out the rest of the way
-  const atk = k.pose.hit !== undefined;
-  const hit = k.pose.hit ?? 0;
+  // (six-pose special and throw rows count too, so the pistons fire and the visor flares on their strike frames)
+  const six = sixPoseHit(k.pose);
+  const atk = k.pose.hit !== undefined || six !== undefined;
+  const hit = k.pose.hit ?? six ?? 0;
   const tw = k.pose.twist ?? 0;
   const wantF: V2 = [k.shF[0] + 14 + k.pose.frontHand[0] * 2, k.shF[1] + k.armLen + k.pose.frontHand[1] * 2 + 4];
   const wantB: V2 = [k.shB[0] - 8 + k.pose.backHand[0] * 2, k.shB[1] + k.armLen - 4 + k.pose.backHand[1] * 2];
@@ -358,6 +360,15 @@ function arm(r: Raster, M: Mats, sh: V2, el: V2, hand: V2, back: boolean, ext = 
     r.ellipse(M.accent, wr[0] - dx * 9, wr[1] - dy * 9 - 3, 2.2, 1.6);
   }
   fist(r, M, e > 3 ? out : hand, [dx, dy], back);
+}
+
+/** How hard each frame of a six-pose move row strikes (0 wind-up .. 3 the strike .. 5 recovery), like a flowing row's `hit`. */
+const SIX_HIT = [0, 0.1, 0.6, 1, 0.45, 0.1];
+/** The strike strength of a six-pose special / throw row's frame (undefined for anything else: taunts, ultimates, states). */
+function sixPoseHit(p: { anim?: string; f?: number; n?: number }): number | undefined {
+  const a = p.anim;
+  if (!a || p.n !== 6 || p.f === undefined || !a.startsWith('mv_') || a === 'mv_taunt' || a.startsWith('mv_ultimate')) return undefined;
+  return SIX_HIT[Math.min(5, p.f)];
 }
 
 /** How far (px) a fist has to ride out on its piston to reach `want` from the shoulder (0 when the bones reach). */
