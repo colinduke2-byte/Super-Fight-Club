@@ -68,7 +68,7 @@ export const obelisk: CharacterData = {
     rival: { taunt: 'Little builder. You put a pit on my roof. Now we talk about the noise.', victory: 'Take your arena down, little builder. Gently.' },
   },
   stats: {
-    weight: 100,
+    weight: 96,
     runSpeed: 2.02,
     airSpeed: 2.0,
     groundAccel: 0.24,

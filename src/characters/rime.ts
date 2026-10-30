@@ -80,7 +80,7 @@ export const rime: CharacterData = {
     rival: { taunt: 'Halcyon. The bell rang from your gate last. Ring it again, or answer to winter.', victory: 'The bell comes home, Halcyon. The storm can ask me for it.' },
   },
   stats: {
-    weight: 89,
+    weight: 90,
     runSpeed: 3.2,
     sprintMul: 1.12, // already the fastest runner: the sprint is a smaller step up
     airSpeed: 2.3,

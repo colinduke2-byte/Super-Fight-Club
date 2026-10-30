@@ -20,12 +20,12 @@ Lowest damage percent (steps of 5) at which the move KOs the victim on Skyline C
 | vex | f-smash 120T | 140 | 120T | 130T | 60T |
 | nova | u-smash 130T | 135 | 135B / 135S (145) | 130T | 95B / 120B (145) |
 | gizmo | f-smash 130B / 130S (140) | 145 | 130B / 130S (140) | 135T | 110B / 110S (115) |
-| agni | u-smash 125T | 145 | 135B / 135S (140) | 125T | 185B / 185S (195) |
+| agni | u-smash 125T | 145 | 135B / 135S (140) | 125T | 145B / 145S (150) |
 | halcyon | u-smash 130T | 142.5 | 135B / 135S (140) | 130T | 60T |
 | riptide | f-smash 130B / 130S (135) | 140 | 130B / 130S (135) | 130T | 60T |
 | obelisk | u-smash 115T | 137.5 | 125B / 125S (130) | 115T | 70T |
 | rime | f-smash 125B / 125S (135) | 137.5 | 125B / 125S (135) | 125T | 55T |
-| havoc | u-smash 120T | 150 | 135B / 135S (140) | 120T | 225T |
+| havoc | u-smash 130T | 150 | 135B / 135S (140) | 130T | 135T |
 | overseer-versus | u-smash 125T | 137.5 | 135B / 135S (140) | 125T | 65T |
 
 Median over all fighters vs nova at centre (best rule): smashes 135%, f-smash 130%, u-smash 130%, d-smash 155%; all non-ultimate moves 150% (CPU-recovery rule: 150%).
@@ -69,7 +69,7 @@ Blast zone of the strict (pure launch) kills over every non-ultimate cell: top 2
 | agni | bair | 135S | 110S | 155B / 155S (165) | 115B / 115B (130) | 180B / 180B (205) | 135B / 135B (165) | hitbox 9.76d 140deg b38 s0.85 |
 | agni | fair | 185S | 150S | 215S | 160B / 160B (175) | 245B / 245B (275) | 185B / 185B (225) | hitbox 8.78d 45deg b34 s0.7 |
 | agni | fthrow | 170S | 130S | 195B / 195S (200) | 140B / 140B (160) | 225B / 225B (260) | 165B / 165B (205) | hitbox 6.83d 42deg b49.2 s0.662 |
-| agni | ultimate | 160S | 125S | 185B / 185S (195) | 130B / 130B (155) | 220B / 220B (250) | 160B / 160B (200) | performed at 40px |
+| agni | ultimate | 120S | 90S | 145B / 145S (150) | 95B / 95B (115) | 170B / 170B (195) | 120B / 120B (155) | performed at 40px |
 | halcyon | f-smash | 115S | 90S | 135B / 135S (140) | 95B / 95B (110) | 155B / 155B (180) | 115B / 115B (145) | hitbox 16.08d 40deg b37 s0.95 |
 | halcyon | u-smash | 120T | 120T | 130T | 130T | 200T | 200T | hitbox 12.96d 88deg b37 s0.85 |
 | halcyon | d-smash | 150S | 115S | 170B / 170S (175) | 125B / 125B (140) | 200B / 200B (225) | 150B / 150B (180) | hitbox 10.89d 361deg b38 s0.82 |
@@ -91,20 +91,20 @@ Blast zone of the strict (pure launch) kills over every non-ultimate cell: top 2
 | obelisk | fair | 160S | 130S | 190S | 140B / 140S (150) | 215B / 215B (240) | 160B / 160B (195) | hitbox 10.8d 45deg b36 s0.783 |
 | obelisk | uthrow | 135T | 135T | 150T | 150T | 240T | 240T | hitbox 6.57d 90deg b52 s0.68 |
 | obelisk | ultimate | 50S | 20S | 70T | 30B / 30B (40) | 105B / 110S (130) | 55B / 55B (85) | cinematic, 33d total |
-| rime | f-smash | 115S | 90S | 125B / 125S (135) | 90B / 90B (105) | 145B / 145B (170) | 105B / 105B (140) | hitbox 14.83d 38deg b32 s0.98 (+3.8% earlier hits) |
-| rime | u-smash | 115T | 115T | 125T | 125T | 195T | 195T | hitbox 16.93d 88deg b34 s0.873 |
-| rime | d-smash | 145S | 115S | 165B / 165S (170) | 125B / 125B (135) | 190B / 190B (215) | 145B / 145B (175) | hitbox 12d 361deg b34 s0.86 |
-| rime | bair | 135S | 105S | 150B / 150S (160) | 110B / 110B (125) | 175B / 175B (200) | 130B / 130B (160) | hitbox 11.2d 140deg b34 s0.89 |
-| rime | uair | 190T | 190T | 210T | 210T | - | - | hitbox 4.5d 85deg b34 s0.582 (+1.7% earlier hits) |
-| rime | bthrow | 175S | 135S | 205B / 205S (210) | 150B / 150B (165) | 240B / 240B (270) | 175B / 175B (215) | hitbox 9.88d 135deg b48 s0.66 |
+| rime | f-smash | 110S | 85S | 125B / 125S (135) | 90B / 90B (105) | 145B / 145B (170) | 105B / 105B (135) | hitbox 15.57d 38deg b32 s0.98 (+4% earlier hits) |
+| rime | u-smash | 115T | 115T | 125T | 125T | 195T | 195T | hitbox 17.79d 88deg b34 s0.873 |
+| rime | d-smash | 145S | 115S | 165B / 165S (170) | 125B / 125S (135) | 190B / 190B (215) | 145B / 145B (175) | hitbox 12.6d 361deg b34 s0.86 |
+| rime | bair | 135S | 105S | 150B / 150S (160) | 110B / 110B (125) | 175B / 175B (200) | 130B / 130B (160) | hitbox 11.77d 140deg b34 s0.89 |
+| rime | uair | 190T | 190T | 210T | 210T | - | - | hitbox 4.73d 85deg b34 s0.582 (+1.8% earlier hits) |
+| rime | bthrow | 175S | 135S | 205S | 145B / 145B (160) | 240B / 240B (270) | 175B / 175B (215) | hitbox 10.38d 135deg b48 s0.66 |
 | rime | ultimate | 40T | 40T | 55T | 55T | 150T | 140B / 150T | cinematic, 36d total |
 | havoc | f-smash | 120S | 90S | 135B / 135S (140) | 95B / 95B (110) | 155B / 155B (180) | 115B / 115B (145) | projectile rocket 14d 40deg b38 s0.95 |
-| havoc | u-smash | 105T | 105T | 120T | 120T | 185T | 185T | projectile mortar 13d 88deg b40 s0.9 |
+| havoc | u-smash | 115T | 115T | 130T | 130T | 200T | 200T | projectile mortar 13d 88deg b40 s0.837 |
 | havoc | d-smash | 145S | 110S | 165S | 120B / 120B (135) | 190B / 190B (215) | 140B / 140B (170) | hitbox 10d 361deg b38 s0.86 |
 | havoc | bair | 145S | 115S | 165B / 165S (175) | 120B / 120B (140) | 190B / 190B (220) | 145B / 145B (180) | hitbox 10d 140deg b34 s0.82 |
 | havoc | uair | 140T | 140T | 160T | 160T | 240T | 240T | hitbox 9.5d 88deg b34 s0.75 |
 | havoc | fthrow | 175S | 135S | 200B / 200S (210) | 140B / 140B (165) | 230B / 230B (265) | 170B / 170B (215) | hitbox 8d 40deg b50 s0.62 |
-| havoc | ultimate | 200T | 190T | 225T | 210T / 215T | - | - | performed at 40px |
+| havoc | ultimate | 110T | 110T | 135T | 125T / 130T | 195T | 200T | performed at 40px |
 | overseer-versus | f-smash | 115S | 90S | 135B / 135S (140) | 95B / 95S (110) | 155B / 155B (180) | 110B / 110B (145) | hitbox 15d 40deg b46 s0.9 |
 | overseer-versus | u-smash | 115T | 115T | 125T | 125T | 200T | 200T | hitbox 13d 88deg b42 s0.84 |
 | overseer-versus | d-smash | 125S | 100S | 140B / 140S (150) | 100B / 100B (120) | 165B / 165B (195) | 120B / 120B (155) | hitbox 11d 35deg b40 s0.84 |

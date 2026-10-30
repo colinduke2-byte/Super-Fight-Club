@@ -41,8 +41,8 @@ export const overseerVersus: CharacterData = {
   },
   stats: {
     weight: 115,
-    runSpeed: 1.9,
-    airSpeed: 1.55,
+    runSpeed: 2.1,
+    airSpeed: 1.7,
     groundAccel: 0.2,
     groundFriction: 0.28,
     airAccel: 0.12,
