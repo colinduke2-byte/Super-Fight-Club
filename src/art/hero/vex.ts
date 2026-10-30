@@ -57,6 +57,11 @@ export function drawVex(r: Raster, k0: Skel, look: PlaceholderLook): void {
     pantB: part(mix(mul(dark, 0.55), [26, 24, 34], 0.6), { soft: true }),
     wrap: part(mix([214, 206, 192], armor, 0.1), { soft: true }),
     wrapD: part(mix(mul(mix([214, 206, 192], armor, 0.1), 0.62), [40, 30, 60], 0.2), { soft: true }),
+    // the far leg and the tabi boots a step above the outline's darkness: drawn in the deepest tone they melted into the
+    // outline and the dark arena, and the legs lost their shape
+    legB: part(mul(mix(dark, [30, 32, 44], 0.35), 0.85), { soft: true }),
+    boot: part(mix(mul(dark, 0.6), [44, 42, 56], 0.45), { soft: true }),
+    bootB: part(mul(mix(mul(dark, 0.6), [44, 42, 56], 0.45), 0.78), { soft: true }),
   };
   const T = k.torso;
   const run = k.pose.lean > 2;
@@ -363,7 +368,7 @@ function fist(r: Raster, P: Parts, el: V2, h: V2, back: boolean): void {
   }
 }
 
-type Parts = Record<'armor' | 'light' | 'dark' | 'deep' | 'skin' | 'cloth' | 'clothL' | 'cape' | 'scarf' | 'scarfD' | 'accent' | 'glow' | 'steel' | 'steelD' | 'edge' | 'strap' | 'mark' | 'rivet' | 'seam' | 'glove' | 'gloveL' | 'pant' | 'pantB' | 'wrap' | 'wrapD', number>;
+type Parts = Record<'armor' | 'light' | 'dark' | 'deep' | 'skin' | 'cloth' | 'clothL' | 'cape' | 'scarf' | 'scarfD' | 'accent' | 'glow' | 'steel' | 'steelD' | 'edge' | 'strap' | 'mark' | 'rivet' | 'seam' | 'glove' | 'gloveL' | 'pant' | 'pantB' | 'wrap' | 'wrapD' | 'legB' | 'boot' | 'bootB', number>;
 
 function bracer(r: Raster, P: Parts, el: V2, hand: V2, back: boolean): void {
   const mx = el[0] + (hand[0] - el[0]) * 0.62;
@@ -435,9 +440,9 @@ function leg(r: Raster, P: Parts, hip: V2, kn: V2, ankle: V2, back: boolean, wra
     }
   } else {
     // trousers a step darker than the jacket (so the hips read apart from the torso), lighter wrapped shins
-    const pant = back ? P.deep : P.dark;
+    const pant = back ? P.legB : P.dark;
     r.seg(pant, hip[0], hip[1], kn[0], kn[1], 14, 11);
-    r.seg(back ? P.deep : P.cloth, kn[0], kn[1], ankle[0], ankle[1], 11, 8);
+    r.seg(back ? P.legB : P.cloth, kn[0], kn[1], ankle[0], ankle[1], 11, 8);
     if (!back) {
       r.ellipse(P.armor, kn[0] + 3, kn[1], 5, 5); // knee guard
       r.rect(P.mark, kn[0] + 1, kn[1] - 1, 6, 1);
@@ -451,7 +456,7 @@ function leg(r: Raster, P: Parts, hip: V2, kn: V2, ankle: V2, back: boolean, wra
   const by = ankle[1];
   // a lean split-toe tabi boot: wrapped ankle, a low soft foot tapering to the toe, a pale wrap band (it used to be a
   // tall square boot, the heaviest dark mass on a fighter who should read light on his feet)
-  r.poly(back ? P.deep : P.strap, [[bx - 6, by - 5], [bx + 5, by - 5], [bx + 8, by + 1], [bx + 14, by + 2.5], [bx + 17, by + 5], [bx + 16, by + 8], [bx - 7, by + 8], [bx - 8, by + 2]]);
+  r.poly(back ? P.bootB : P.boot, [[bx - 6, by - 5], [bx + 5, by - 5], [bx + 8, by + 1], [bx + 14, by + 2.5], [bx + 17, by + 5], [bx + 16, by + 8], [bx - 7, by + 8], [bx - 8, by + 2]]);
   r.rect(wraps ? (back ? P.wrapD : P.wrap) : back ? P.strap : P.clothL, bx - 7, by - 9, 13, 5); // ankle wrap (the linen binding runs down into it)
   r.rect(P.seam, bx - 7, by - 5, 13, 1);
   r.rect(back || wraps ? P.seam : P.mark, bx - 6, by - 8, 11, 1);

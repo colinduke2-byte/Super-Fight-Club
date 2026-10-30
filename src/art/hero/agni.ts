@@ -17,10 +17,13 @@ export function drawAgni(r: Raster, k0: Skel, look: PlaceholderLook): void {
   guardGlow(r, accent); // no part blooms unless it is emissive on purpose (see guardGlow)
   const glow = mix(accent, [255, 245, 190], 0.65);
   const skin = col(look.skin);
-  const gold: RGB = [240, 200, 110];
+  const gold: RGB = [246, 192, 84];
   const P = {
     skin: r.part(skin, { soft: true }),
     skinL: r.part(mix(skin, [255, 226, 190], 0.3), { soft: true }),
+    // the muscle highlights painted onto the torso: flat, so each one reads as light on the same skin instead of a
+    // separate plate with its own rim and seam (a grid of small seams turned the chest muddy)
+    skinLf: r.part(mix(skin, [255, 226, 190], 0.26), { flat: true }),
     skinD: r.part(mul(skin, 0.78), { soft: true }),
     skinDD: r.part(mul(skin, 0.6), { flat: true }),
     pants: r.part(armor, { soft: true }),
@@ -118,9 +121,9 @@ export function drawAgni(r: Raster, k0: Skel, look: PlaceholderLook): void {
     r.poly(P.skinD, [[x0 + 4, top + 5], [x0 + 10, top + 6], [x0 + 12, top + 20], [x0 + 10, waist + 2], [x0 + 6, waist + 2], [x0 + 3, top + 28], [x0 - 1, top + 18], [x0 - 2, top + 10]]);
     // pecs: a lit plate with a shadow line under it
     // (rounded: the near pec catches the light along its top, the far one turns away into a narrower, plainer shape)
-    r.ellipse(P.skinL, cx + 6.5, top + 14, 8.5, 5.5);
+    r.ellipse(P.skinLf, cx + 6.5, top + 14, 8.5, 5.5);
     r.ellipse(P.skin, cx + 7, top + 16, 7, 3.6);
-    r.ellipse(P.skinL, cx - 3, top + 14, 3.6, 4.2);
+    r.ellipse(P.skinLf, cx - 3, top + 14, 3.6, 4.2);
     r.seg(P.abs, cx - 5, top + 18.5, cx - 1, top + 20, 1.4, 1.4);
     r.seg(P.abs, cx + 1, top + 20, cx + 9, top + 20.5, 1.6, 1.6);
     r.seg(P.abs, cx + 9, top + 20.5, x0 + w - 2, top + 18, 1.4, 1.4);
@@ -130,8 +133,8 @@ export function drawAgni(r: Raster, k0: Skel, look: PlaceholderLook): void {
     for (let i = 0; i < 3; i++) {
       const ay = top + 23 + i * 5;
       if (ay + 4 > waist) break;
-      r.rect(P.skinL, cx + 4, ay, 5, 2);
-      r.rect(P.skinL, cx - 3, ay, 4, 2);
+      r.rect(P.skinLf, cx + 4, ay, 5, 2);
+      r.rect(P.skinLf, cx - 3, ay, 4, 2);
     }
     // the oblique line and the serratus notches under the near arm
     r.seg(P.absL, x0 + w - 4, top + 24, x0 + w - 8, waist, 1.5, 1.5);

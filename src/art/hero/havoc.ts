@@ -435,13 +435,13 @@ function soldierHead(r: Raster, P: Parts, hx: number, hy: number, hs: number, co
   r.ellipse(P.skinD, X(9.5), Y(17.5), 2.3 * zx, 3.2 * z);
   r.ellipse(P.skin, X(10), Y(17), 1.5 * zx, 2.3 * z);
   r.seg(P.skinDD, X(9.6), Y(16), X(9.4), Y(19), 1, 1);
-  // stubble: a dark shadow over the jaw, the chin and the upper lip
+  // stubble: a dark shadow along the jaw and the chin only (spread over the cheeks too, the dither read as a dirty,
+  // noisy face at game size); the jaw line itself is solid, the band above it thins out
   r.inlay(P.skin, P.stubble, (set) => {
-    for (let y = Math.floor(Y(27.4)); y < Y(31); y++) for (let x = Math.floor(X(12)); x < X(27); x++) if ((x + y) % 2 === 0) set(x, y);
-    for (let y = Math.floor(Y(23)); y < Y(27.4); y++) for (let x = Math.floor(X(10)); x < X(15); x++) if ((x + y) % 2 === 0) set(x, y);
+    for (let y = Math.floor(Y(28.2)); y < Y(31); y++) for (let x = Math.floor(X(12)); x < X(27); x++) if ((x + y) % 2 === 0 || y >= Y(29.6)) set(x, y);
   });
   r.inlay(P.skinD, P.stubble, (set) => {
-    for (let y = Math.floor(Y(22)); y < Y(31); y++) for (let x = Math.floor(X(7)); x < X(27); x++) if ((x + y) % 2 === 0) set(x, y);
+    for (let y = Math.floor(Y(25.5)); y < Y(31); y++) for (let x = Math.floor(X(7)); x < X(27); x++) if ((x + y) % 2 === 0 || y >= Y(28.6)) set(x, y);
   });
   r.seg(P.skinDD, X(11), Y(26.2), X(15), Y(29), 1, 1); // the jaw's edge on the shaded side
   // the nose: a wedge out past the face, a lit bridge, a shaded side plane and a nostril

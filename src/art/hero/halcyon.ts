@@ -31,7 +31,10 @@ export function drawHalcyon(r: Raster, k0: Skel, look: PlaceholderLook): void {
   const skin = col(look.skin);
   // outfits: 1 = Valkyrie (crested helm with a horsehair plume, a cape, braids), 2 = Raven (black wings, hood and beak mask)
   const o = look.outfit ?? 0;
-  const azure: RGB = o === 2 ? mix(dark, [40, 40, 60], 0.4) : [58, 126, 216];
+  // the tabard and leggings: the signature azure on the original colours; an alternate colour carries its own dark tone
+  // into the cloth (a fixed azure under every palette made SKY read as the original and clashed with MEADOW / GOLDEN)
+  const AZURE: RGB = [58, 126, 216];
+  const azure: RGB = o === 2 ? mix(dark, [40, 40, 60], 0.4) : look.armorDark.toLowerCase() === '#6b7fb0' ? AZURE : mix(mul(dark, 1.4), AZURE, 0.15);
   const feather: RGB = o === 2 ? [92, 92, 112] : [246, 249, 255];
   const featherU: RGB = o === 2 ? [52, 52, 68] : [172, 196, 232];
   const P = {
