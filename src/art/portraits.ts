@@ -151,10 +151,14 @@ export function portraitPixels(data: CharacterData, palette: number, ko: boolean
       let r = src[si];
       let gg = src[si + 1];
       let bb = src[si + 2];
+      // the model's own dark outline stays as it is in game (lit or rimmed it washed out and the bust lost its edge):
+      // the key light and the rim fall on the pixels just inside it
+      const solid = A(sx, sy) === 255;
+      const outline = solid && (A(sx - 1, sy) < 255 || A(sx + 1, sy) < 255 || A(sx, sy - 1) < 255 || A(sx, sy + 1) < 255);
       // the edge toward the key light (front, above): within two pixels of open air up and to the front
-      const lit = !A(sx + 2, sy - 2) || !A(sx + 1, sy - 1) || !A(sx, sy - 2);
+      const lit = !outline && (!A(sx + 2, sy - 2) || !A(sx + 1, sy - 1) || !A(sx, sy - 2));
       // the edge away from it (behind): the colour rim
-      const rim = !A(sx - 2, sy) || !A(sx - 1, sy + 1) || !A(sx - 2, sy - 1);
+      const rim = !outline && (!A(sx - 2, sy) || !A(sx - 1, sy + 1) || !A(sx - 2, sy - 1));
       if (lit) {
         r += (keyCol[0] - r) * 0.32;
         gg += (keyCol[1] - gg) * 0.32;

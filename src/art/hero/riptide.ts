@@ -49,6 +49,10 @@ export function drawRiptide(r: Raster, k0: Skel, look: PlaceholderLook): void {
     steel: part(steel),
     steelD: part(mul(steel, 0.66)),
     chain: part(mul(steel, 0.8), { flat: true }),
+    // the anchor is forged iron: darker and more neutral than the brow band, so it reads apart from the pale hide it
+    // crosses (both a pale blue-grey, the fist, shank and flukes ran together into one blob)
+    iron: part([132, 138, 152]),
+    ironD: part([76, 80, 96]),
     rivet: part(mix(accent, [255, 255, 255], 0.3), { flat: true }),
   };
   const T = k.torso;
@@ -269,7 +273,7 @@ export function drawRiptide(r: Raster, k0: Skel, look: PlaceholderLook): void {
 }
 
 type Parts = Record<
-  'hide' | 'hideD' | 'hideDeep' | 'belly' | 'bellyLine' | 'gill' | 'armor' | 'light' | 'dark' | 'deep' | 'leather' | 'leatherD' | 'bronze' | 'accent' | 'eye' | 'tooth' | 'mouth' | 'steel' | 'steelD' | 'chain' | 'rivet',
+  'hide' | 'hideD' | 'hideDeep' | 'belly' | 'bellyLine' | 'gill' | 'armor' | 'light' | 'dark' | 'deep' | 'leather' | 'leatherD' | 'bronze' | 'accent' | 'eye' | 'tooth' | 'mouth' | 'steel' | 'steelD' | 'chain' | 'rivet' | 'iron' | 'ironD',
   number
 >;
 
@@ -382,12 +386,12 @@ function drawAnchor(r: Raster, P: Parts, hand: V2, ux: number, uy: number, L: nu
   };
   const b0 = bar(-1);
   const b1 = bar(1);
-  r.seg(P.steelD, sx - px * b0, sy - py * b0, sx + px * b1, sy + py * b1, 4.5, 4.5);
+  r.seg(P.ironD, sx - px * b0, sy - py * b0, sx + px * b1, sy + py * b1, 4.5, 4.5);
   r.ellipse(P.bronze, sx - px * b0, sy - py * b0, 2.8, 2.8);
   r.ellipse(P.bronze, sx + px * b1, sy + py * b1, 2.8, 2.8);
   // shank with a dark groove
-  r.seg(P.steel, top[0], top[1], bot[0], bot[1], 7, 8);
-  r.seg(P.steelD, top[0] + px * 2, top[1] + py * 2, bot[0] + px * 2, bot[1] + py * 2, 1.4, 1.4);
+  r.seg(P.iron, top[0], top[1], bot[0], bot[1], 7, 8);
+  r.seg(P.ironD, top[0] + px * 2, top[1] + py * 2, bot[0] + px * 2, bot[1] + py * 2, 1.4, 1.4);
   // crown and arms curving back up into flukes
   for (const sgn of [-1, 1]) {
     const Fs = span(sgn);
@@ -398,12 +402,12 @@ function drawAnchor(r: Raster, P: Parts, hand: V2, ux: number, uy: number, L: nu
       const t = i / 4;
       const x = bot[0] + px * sgn * Fs * t - ux * back * t * t;
       const y = bot[1] + py * sgn * Fs * t - uy * back * t * t;
-      r.seg(P.steel, ax, ay, x, y, 7 - i * 0.6, 6.5 - i * 0.6);
+      r.seg(P.iron, ax, ay, x, y, 7 - i * 0.6, 6.5 - i * 0.6);
       ax = x;
       ay = y;
     }
     // barbed fluke: a broad spade at each tip
-    r.poly(P.steelD, [[ax + px * sgn * 1, ay + py * sgn * 1], [ax + px * sgn * 6 + ux * 3, ay + py * sgn * 6 + uy * 3], [ax - ux * 8, ay - uy * 8], [ax - px * sgn * 3 + ux * 2, ay - py * sgn * 3 + uy * 2]]);
+    r.poly(P.ironD, [[ax + px * sgn * 1, ay + py * sgn * 1], [ax + px * sgn * 6 + ux * 3, ay + py * sgn * 6 + uy * 3], [ax - ux * 8, ay - uy * 8], [ax - px * sgn * 3 + ux * 2, ay - py * sgn * 3 + uy * 2]]);
   }
   r.ellipse(P.bronze, bot[0], bot[1], 3.6, 3.6);
   r.ellipse(P.rivet, bot[0], bot[1], 1.4, 1.4);

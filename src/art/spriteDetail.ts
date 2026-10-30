@@ -291,6 +291,9 @@ let scratchA = new Uint8Array(0);
 let scratchE = new Uint8Array(0);
 let scratchBloom = new Float32Array(0);
 
+/** Brightest tint (luma) a fighter's outer outline takes from the colour it borders. */
+const OUTLINE_TINT_MAX = 17;
+
 /** `finishHero` on pixels already in memory (no getImageData / putImageData). */
 export function finishHeroImage(img: ImageData, look: PlaceholderLook): void {
   const w = img.width;
@@ -358,10 +361,22 @@ export function finishHeroImage(img: ImageData, look: PlaceholderLook): void {
       if (y > 0 && A[p - w]) { sr += d[i - w * 4]; sg += d[i - w * 4 + 1]; sb += d[i - w * 4 + 2]; cnt++; }
       if (y < h - 1 && A[p + w]) { sr += d[i + w * 4]; sg += d[i + w * 4 + 1]; sb += d[i + w * 4 + 2]; cnt++; }
       if (cnt > 0) {
-        // outline = the neighbouring colour darkened, mixed with the character's outline colour
-        d[i] = (sr / cnt) * 0.28 * 0.45 + outline[0] * 0.55;
-        d[i + 1] = (sg / cnt) * 0.28 * 0.45 + outline[1] * 0.55;
-        d[i + 2] = (sb / cnt) * 0.28 * 0.45 + outline[2] * 0.55;
+        // outline = the neighbouring colour darkened, mixed with the character's outline colour; the neighbour's tint is
+        // capped so the line keeps one weight across the roster (next to white feathers, chrome or snow it would turn a
+        // light grey and the silhouette would dissolve into a bright background)
+        let tr = (sr / cnt) * 0.126;
+        let tg = (sg / cnt) * 0.126;
+        let tb = (sb / cnt) * 0.126;
+        const tl = tr * 0.3 + tg * 0.59 + tb * 0.11;
+        if (tl > OUTLINE_TINT_MAX) {
+          const k = OUTLINE_TINT_MAX / tl;
+          tr *= k;
+          tg *= k;
+          tb *= k;
+        }
+        d[i] = tr + outline[0] * 0.55;
+        d[i + 1] = tg + outline[1] * 0.55;
+        d[i + 2] = tb + outline[2] * 0.55;
         d[i + 3] = 255;
       } else if (bloom[p] > 0.05) {
         d[i] = accent[0];

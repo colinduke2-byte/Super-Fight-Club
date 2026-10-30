@@ -278,7 +278,8 @@ export class Raster {
             r += (warm[0] - r) * 0.1;
             g += (warm[1] - g) * 0.1;
             b += (warm[2] - b) * 0.1;
-          } else if (ul <= 1 && ((x + y) & 1) === 0) {
+          } else if (ul <= 1 && !part.soft && ((x + y) & 1) === 0) {
+            // (hard materials only: on skin / cloth / fur the checker reads as grain, so soft parts stay smooth)
             r = Math.min(255, r * 1.1);
             g = Math.min(255, g * 1.1);
             b = Math.min(255, b * 1.1);
@@ -298,7 +299,7 @@ export class Raster {
             r += (cool[0] - r) * 0.08;
             g += (cool[1] - g) * 0.08;
             b += (cool[2] - b) * 0.08;
-          } else if (dr <= 2 && ((x + y) & 1) === 0) {
+          } else if (dr <= 2 && !part.soft && ((x + y) & 1) === 0) {
             r = Math.min(255, r * 0.92);
             g = Math.min(255, g * 0.92);
             b = Math.min(255, b * 0.92);
